@@ -5,7 +5,13 @@ WORKDIR /workspace
 COPY settings.xml /usr/share/maven/conf/settings.xml
 COPY pom.xml ./
 COPY libs ./libs
-RUN mvn -B -q -DskipTests dependency:go-offline
+RUN mvn -B -q install:install-file \
+    -Dfile=libs/agw-springai-sdk-0.0.1-SNAPSHOT.jar \
+    -DgroupId=com.aiagent \
+    -DartifactId=agw-springai-sdk \
+    -Dversion=0.0.1-SNAPSHOT \
+    -Dpackaging=jar \
+ && mvn -B -q -DskipTests dependency:go-offline
 
 COPY src ./src
 RUN mvn -B -DskipTests clean package

@@ -14,12 +14,16 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @Component
 public class AgentDefinitionLoader {
 
     private static final Logger log = LoggerFactory.getLogger(AgentDefinitionLoader.class);
+    private static final Pattern SYSTEM_PROMPT_MULTILINE_PATTERN =
+            Pattern.compile("(\"systemPrompt\"\\s*:\\s*)\"\"\"([\\s\\S]*?)\"\"\"");
 
     private final ObjectMapper objectMapper;
     private final AgentCatalogProperties properties;
@@ -114,7 +118,7 @@ public class AgentDefinitionLoader {
         }
 
         try {
-            AgentConfigFile config = objectMapper.readValue(file.toFile(), AgentConfigFile.class);
+            AgentConfigFile config = readAgentConfig(file);
             ProviderType providerType = config.getProviderType() == null ? ProviderType.BAILIAN : config.getProviderType();
             AgentMode mode = config.getMode() == null ? AgentMode.PLAIN_CONTENT : config.getMode();
             boolean deepThink = resolveDeepThink(config.getDeepThink(), mode);
@@ -139,6 +143,39 @@ public class AgentDefinitionLoader {
             log.warn("Skip invalid external agent file: {}", file, ex);
             return java.util.Optional.empty();
         }
+    }
+
+    private AgentConfigFile readAgentConfig(Path file) throws IOException {
+        String raw = Files.readString(file);
+        String normalized = normalizeMultilineSystemPrompt(raw);
+        return objectMapper.readValue(normalized, AgentConfigFile.class);
+    }
+
+    private String normalizeMultilineSystemPrompt(String rawJson) throws IOException {
+        Matcher matcher = SYSTEM_PROMPT_MULTILINE_PATTERN.matcher(rawJson);
+        if (!matcher.find()) {
+            return rawJson;
+        }
+
+        StringBuffer rewritten = new StringBuffer();
+        do {
+            String content = stripOuterLineBreak(matcher.group(2));
+            String escaped = objectMapper.writeValueAsString(content);
+            matcher.appendReplacement(rewritten, Matcher.quoteReplacement(matcher.group(1) + escaped));
+        } while (matcher.find());
+        matcher.appendTail(rewritten);
+        return rewritten.toString();
+    }
+
+    private String stripOuterLineBreak(String content) {
+        String normalized = content.replace("\r\n", "\n");
+        if (normalized.startsWith("\n")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.endsWith("\n")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private String normalize(String value, String fallback) {

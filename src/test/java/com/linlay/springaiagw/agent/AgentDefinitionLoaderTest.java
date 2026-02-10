@@ -44,4 +44,31 @@ class AgentDefinitionLoaderTest {
         assertThat(byId.get("ops_daily").deepThink()).isTrue();
         assertThat(byId.get("ops_daily").systemPrompt()).isEqualTo("你是运维助手");
     }
+
+    @Test
+    void shouldLoadExternalAgentWithTripleQuotedSystemPrompt() throws IOException {
+        Path file = tempDir.resolve("fortune_teller.json");
+        Files.writeString(file, "{\n"
+                + "  \"description\": \"算命大师\",\n"
+                + "  \"providerType\": \"BAILIAN\",\n"
+                + "  \"model\": \"qwen3-max\",\n"
+                + "  \"systemPrompt\": \"\"\"\n"
+                + "你是算命大师\n"
+                + "请先问出生日期\n"
+                + "\"\"\",\n"
+                + "  \"deepThink\": false\n"
+                + "}\n");
+
+        AgentCatalogProperties properties = new AgentCatalogProperties();
+        properties.setExternalDir(tempDir.toString());
+
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties);
+
+        Map<String, AgentDefinition> byId = loader.loadAll().stream()
+                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
+
+        assertThat(byId).containsKey("fortune_teller");
+        assertThat(byId.get("fortune_teller").systemPrompt()).isEqualTo("你是算命大师\n请先问出生日期");
+        assertThat(byId.get("fortune_teller").deepThink()).isFalse();
+    }
 }
