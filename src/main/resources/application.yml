@@ -1,0 +1,23 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: springai-agw
+  config:
+    import:
+      - optional:file:./application-local.yml
+      - optional:file:./config/application-local.yml
+      - optional:file:/opt/application-local.yml
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:dummy-openai-key}
+
+agent:
+  catalog:
+    external-dir: ${AGENT_EXTERNAL_DIR:agents}
+
+logging:
+  level:
+    root: INFO
+    com.linlay.springaiagw: INFO

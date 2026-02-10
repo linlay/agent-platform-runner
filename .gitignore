@@ -1,0 +1,30 @@
+# Build outputs
+target/
+out/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Local configs and secrets
+agents/
+application-local.yml
+application-local.yaml
+.env
+.env.*
+
+# Java
+hs_err_pid*
+replay_pid*
