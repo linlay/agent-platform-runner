@@ -50,35 +50,29 @@ public class AgentDefinitionLoader {
                 new AgentDefinition(
                         "demoPlain",
                         "默认示例：直接正文回答",
-                        ProviderType.BAILIAN,
-                        "qwen3-max",
-                        "你是简洁的中文助理，优先给出可执行结论，控制在 120 字以内。",
+                        ProviderType.SILICONFLOW,
+                        "deepseek-ai/DeepSeek-V3",
+                        "你是简洁的助理，优先给出可执行结论，控制在 120 字以内。",
                         false,
-                        AgentMode.PLAIN_CONTENT,
-                        "Shanghai",
-                        "df -h"
+                        AgentMode.PLAIN_CONTENT
                 ),
                 new AgentDefinition(
                         "demoThink",
                         "默认示例：深度思考后回答",
-                        ProviderType.SILICONFLOW,
-                        "deepseek-ai/DeepSeek-V3",
-                        "你是架构顾问。请先做结构化思考，必要时给出可执行计划，再输出结论。",
+                        ProviderType.BAILIAN,
+                        "qwen3-max",
+                        "你是高级顾问。请先做结构化思考，必要时给出可执行计划，再输出结论。",
                         true,
-                        AgentMode.THINKING_AND_CONTENT,
-                        "Shanghai",
-                        "df -h"
+                        AgentMode.THINKING_AND_CONTENT
                 ),
                 new AgentDefinition(
                         "demoOps",
                         "默认示例：深度思考并可自主调用工具",
                         ProviderType.BAILIAN,
                         "qwen3-max",
-                        "你是值班巡检助手。请先思考并形成 plan，按需要调用工具，再总结输出。",
+                        "你是高级规划助手。请先思考并形成 plan，按需要调用工具，再总结输出。",
                         true,
-                        AgentMode.THINKING_AND_CONTENT_WITH_DUAL_TOOL_CALLS,
-                        "Shanghai",
-                        "df -h"
+                        AgentMode.THINKING_AND_CONTENT_WITH_DUAL_TOOL_CALLS
                 )
         );
     }
@@ -125,8 +119,6 @@ public class AgentDefinitionLoader {
             String model = normalize(config.getModel(), defaultModel(providerType));
             String systemPrompt = normalize(config.getSystemPrompt(), "你是通用助理，回答要清晰和可执行。");
             String description = normalize(config.getDescription(), "external agent from " + fileName);
-            String defaultCity = normalize(config.getDefaultCity(), "Shanghai");
-            String defaultBashCommand = normalize(config.getDefaultBashCommand(), "df -h");
 
             return java.util.Optional.of(new AgentDefinition(
                     agentId,
@@ -135,9 +127,7 @@ public class AgentDefinitionLoader {
                     model,
                     systemPrompt,
                     deepThink,
-                    mode,
-                    defaultCity,
-                    defaultBashCommand
+                    mode
             ));
         } catch (IOException ex) {
             log.warn("Skip invalid external agent file: {}", file, ex);

@@ -24,8 +24,8 @@ ENV JAVA_OPTS="-server -Xms256m -XX:MaxRAMPercentage=60" \
     JAVA_AGENT="" \
     SPRING_CONFIG_ADDITIONAL_LOCATION="optional:file:/opt/application.yml"
 
-COPY --from=building /workspace/target/springai-agw-0.0.1-SNAPSHOT.jar ./app.jar
+COPY --from=building /workspace/target/springai-agw-0.0.1-SNAPSHOT.jar /opt/app.jar
 
 EXPOSE 8080
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS $JAVA_AGENT -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS $JAVA_AGENT -jar /opt/app.jar"]

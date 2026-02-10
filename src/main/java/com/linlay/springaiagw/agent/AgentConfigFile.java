@@ -12,8 +12,6 @@ public class AgentConfigFile {
     private String systemPrompt;
     private Boolean deepThink;
     private AgentMode mode;
-    private String defaultCity;
-    private String defaultBashCommand;
 
     public String getDescription() {
         return description;
@@ -61,21 +59,5 @@ public class AgentConfigFile {
 
     public void setMode(AgentMode mode) {
         this.mode = mode;
-    }
-
-    public String getDefaultCity() {
-        return defaultCity;
-    }
-
-    public void setDefaultCity(String defaultCity) {
-        this.defaultCity = defaultCity;
-    }
-
-    public String getDefaultBashCommand() {
-        return defaultBashCommand;
-    }
-
-    public void setDefaultBashCommand(String defaultBashCommand) {
-        this.defaultBashCommand = defaultBashCommand;
     }
 }

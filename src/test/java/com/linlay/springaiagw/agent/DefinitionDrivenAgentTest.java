@@ -32,9 +32,7 @@ class DefinitionDrivenAgentTest {
                 "qwen3-max",
                 "你是测试助手",
                 true,
-                AgentMode.THINKING_AND_CONTENT,
-                "Shanghai",
-                "ls"
+                AgentMode.THINKING_AND_CONTENT
         );
 
         LlmService llmService = new LlmService(null, null) {

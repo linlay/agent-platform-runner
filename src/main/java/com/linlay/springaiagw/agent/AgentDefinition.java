@@ -9,8 +9,6 @@ public record AgentDefinition(
         String model,
         String systemPrompt,
         boolean deepThink,
-        AgentMode mode,
-        String defaultCity,
-        String defaultBashCommand
+        AgentMode mode
 ) {
 }

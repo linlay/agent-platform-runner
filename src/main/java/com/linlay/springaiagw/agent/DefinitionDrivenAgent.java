@@ -105,7 +105,7 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     private Flux<AgentDelta> deepThinkingFlow(AgentRequest request) {
-        String city = normalize(request.city(), definition.defaultCity());
+        String city = normalize(request.city(), "");
         String date = normalize(request.date(), "");
         String plannerPrompt = buildPlannerPrompt(request);
         log.info("[agent:{}] deep-think planner prompt:\n{}", id(), plannerPrompt);
@@ -586,7 +586,7 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     private String suggestBashDefaultCommand(String message) {
-        String fallback = normalize(definition.defaultBashCommand(), "df -h");
+        String fallback = "df -h";
         if (message == null || message.isBlank()) {
             return fallback;
         }

@@ -25,9 +25,7 @@ class AgentDefinitionLoaderTest {
                   "providerType":"BAILIAN",
                   "model":"qwen3-max",
                   "systemPrompt":"你是运维助手",
-                  "mode":"THINKING_AND_CONTENT_WITH_DUAL_TOOL_CALLS",
-                  "defaultCity":"Shanghai",
-                  "defaultBashCommand":"df -h"
+                  "mode":"THINKING_AND_CONTENT_WITH_DUAL_TOOL_CALLS"
                 }
                 """);
 
