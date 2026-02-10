@@ -2,20 +2,34 @@ package com.linlay.springaiagw.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.linlay.springaiagw.config.BashToolProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+/* 通过配置可以放开部分目录
+```yaml
+agent:
+  tools:
+    bash:
+      working-directory: /opt/app
+      allowed-paths:
+        - /opt
+```
+*/
 
 @Component
 public class BashTool extends AbstractDeterministicTool {
@@ -24,13 +38,24 @@ public class BashTool extends AbstractDeterministicTool {
     private static final Set<String> COMMANDS_WITH_PATH_ARGS = Set.of("ls", "cat", "head", "tail");
     private static final int MAX_OUTPUT_CHARS = 2000;
     private final Path workingDirectory;
+    private final List<Path> allowedRoots;
+
+    @Autowired
+    public BashTool(BashToolProperties properties) {
+        this(resolveWorkingDirectory(properties.getWorkingDirectory()), parseAllowedPaths(properties.getAllowedPaths()));
+    }
 
     public BashTool() {
-        this(Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize());
+        this(resolveWorkingDirectory(""), List.of());
     }
 
     BashTool(Path workingDirectory) {
+        this(workingDirectory, List.of());
+    }
+
+    BashTool(Path workingDirectory, List<Path> additionalAllowedRoots) {
         this.workingDirectory = workingDirectory.toAbsolutePath().normalize();
+        this.allowedRoots = buildAllowedRoots(this.workingDirectory, additionalAllowedRoots);
     }
 
     @Override
@@ -40,7 +65,7 @@ public class BashTool extends AbstractDeterministicTool {
 
     @Override
     public String description() {
-        return "运行白名单 bash 命令（支持 ls/pwd/cat/head/tail/top/free/df，仅允许工作目录内路径）";
+        return "运行白名单 bash 命令（支持 ls/pwd/cat/head/tail/top/free/df，仅允许授权目录内路径）";
     }
 
     @Override
@@ -84,6 +109,7 @@ public class BashTool extends AbstractDeterministicTool {
         List<String> normalized = normalize(expanded);
         root.put("normalizedCommand", String.join(" ", normalized));
         root.put("workingDirectory", workingDirectory.toString());
+        root.put("allowedRoots", allowedRoots.stream().map(Path::toString).toList().toString());
 
         try {
             Process process = new ProcessBuilder(normalized)
@@ -180,25 +206,29 @@ public class BashTool extends AbstractDeterministicTool {
 
     private List<String> expandSingleGlobToken(String token) {
         Path tokenPath = Path.of(token);
-        Path relativeParent = tokenPath.getParent();
+        Path parent = tokenPath.getParent();
         String pattern = tokenPath.getFileName() == null ? token : tokenPath.getFileName().toString();
 
-        if (relativeParent != null && containsGlob(relativeParent.toString())) {
+        if (parent != null && containsGlob(parent.toString())) {
             return List.of();
         }
 
-        Path searchDir = relativeParent == null
-                ? workingDirectory
-                : workingDirectory.resolve(relativeParent).normalize();
-        if (!searchDir.startsWith(workingDirectory) || !Files.isDirectory(searchDir)) {
+        Path searchDir;
+        if (parent == null) {
+            searchDir = workingDirectory;
+        } else if (parent.isAbsolute()) {
+            searchDir = parent.normalize();
+        } else {
+            searchDir = workingDirectory.resolve(parent).normalize();
+        }
+        if (!isAllowedPath(searchDir) || !Files.isDirectory(searchDir)) {
             return List.of();
         }
 
         List<String> matches = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(searchDir, pattern)) {
             for (Path path : stream) {
-                Path relative = workingDirectory.relativize(path.normalize());
-                matches.add(relative.toString());
+                matches.add(relativizeForOutput(path.normalize()));
             }
         } catch (IOException ignored) {
             return List.of();
@@ -223,14 +253,73 @@ public class BashTool extends AbstractDeterministicTool {
             if (token.startsWith("-")) {
                 continue;
             }
-            Path resolved = workingDirectory.resolve(token).normalize();
-            if (!resolved.startsWith(workingDirectory)) {
+            Path resolved = resolvePath(token);
+            if (!isAllowedPath(resolved)) {
                 root.put("ok", false);
-                root.put("error", "Path not allowed outside working directory: " + token);
+                root.put("error", "Path not allowed outside authorized directories: " + token);
                 return false;
             }
         }
         return true;
+    }
+
+    private Path resolvePath(String token) {
+        Path tokenPath = Path.of(token);
+        if (tokenPath.isAbsolute()) {
+            return tokenPath.normalize();
+        }
+        return workingDirectory.resolve(tokenPath).normalize();
+    }
+
+    private boolean isAllowedPath(Path path) {
+        for (Path allowedRoot : allowedRoots) {
+            if (path.startsWith(allowedRoot)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String relativizeForOutput(Path path) {
+        if (path.startsWith(workingDirectory)) {
+            return workingDirectory.relativize(path).toString();
+        }
+        return path.toString();
+    }
+
+    private static Path resolveWorkingDirectory(String configuredWorkingDirectory) {
+        if (configuredWorkingDirectory == null || configuredWorkingDirectory.isBlank()) {
+            return Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
+        }
+        return Path.of(configuredWorkingDirectory).toAbsolutePath().normalize();
+    }
+
+    private static List<Path> parseAllowedPaths(List<String> configuredAllowedPaths) {
+        if (configuredAllowedPaths == null || configuredAllowedPaths.isEmpty()) {
+            return List.of();
+        }
+
+        List<Path> paths = new ArrayList<>();
+        for (String configuredAllowedPath : configuredAllowedPaths) {
+            if (configuredAllowedPath == null || configuredAllowedPath.isBlank()) {
+                continue;
+            }
+            paths.add(Path.of(configuredAllowedPath).toAbsolutePath().normalize());
+        }
+        return paths;
+    }
+
+    private static List<Path> buildAllowedRoots(Path workingDirectory, List<Path> additionalAllowedRoots) {
+        LinkedHashSet<Path> roots = new LinkedHashSet<>();
+        roots.add(workingDirectory.toAbsolutePath().normalize());
+        if (additionalAllowedRoots != null) {
+            for (Path path : additionalAllowedRoots) {
+                if (path != null) {
+                    roots.add(path.toAbsolutePath().normalize());
+                }
+            }
+        }
+        return List.copyOf(roots);
     }
 
     private boolean isMac() {

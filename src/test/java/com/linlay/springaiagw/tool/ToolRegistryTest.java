@@ -7,6 +7,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,7 +42,7 @@ class ToolRegistryTest {
     void bashToolShouldRejectUnlistedCommand() {
         JsonNode result = bashTool.invoke(Map.of("command", "cat /etc/passwd"));
         assertThat(result.path("ok").asBoolean()).isFalse();
-        assertThat(result.path("error").asText()).contains("outside working directory");
+        assertThat(result.path("error").asText()).contains("outside authorized directories");
     }
 
     @Test
@@ -76,5 +77,19 @@ class ToolRegistryTest {
         assertThat(result.path("ok").asBoolean()).isTrue();
         assertThat(result.path("stdout").asText()).contains("\"name\":\"a\"");
         assertThat(result.path("stdout").asText()).contains("\"name\":\"b\"");
+    }
+
+    @Test
+    void bashToolShouldAllowConfiguredAbsolutePath(@TempDir Path tempDir) throws IOException {
+        Path externalDir = tempDir.resolve("opt");
+        Files.createDirectories(externalDir);
+        Path keyFile = externalDir.resolve("demo.key");
+        Files.writeString(keyFile, "secret");
+
+        BashTool localBashTool = new BashTool(Path.of(System.getProperty("user.dir", ".")), List.of(externalDir));
+        JsonNode result = localBashTool.invoke(Map.of("command", "cat " + keyFile));
+
+        assertThat(result.path("ok").asBoolean()).isTrue();
+        assertThat(result.path("stdout").asText()).contains("secret");
     }
 }

@@ -18,6 +18,10 @@ agent:
   catalog:
     external-dir: ${AGENT_EXTERNAL_DIR:/opt/agents}
     refresh-interval-ms: ${AGENT_REFRESH_INTERVAL_MS:10000}
+  tools:
+    bash:
+      working-directory: ${AGENT_BASH_WORKING_DIRECTORY:${user.dir}}
+      allowed-paths: ${AGENT_BASH_ALLOWED_PATHS:}
 
 logging:
   level:

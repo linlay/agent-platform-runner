@@ -85,3 +85,23 @@ curl -N -X POST "http://localhost:8080/api/agw-agent/demoThink" \
   "deepThink": false
 }
 ```
+
+## Bash 工具目录授权
+
+`bash` 工具默认仅允许访问工作目录（`user.dir`）。若需要让 Agent 在容器内读取 `/opt` 等目录，可配置：
+
+```yaml
+agent:
+  tools:
+    bash:
+      working-directory: /opt/app
+      allowed-paths:
+        - /opt
+```
+
+也可使用环境变量：
+
+```bash
+AGENT_BASH_WORKING_DIRECTORY=/opt/app
+AGENT_BASH_ALLOWED_PATHS=/opt,/data
+```
