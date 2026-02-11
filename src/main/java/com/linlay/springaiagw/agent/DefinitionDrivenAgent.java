@@ -196,6 +196,7 @@ public class DefinitionDrivenAgent implements Agent {
         StringBuilder emittedThinking = new StringBuilder();
         Map<String, NativeToolCall> nativeToolCalls = new LinkedHashMap<>();
         AtomicInteger nativeToolSeq = new AtomicInteger(0);
+        List<String> contentTokens = new ArrayList<>();
 
         Flux<AgentDelta> decisionThinkingFlux = llmService.streamDeltas(
                         providerType(),
@@ -212,6 +213,7 @@ public class DefinitionDrivenAgent implements Agent {
                     }
                     if (StringUtils.hasText(chunk.content())) {
                         rawDecisionBuffer.append(chunk.content());
+                        contentTokens.add(chunk.content());
                     }
                     List<SseChunk.ToolCall> streamedToolCalls = captureNativeToolCalls(
                             chunk.toolCalls(),
@@ -240,7 +242,7 @@ public class DefinitionDrivenAgent implements Agent {
 
                     if (nativeCalls.isEmpty() && !raw.isBlank() && readJsonObject(raw) == null) {
                         return Flux.concat(
-                                Flux.just(AgentDelta.content(raw)),
+                                Flux.fromIterable(contentTokens).map(AgentDelta::content),
                                 Flux.just(AgentDelta.finish("stop"))
                         );
                     }
@@ -334,6 +336,7 @@ public class DefinitionDrivenAgent implements Agent {
         StringBuilder emittedThinking = new StringBuilder();
         Map<String, NativeToolCall> nativeToolCalls = new LinkedHashMap<>();
         AtomicInteger nativeToolSeq = new AtomicInteger(0);
+        List<String> contentTokens = new ArrayList<>();
 
         Flux<AgentDelta> stepThinkingFlux = llmService.streamDeltas(
                         providerType(),
@@ -351,6 +354,7 @@ public class DefinitionDrivenAgent implements Agent {
                     }
                     if (StringUtils.hasText(chunk.content())) {
                         rawBuffer.append(chunk.content());
+                        contentTokens.add(chunk.content());
                     }
                     List<SseChunk.ToolCall> streamedToolCalls = captureNativeToolCalls(
                             chunk.toolCalls(),
@@ -377,7 +381,7 @@ public class DefinitionDrivenAgent implements Agent {
                     // If LLM returned plain text (no tool_calls, not JSON) → emit as content directly
                     if (nativeCalls.isEmpty() && !raw.isBlank() && readJsonObject(raw) == null) {
                         return Flux.concat(
-                                Flux.just(AgentDelta.content(raw)),
+                                Flux.fromIterable(contentTokens).map(AgentDelta::content),
                                 Flux.just(AgentDelta.finish("stop"))
                         );
                     }
@@ -507,6 +511,7 @@ public class DefinitionDrivenAgent implements Agent {
         StringBuilder emittedThinking = new StringBuilder();
         Map<String, NativeToolCall> nativeToolCalls = new LinkedHashMap<>();
         AtomicInteger nativeToolSeq = new AtomicInteger(0);
+        List<String> contentTokens = new ArrayList<>();
 
         Flux<AgentDelta> stepThinkingFlux = llmService.streamDeltas(
                         providerType(),
@@ -523,6 +528,7 @@ public class DefinitionDrivenAgent implements Agent {
                     }
                     if (StringUtils.hasText(chunk.content())) {
                         rawDecisionBuffer.append(chunk.content());
+                        contentTokens.add(chunk.content());
                     }
                     List<SseChunk.ToolCall> streamedToolCalls = captureNativeToolCalls(
                             chunk.toolCalls(),
@@ -551,7 +557,7 @@ public class DefinitionDrivenAgent implements Agent {
 
                     if (nativeCalls.isEmpty() && !raw.isBlank() && readJsonObject(raw) == null) {
                         return Flux.concat(
-                                Flux.just(AgentDelta.content(raw)),
+                                Flux.fromIterable(contentTokens).map(AgentDelta::content),
                                 Flux.just(AgentDelta.finish("stop"))
                         );
                     }
