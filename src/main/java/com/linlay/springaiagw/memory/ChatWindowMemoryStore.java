@@ -22,8 +22,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -158,6 +160,10 @@ public class ChatWindowMemoryStore {
             if (node == null || !node.isObject()) {
                 return null;
             }
+            JsonNode messages = node.path("messages");
+            if (!messages.isArray()) {
+                return null;
+            }
             normalizeStoredMessages((ObjectNode) node);
             RunRecord run = objectMapper.treeToValue(node, RunRecord.class);
             if (run == null) {
@@ -229,11 +235,30 @@ public class ChatWindowMemoryStore {
             List<String> lines = Files.readAllLines(path, resolveCharset()).stream()
                     .filter(StringUtils::hasText)
                     .toList();
-            if (lines.size() <= windowSize) {
+            if (lines.isEmpty()) {
                 return;
             }
-            List<String> latest = lines.subList(lines.size() - windowSize, lines.size());
-            String content = String.join(System.lineSeparator(), latest) + System.lineSeparator();
+
+            List<Integer> runLineIndexes = new ArrayList<>();
+            for (int i = 0; i < lines.size(); i++) {
+                if (parseRunLine(lines.get(i), chatId, i) != null) {
+                    runLineIndexes.add(i);
+                }
+            }
+            if (runLineIndexes.size() <= windowSize) {
+                return;
+            }
+
+            int keepFrom = runLineIndexes.size() - windowSize;
+            Set<Integer> dropIndexes = new HashSet<>(runLineIndexes.subList(0, keepFrom));
+            List<String> retained = new ArrayList<>(lines.size() - dropIndexes.size());
+            for (int i = 0; i < lines.size(); i++) {
+                if (!dropIndexes.contains(i)) {
+                    retained.add(lines.get(i));
+                }
+            }
+
+            String content = String.join(System.lineSeparator(), retained) + System.lineSeparator();
             Files.writeString(
                     path,
                     content,

@@ -52,10 +52,10 @@ public class AgentDefinitionLoader {
                         "demoPlain",
                         "默认示例：直接正文回答",
                         ProviderType.SILICONFLOW,
-                        "deepseek-ai/DeepSeek-V3",
+                        "deepseek-ai/DeepSeek-V3.2",
                         "你是简洁的助理，优先给出可执行结论，控制在 120 字以内。",
                         AgentMode.PLAIN,
-                        List.of()
+                        List.of("mock_sensitive_data_detector")
                 ),
                 new AgentDefinition(
                         "demoReAct",

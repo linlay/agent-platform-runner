@@ -3,6 +3,10 @@ package com.linlay.springaiagw.service;
 import com.aiagent.agw.sdk.model.AgwDelta;
 import com.aiagent.agw.sdk.model.AgwRequestContext;
 import com.aiagent.agw.sdk.service.AgwSseStreamer;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.springaiagw.agent.Agent;
 import com.linlay.springaiagw.agent.AgentRegistry;
 import com.linlay.springaiagw.model.agw.AgwQueryRequest;
@@ -30,15 +34,25 @@ public class AgwQueryService {
     private static final String AUTO_AGENT = "auto";
     private static final String DEFAULT_AGENT = "default";
     private static final Duration TOOL_EVENT_STREAM_GAP = Duration.ofMillis(25);
+    private static final String TOOL_RESULT_EVENT = "tool.result";
     private static final Pattern EVENT_TYPE_PATTERN = Pattern.compile("\"type\":\"([^\"]+)\"");
     private static final Logger log = LoggerFactory.getLogger(AgwQueryService.class);
 
     private final AgentRegistry agentRegistry;
     private final AgwSseStreamer agwSseStreamer;
+    private final ObjectMapper objectMapper;
+    private final ChatRecordStore chatRecordStore;
 
-    public AgwQueryService(AgentRegistry agentRegistry, AgwSseStreamer agwSseStreamer) {
+    public AgwQueryService(
+            AgentRegistry agentRegistry,
+            AgwSseStreamer agwSseStreamer,
+            ObjectMapper objectMapper,
+            ChatRecordStore chatRecordStore
+    ) {
         this.agentRegistry = agentRegistry;
         this.agwSseStreamer = agwSseStreamer;
+        this.objectMapper = objectMapper;
+        this.chatRecordStore = chatRecordStore;
     }
 
     public QuerySession prepare(AgwQueryRequest request) {
@@ -48,7 +62,8 @@ public class AgwQueryService {
         String requestId = StringUtils.hasText(request.requestId())
                 ? request.requestId().trim()
                 : runId;
-        String chatName = chatId;
+        ChatRecordStore.ChatSummary summary = chatRecordStore.ensureChat(chatId, agent.id(), request.message());
+        String chatName = summary.chatName();
 
         AgwRequestContext context = new AgwRequestContext(
                 request.message(),
@@ -67,12 +82,22 @@ public class AgwQueryService {
                 requestId,
                 runId
         );
+        chatRecordStore.appendRequest(
+                chatId,
+                requestId,
+                runId,
+                agent.id(),
+                request.message(),
+                request.references(),
+                request.scene()
+        );
         return new QuerySession(agent, context, agentRequest);
     }
 
     public Flux<ServerSentEvent<String>> stream(QuerySession session) {
         Flux<AgwDelta> deltas = session.agent().stream(session.agentRequest()).map(this::toAgwDelta);
         return agwSseStreamer.stream(session.context(), deltas)
+                .map(this::normalizeToolResultPayload)
                 .concatMap(event -> {
                     String eventType = extractEventType(event.data());
                     if (!isToolEvent(eventType)) {
@@ -86,7 +111,72 @@ public class AgwQueryService {
                                     session.context().requestId(),
                                     session.context().runId()
                             ));
-                }, 1);
+                }, 1)
+                .doOnNext(event -> chatRecordStore.appendEvent(session.context().chatId(), event.data()));
+    }
+
+    private ServerSentEvent<String> normalizeToolResultPayload(ServerSentEvent<String> event) {
+        if (event == null || !StringUtils.hasText(event.data())) {
+            return event;
+        }
+        String eventType = extractEventType(event.data());
+        if (!TOOL_RESULT_EVENT.equals(eventType)) {
+            return event;
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(event.data());
+            if (!(root instanceof ObjectNode objectRoot)) {
+                return event;
+            }
+            JsonNode resultNode = objectRoot.get("result");
+            if (resultNode == null || !resultNode.isTextual()) {
+                return event;
+            }
+
+            String rawResultText = resultNode.asText();
+            JsonNode parsedResult = parseJson(rawResultText);
+            if (parsedResult == null) {
+                return event;
+            }
+
+            objectRoot.set("result", parsedResult);
+            String normalizedData = objectMapper.writeValueAsString(objectRoot);
+
+            ServerSentEvent.Builder<String> builder = ServerSentEvent.<String>builder()
+                    .data(normalizedData);
+            if (event.id() != null) {
+                builder.id(event.id());
+            }
+            if (event.event() != null) {
+                builder.event(event.event());
+            }
+            if (event.comment() != null) {
+                builder.comment(event.comment());
+            }
+            if (event.retry() != null) {
+                builder.retry(event.retry());
+            }
+            return builder.build();
+        } catch (Exception ex) {
+            log.debug("skip normalize tool.result payload due to parse failure", ex);
+            return event;
+        }
+    }
+
+    private JsonNode parseJson(String rawText) {
+        if (!StringUtils.hasText(rawText)) {
+            return null;
+        }
+        String trimmed = rawText.trim();
+        if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(trimmed);
+        } catch (JsonProcessingException ex) {
+            return null;
+        }
     }
 
     private String extractEventType(String eventData) {

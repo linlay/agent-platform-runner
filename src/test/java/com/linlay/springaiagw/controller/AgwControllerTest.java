@@ -214,6 +214,89 @@ class AgwControllerTest {
                 .jsonPath("$.data.toolId").isEqualTo("tool_abc");
     }
 
+    @Test
+    void chatsAndChatApisShouldReturnStoredChatSnapshot() {
+        String message = "0123456789ABCDEFGHI";
+        FluxExchangeResult<String> result = webTestClient.post()
+                .uri("/api/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "agentKey", "demoPlanExecute",
+                        "message", message,
+                        "references", List.of(Map.of(
+                                "id", "ref_001",
+                                "type", "url",
+                                "name", "doc",
+                                "url", "https://example.com/ref"
+                        ))
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(String.class);
+
+        List<String> chunks = result.getResponseBody()
+                .take(1600)
+                .collectList()
+                .block(Duration.ofSeconds(8));
+        assertThat(chunks).isNotNull();
+
+        String joined = String.join("", chunks);
+        String chatId = extractFirstValue(joined, "chatId");
+        assertThat(chatId).isNotBlank();
+
+        webTestClient.get()
+                .uri("/api/chats")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> {
+                    assertThat(body).contains("\"chatId\":\"" + chatId + "\"");
+                    assertThat(body).contains("\"chatName\":\"0123456789\"");
+                    assertThat(body).contains("\"firstAgentKey\":\"demoPlanExecute\"");
+                });
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/chat")
+                        .queryParam("chatId", chatId)
+                        .queryParam("includeEvents", true)
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.msg").isEqualTo("success")
+                .jsonPath("$.data.chatId").isEqualTo(chatId)
+                .jsonPath("$.data.chatName").isEqualTo("0123456789")
+                .jsonPath("$.data.messages[0].role").isEqualTo("user")
+                .jsonPath("$.data.references[0].id").isEqualTo("ref_001")
+                .jsonPath("$.data.events[?(@.type=='query.message')]").exists()
+                .jsonPath("$.data.events[?(@.type=='run.start')]").exists()
+                .jsonPath("$.data.events[?(@.type=='run.complete')]").exists();
+    }
+
+    @Test
+    void chatShouldRejectInvalidChatId() {
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/chat")
+                        .queryParam("chatId", "not-a-uuid")
+                        .build())
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void chatShouldReturnNotFoundWhenChatMissing() {
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/chat")
+                        .queryParam("chatId", "123e4567-e89b-12d3-a456-426614174099")
+                        .build())
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
     private String extractFirstValue(String text, String key) {
         Pattern pattern = Pattern.compile("\"" + key + "\":\"([^\"]+)\"");
         Matcher matcher = pattern.matcher(text);

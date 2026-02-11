@@ -1369,14 +1369,9 @@ public class DefinitionDrivenAgent implements Agent {
                             trace.toolName = toolCall.function().name();
                         }
                         if (StringUtils.hasText(toolCall.function().arguments())) {
-                            trace.arguments = toolCall.function().arguments();
+                            trace.appendArguments(toolCall.function().arguments());
                         }
                     }
-                    orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantToolCall(
-                            trace.toolName,
-                            trace.toolCallId,
-                            trace.arguments
-                    ));
                 }
             }
 
@@ -1387,11 +1382,12 @@ public class DefinitionDrivenAgent implements Agent {
                         continue;
                     }
                     ToolTrace trace = toolByCallId.computeIfAbsent(toolResult.toolId(), ToolTrace::new);
+                    appendAssistantToolCallIfNeeded(trace);
                     String result = StringUtils.hasText(toolResult.result()) ? toolResult.result() : "null";
                     orderedMessages.add(ChatWindowMemoryStore.RunMessage.toolResult(
                             trace.toolName,
                             trace.toolCallId,
-                            trace.arguments,
+                            trace.arguments(),
                             result
                     ));
                 }
@@ -1400,7 +1396,20 @@ public class DefinitionDrivenAgent implements Agent {
 
         private List<ChatWindowMemoryStore.RunMessage> runMessages() {
             flushAssistantContent();
+            toolByCallId.values().forEach(this::appendAssistantToolCallIfNeeded);
             return List.copyOf(orderedMessages);
+        }
+
+        private void appendAssistantToolCallIfNeeded(ToolTrace trace) {
+            if (trace == null || trace.recorded) {
+                return;
+            }
+            orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantToolCall(
+                    trace.toolName,
+                    trace.toolCallId,
+                    trace.arguments()
+            ));
+            trace.recorded = true;
         }
 
         private void flushAssistantContent() {
@@ -1415,10 +1424,21 @@ public class DefinitionDrivenAgent implements Agent {
     private static final class ToolTrace {
         private final String toolCallId;
         private String toolName;
-        private String arguments;
+        private final StringBuilder arguments = new StringBuilder();
+        private boolean recorded;
 
         private ToolTrace(String toolCallId) {
             this.toolCallId = Objects.requireNonNull(toolCallId);
+        }
+
+        private void appendArguments(String delta) {
+            if (StringUtils.hasText(delta)) {
+                this.arguments.append(delta);
+            }
+        }
+
+        private String arguments() {
+            return arguments.isEmpty() ? null : arguments.toString();
         }
     }
 

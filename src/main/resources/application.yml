@@ -33,3 +33,4 @@ logging:
   level:
     root: INFO
     com.linlay.springaiagw: INFO
+    com.linlay.springaiagw.llm.wiretap: DEBUG

@@ -4,12 +4,16 @@ import com.linlay.springaiagw.agent.Agent;
 import com.linlay.springaiagw.agent.AgentRegistry;
 import com.linlay.springaiagw.model.agw.AgwAgentResponse;
 import com.linlay.springaiagw.model.agw.AgwAgentsResponse;
+import com.linlay.springaiagw.model.agw.AgwChatDetailResponse;
+import com.linlay.springaiagw.model.agw.AgwChatSummaryResponse;
 import com.linlay.springaiagw.model.agw.AgwQueryRequest;
 import com.linlay.springaiagw.model.agw.AgwSubmitRequest;
 import com.linlay.springaiagw.model.agw.AgwSubmitResponse;
 import com.linlay.springaiagw.model.agw.ApiResponse;
 import com.linlay.springaiagw.service.AgwQueryService;
 import com.linlay.springaiagw.service.AgwQueryService.QuerySession;
+import com.linlay.springaiagw.service.ChatRecordStore;
+import com.linlay.springaiagw.service.SseFlushWriter;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
@@ -36,10 +41,19 @@ public class AgwController {
 
     private final AgentRegistry agentRegistry;
     private final AgwQueryService agwQueryService;
+    private final ChatRecordStore chatRecordStore;
+    private final SseFlushWriter sseFlushWriter;
 
-    public AgwController(AgentRegistry agentRegistry, AgwQueryService agwQueryService) {
+    public AgwController(
+            AgentRegistry agentRegistry,
+            AgwQueryService agwQueryService,
+            ChatRecordStore chatRecordStore,
+            SseFlushWriter sseFlushWriter
+    ) {
         this.agentRegistry = agentRegistry;
         this.agwQueryService = agwQueryService;
+        this.chatRecordStore = chatRecordStore;
+        this.sseFlushWriter = sseFlushWriter;
     }
 
     @GetMapping("/agents")
@@ -60,12 +74,24 @@ public class AgwController {
         return ApiResponse.success(toDetail(agent));
     }
 
+    @GetMapping("/chats")
+    public ApiResponse<List<AgwChatSummaryResponse>> chats() {
+        return ApiResponse.success(chatRecordStore.listChats());
+    }
+
+    @GetMapping("/chat")
+    public ApiResponse<AgwChatDetailResponse> chat(
+            @RequestParam String chatId,
+            @RequestParam(defaultValue = "false") boolean includeEvents
+    ) {
+        return ApiResponse.success(chatRecordStore.loadChat(chatId, includeEvents));
+    }
+
     @PostMapping(value = "/query", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> query(@Valid @RequestBody AgwQueryRequest request, ServerHttpResponse response) {
-        response.getHeaders().set("X-Accel-Buffering", "no");
-        response.getHeaders().set("Cache-Control", "no-cache");
+    public Mono<Void> query(@Valid @RequestBody AgwQueryRequest request, ServerHttpResponse response) {
         QuerySession session = agwQueryService.prepare(request);
-        return agwQueryService.stream(session);
+        Flux<ServerSentEvent<String>> stream = agwQueryService.stream(session);
+        return sseFlushWriter.write(response, stream);
     }
 
     @PostMapping("/submit")
