@@ -8,7 +8,6 @@
 - `GET /api/agent?agentKey=...`: 智能体详情
 - `POST /api/query`: 提问接口（默认返回 AGW 标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
 - `POST /api/submit`: Human-in-the-loop 提交接口
-- `POST /raw-api/{agentId}`: 原始 OpenAI chunk SSE（调试接口）
 
 ## 返回格式约定
 
