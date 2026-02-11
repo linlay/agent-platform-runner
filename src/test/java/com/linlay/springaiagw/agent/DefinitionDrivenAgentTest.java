@@ -8,10 +8,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.springaiagw.model.AgentDelta;
 import com.linlay.springaiagw.model.AgentRequest;
 import com.linlay.springaiagw.model.ProviderType;
+import com.linlay.springaiagw.model.SseChunk;
 import com.linlay.springaiagw.service.DeltaStreamService;
 import com.linlay.springaiagw.service.LlmService;
 import com.linlay.springaiagw.tool.BaseTool;
 import com.linlay.springaiagw.tool.ToolRegistry;
+import org.springframework.ai.chat.messages.Message;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -1266,6 +1268,153 @@ class DefinitionDrivenAgentTest {
         assertThat(deltas).isNotNull();
         assertThat(weatherArgs.get()).isNotNull();
         assertThat(weatherArgs.get().get("date")).isEqualTo("2026-02-12");
+    }
+
+    @Test
+    void planExecuteFlowShouldExecuteAllNativeToolCallsFromSinglePlannerRound() {
+        AgentDefinition definition = new AgentDefinition(
+                "demoPlanExecute",
+                "demo",
+                ProviderType.BAILIAN,
+                "qwen3-max",
+                "你是测试助手",
+                AgentMode.PLAN_EXECUTE,
+                List.of("city_datetime", "mock_city_weather")
+        );
+
+        AtomicReference<Boolean> plannerParallelToolCalls = new AtomicReference<>();
+        LlmService llmService = new LlmService(null, null) {
+            @Override
+            public Flux<LlmStreamDelta> streamDeltas(
+                    ProviderType providerType,
+                    String model,
+                    String systemPrompt,
+                    List<Message> historyMessages,
+                    String userPrompt,
+                    List<LlmFunctionTool> tools,
+                    String stage,
+                    boolean parallelToolCalls
+            ) {
+                if ("agent-plan-execute-planner".equals(stage)) {
+                    plannerParallelToolCalls.set(parallelToolCalls);
+                    return Flux.just(
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_city_datetime",
+                                            "function",
+                                            new SseChunk.Function("city_datetime", "{\"city\":\"上海\"}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_city_weather",
+                                            "function",
+                                            new SseChunk.Function("mock_city_weather", "{\"city\":\"上海\",\"date\":\"tomorrow\"}")
+                                    )),
+                                    "tool_calls"
+                            )
+                    );
+                }
+                return Flux.empty();
+            }
+
+            @Override
+            public Flux<String> streamContent(
+                    ProviderType providerType,
+                    String model,
+                    String systemPrompt,
+                    String userPrompt,
+                    String stage
+            ) {
+                if ("agent-plan-execute-final".equals(stage)) {
+                    return Flux.just("done");
+                }
+                return Flux.empty();
+            }
+
+            @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
+                return streamContent(providerType, model, systemPrompt, userPrompt, "default");
+            }
+
+            @Override
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
+                return Mono.just("");
+            }
+
+            @Override
+            public Mono<String> completeText(
+                    ProviderType providerType,
+                    String model,
+                    String systemPrompt,
+                    String userPrompt,
+                    String stage
+            ) {
+                return Mono.just("");
+            }
+        };
+
+        BaseTool cityDateTimeTool = new BaseTool() {
+            @Override
+            public String name() {
+                return "city_datetime";
+            }
+
+            @Override
+            public String description() {
+                return "city datetime";
+            }
+
+            @Override
+            public JsonNode invoke(Map<String, Object> args) {
+                return objectMapper.valueToTree(Map.of(
+                        "tool", "city_datetime",
+                        "city", "上海",
+                        "date", "2026-02-11"
+                ));
+            }
+        };
+
+        AtomicReference<Map<String, Object>> weatherArgs = new AtomicReference<>();
+        BaseTool weatherTool = new BaseTool() {
+            @Override
+            public String name() {
+                return "mock_city_weather";
+            }
+
+            @Override
+            public String description() {
+                return "weather";
+            }
+
+            @Override
+            public JsonNode invoke(Map<String, Object> args) {
+                weatherArgs.set(Map.copyOf(args));
+                return objectMapper.valueToTree(Map.of("ok", true, "date", String.valueOf(args.get("date"))));
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                new DeltaStreamService(),
+                new ToolRegistry(List.of(cityDateTimeTool, weatherTool)),
+                objectMapper
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("规划上海机房明天搬迁实施计划", null, null, null, null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(6));
+
+        assertThat(deltas).isNotNull();
+        assertThat(plannerParallelToolCalls.get()).isTrue();
+        assertThat(weatherArgs.get()).isNotNull();
+        assertThat(weatherArgs.get().get("date")).isEqualTo("2026-02-12");
+        assertThat(indexOfToolResultById(deltas, "call_city_weather"))
+                .isGreaterThan(indexOfToolResultById(deltas, "call_city_datetime"));
     }
 
     private int indexOfThinkingContaining(List<AgentDelta> deltas, String text) {

@@ -228,6 +228,19 @@ public class LlmService {
             List<LlmFunctionTool> tools,
             String stage
     ) {
+        return streamDeltas(providerType, model, systemPrompt, historyMessages, userPrompt, tools, stage, false);
+    }
+
+    public Flux<LlmStreamDelta> streamDeltas(
+            ProviderType providerType,
+            String model,
+            String systemPrompt,
+            List<Message> historyMessages,
+            String userPrompt,
+            List<LlmFunctionTool> tools,
+            String stage,
+            boolean parallelToolCalls
+    ) {
         return Flux.defer(() -> {
             String traceId = "llm-" + UUID.randomUUID().toString().replace("-", "");
             long startNanos = System.nanoTime();
@@ -249,7 +262,7 @@ public class LlmService {
             Flux<LlmStreamDelta> deltaFlux;
             if (hasTools) {
                 AtomicBoolean rawDeltaEmitted = new AtomicBoolean(false);
-                deltaFlux = streamDeltasRawSse(providerType, model, systemPrompt, historyMessages, userPrompt, tools)
+                deltaFlux = streamDeltasRawSse(providerType, model, systemPrompt, historyMessages, userPrompt, tools, parallelToolCalls)
                         .doOnNext(ignored -> rawDeltaEmitted.set(true))
                         .onErrorResume(ex -> {
                             if (chatClient == null) {
@@ -265,14 +278,14 @@ public class LlmService {
                                 return Flux.error(ex);
                             }
                             log.warn("[{}][{}] raw delta stream failed, fallback to ChatClient stream", traceId, stage, ex);
-                            return streamDeltasByChatClient(chatClient, model, systemPrompt, historyMessages, userPrompt, tools);
+                            return streamDeltasByChatClient(chatClient, model, systemPrompt, historyMessages, userPrompt, tools, parallelToolCalls);
                         });
             } else {
                 if (chatClient == null) {
                     deltaFlux = streamContent(providerType, model, systemPrompt, historyMessages, userPrompt, stage)
                             .map(content -> new LlmStreamDelta(content, null, null));
                 } else {
-                    deltaFlux = streamDeltasByChatClient(chatClient, model, systemPrompt, historyMessages, userPrompt, tools);
+                    deltaFlux = streamDeltasByChatClient(chatClient, model, systemPrompt, historyMessages, userPrompt, tools, false);
                 }
             }
 
@@ -363,9 +376,10 @@ public class LlmService {
             String systemPrompt,
             List<Message> historyMessages,
             String userPrompt,
-            List<LlmFunctionTool> tools
+            List<LlmFunctionTool> tools,
+            boolean parallelToolCalls
     ) {
-        OpenAiChatOptions options = buildStreamOptions(model, tools);
+        OpenAiChatOptions options = buildStreamOptions(model, tools, parallelToolCalls);
         ChatClient.ChatClientRequestSpec prompt = chatClient.prompt().options(options);
         if (systemPrompt != null && !systemPrompt.isBlank()) {
             prompt = prompt.system(systemPrompt);
@@ -388,11 +402,12 @@ public class LlmService {
             String systemPrompt,
             List<Message> historyMessages,
             String userPrompt,
-            List<LlmFunctionTool> tools
+            List<LlmFunctionTool> tools,
+            boolean parallelToolCalls
     ) {
         AgentProviderProperties.ProviderConfig config = resolveProviderConfig(providerType);
         WebClient webClient = buildRawWebClient(config);
-        Map<String, Object> request = buildRawStreamRequest(model, systemPrompt, historyMessages, userPrompt, tools);
+        Map<String, Object> request = buildRawStreamRequest(model, systemPrompt, historyMessages, userPrompt, tools, parallelToolCalls);
 
         return webClient.post()
                 .uri(resolveRawCompletionsUri(config.getBaseUrl()))
@@ -442,7 +457,8 @@ public class LlmService {
             String systemPrompt,
             List<Message> historyMessages,
             String userPrompt,
-            List<LlmFunctionTool> tools
+            List<LlmFunctionTool> tools,
+            boolean parallelToolCalls
     ) {
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("model", model);
@@ -453,7 +469,7 @@ public class LlmService {
         if (!rawTools.isEmpty()) {
             request.put("tools", rawTools);
             request.put("tool_choice", "auto");
-            request.put("parallel_tool_calls", false);
+            request.put("parallel_tool_calls", parallelToolCalls);
         }
         return request;
     }
@@ -648,7 +664,7 @@ public class LlmService {
         return value != null && !value.isBlank();
     }
 
-    private OpenAiChatOptions buildStreamOptions(String model, List<LlmFunctionTool> tools) {
+    private OpenAiChatOptions buildStreamOptions(String model, List<LlmFunctionTool> tools, boolean parallelToolCalls) {
         OpenAiChatOptions.Builder builder = OpenAiChatOptions.builder()
                 .model(model)
                 // We consume native tool_calls ourselves. Disable Spring AI internal execution.
@@ -661,7 +677,7 @@ public class LlmService {
             if (!functionTools.isEmpty()) {
                 builder.tools(functionTools);
                 builder.toolChoice("auto");
-                builder.parallelToolCalls(false);
+                builder.parallelToolCalls(parallelToolCalls);
             }
         }
         return builder.build();

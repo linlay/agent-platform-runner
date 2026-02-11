@@ -44,6 +44,7 @@ public class DefinitionDrivenAgent implements Agent {
     private static final Logger log = LoggerFactory.getLogger(DefinitionDrivenAgent.class);
     private static final int MAX_TOOL_CALLS = 6;
     private static final int MAX_REACT_STEPS = 6;
+    private static final int TOOL_CALL_ARG_CHUNK_SIZE = 48;
     private static final Duration TOOL_RESULT_DELTA_GAP = Duration.ofMillis(30);
     private static final Duration TOOL_EVENT_DELTA_INTERVAL = Duration.ofMillis(10);
     private static final Pattern ARG_TEMPLATE_PATTERN = Pattern.compile("^\\{\\{\\s*([a-zA-Z0-9_]+)\\.([a-zA-Z0-9_]+)([+-]\\d+d)?\\s*}}$");
@@ -301,7 +302,8 @@ public class DefinitionDrivenAgent implements Agent {
                         historyMessages,
                         plannerPrompt,
                         enabledFunctionTools(),
-                        "agent-plan-execute-planner"
+                        "agent-plan-execute-planner",
+                        true
                 )
                 .handle((chunk, sink) -> {
                     if (chunk == null) {
@@ -330,9 +332,7 @@ public class DefinitionDrivenAgent implements Agent {
                         Flux.defer(() -> {
                             String raw = rawPlanBuffer.toString();
                             List<PlannedToolCall> nativeCalls = toPlannedToolCalls(nativeToolCalls);
-                            PlannerDecision decision = nativeCalls.isEmpty()
-                                    ? parsePlannerDecision(raw)
-                                    : plannerDecisionFromNativeCalls(nativeCalls);
+                            PlannerDecision decision = resolvePlannerDecision(raw, nativeCalls);
                             log.info("[agent:{}] plan-execute planner raw response:\n{}", id(), rawPlanBuffer);
                             log.info("[agent:{}] plan-execute planner decision: {}", id(), toJson(decision));
 
@@ -1017,6 +1017,68 @@ public class DefinitionDrivenAgent implements Agent {
         return new PlannerDecision("模型通过原生 function calling 返回了工具调用，按顺序执行。", steps);
     }
 
+    private PlannerDecision resolvePlannerDecision(String rawPlannerOutput, List<PlannedToolCall> nativeCalls) {
+        JsonNode parsedRoot = readJsonObject(rawPlannerOutput);
+        PlannerDecision parsedDecision = (parsedRoot != null && parsedRoot.isObject())
+                ? parsePlannerDecision(rawPlannerOutput)
+                : null;
+
+        if (parsedDecision != null && !parsedDecision.steps().isEmpty()) {
+            if (nativeCalls == null || nativeCalls.isEmpty()) {
+                return parsedDecision;
+            }
+            return mergePlannerDecisionWithNativeCalls(parsedDecision, nativeCalls);
+        }
+
+        if (nativeCalls != null && !nativeCalls.isEmpty()) {
+            return plannerDecisionFromNativeCalls(nativeCalls);
+        }
+
+        if (parsedDecision != null) {
+            return parsedDecision;
+        }
+        return fallbackPlannerDecision(rawPlannerOutput);
+    }
+
+    private PlannerDecision mergePlannerDecisionWithNativeCalls(
+            PlannerDecision parsedDecision,
+            List<PlannedToolCall> nativeCalls
+    ) {
+        if (parsedDecision == null) {
+            return plannerDecisionFromNativeCalls(nativeCalls);
+        }
+        if (nativeCalls == null || nativeCalls.isEmpty()) {
+            return parsedDecision;
+        }
+        if (parsedDecision.steps().isEmpty()) {
+            return plannerDecisionFromNativeCalls(nativeCalls);
+        }
+
+        List<PlannedStep> mergedSteps = new ArrayList<>();
+        int nativeIndex = 0;
+        for (PlannedStep step : parsedDecision.steps()) {
+            if (step == null) {
+                continue;
+            }
+            if (step.toolCall() != null) {
+                mergedSteps.add(step);
+                continue;
+            }
+            if (nativeIndex < nativeCalls.size()) {
+                mergedSteps.add(new PlannedStep(step.step(), nativeCalls.get(nativeIndex++)));
+                continue;
+            }
+            mergedSteps.add(step);
+        }
+
+        while (nativeIndex < nativeCalls.size()) {
+            PlannedToolCall toolCall = nativeCalls.get(nativeIndex++);
+            mergedSteps.add(new PlannedStep(defaultPlanStepText(mergedSteps.size() + 1, toolCall), toolCall));
+        }
+
+        return new PlannerDecision(parsedDecision.thinking(), mergedSteps);
+    }
+
     private Flux<AgentDelta> executePlanSteps(PlannerDecision decision, List<Map<String, Object>> records) {
         if (decision.steps().isEmpty()) {
             return Flux.empty();
@@ -1111,6 +1173,11 @@ public class DefinitionDrivenAgent implements Agent {
             log.info("[agent:{}] resolved tool args callId={}, tool={}, planned={}, resolved={}", id(), callId, plannedCall.name(), toJson(args), toJson(resolvedArgs));
         }
 
+        String argsJson = toJson(resolvedArgs);
+        Flux<AgentDelta> toolCallFlux = Flux.fromIterable(splitToolCallArgumentChunks(argsJson))
+                .map(chunk -> AgentDelta.toolCalls(List.of(toolCall(callId, plannedCall.name(), chunk))))
+                .delayElements(TOOL_EVENT_DELTA_INTERVAL);
+
         Mono<AgentDelta> toolResultDelta = Mono.delay(TOOL_RESULT_DELTA_GAP).then(Mono.fromCallable(() -> {
                     JsonNode result = safeInvoke(plannedCall.name(), resolvedArgs);
                     Map<String, Object> record = toolRecord(callId, plannedCall.name(), resolvedArgs, result);
@@ -1120,8 +1187,25 @@ public class DefinitionDrivenAgent implements Agent {
                 })
                 .subscribeOn(Schedulers.boundedElastic()));
 
-        return toolResultDelta.flux()
+        return Flux.concat(toolCallFlux, toolResultDelta.flux())
                 .delayElements(TOOL_EVENT_DELTA_INTERVAL);
+    }
+
+    private List<String> splitToolCallArgumentChunks(String argumentsJson) {
+        String normalized = normalize(argumentsJson, "");
+        if (normalized.isBlank()) {
+            return List.of("{}");
+        }
+        if (normalized.length() <= TOOL_CALL_ARG_CHUNK_SIZE) {
+            return List.of(normalized);
+        }
+
+        List<String> chunks = new ArrayList<>();
+        for (int start = 0; start < normalized.length(); start += TOOL_CALL_ARG_CHUNK_SIZE) {
+            int end = Math.min(start + TOOL_CALL_ARG_CHUNK_SIZE, normalized.length());
+            chunks.add(normalized.substring(start, end));
+        }
+        return chunks;
     }
 
     private Map<String, Object> resolveToolArguments(String toolName, Map<String, Object> plannedArgs, List<Map<String, Object>> records) {
@@ -1391,11 +1475,13 @@ public class DefinitionDrivenAgent implements Agent {
                 %s
 
                 请按 OpenAI 原生 Function Calling 协议工作：
-                1) 需要工具时，直接发起 tool_calls，不要在正文输出 toolCall/toolCalls JSON。
-                2) 不需要工具时，直接输出简洁结论文本。
-                3) 工具参数必须严格匹配工具 schema，避免缺省或隐式参数。
-                4) 若参数依赖时间，不要传 today/tomorrow/昨天/明天，优先传具体日期（YYYY-MM-DD）或先调用时间工具再传日期。
-                5) bash.command 必须是单条命令，不允许 &&、||、;、管道。
+                1) 单轮规划即可：先拆出完整任务列表（task），每个 task 可包含 0 或 1 个工具调用。
+                2) 需要工具时，直接发起 tool_calls，不要在正文输出 toolCall/toolCalls JSON。
+                3) 若需要多个工具，请在同一轮响应中给出全部 tool_calls，按依赖顺序排列，不要只调用一个就结束。
+                4) 不需要工具时，直接输出简洁结论文本。
+                5) 工具参数必须严格匹配工具 schema，避免缺省或隐式参数。
+                6) 若参数依赖时间，不要传 today/tomorrow/昨天/明天，优先传具体日期（YYYY-MM-DD）或先调用时间工具再传日期。
+                7) bash.command 必须是单条命令，不允许 &&、||、;、管道。
                 """.formatted(
                 request.message(),
                 enabledToolsPrompt()
