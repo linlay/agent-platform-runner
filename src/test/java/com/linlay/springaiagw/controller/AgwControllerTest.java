@@ -36,8 +36,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         }
 )
 @AutoConfigureWebTestClient
-@Import(GatewayApiControllerTest.TestLlmServiceConfig.class)
-class GatewayApiControllerTest {
+@Import(AgwControllerTest.TestLlmServiceConfig.class)
+class AgwControllerTest {
 
     @Autowired
     private WebTestClient webTestClient;
@@ -93,8 +93,10 @@ class GatewayApiControllerTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.agents[0].key").exists()
-                .jsonPath("$.agents[?(@.key=='demoPlanExecute')]").exists();
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.msg").isEqualTo("success")
+                .jsonPath("$.data[0].key").exists()
+                .jsonPath("$.data[?(@.key=='demoPlanExecute')]").exists();
     }
 
     @Test
@@ -104,8 +106,10 @@ class GatewayApiControllerTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.agent.key").isEqualTo("demoPlanExecute")
-                .jsonPath("$.agent.instructions").isEqualTo("你是高级规划助手。请先生成计划，再调用工具执行，最后总结输出。");
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.msg").isEqualTo("success")
+                .jsonPath("$.data.key").isEqualTo("demoPlanExecute")
+                .jsonPath("$.data.instructions").isEqualTo("你是高级规划助手。请先生成计划，再调用工具执行，最后总结输出。");
     }
 
     @Test
@@ -181,6 +185,7 @@ class GatewayApiControllerTest {
                 ))
                 .exchange()
                 .expectStatus().isBadRequest();
+                // query 接口为 SSE，错误时只校验状态码
     }
 
     @Test
@@ -200,10 +205,12 @@ class GatewayApiControllerTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.requestId").isEqualTo("req_submit_001")
-                .jsonPath("$.accepted").isEqualTo(true)
-                .jsonPath("$.runId").isEqualTo("123e4567-e89b-12d3-a456-426614174001")
-                .jsonPath("$.toolId").isEqualTo("tool_abc");
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.msg").isEqualTo("success")
+                .jsonPath("$.data.requestId").isEqualTo("req_submit_001")
+                .jsonPath("$.data.accepted").isEqualTo(true)
+                .jsonPath("$.data.runId").isEqualTo("123e4567-e89b-12d3-a456-426614174001")
+                .jsonPath("$.data.toolId").isEqualTo("tool_abc");
     }
 
     private String extractFirstValue(String text, String key) {

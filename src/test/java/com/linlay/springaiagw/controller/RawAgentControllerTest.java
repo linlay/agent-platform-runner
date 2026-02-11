@@ -34,8 +34,8 @@ import org.springframework.context.annotation.Import;
         }
 )
 @AutoConfigureWebTestClient
-@Import(AgentControllerTest.TestLlmServiceConfig.class)
-class AgentControllerTest {
+@Import(RawAgentControllerTest.TestLlmServiceConfig.class)
+class RawAgentControllerTest {
 
     @Autowired
     private WebTestClient webTestClient;
@@ -87,7 +87,7 @@ class AgentControllerTest {
     @Test
     void weatherUseCaseShouldContainThinkingAndDoneEvent() {
         FluxExchangeResult<String> result = webTestClient.post()
-                .uri("/api/agent/demoPlanExecute")
+                .uri("/raw-api/demoPlanExecute")
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.TEXT_EVENT_STREAM)
                 .bodyValue(Map.of(
@@ -113,7 +113,7 @@ class AgentControllerTest {
     @Test
     void reactModeShouldStreamFinalAnswerChunks() {
         FluxExchangeResult<String> result = webTestClient.post()
-                .uri("/api/agent/demoReAct")
+                .uri("/raw-api/demoReAct")
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.TEXT_EVENT_STREAM)
                 .bodyValue(Map.of("message", "写一首200字的散文"))
@@ -132,46 +132,5 @@ class AgentControllerTest {
         assertThat(joined).contains("\"content\":\"测试\"");
         assertThat(joined).contains("\"content\":\"输出\"");
         assertThat(joined).doesNotContain("\"content\":\"这是测试输出\"");
-    }
-
-    @Test
-    void agwWeatherUseCaseShouldContainAgwStandardEvents() {
-        FluxExchangeResult<String> result = webTestClient.post()
-                .uri("/api/agw-agent/demoPlanExecute")
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.TEXT_EVENT_STREAM)
-                .bodyValue(Map.of(
-                        "message", "查询上海天气",
-                        "city", "Shanghai",
-                        "chatId", "chat_123",
-                        "requestId", "req_001"
-                ))
-                .exchange()
-                .expectStatus().isOk()
-                .returnResult(String.class);
-
-        List<String> chunks = result.getResponseBody()
-                .take(1600)
-                .collectList()
-                .block(Duration.ofSeconds(8));
-
-        assertThat(chunks).isNotNull();
-        String joined = String.join("", chunks);
-        assertThat(joined).contains("\"type\":\"query.message\"");
-        assertThat(joined).contains("\"type\":\"chat.start\"");
-        assertThat(joined).contains("\"type\":\"run.start\"");
-        assertThat(joined).contains("\"type\":\"reasoning.start\"");
-        assertThat(joined).contains("\"type\":\"content.start\"");
-        assertThat(joined).contains("\"type\":\"message.start\"");
-        assertThat(joined).contains("\"type\":\"message.delta\"");
-        assertThat(joined).contains("\"type\":\"message.end\"");
-        assertThat(joined).contains("\"type\":\"run.complete\"");
-
-        int queryMessageIndex = joined.indexOf("\"type\":\"query.message\"");
-        int chatStartIndex = joined.indexOf("\"type\":\"chat.start\"");
-        int runStartIndex = joined.indexOf("\"type\":\"run.start\"");
-        assertThat(queryMessageIndex).isGreaterThanOrEqualTo(0);
-        assertThat(chatStartIndex).isGreaterThan(queryMessageIndex);
-        assertThat(runStartIndex).isGreaterThan(chatStartIndex);
     }
 }

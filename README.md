@@ -8,8 +8,25 @@
 - `GET /api/agent?agentKey=...`: 智能体详情
 - `POST /api/query`: 提问接口（默认返回 AGW 标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
 - `POST /api/submit`: Human-in-the-loop 提交接口
-- `POST /api/agw-agent/{agentId}`: 兼容旧路径，返回 AGW 标准 SSE
-- `POST /api/agent/{agentId}`: 兼容旧路径，返回 OpenAI chunk SSE
+- `POST /raw-api/{agentId}`: 原始 OpenAI chunk SSE（调试接口）
+
+## 返回格式约定
+
+- `POST /api/query` 返回 SSE event stream。
+- 其它 JSON 接口统一返回：
+
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": {}
+}
+```
+
+- `code = 0` 表示成功，`code > 0` 表示失败（整型错误码），`msg` 为错误信息，`data` 为返回数据。
+- `data` 直接放业务内容，不再额外包同名字段，例如：
+  - 智能体列表：`data` 直接是 `agents[]`
+  - 智能体详情：`data` 直接是 `agent`
 
 ## 目录约定
 
@@ -46,9 +63,9 @@ mvn spring-boot:run
 ## 接口测试用例
 
 ```bash
-curl -N -X POST "http://localhost:8080/api/agw-agent/demoPlanExecute" \
+curl -N -X POST "http://localhost:8080/api/query" \
   -H "Content-Type: application/json" \
-  -d '{"message":"给我一个微服务网关的落地方案，100字内"}'
+  -d '{"message":"给我一个微服务网关的落地方案，100字内","agentKey":"demoPlanExecute"}'
 ```
 
 ## settings.xml 说明

@@ -1,11 +1,11 @@
 package com.linlay.springaiagw.controller;
 
+import com.linlay.springaiagw.model.agw.ApiResponse;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.HashMap;
@@ -15,24 +15,25 @@ import java.util.Map;
 public class ApiExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
-        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
-        detail.setTitle("Bad request");
-        return detail;
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.failure(HttpStatus.BAD_REQUEST.value(), ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
-        ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
-        detail.setTitle("Validation failed");
-
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> fields = new HashMap<>();
         for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
             fields.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
-        detail.setProperty("fields", fields);
-        return detail;
+        Map<String, Object> data = Map.of("fields", fields);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.failure(HttpStatus.BAD_REQUEST.value(), "Validation failed", data));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleUnexpected(Exception ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.failure(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Internal server error"));
     }
 }

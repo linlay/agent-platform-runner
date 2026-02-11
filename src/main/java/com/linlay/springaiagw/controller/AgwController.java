@@ -7,6 +7,7 @@ import com.linlay.springaiagw.model.agw.AgwAgentsResponse;
 import com.linlay.springaiagw.model.agw.AgwQueryRequest;
 import com.linlay.springaiagw.model.agw.AgwSubmitRequest;
 import com.linlay.springaiagw.model.agw.AgwSubmitResponse;
+import com.linlay.springaiagw.model.agw.ApiResponse;
 import com.linlay.springaiagw.service.AgwQueryService;
 import com.linlay.springaiagw.service.AgwQueryService.QuerySession;
 import jakarta.validation.Valid;
@@ -41,7 +42,7 @@ public class AgwController {
     }
 
     @GetMapping("/agents")
-    public AgwAgentsResponse agents(
+    public ApiResponse<List<AgwAgentsResponse.AgentSummary>> agents(
             @RequestParam(required = false) Boolean includeHidden,
             @RequestParam(required = false) String tag
     ) {
@@ -49,13 +50,13 @@ public class AgwController {
                 .filter(agent -> matchesTag(agent, tag))
                 .map(this::toSummary)
                 .toList();
-        return new AgwAgentsResponse(items);
+        return ApiResponse.success(items);
     }
 
     @GetMapping("/agent")
-    public AgwAgentResponse agent(@RequestParam String agentKey) {
+    public ApiResponse<AgwAgentResponse.AgentDetail> agent(@RequestParam String agentKey) {
         Agent agent = agentRegistry.get(agentKey);
-        return new AgwAgentResponse(toDetail(agent));
+        return ApiResponse.success(toDetail(agent));
     }
 
     @PostMapping(value = "/query", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -65,7 +66,7 @@ public class AgwController {
     }
 
     @PostMapping("/submit")
-    public AgwSubmitResponse submit(@Valid @RequestBody AgwSubmitRequest request) {
+    public ApiResponse<AgwSubmitResponse> submit(@Valid @RequestBody AgwSubmitRequest request) {
         log.info(
                 "Received human-in-the-loop submit requestId={}, runId={}, toolId={}, viewId={}",
                 request.requestId(),
@@ -73,12 +74,12 @@ public class AgwController {
                 request.toolId(),
                 request.viewId()
         );
-        return new AgwSubmitResponse(
+        return ApiResponse.success(new AgwSubmitResponse(
                 request.requestId(),
                 true,
                 request.runId(),
                 request.toolId()
-        );
+        ));
     }
 
     private boolean matchesTag(Agent agent, String tag) {
