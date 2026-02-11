@@ -32,103 +32,7 @@ class DefinitionDrivenAgentTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Test
-    void planExecuteFlowShouldStreamPlannerThinkingBeforeToolCalls() {
-        AgentDefinition definition = new AgentDefinition(
-                "demoPlanExecute",
-                "demo",
-                ProviderType.BAILIAN,
-                "qwen3-max",
-                "你是测试助手",
-                AgentMode.PLAN_EXECUTE,
-                List.of("bash")
-        );
-
-        LlmService llmService = new LlmService(null, null) {
-            @Override
-            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                if (systemPrompt != null && systemPrompt.contains("任务编排阶段")) {
-                    return Flux.just(
-                                    "{\"thinking\":\"先",
-                                    "查目录\",\"plan\":[\"执行ls\"],\"toolCalls\":[{\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}]}"
-                            )
-                            .delayElements(Duration.ofMillis(5));
-                }
-                return Flux.just("当前目录包含 Dockerfile、src、pom.xml");
-            }
-
-            @Override
-            public Flux<String> streamContent(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                return streamContent(providerType, model, systemPrompt, userPrompt);
-            }
-
-            @Override
-            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return Mono.just("");
-            }
-
-            @Override
-            public Mono<String> completeText(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                return completeText(providerType, model, systemPrompt, userPrompt);
-            }
-        };
-
-        BaseTool bashTool = new BaseTool() {
-            @Override
-            public String name() {
-                return "bash";
-            }
-
-            @Override
-            public String description() {
-                return "test bash";
-            }
-
-            @Override
-            public JsonNode invoke(Map<String, Object> args) {
-                return objectMapper.valueToTree(Map.of(
-                        "ok", true,
-                        "command", args.getOrDefault("command", "")
-                ));
-            }
-        };
-
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
-                definition,
-                llmService,
-                new DeltaStreamService(),
-                new ToolRegistry(List.of(bashTool)),
-                objectMapper
-        );
-
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("看看当前目录有哪些文件", null, null, null, null, null, null))
-                .collectList()
-                .block(Duration.ofSeconds(3));
-
-        assertThat(deltas).isNotNull();
-        assertThat(deltas).isNotEmpty();
-
-        int plannerThinkingIndex = indexOfThinkingContaining(deltas, "查目录");
-        int toolCallIndex = indexOfToolCall(deltas);
-        assertThat(plannerThinkingIndex).isGreaterThanOrEqualTo(0);
-        assertThat(toolCallIndex).isGreaterThan(plannerThinkingIndex);
-
-        assertThat(deltas.stream().map(AgentDelta::thinking).toList())
-                .contains("正在生成执行计划...\n");
-        assertThat(deltas.get(deltas.size() - 1).finishReason()).isEqualTo("stop");
-    }
+    // ======================== RE_ACT Tests ========================
 
     @Test
     void reactFlowShouldStreamStepThinkingBeforeToolCalls() {
@@ -245,6 +149,8 @@ class DefinitionDrivenAgentTest {
         assertThat(deltas.get(deltas.size() - 1).finishReason()).isEqualTo("stop");
     }
 
+    // ======================== PLAIN Tests ========================
+
     @Test
     void plainFlowShouldSelectOnlyOneToolFromCandidates() {
         AgentDefinition definition = new AgentDefinition(
@@ -357,8 +263,10 @@ class DefinitionDrivenAgentTest {
         assertThat(deltas.get(deltas.size() - 1).finishReason()).isEqualTo("stop");
     }
 
+    // ======================== PLAN_EXECUTE Loop Tests ========================
+
     @Test
-    void planExecuteFlowShouldEmitToolCallBeforeSlowToolResult() {
+    void planExecuteLoopShouldExecuteSingleToolThenFinalAnswer() {
         AgentDefinition definition = new AgentDefinition(
                 "demoPlanExecute",
                 "demo",
@@ -371,25 +279,47 @@ class DefinitionDrivenAgentTest {
 
         LlmService llmService = new LlmService(null, null) {
             @Override
-            public Flux<String> streamContent(
+            public Flux<LlmStreamDelta> streamDeltas(
                     ProviderType providerType,
                     String model,
                     String systemPrompt,
+                    List<Message> historyMessages,
                     String userPrompt,
-                    String stage
+                    List<LlmFunctionTool> tools,
+                    String stage,
+                    boolean parallelToolCalls
             ) {
-                if ("agent-plan-execute-planner".equals(stage)) {
-                    return Flux.just("{\"thinking\":\"先执行命令\",\"plan\":[\"执行bash\"],\"toolCalls\":[{\"name\":\"bash\",\"arguments\":{\"command\":\"ls\"}}]}");
+                if ("agent-plan-execute-step-1".equals(stage)) {
+                    return Flux.just(
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_bash_1",
+                                            "function",
+                                            new SseChunk.Function("bash", "{\"command\":\"ls\"}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(null, null, "tool_calls")
+                    );
                 }
-                if ("agent-plan-execute-final".equals(stage)) {
-                    return Flux.just("执行完成。");
+                if ("agent-plan-execute-step-2".equals(stage)) {
+                    return Flux.just(
+                            new LlmStreamDelta("当前目录包含 Dockerfile、src、pom.xml", null, null),
+                            new LlmStreamDelta(null, null, "stop")
+                    );
                 }
                 return Flux.empty();
             }
 
             @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                return Flux.just("最终回答");
+            }
+
+            @Override
             public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return streamContent(providerType, model, systemPrompt, userPrompt, "default");
+                return Flux.just("最终回答");
             }
 
             @Override
@@ -398,18 +328,12 @@ class DefinitionDrivenAgentTest {
             }
 
             @Override
-            public Mono<String> completeText(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
                 return Mono.just("");
             }
         };
 
-        BaseTool slowBashTool = new BaseTool() {
+        BaseTool bashTool = new BaseTool() {
             @Override
             public String name() {
                 return "bash";
@@ -417,16 +341,11 @@ class DefinitionDrivenAgentTest {
 
             @Override
             public String description() {
-                return "slow bash";
+                return "test bash";
             }
 
             @Override
             public JsonNode invoke(Map<String, Object> args) {
-                try {
-                    Thread.sleep(400);
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                }
                 return objectMapper.valueToTree(Map.of(
                         "ok", true,
                         "command", args.getOrDefault("command", "")
@@ -438,355 +357,25 @@ class DefinitionDrivenAgentTest {
                 definition,
                 llmService,
                 new DeltaStreamService(),
-                new ToolRegistry(List.of(slowBashTool)),
-                objectMapper
-        );
-
-        AgentDelta firstToolCallDelta = agent.stream(new AgentRequest("执行一次 ls", null, null, null, null, null, null))
-                .filter(delta -> delta.toolCalls() != null && !delta.toolCalls().isEmpty())
-                .blockFirst(Duration.ofMillis(250));
-
-        assertThat(firstToolCallDelta).isNotNull();
-    }
-
-    @Test
-    void planExecuteFlowShouldExecuteTwoToolsSequentiallyAndSplitToolArgs() {
-        AgentDefinition definition = new AgentDefinition(
-                "demoPlanExecute",
-                "demo",
-                ProviderType.BAILIAN,
-                "qwen3-max",
-                "你是测试助手",
-                AgentMode.PLAN_EXECUTE,
-                List.of("tool_a", "tool_b")
-        );
-
-        String longArg = "abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789";
-        String plannerResponse = """
-                {"thinking":"先后执行两个工具","plan":["先执行tool_a","再执行tool_b"],"toolCalls":[{"name":"tool_a","arguments":{"text":"%s"}},{"name":"tool_b","arguments":{"ok":true}}]}
-                """.formatted(longArg);
-
-        LlmService llmService = new LlmService(null, null) {
-            @Override
-            public Flux<String> streamContent(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                if ("agent-plan-execute-planner".equals(stage)) {
-                    return Flux.just(plannerResponse);
-                }
-                if ("agent-plan-execute-final".equals(stage)) {
-                    return Flux.just("最终结论");
-                }
-                return Flux.empty();
-            }
-
-            @Override
-            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return streamContent(providerType, model, systemPrompt, userPrompt, "default");
-            }
-
-            @Override
-            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return Mono.just("");
-            }
-
-            @Override
-            public Mono<String> completeText(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                return Mono.just("");
-            }
-        };
-
-        BaseTool toolA = new BaseTool() {
-            @Override
-            public String name() {
-                return "tool_a";
-            }
-
-            @Override
-            public String description() {
-                return "tool a";
-            }
-
-            @Override
-            public JsonNode invoke(Map<String, Object> args) {
-                try {
-                    Thread.sleep(120);
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                }
-                return objectMapper.valueToTree(Map.of(
-                        "tool", "tool_a",
-                        "args", args
-                ));
-            }
-        };
-
-        BaseTool toolB = new BaseTool() {
-            @Override
-            public String name() {
-                return "tool_b";
-            }
-
-            @Override
-            public String description() {
-                return "tool b";
-            }
-
-            @Override
-            public JsonNode invoke(Map<String, Object> args) {
-                return objectMapper.valueToTree(Map.of(
-                        "tool", "tool_b",
-                        "args", args
-                ));
-            }
-        };
-
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
-                definition,
-                llmService,
-                new DeltaStreamService(),
-                new ToolRegistry(List.of(toolA, toolB)),
-                objectMapper
-        );
-
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("顺序调用两个工具", null, null, null, null, null, null))
-                .collectList()
-                .block(Duration.ofSeconds(6));
-
-        assertThat(deltas).isNotNull();
-        assertThat(deltas).isNotEmpty();
-
-        int firstToolResult = indexOfToolResultById(deltas, "call_tool_a_1");
-        int secondToolCall = indexOfToolCallById(deltas, "call_tool_b_2");
-        long firstToolCallChunks = countToolCallById(deltas, "call_tool_a_1");
-
-        assertThat(firstToolResult).isGreaterThanOrEqualTo(0);
-        assertThat(secondToolCall).isGreaterThan(firstToolResult);
-        assertThat(firstToolCallChunks).isEqualTo(1);
-    }
-
-    @Test
-    void planExecuteFlowShouldExecuteStepBoundToolCallsOneByOne() {
-        AgentDefinition definition = new AgentDefinition(
-                "demoPlanExecute",
-                "demo",
-                ProviderType.BAILIAN,
-                "qwen3-max",
-                "你是测试助手",
-                AgentMode.PLAN_EXECUTE,
-                List.of("tool_a", "tool_b")
-        );
-
-        String plannerResponse = """
-                {"thinking":"按步骤执行","plan":[{"step":"先执行tool_a","toolCall":{"name":"tool_a","arguments":{"ok":true}}},{"step":"再执行tool_b","toolCall":{"name":"tool_b","arguments":{"ok":true}}}]}
-                """;
-
-        LlmService llmService = new LlmService(null, null) {
-            @Override
-            public Flux<String> streamContent(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                if ("agent-plan-execute-planner".equals(stage)) {
-                    return Flux.just(plannerResponse);
-                }
-                if ("agent-plan-execute-final".equals(stage)) {
-                    return Flux.just("完成");
-                }
-                return Flux.empty();
-            }
-
-            @Override
-            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return streamContent(providerType, model, systemPrompt, userPrompt, "default");
-            }
-
-            @Override
-            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return Mono.just("");
-            }
-
-            @Override
-            public Mono<String> completeText(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                return Mono.just("");
-            }
-        };
-
-        BaseTool toolA = new BaseTool() {
-            @Override
-            public String name() {
-                return "tool_a";
-            }
-
-            @Override
-            public String description() {
-                return "tool a";
-            }
-
-            @Override
-            public JsonNode invoke(Map<String, Object> args) {
-                return objectMapper.valueToTree(Map.of("tool", "tool_a", "ok", true));
-            }
-        };
-
-        BaseTool toolB = new BaseTool() {
-            @Override
-            public String name() {
-                return "tool_b";
-            }
-
-            @Override
-            public String description() {
-                return "tool b";
-            }
-
-            @Override
-            public JsonNode invoke(Map<String, Object> args) {
-                return objectMapper.valueToTree(Map.of("tool", "tool_b", "ok", true));
-            }
-        };
-
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
-                definition,
-                llmService,
-                new DeltaStreamService(),
-                new ToolRegistry(List.of(toolA, toolB)),
-                objectMapper
-        );
-
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("按步骤顺序执行", null, null, null, null, null, null))
-                .collectList()
-                .block(Duration.ofSeconds(6));
-
-        assertThat(deltas).isNotNull();
-        assertThat(deltas).isNotEmpty();
-
-        int step1Thinking = indexOfThinkingContaining(deltas, "执行步骤 1/2：先执行tool_a");
-        int step2Thinking = indexOfThinkingContaining(deltas, "执行步骤 2/2：再执行tool_b");
-        int toolACall = indexOfToolCallById(deltas, "call_tool_a_1");
-        int toolAResult = indexOfToolResultById(deltas, "call_tool_a_1");
-        int toolBCall = indexOfToolCallById(deltas, "call_tool_b_2");
-
-        assertThat(step1Thinking).isGreaterThanOrEqualTo(0);
-        assertThat(toolACall).isGreaterThan(step1Thinking);
-        assertThat(toolAResult).isGreaterThan(toolACall);
-        assertThat(step2Thinking).isGreaterThan(toolAResult);
-        assertThat(toolBCall).isGreaterThan(step2Thinking);
-    }
-
-    @Test
-    void planExecuteFlowShouldSplitCompositeBashCommandIntoSequentialToolCalls() {
-        AgentDefinition definition = new AgentDefinition(
-                "demoPlanExecute",
-                "demo",
-                ProviderType.BAILIAN,
-                "qwen3-max",
-                "你是测试助手",
-                AgentMode.PLAN_EXECUTE,
-                List.of("bash")
-        );
-
-        String plannerResponse = """
-                {"thinking":"分两步执行系统检查","plan":[{"step":"检查系统资源","toolCall":{"name":"bash","arguments":{"command":"df -h && free -h"}}}]}
-                """;
-
-        LlmService llmService = new LlmService(null, null) {
-            @Override
-            public Flux<String> streamContent(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                if ("agent-plan-execute-planner".equals(stage)) {
-                    return Flux.just(plannerResponse);
-                }
-                if ("agent-plan-execute-final".equals(stage)) {
-                    return Flux.just("完成");
-                }
-                return Flux.empty();
-            }
-
-            @Override
-            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return streamContent(providerType, model, systemPrompt, userPrompt, "default");
-            }
-
-            @Override
-            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return Mono.just("");
-            }
-
-            @Override
-            public Mono<String> completeText(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                return Mono.just("");
-            }
-        };
-
-        List<String> commands = new CopyOnWriteArrayList<>();
-        BaseTool bashTool = new BaseTool() {
-            @Override
-            public String name() {
-                return "bash";
-            }
-
-            @Override
-            public String description() {
-                return "bash";
-            }
-
-            @Override
-            public JsonNode invoke(Map<String, Object> args) {
-                commands.add(String.valueOf(args.get("command")));
-                return objectMapper.valueToTree(Map.of("ok", true));
-            }
-        };
-
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
-                definition,
-                llmService,
-                new DeltaStreamService(),
                 new ToolRegistry(List.of(bashTool)),
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("检查系统资源", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("看看当前目录有哪些文件", null, null, null, null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(6));
 
         assertThat(deltas).isNotNull();
-        assertThat(commands).containsExactly("df -h", "free -h");
-        assertThat(indexOfToolCallById(deltas, "call_bash_2")).isGreaterThan(indexOfToolResultById(deltas, "call_bash_1"));
+        assertThat(deltas).isNotEmpty();
+
+        assertThat(deltas.stream().map(AgentDelta::thinking).toList())
+                .contains("进入 PLAN-EXECUTE 模式，正在逐步决策...\n");
+        assertThat(indexOfToolResultById(deltas, "call_bash_1")).isGreaterThanOrEqualTo(0);
+        assertThat(deltas.get(deltas.size() - 1).finishReason()).isEqualTo("stop");
     }
 
     @Test
-    void planExecuteFlowShouldEmitOrderedToolEventsInAssembler() {
+    void planExecuteLoopShouldExecuteMultiRoundTools() {
         AgentDefinition definition = new AgentDefinition(
                 "demoPlanExecute",
                 "demo",
@@ -794,29 +383,63 @@ class DefinitionDrivenAgentTest {
                 "qwen3-max",
                 "你是测试助手",
                 AgentMode.PLAN_EXECUTE,
-                List.of("tool_a", "tool_b")
+                List.of("city_datetime", "mock_city_weather")
         );
 
-        String plannerResponse = """
-                {"thinking":"顺序执行","plan":["tool_a","tool_b"],"toolCalls":[{"name":"tool_a","arguments":{"text":"abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789"}},{"name":"tool_b","arguments":{"ok":true}}]}
-                """;
-
+        AtomicReference<Boolean> step1ParallelToolCalls = new AtomicReference<>();
         LlmService llmService = new LlmService(null, null) {
             @Override
-            public Flux<String> streamContent(
+            public Flux<LlmStreamDelta> streamDeltas(
                     ProviderType providerType,
                     String model,
                     String systemPrompt,
+                    List<Message> historyMessages,
                     String userPrompt,
-                    String stage
+                    List<LlmFunctionTool> tools,
+                    String stage,
+                    boolean parallelToolCalls
             ) {
-                if ("agent-plan-execute-planner".equals(stage)) {
-                    return Flux.just(plannerResponse);
+                if ("agent-plan-execute-step-1".equals(stage)) {
+                    step1ParallelToolCalls.set(parallelToolCalls);
+                    return Flux.just(
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_city_datetime",
+                                            "function",
+                                            new SseChunk.Function("city_datetime", "{\"city\":\"上海\"}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(null, null, "tool_calls")
+                    );
                 }
-                if ("agent-plan-execute-final".equals(stage)) {
-                    return Flux.just("done");
+                if ("agent-plan-execute-step-2".equals(stage)) {
+                    return Flux.just(
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_city_weather",
+                                            "function",
+                                            new SseChunk.Function("mock_city_weather", "{\"city\":\"上海\",\"date\":\"tomorrow\"}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(null, null, "tool_calls")
+                    );
+                }
+                if ("agent-plan-execute-step-3".equals(stage)) {
+                    return Flux.just(new LlmStreamDelta(null, null, "stop"));
                 }
                 return Flux.empty();
+            }
+
+            @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                if (stage != null && stage.startsWith("agent-plan-execute-final")) {
+                    return Flux.just("done");
+                }
+                return Flux.just("fallback");
             }
 
             @Override
@@ -830,13 +453,143 @@ class DefinitionDrivenAgentTest {
             }
 
             @Override
-            public Mono<String> completeText(
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                return Mono.just("");
+            }
+        };
+
+        BaseTool cityDateTimeTool = new BaseTool() {
+            @Override
+            public String name() {
+                return "city_datetime";
+            }
+
+            @Override
+            public String description() {
+                return "city datetime";
+            }
+
+            @Override
+            public JsonNode invoke(Map<String, Object> args) {
+                return objectMapper.valueToTree(Map.of(
+                        "tool", "city_datetime",
+                        "city", "上海",
+                        "date", "2026-02-11"
+                ));
+            }
+        };
+
+        AtomicReference<Map<String, Object>> weatherArgs = new AtomicReference<>();
+        BaseTool weatherTool = new BaseTool() {
+            @Override
+            public String name() {
+                return "mock_city_weather";
+            }
+
+            @Override
+            public String description() {
+                return "weather";
+            }
+
+            @Override
+            public JsonNode invoke(Map<String, Object> args) {
+                weatherArgs.set(Map.copyOf(args));
+                return objectMapper.valueToTree(Map.of("ok", true, "date", String.valueOf(args.get("date"))));
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                new DeltaStreamService(),
+                new ToolRegistry(List.of(cityDateTimeTool, weatherTool)),
+                objectMapper
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("查上海明天天气", null, null, null, null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(6));
+
+        assertThat(deltas).isNotNull();
+        assertThat(step1ParallelToolCalls.get()).isTrue();
+        assertThat(weatherArgs.get()).isNotNull();
+        assertThat(weatherArgs.get().get("date")).isEqualTo("2026-02-12");
+        assertThat(indexOfToolResultById(deltas, "call_city_datetime")).isGreaterThanOrEqualTo(0);
+        assertThat(indexOfToolResultById(deltas, "call_city_weather"))
+                .isGreaterThan(indexOfToolResultById(deltas, "call_city_datetime"));
+        assertThat(deltas.get(deltas.size() - 1).finishReason()).isEqualTo("stop");
+    }
+
+    @Test
+    void planExecuteLoopShouldSupportParallelToolCallsInSingleRound() {
+        AgentDefinition definition = new AgentDefinition(
+                "demoPlanExecute",
+                "demo",
+                ProviderType.BAILIAN,
+                "qwen3-max",
+                "你是测试助手",
+                AgentMode.PLAN_EXECUTE,
+                List.of("tool_a", "tool_b")
+        );
+
+        LlmService llmService = new LlmService(null, null) {
+            @Override
+            public Flux<LlmStreamDelta> streamDeltas(
                     ProviderType providerType,
                     String model,
                     String systemPrompt,
+                    List<Message> historyMessages,
                     String userPrompt,
-                    String stage
+                    List<LlmFunctionTool> tools,
+                    String stage,
+                    boolean parallelToolCalls
             ) {
+                if ("agent-plan-execute-step-1".equals(stage)) {
+                    return Flux.just(
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_tool_a",
+                                            "function",
+                                            new SseChunk.Function("tool_a", "{\"text\":\"hello\"}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_tool_b",
+                                            "function",
+                                            new SseChunk.Function("tool_b", "{\"ok\":true}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(null, null, "tool_calls")
+                    );
+                }
+                if ("agent-plan-execute-step-2".equals(stage)) {
+                    return Flux.just(new LlmStreamDelta(null, null, "stop"));
+                }
+                return Flux.empty();
+            }
+
+            @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                return Flux.just("最终结论");
+            }
+
+            @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
+                return Flux.just("最终结论");
+            }
+
+            @Override
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
+                return Mono.just("");
+            }
+
+            @Override
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
                 return Mono.just("");
             }
         };
@@ -883,34 +636,20 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("顺序执行两个工具", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("同时调用两个工具", null, null, null, null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(6));
+
         assertThat(deltas).isNotNull();
-
-        AgwEventAssembler.EventStreamState state = new AgwEventAssembler()
-                .begin("顺序执行两个工具", "chat_1", "chat_1", "req_1", "run_1");
-        List<AgwEvent> events = new ArrayList<>(state.bootstrapEvents());
-        for (AgentDelta delta : deltas) {
-            events.addAll(state.consume(toAgwDelta(delta)));
-        }
-
-        int toolAStart = indexOfToolEvent(events, "tool.start", "call_tool_a_1");
-        int toolAEnd = indexOfToolEvent(events, "tool.end", "call_tool_a_1");
-        int toolAResult = indexOfToolEvent(events, "tool.result", "call_tool_a_1");
-        int toolBStart = indexOfToolEvent(events, "tool.start", "call_tool_b_2");
-        int toolBResult = indexOfToolEvent(events, "tool.result", "call_tool_b_2");
-
-        assertThat(toolAStart).isGreaterThanOrEqualTo(0);
-        assertThat(toolAEnd).isGreaterThan(toolAStart);
-        assertThat(toolAResult).isGreaterThan(toolAEnd);
-        assertThat(toolBStart).isGreaterThan(toolAResult);
-        assertThat(toolBResult).isGreaterThan(toolBStart);
-        assertThat(countToolArgsEvents(events, "call_tool_a_1")).isEqualTo(1);
+        assertThat(indexOfToolResultById(deltas, "call_tool_a")).isGreaterThanOrEqualTo(0);
+        assertThat(indexOfToolResultById(deltas, "call_tool_b")).isGreaterThanOrEqualTo(0);
+        assertThat(indexOfToolResultById(deltas, "call_tool_b"))
+                .isGreaterThan(indexOfToolResultById(deltas, "call_tool_a"));
+        assertThat(deltas.get(deltas.size() - 1).finishReason()).isEqualTo("stop");
     }
 
     @Test
-    void planExecuteFlowShouldInvokeToolsStrictlySequentiallyWithoutOverlap() {
+    void planExecuteLoopShouldInvokeToolsStrictlySequentiallyWithoutOverlap() {
         AgentDefinition definition = new AgentDefinition(
                 "demoPlanExecute",
                 "demo",
@@ -921,31 +660,55 @@ class DefinitionDrivenAgentTest {
                 List.of("tool_a", "tool_b")
         );
 
-        String plannerResponse = """
-                {"thinking":"顺序执行","plan":["tool_a","tool_b"],"toolCalls":[{"name":"tool_a","arguments":{"text":"a"}},{"name":"tool_b","arguments":{"text":"b"}}]}
-                """;
-
         LlmService llmService = new LlmService(null, null) {
             @Override
-            public Flux<String> streamContent(
+            public Flux<LlmStreamDelta> streamDeltas(
                     ProviderType providerType,
                     String model,
                     String systemPrompt,
+                    List<Message> historyMessages,
                     String userPrompt,
-                    String stage
+                    List<LlmFunctionTool> tools,
+                    String stage,
+                    boolean parallelToolCalls
             ) {
-                if ("agent-plan-execute-planner".equals(stage)) {
-                    return Flux.just(plannerResponse);
+                if ("agent-plan-execute-step-1".equals(stage)) {
+                    return Flux.just(
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_tool_a",
+                                            "function",
+                                            new SseChunk.Function("tool_a", "{\"text\":\"a\"}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_tool_b",
+                                            "function",
+                                            new SseChunk.Function("tool_b", "{\"text\":\"b\"}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(null, null, "tool_calls")
+                    );
                 }
-                if ("agent-plan-execute-final".equals(stage)) {
-                    return Flux.just("done");
+                if ("agent-plan-execute-step-2".equals(stage)) {
+                    return Flux.just(new LlmStreamDelta(null, null, "stop"));
                 }
                 return Flux.empty();
             }
 
             @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                return Flux.just("done");
+            }
+
+            @Override
             public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return streamContent(providerType, model, systemPrompt, userPrompt, "default");
+                return Flux.just("done");
             }
 
             @Override
@@ -954,13 +717,7 @@ class DefinitionDrivenAgentTest {
             }
 
             @Override
-            public Mono<String> completeText(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
                 return Mono.just("");
             }
         };
@@ -1045,7 +802,7 @@ class DefinitionDrivenAgentTest {
     }
 
     @Test
-    void planExecuteFlowShouldResolveTomorrowUsingPreviousCityDatetime() {
+    void planExecuteLoopShouldSplitCompositeBashCommand() {
         AgentDefinition definition = new AgentDefinition(
                 "demoPlanExecute",
                 "demo",
@@ -1053,236 +810,9 @@ class DefinitionDrivenAgentTest {
                 "qwen3-max",
                 "你是测试助手",
                 AgentMode.PLAN_EXECUTE,
-                List.of("city_datetime", "mock_city_weather")
+                List.of("bash")
         );
 
-        String plannerResponse = """
-                {"thinking":"先取时间再查天气","plan":["获取上海当前日期","查询明天天气"],"toolCalls":[{"name":"city_datetime","arguments":{"city":"上海"}},{"name":"mock_city_weather","arguments":{"city":"上海","date":"tomorrow"}}]}
-                """;
-
-        LlmService llmService = new LlmService(null, null) {
-            @Override
-            public Flux<String> streamContent(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                if ("agent-plan-execute-planner".equals(stage)) {
-                    return Flux.just(plannerResponse);
-                }
-                if ("agent-plan-execute-final".equals(stage)) {
-                    return Flux.just("done");
-                }
-                return Flux.empty();
-            }
-
-            @Override
-            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return streamContent(providerType, model, systemPrompt, userPrompt, "default");
-            }
-
-            @Override
-            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return Mono.just("");
-            }
-
-            @Override
-            public Mono<String> completeText(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                return Mono.just("");
-            }
-        };
-
-        BaseTool cityDateTimeTool = new BaseTool() {
-            @Override
-            public String name() {
-                return "city_datetime";
-            }
-
-            @Override
-            public String description() {
-                return "city datetime";
-            }
-
-            @Override
-            public JsonNode invoke(Map<String, Object> args) {
-                return objectMapper.valueToTree(Map.of(
-                        "tool", "city_datetime",
-                        "city", "上海",
-                        "date", "2026-02-11"
-                ));
-            }
-        };
-
-        AtomicReference<Map<String, Object>> weatherArgs = new AtomicReference<>();
-        BaseTool weatherTool = new BaseTool() {
-            @Override
-            public String name() {
-                return "mock_city_weather";
-            }
-
-            @Override
-            public String description() {
-                return "weather";
-            }
-
-            @Override
-            public JsonNode invoke(Map<String, Object> args) {
-                weatherArgs.set(Map.copyOf(args));
-                return objectMapper.valueToTree(Map.of("ok", true, "date", String.valueOf(args.get("date"))));
-            }
-        };
-
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
-                definition,
-                llmService,
-                new DeltaStreamService(),
-                new ToolRegistry(List.of(cityDateTimeTool, weatherTool)),
-                objectMapper
-        );
-
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("查上海明天天气", null, null, null, null, null, null))
-                .collectList()
-                .block(Duration.ofSeconds(6));
-
-        assertThat(deltas).isNotNull();
-        assertThat(weatherArgs.get()).isNotNull();
-        assertThat(weatherArgs.get().get("date")).isEqualTo("2026-02-12");
-    }
-
-    @Test
-    void planExecuteFlowShouldResolveDateTemplateFromPreviousToolResult() {
-        AgentDefinition definition = new AgentDefinition(
-                "demoPlanExecute",
-                "demo",
-                ProviderType.BAILIAN,
-                "qwen3-max",
-                "你是测试助手",
-                AgentMode.PLAN_EXECUTE,
-                List.of("city_datetime", "mock_city_weather")
-        );
-
-        String plannerResponse = """
-                {"thinking":"先取时间再查天气","plan":["获取上海当前日期","查询明天天气"],"toolCalls":[{"name":"city_datetime","arguments":{"city":"上海"}},{"name":"mock_city_weather","arguments":{"city":"上海","date":"{{city_datetime.date+1d}}"}}]}
-                """;
-
-        LlmService llmService = new LlmService(null, null) {
-            @Override
-            public Flux<String> streamContent(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                if ("agent-plan-execute-planner".equals(stage)) {
-                    return Flux.just(plannerResponse);
-                }
-                if ("agent-plan-execute-final".equals(stage)) {
-                    return Flux.just("done");
-                }
-                return Flux.empty();
-            }
-
-            @Override
-            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return streamContent(providerType, model, systemPrompt, userPrompt, "default");
-            }
-
-            @Override
-            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return Mono.just("");
-            }
-
-            @Override
-            public Mono<String> completeText(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                return Mono.just("");
-            }
-        };
-
-        BaseTool cityDateTimeTool = new BaseTool() {
-            @Override
-            public String name() {
-                return "city_datetime";
-            }
-
-            @Override
-            public String description() {
-                return "city datetime";
-            }
-
-            @Override
-            public JsonNode invoke(Map<String, Object> args) {
-                return objectMapper.valueToTree(Map.of(
-                        "tool", "city_datetime",
-                        "city", "上海",
-                        "date", "2026-02-11"
-                ));
-            }
-        };
-
-        AtomicReference<Map<String, Object>> weatherArgs = new AtomicReference<>();
-        BaseTool weatherTool = new BaseTool() {
-            @Override
-            public String name() {
-                return "mock_city_weather";
-            }
-
-            @Override
-            public String description() {
-                return "weather";
-            }
-
-            @Override
-            public JsonNode invoke(Map<String, Object> args) {
-                weatherArgs.set(Map.copyOf(args));
-                return objectMapper.valueToTree(Map.of("ok", true, "date", String.valueOf(args.get("date"))));
-            }
-        };
-
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
-                definition,
-                llmService,
-                new DeltaStreamService(),
-                new ToolRegistry(List.of(cityDateTimeTool, weatherTool)),
-                objectMapper
-        );
-
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("查上海明天天气", null, null, null, null, null, null))
-                .collectList()
-                .block(Duration.ofSeconds(6));
-
-        assertThat(deltas).isNotNull();
-        assertThat(weatherArgs.get()).isNotNull();
-        assertThat(weatherArgs.get().get("date")).isEqualTo("2026-02-12");
-    }
-
-    @Test
-    void planExecuteFlowShouldExecuteAllNativeToolCallsFromSinglePlannerRound() {
-        AgentDefinition definition = new AgentDefinition(
-                "demoPlanExecute",
-                "demo",
-                ProviderType.BAILIAN,
-                "qwen3-max",
-                "你是测试助手",
-                AgentMode.PLAN_EXECUTE,
-                List.of("city_datetime", "mock_city_weather")
-        );
-
-        AtomicReference<Boolean> plannerParallelToolCalls = new AtomicReference<>();
         LlmService llmService = new LlmService(null, null) {
             @Override
             public Flux<LlmStreamDelta> streamDeltas(
@@ -1295,8 +825,356 @@ class DefinitionDrivenAgentTest {
                     String stage,
                     boolean parallelToolCalls
             ) {
-                if ("agent-plan-execute-planner".equals(stage)) {
-                    plannerParallelToolCalls.set(parallelToolCalls);
+                if ("agent-plan-execute-step-1".equals(stage)) {
+                    return Flux.just(
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_bash_1",
+                                            "function",
+                                            new SseChunk.Function("bash", "{\"command\":\"df -h && free -h\"}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(null, null, "tool_calls")
+                    );
+                }
+                if ("agent-plan-execute-step-2".equals(stage)) {
+                    return Flux.just(new LlmStreamDelta(null, null, "stop"));
+                }
+                return Flux.empty();
+            }
+
+            @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                return Flux.just("完成");
+            }
+
+            @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
+                return Flux.just("完成");
+            }
+
+            @Override
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
+                return Mono.just("");
+            }
+
+            @Override
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                return Mono.just("");
+            }
+        };
+
+        List<String> commands = new CopyOnWriteArrayList<>();
+        BaseTool bashTool = new BaseTool() {
+            @Override
+            public String name() {
+                return "bash";
+            }
+
+            @Override
+            public String description() {
+                return "bash";
+            }
+
+            @Override
+            public JsonNode invoke(Map<String, Object> args) {
+                commands.add(String.valueOf(args.get("command")));
+                return objectMapper.valueToTree(Map.of("ok", true));
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                new DeltaStreamService(),
+                new ToolRegistry(List.of(bashTool)),
+                objectMapper
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("检查系统资源", null, null, null, null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(6));
+
+        assertThat(deltas).isNotNull();
+        assertThat(commands).containsExactly("df -h", "free -h");
+    }
+
+    @Test
+    void planExecuteLoopShouldEmitOrderedToolEventsInAssembler() {
+        AgentDefinition definition = new AgentDefinition(
+                "demoPlanExecute",
+                "demo",
+                ProviderType.BAILIAN,
+                "qwen3-max",
+                "你是测试助手",
+                AgentMode.PLAN_EXECUTE,
+                List.of("tool_a", "tool_b")
+        );
+
+        LlmService llmService = new LlmService(null, null) {
+            @Override
+            public Flux<LlmStreamDelta> streamDeltas(
+                    ProviderType providerType,
+                    String model,
+                    String systemPrompt,
+                    List<Message> historyMessages,
+                    String userPrompt,
+                    List<LlmFunctionTool> tools,
+                    String stage,
+                    boolean parallelToolCalls
+            ) {
+                if ("agent-plan-execute-step-1".equals(stage)) {
+                    return Flux.just(
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_tool_a_1",
+                                            "function",
+                                            new SseChunk.Function("tool_a", "{\"text\":\"abcdefghijklmnopqrstuvwxyz0123456789\"}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_tool_b_2",
+                                            "function",
+                                            new SseChunk.Function("tool_b", "{\"ok\":true}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(null, null, "tool_calls")
+                    );
+                }
+                if ("agent-plan-execute-step-2".equals(stage)) {
+                    return Flux.just(new LlmStreamDelta(null, null, "stop"));
+                }
+                return Flux.empty();
+            }
+
+            @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                return Flux.just("done");
+            }
+
+            @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
+                return Flux.just("done");
+            }
+
+            @Override
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
+                return Mono.just("");
+            }
+
+            @Override
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                return Mono.just("");
+            }
+        };
+
+        BaseTool toolA = new BaseTool() {
+            @Override
+            public String name() {
+                return "tool_a";
+            }
+
+            @Override
+            public String description() {
+                return "tool a";
+            }
+
+            @Override
+            public JsonNode invoke(Map<String, Object> args) {
+                return objectMapper.valueToTree(Map.of("ok", true, "tool", "tool_a"));
+            }
+        };
+
+        BaseTool toolB = new BaseTool() {
+            @Override
+            public String name() {
+                return "tool_b";
+            }
+
+            @Override
+            public String description() {
+                return "tool b";
+            }
+
+            @Override
+            public JsonNode invoke(Map<String, Object> args) {
+                return objectMapper.valueToTree(Map.of("ok", true, "tool", "tool_b"));
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                new DeltaStreamService(),
+                new ToolRegistry(List.of(toolA, toolB)),
+                objectMapper
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("顺序执行两个工具", null, null, null, null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(6));
+        assertThat(deltas).isNotNull();
+
+        AgwEventAssembler.EventStreamState state = new AgwEventAssembler()
+                .begin("顺序执行两个工具", "chat_1", "chat_1", "req_1", "run_1");
+        List<AgwEvent> events = new ArrayList<>(state.bootstrapEvents());
+        for (AgentDelta delta : deltas) {
+            events.addAll(state.consume(toAgwDelta(delta)));
+        }
+
+        int toolAStart = indexOfToolEvent(events, "tool.start", "call_tool_a_1");
+        int toolAEnd = indexOfToolEvent(events, "tool.end", "call_tool_a_1");
+        int toolAResult = indexOfToolEvent(events, "tool.result", "call_tool_a_1");
+        int toolBStart = indexOfToolEvent(events, "tool.start", "call_tool_b_2");
+        int toolBResult = indexOfToolEvent(events, "tool.result", "call_tool_b_2");
+
+        assertThat(toolAStart).isGreaterThanOrEqualTo(0);
+        assertThat(toolAEnd).isGreaterThan(toolAStart);
+        // 同一轮的并行 native FC tool_calls：两个 tool 的 start/args 在 LLM 流阶段顺序发出，
+        // 然后 tool.end/tool.result 在工具执行阶段顺序发出。
+        // 因此 toolB.start 在 toolA.start 之后，但在 toolA.end 之前（因为 end 在 result 时才发出）
+        assertThat(toolBStart).isGreaterThan(toolAStart);
+        assertThat(toolAEnd).isGreaterThan(toolBStart);
+        // tool results 按执行顺序：A result 在 A end 之后，B result 在 A result 之后
+        assertThat(toolAResult).isGreaterThan(toolAEnd);
+        assertThat(toolBResult).isGreaterThan(toolAResult);
+        assertThat(countToolArgsEvents(events, "call_tool_a_1")).isEqualTo(1);
+    }
+
+    @Test
+    void planExecuteLoopShouldEmitToolCallBeforeSlowToolResult() {
+        AgentDefinition definition = new AgentDefinition(
+                "demoPlanExecute",
+                "demo",
+                ProviderType.BAILIAN,
+                "qwen3-max",
+                "你是测试助手",
+                AgentMode.PLAN_EXECUTE,
+                List.of("bash")
+        );
+
+        LlmService llmService = new LlmService(null, null) {
+            @Override
+            public Flux<LlmStreamDelta> streamDeltas(
+                    ProviderType providerType,
+                    String model,
+                    String systemPrompt,
+                    List<Message> historyMessages,
+                    String userPrompt,
+                    List<LlmFunctionTool> tools,
+                    String stage,
+                    boolean parallelToolCalls
+            ) {
+                if ("agent-plan-execute-step-1".equals(stage)) {
+                    return Flux.just(
+                            new LlmStreamDelta(
+                                    null,
+                                    List.of(new SseChunk.ToolCall(
+                                            "call_bash_1",
+                                            "function",
+                                            new SseChunk.Function("bash", "{\"command\":\"ls\"}")
+                                    )),
+                                    null
+                            ),
+                            new LlmStreamDelta(null, null, "tool_calls")
+                    );
+                }
+                return Flux.just(new LlmStreamDelta(null, null, "stop"));
+            }
+
+            @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                return Flux.just("执行完成。");
+            }
+
+            @Override
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
+                return Flux.just("执行完成。");
+            }
+
+            @Override
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
+                return Mono.just("");
+            }
+
+            @Override
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                return Mono.just("");
+            }
+        };
+
+        BaseTool slowBashTool = new BaseTool() {
+            @Override
+            public String name() {
+                return "bash";
+            }
+
+            @Override
+            public String description() {
+                return "slow bash";
+            }
+
+            @Override
+            public JsonNode invoke(Map<String, Object> args) {
+                try {
+                    Thread.sleep(400);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+                return objectMapper.valueToTree(Map.of(
+                        "ok", true,
+                        "command", args.getOrDefault("command", "")
+                ));
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                new DeltaStreamService(),
+                new ToolRegistry(List.of(slowBashTool)),
+                objectMapper
+        );
+
+        AgentDelta firstToolCallDelta = agent.stream(new AgentRequest("执行一次 ls", null, null, null, null, null, null))
+                .filter(delta -> delta.toolCalls() != null && !delta.toolCalls().isEmpty())
+                .blockFirst(Duration.ofMillis(250));
+
+        assertThat(firstToolCallDelta).isNotNull();
+    }
+
+    @Test
+    void planExecuteLoopShouldResolveDateTemplateFromPreviousToolResult() {
+        AgentDefinition definition = new AgentDefinition(
+                "demoPlanExecute",
+                "demo",
+                ProviderType.BAILIAN,
+                "qwen3-max",
+                "你是测试助手",
+                AgentMode.PLAN_EXECUTE,
+                List.of("city_datetime", "mock_city_weather")
+        );
+
+        LlmService llmService = new LlmService(null, null) {
+            @Override
+            public Flux<LlmStreamDelta> streamDeltas(
+                    ProviderType providerType,
+                    String model,
+                    String systemPrompt,
+                    List<Message> historyMessages,
+                    String userPrompt,
+                    List<LlmFunctionTool> tools,
+                    String stage,
+                    boolean parallelToolCalls
+            ) {
+                if ("agent-plan-execute-step-1".equals(stage)) {
                     return Flux.just(
                             new LlmStreamDelta(
                                     null,
@@ -1312,32 +1190,27 @@ class DefinitionDrivenAgentTest {
                                     List.of(new SseChunk.ToolCall(
                                             "call_city_weather",
                                             "function",
-                                            new SseChunk.Function("mock_city_weather", "{\"city\":\"上海\",\"date\":\"tomorrow\"}")
+                                            new SseChunk.Function("mock_city_weather", "{\"city\":\"上海\",\"date\":\"{{city_datetime.date+1d}}\"}")
                                     )),
-                                    "tool_calls"
-                            )
+                                    null
+                            ),
+                            new LlmStreamDelta(null, null, "tool_calls")
                     );
+                }
+                if ("agent-plan-execute-step-2".equals(stage)) {
+                    return Flux.just(new LlmStreamDelta(null, null, "stop"));
                 }
                 return Flux.empty();
             }
 
             @Override
-            public Flux<String> streamContent(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
-                if ("agent-plan-execute-final".equals(stage)) {
-                    return Flux.just("done");
-                }
-                return Flux.empty();
+            public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
+                return Flux.just("done");
             }
 
             @Override
             public Flux<String> streamContent(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
-                return streamContent(providerType, model, systemPrompt, userPrompt, "default");
+                return Flux.just("done");
             }
 
             @Override
@@ -1346,13 +1219,7 @@ class DefinitionDrivenAgentTest {
             }
 
             @Override
-            public Mono<String> completeText(
-                    ProviderType providerType,
-                    String model,
-                    String systemPrompt,
-                    String userPrompt,
-                    String stage
-            ) {
+            public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt, String stage) {
                 return Mono.just("");
             }
         };
@@ -1405,17 +1272,16 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("规划上海机房明天搬迁实施计划", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("查上海明天天气", null, null, null, null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(6));
 
         assertThat(deltas).isNotNull();
-        assertThat(plannerParallelToolCalls.get()).isTrue();
         assertThat(weatherArgs.get()).isNotNull();
         assertThat(weatherArgs.get().get("date")).isEqualTo("2026-02-12");
-        assertThat(indexOfToolResultById(deltas, "call_city_weather"))
-                .isGreaterThan(indexOfToolResultById(deltas, "call_city_datetime"));
     }
+
+    // ======================== Helper Methods ========================
 
     private int indexOfThinkingContaining(List<AgentDelta> deltas, String text) {
         for (int i = 0; i < deltas.size(); i++) {

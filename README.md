@@ -159,6 +159,14 @@ AGENT_BASH_WORKING_DIRECTORY=/opt/app
 AGENT_BASH_ALLOWED_PATHS=/opt,/data
 ```
 
+```bash
+curl -N -X POST "http://localhost:8080/api/query" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"元素碳的简介，50字","agentKey":"demoPlain"}'
+curl -N -X POST "http://localhost:8080/api/query" \
+  -H "Content-Type: application/json" \
+  -d '{"chatId":"","message":"下一个元素的简介","agentKey":"demoPlain"}'
+```
 
 ```bash
 curl -N -X POST "http://localhost:8080/api/query" \

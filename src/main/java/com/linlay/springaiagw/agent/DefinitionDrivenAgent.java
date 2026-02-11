@@ -168,7 +168,7 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     private Flux<AgentDelta> plainDirectContent(AgentRequest request, List<Message> historyMessages, String stage) {
-        Flux<String> contentTextFlux = llmService.streamContent(
+        Flux<String> contentTextFlux = llmService.streamContentRawSse(
                         providerType(),
                         model(),
                         systemPrompt(),
@@ -176,6 +176,13 @@ public class DefinitionDrivenAgent implements Agent {
                         request.message(),
                         stage
                 )
+                .onErrorResume(ex -> {
+                    log.warn("[agent:{}] raw SSE stream failed for plain content, fallback to ChatClient", id(), ex);
+                    return llmService.streamContent(
+                            providerType(), model(), systemPrompt(),
+                            historyMessages, request.message(), stage
+                    );
+                })
                 .switchIfEmpty(Flux.just("未获取到模型输出，请检查 provider/model/sysPrompt 配置。"))
                 .onErrorResume(ex -> Flux.just("模型调用失败，请稍后重试。"));
         return contentTextFlux.map(AgentDelta::content);
@@ -284,86 +291,9 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     private Flux<AgentDelta> planExecuteFlow(AgentRequest request, List<Message> historyMessages) {
-        String plannerPrompt = buildPlannerPrompt(request);
-        log.info("[agent:{}] plan-execute planner prompt:\n{}", id(), plannerPrompt);
-        StringBuilder rawPlanBuffer = new StringBuilder();
-        StringBuilder emittedThinking = new StringBuilder();
-        Map<String, NativeToolCall> nativeToolCalls = new LinkedHashMap<>();
-        AtomicInteger nativeToolSeq = new AtomicInteger(0);
-
-        Flux<AgentDelta> plannerThinkingFlux = llmService.streamDeltas(
-                        providerType(),
-                        model(),
-                        plannerSystemPrompt(),
-                        historyMessages,
-                        plannerPrompt,
-                        enabledFunctionTools(),
-                        "agent-plan-execute-planner",
-                        true
-                )
-                .handle((chunk, sink) -> {
-                    if (chunk == null) {
-                        return;
-                    }
-                    if (StringUtils.hasText(chunk.content())) {
-                        rawPlanBuffer.append(chunk.content());
-                    }
-                    List<SseChunk.ToolCall> streamedToolCalls = captureNativeToolCalls(
-                            chunk.toolCalls(),
-                            nativeToolCalls,
-                            nativeToolSeq
-                    );
-                    if (!streamedToolCalls.isEmpty()) {
-                        sink.next(AgentDelta.toolCalls(streamedToolCalls));
-                    }
-                    String thinkingDelta = extractNewThinkingDelta(rawPlanBuffer, emittedThinking);
-                    if (!thinkingDelta.isEmpty()) {
-                        sink.next(AgentDelta.thinking(thinkingDelta));
-                    }
-                });
-
         return Flux.concat(
-                        Flux.just(AgentDelta.thinking("正在生成执行计划...\n")),
-                        plannerThinkingFlux,
-                        Flux.defer(() -> {
-                            String raw = rawPlanBuffer.toString();
-                            List<PlannedToolCall> nativeCalls = toPlannedToolCalls(nativeToolCalls);
-                            PlannerDecision decision = resolvePlannerDecision(raw, nativeCalls);
-                            log.info("[agent:{}] plan-execute planner raw response:\n{}", id(), rawPlanBuffer);
-                            log.info("[agent:{}] plan-execute planner decision: {}", id(), toJson(decision));
-
-                            if (nativeCalls.isEmpty() && !raw.isBlank() && readJsonObject(raw) == null && decision.steps().isEmpty()) {
-                                return Flux.concat(
-                                        Flux.just(AgentDelta.content(raw)),
-                                        Flux.just(AgentDelta.finish("stop"))
-                                );
-                            }
-
-                            Flux<AgentDelta> summaryThinkingFlux = emittedThinking.isEmpty()
-                                    ? Flux.just(AgentDelta.thinking(buildThinkingText(decision)))
-                                    : Flux.empty();
-
-                            List<Map<String, Object>> toolRecords = new ArrayList<>();
-                            Flux<AgentDelta> toolFlux = executePlanSteps(decision, toolRecords);
-                            Flux<AgentDelta> contentFlux = Flux.defer(() -> {
-                                log.debug("[agent:{}] plan-execute tool execution records: {}", id(), toJson(toolRecords));
-                                String finalPrompt = buildPlanExecuteFinalPrompt(request, decision, toolRecords);
-                                log.info("[agent:{}] plan-execute final prompt:\n{}", id(), finalPrompt);
-                                return llmService.streamContent(
-                                                providerType(),
-                                                model(),
-                                                systemPrompt(),
-                                                historyMessages,
-                                                finalPrompt,
-                                                "agent-plan-execute-final"
-                                        )
-                                        .switchIfEmpty(Flux.just("未获取到模型输出，请检查 provider/model/sysPrompt 配置。"))
-                                        .onErrorResume(ex -> Flux.just("模型调用失败，请稍后重试。"))
-                                        .map(AgentDelta::content);
-                            });
-
-                            return Flux.concat(summaryThinkingFlux, toolFlux, contentFlux, Flux.just(AgentDelta.finish("stop")));
-                        })
+                        Flux.just(AgentDelta.thinking("进入 PLAN-EXECUTE 模式，正在逐步决策...\n")),
+                        Flux.defer(() -> planExecuteLoop(request, historyMessages, new ArrayList<>(), 1))
                 )
                 .onErrorResume(ex -> Flux.concat(
                         Flux.defer(() -> {
@@ -384,6 +314,153 @@ public class DefinitionDrivenAgent implements Agent {
                                 .map(AgentDelta::content),
                         Flux.just(AgentDelta.finish("stop"))
                 ));
+    }
+
+    private Flux<AgentDelta> planExecuteLoop(
+            AgentRequest request,
+            List<Message> historyMessages,
+            List<Map<String, Object>> toolRecords,
+            int step
+    ) {
+        if (step > MAX_REACT_STEPS) {
+            return finalizePlanExecuteAnswer(request, historyMessages, toolRecords, "达到 PLAN-EXECUTE 最大轮次，转为总结输出。", "agent-plan-execute-final-max");
+        }
+
+        String loopPrompt = buildPlanExecuteLoopPrompt(request, toolRecords, step);
+        log.info("[agent:{}] plan-execute step={} prompt:\n{}", id(), step, loopPrompt);
+
+        String stage = "agent-plan-execute-step-" + step;
+        StringBuilder rawBuffer = new StringBuilder();
+        StringBuilder emittedThinking = new StringBuilder();
+        Map<String, NativeToolCall> nativeToolCalls = new LinkedHashMap<>();
+        AtomicInteger nativeToolSeq = new AtomicInteger(0);
+
+        Flux<AgentDelta> stepThinkingFlux = llmService.streamDeltas(
+                        providerType(),
+                        model(),
+                        planExecuteLoopSystemPrompt(),
+                        historyMessages,
+                        loopPrompt,
+                        enabledFunctionTools(),
+                        stage,
+                        true
+                )
+                .handle((chunk, sink) -> {
+                    if (chunk == null) {
+                        return;
+                    }
+                    if (StringUtils.hasText(chunk.content())) {
+                        rawBuffer.append(chunk.content());
+                    }
+                    List<SseChunk.ToolCall> streamedToolCalls = captureNativeToolCalls(
+                            chunk.toolCalls(),
+                            nativeToolCalls,
+                            nativeToolSeq
+                    );
+                    if (!streamedToolCalls.isEmpty()) {
+                        sink.next(AgentDelta.toolCalls(streamedToolCalls));
+                    }
+                    String thinkingDelta = extractNewThinkingDelta(rawBuffer, emittedThinking);
+                    if (!thinkingDelta.isEmpty()) {
+                        sink.next(AgentDelta.thinking(thinkingDelta));
+                    }
+                });
+
+        return Flux.concat(
+                stepThinkingFlux,
+                Flux.defer(() -> {
+                    String raw = rawBuffer.toString();
+                    List<PlannedToolCall> nativeCalls = toPlannedToolCalls(nativeToolCalls);
+                    log.info("[agent:{}] plan-execute step={} raw decision:\n{}", id(), step, raw);
+                    log.info("[agent:{}] plan-execute step={} native tool_calls count={}", id(), step, nativeCalls.size());
+
+                    // If LLM returned plain text (no tool_calls, not JSON) → emit as content directly
+                    if (nativeCalls.isEmpty() && !raw.isBlank() && readJsonObject(raw) == null) {
+                        return Flux.concat(
+                                Flux.just(AgentDelta.content(raw)),
+                                Flux.just(AgentDelta.finish("stop"))
+                        );
+                    }
+
+                    // If no tool_calls → done, generate final answer
+                    if (nativeCalls.isEmpty()) {
+                        return finalizePlanExecuteAnswer(
+                                request,
+                                historyMessages,
+                                toolRecords,
+                                "决策完成，正在流式生成最终回答。",
+                                "agent-plan-execute-final-step-" + step
+                        );
+                    }
+
+                    // Execute all tool_calls from this round sequentially
+                    AtomicInteger toolCounter = new AtomicInteger(0);
+                    Flux<AgentDelta> toolFlux = Flux.fromIterable(nativeCalls)
+                            .concatMap(toolCall -> {
+                                int toolSeq = toolCounter.incrementAndGet();
+                                if (toolSeq > MAX_TOOL_CALLS) {
+                                    return Flux.just(AgentDelta.thinking("工具调用数量超过上限，已跳过。"));
+                                }
+                                String callId = StringUtils.hasText(toolCall.callId())
+                                        ? toolCall.callId()
+                                        : "call_" + sanitize(toolCall.name()) + "_step" + step + "_" + toolSeq;
+
+                                // Expand bash commands and execute
+                                PlannedStep wrappedStep = new PlannedStep("执行工具 " + toolCall.name(), toolCall);
+                                List<PlannedToolCall> expandedToolCalls = expandToolCallsForStep(wrappedStep);
+                                return Flux.fromIterable(expandedToolCalls)
+                                        .concatMap(expanded -> {
+                                            String expandedCallId = expanded == toolCall ? callId
+                                                    : callId + "_" + sanitize(String.valueOf(expanded.arguments().getOrDefault("command", "")));
+                                            return executeTool(expanded, expandedCallId, toolRecords, !nativeCalls.isEmpty());
+                                        }, 1);
+                            }, 1);
+
+                    // After executing tools, recurse to next round
+                    return Flux.concat(
+                            toolFlux,
+                            Flux.defer(() -> planExecuteLoop(request, historyMessages, toolRecords, step + 1))
+                    );
+                })
+        );
+    }
+
+    private Flux<AgentDelta> finalizePlanExecuteAnswer(
+            AgentRequest request,
+            List<Message> historyMessages,
+            List<Map<String, Object>> toolRecords,
+            String thinkingNote,
+            String stage
+    ) {
+        String prompt = buildPlanExecuteLoopFinalPrompt(request, toolRecords);
+        log.info("[agent:{}] plan-execute final prompt:\n{}", id(), prompt);
+        Flux<AgentDelta> noteFlux = thinkingNote == null || thinkingNote.isBlank()
+                ? Flux.empty()
+                : Flux.just(AgentDelta.thinking(thinkingNote));
+        Flux<AgentDelta> contentFlux = llmService.streamContentRawSse(
+                        providerType(),
+                        model(),
+                        systemPrompt(),
+                        historyMessages,
+                        prompt,
+                        stage
+                )
+                .onErrorResume(ex -> {
+                    log.warn("[agent:{}] raw SSE final answer failed, fallback to ChatClient stream", id(), ex);
+                    return llmService.streamContent(
+                            providerType(),
+                            model(),
+                            systemPrompt(),
+                            historyMessages,
+                            prompt,
+                            stage
+                    );
+                })
+                .switchIfEmpty(Flux.just("未获取到模型输出，请检查 provider/model/sysPrompt 配置。"))
+                .onErrorResume(ex -> Flux.just("模型调用失败，请稍后重试。"))
+                .map(AgentDelta::content);
+
+        return Flux.concat(noteFlux, contentFlux, Flux.just(AgentDelta.finish("stop")));
     }
 
     private Flux<AgentDelta> reactFlow(AgentRequest request, List<Message> historyMessages) {
@@ -533,7 +610,7 @@ public class DefinitionDrivenAgent implements Agent {
         Flux<AgentDelta> noteFlux = thinkingNote == null || thinkingNote.isBlank()
                 ? Flux.empty()
                 : Flux.just(AgentDelta.thinking(thinkingNote));
-        Flux<AgentDelta> contentFlux = llmService.streamContent(
+        Flux<AgentDelta> contentFlux = llmService.streamContentRawSse(
                         providerType(),
                         model(),
                         systemPrompt(),
@@ -541,6 +618,17 @@ public class DefinitionDrivenAgent implements Agent {
                         prompt,
                         stage
                 )
+                .onErrorResume(ex -> {
+                    log.warn("[agent:{}] raw SSE final answer failed, fallback to ChatClient stream", id(), ex);
+                    return llmService.streamContent(
+                            providerType(),
+                            model(),
+                            systemPrompt(),
+                            historyMessages,
+                            prompt,
+                            stage
+                    );
+                })
                 .switchIfEmpty(Flux.just("未获取到模型输出，请检查 provider/model/sysPrompt 配置。"))
                 .onErrorResume(ex -> Flux.just("模型调用失败，请稍后重试。"))
                 .map(AgentDelta::content);
@@ -641,162 +729,6 @@ public class DefinitionDrivenAgent implements Agent {
             }
         }
         return true;
-    }
-
-    private PlannerDecision parsePlannerDecision(String rawPlan) {
-        JsonNode root = readJsonObject(rawPlan);
-        if (root == null || !root.isObject()) {
-            return fallbackPlannerDecision(rawPlan);
-        }
-
-        String thinking = normalize(root.path("thinking").asText(), "正在分解问题并判断是否需要工具调用。");
-        JsonNode planNode = root.path("plan");
-        boolean hasEmbeddedToolCall = planContainsEmbeddedToolCall(planNode);
-        List<PlannedToolCall> legacyToolCalls = hasEmbeddedToolCall
-                ? List.of()
-                : readLegacyToolCalls(root.path("toolCalls"));
-        List<PlannedStep> plannedSteps = readPlannedSteps(planNode, legacyToolCalls);
-
-        if (plannedSteps.isEmpty() && !legacyToolCalls.isEmpty()) {
-            for (int i = 0; i < legacyToolCalls.size(); i++) {
-                PlannedToolCall toolCall = legacyToolCalls.get(i);
-                plannedSteps.add(new PlannedStep(defaultPlanStepText(i + 1, toolCall), toolCall));
-            }
-        }
-
-        return new PlannerDecision(thinking, plannedSteps);
-    }
-
-    private boolean planContainsEmbeddedToolCall(JsonNode planNode) {
-        if (!planNode.isArray()) {
-            return false;
-        }
-        for (JsonNode stepNode : planNode) {
-            if (stepNode != null && stepNode.isObject() && stepNode.path("toolCall").isObject()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private List<PlannedToolCall> readLegacyToolCalls(JsonNode toolCallsNode) {
-        if (!toolCallsNode.isArray()) {
-            return List.of();
-        }
-        List<PlannedToolCall> toolCalls = new ArrayList<>();
-        for (JsonNode callNode : toolCallsNode) {
-            PlannedToolCall call = readPlannedToolCall(callNode);
-            if (call != null) {
-                toolCalls.add(call);
-            }
-        }
-        return toolCalls;
-    }
-
-    private List<PlannedStep> readPlannedSteps(JsonNode planNode, List<PlannedToolCall> legacyToolCalls) {
-        if (!planNode.isArray()) {
-            return List.of();
-        }
-
-        List<PlannedStep> plannedSteps = new ArrayList<>();
-        int legacyToolIndex = 0;
-
-        for (JsonNode stepNode : planNode) {
-            PlannedToolCall fallbackTool = legacyToolIndex < legacyToolCalls.size()
-                    ? legacyToolCalls.get(legacyToolIndex)
-                    : null;
-            PlannedStep step = readPlannedStep(stepNode, fallbackTool, plannedSteps.size() + 1);
-            if (step == null) {
-                continue;
-            }
-            plannedSteps.add(step);
-            if (step.toolCall() != null && fallbackTool != null && step.toolCall() == fallbackTool) {
-                legacyToolIndex++;
-            }
-        }
-
-        while (legacyToolIndex < legacyToolCalls.size()) {
-            PlannedToolCall toolCall = legacyToolCalls.get(legacyToolIndex++);
-            plannedSteps.add(new PlannedStep(defaultPlanStepText(plannedSteps.size() + 1, toolCall), toolCall));
-        }
-
-        return plannedSteps;
-    }
-
-    private PlannedStep readPlannedStep(JsonNode stepNode, PlannedToolCall fallbackToolCall, int stepIndex) {
-        if (stepNode == null || stepNode.isNull()) {
-            return null;
-        }
-
-        if (stepNode.isTextual()) {
-            String stepText = normalize(stepNode.asText(), "");
-            if (stepText.isBlank() && fallbackToolCall == null) {
-                return null;
-            }
-            String normalizedStepText = stepText.isBlank()
-                    ? defaultPlanStepText(stepIndex, fallbackToolCall)
-                    : stepText;
-            return new PlannedStep(normalizedStepText, fallbackToolCall);
-        }
-
-        if (!stepNode.isObject()) {
-            String stepText = normalize(stepNode.asText(), "");
-            if (stepText.isBlank() && fallbackToolCall == null) {
-                return null;
-            }
-            String normalizedStepText = stepText.isBlank()
-                    ? defaultPlanStepText(stepIndex, fallbackToolCall)
-                    : stepText;
-            return new PlannedStep(normalizedStepText, fallbackToolCall);
-        }
-
-        String stepText = normalize(stepNode.path("step").asText(), "");
-        if (stepText.isBlank()) {
-            stepText = normalize(stepNode.path("description").asText(), "");
-        }
-        if (stepText.isBlank()) {
-            stepText = normalize(stepNode.path("text").asText(), "");
-        }
-
-        PlannedToolCall stepToolCall = null;
-        JsonNode stepToolCallNode = stepNode.path("toolCall");
-        if (stepToolCallNode.isObject()) {
-            stepToolCall = readPlannedToolCall(stepToolCallNode);
-        }
-        if (stepToolCall == null) {
-            stepToolCall = fallbackToolCall;
-        }
-
-        if (stepText.isBlank() && stepToolCall == null) {
-            return null;
-        }
-        String normalizedStepText = stepText.isBlank()
-                ? defaultPlanStepText(stepIndex, stepToolCall)
-                : stepText;
-        return new PlannedStep(normalizedStepText, stepToolCall);
-    }
-
-    private String defaultPlanStepText(int stepIndex, PlannedToolCall toolCall) {
-        if (toolCall != null) {
-            return "执行工具 " + toolCall.name();
-        }
-        return "执行步骤" + stepIndex;
-    }
-
-    private PlannerDecision fallbackPlannerDecision(String rawPlan) {
-        String thinking = "根据用户问题生成计划，按需调用工具，最后输出可执行结论。";
-        if (rawPlan != null && !rawPlan.isBlank()) {
-            thinking += " 原始规划输出无法解析，已降级为无工具执行。";
-        }
-
-        return new PlannerDecision(
-                thinking,
-                List.of(
-                        new PlannedStep("确认用户目标与输入约束", null),
-                        new PlannedStep("判断是否需要工具辅助", null),
-                        new PlannedStep("输出结论与下一步建议", null)
-                )
-        );
     }
 
     private ReactDecision parseReactDecision(String rawDecision) {
@@ -999,115 +931,6 @@ public class DefinitionDrivenAgent implements Agent {
             log.warn("[agent:{}] cannot parse tool arguments as JSON, fallback to empty object: {}", id(), normalized);
             return new LinkedHashMap<>();
         }
-    }
-
-    private PlannerDecision plannerDecisionFromNativeCalls(List<PlannedToolCall> nativeCalls) {
-        if (nativeCalls == null || nativeCalls.isEmpty()) {
-            return fallbackPlannerDecision("");
-        }
-        List<PlannedStep> steps = new ArrayList<>();
-        for (int i = 0; i < nativeCalls.size(); i++) {
-            PlannedToolCall toolCall = nativeCalls.get(i);
-            steps.add(new PlannedStep(defaultPlanStepText(i + 1, toolCall), toolCall));
-        }
-        return new PlannerDecision("模型通过原生 function calling 返回了工具调用，按顺序执行。", steps);
-    }
-
-    private PlannerDecision resolvePlannerDecision(String rawPlannerOutput, List<PlannedToolCall> nativeCalls) {
-        JsonNode parsedRoot = readJsonObject(rawPlannerOutput);
-        PlannerDecision parsedDecision = (parsedRoot != null && parsedRoot.isObject())
-                ? parsePlannerDecision(rawPlannerOutput)
-                : null;
-
-        if (parsedDecision != null && !parsedDecision.steps().isEmpty()) {
-            if (nativeCalls == null || nativeCalls.isEmpty()) {
-                return parsedDecision;
-            }
-            return mergePlannerDecisionWithNativeCalls(parsedDecision, nativeCalls);
-        }
-
-        if (nativeCalls != null && !nativeCalls.isEmpty()) {
-            return plannerDecisionFromNativeCalls(nativeCalls);
-        }
-
-        if (parsedDecision != null) {
-            return parsedDecision;
-        }
-        return fallbackPlannerDecision(rawPlannerOutput);
-    }
-
-    private PlannerDecision mergePlannerDecisionWithNativeCalls(
-            PlannerDecision parsedDecision,
-            List<PlannedToolCall> nativeCalls
-    ) {
-        if (parsedDecision == null) {
-            return plannerDecisionFromNativeCalls(nativeCalls);
-        }
-        if (nativeCalls == null || nativeCalls.isEmpty()) {
-            return parsedDecision;
-        }
-        if (parsedDecision.steps().isEmpty()) {
-            return plannerDecisionFromNativeCalls(nativeCalls);
-        }
-
-        List<PlannedStep> mergedSteps = new ArrayList<>();
-        int nativeIndex = 0;
-        for (PlannedStep step : parsedDecision.steps()) {
-            if (step == null) {
-                continue;
-            }
-            if (step.toolCall() != null) {
-                mergedSteps.add(step);
-                continue;
-            }
-            if (nativeIndex < nativeCalls.size()) {
-                mergedSteps.add(new PlannedStep(step.step(), nativeCalls.get(nativeIndex++)));
-                continue;
-            }
-            mergedSteps.add(step);
-        }
-
-        while (nativeIndex < nativeCalls.size()) {
-            PlannedToolCall toolCall = nativeCalls.get(nativeIndex++);
-            mergedSteps.add(new PlannedStep(defaultPlanStepText(mergedSteps.size() + 1, toolCall), toolCall));
-        }
-
-        return new PlannerDecision(parsedDecision.thinking(), mergedSteps);
-    }
-
-    private Flux<AgentDelta> executePlanSteps(PlannerDecision decision, List<Map<String, Object>> records) {
-        if (decision.steps().isEmpty()) {
-            return Flux.empty();
-        }
-        AtomicInteger toolCounter = new AtomicInteger(0);
-        int totalSteps = decision.steps().size();
-        return Flux.range(0, totalSteps)
-                .concatMap(i -> {
-                    PlannedStep step = decision.steps().get(i);
-                    int stepIndex = i + 1;
-                    log.info("[agent:{}] plan-execute run step {}/{}: {}", id(), stepIndex, totalSteps, normalize(step.step(), "执行步骤" + stepIndex));
-                    Flux<AgentDelta> stepThinkingFlux = Flux.just(AgentDelta.thinking(
-                            "执行步骤 " + stepIndex + "/" + totalSteps + "："
-                                    + normalize(step.step(), "执行步骤" + stepIndex)
-                    ));
-                    if (step.toolCall() == null) {
-                        return stepThinkingFlux;
-                    }
-                    List<PlannedToolCall> expandedToolCalls = expandToolCallsForStep(step);
-                    Flux<AgentDelta> expandedFlux = Flux.fromIterable(expandedToolCalls)
-                            .concatMap(toolCall -> {
-                                int toolSeq = toolCounter.incrementAndGet();
-                                if (toolSeq > MAX_TOOL_CALLS) {
-                                    return Flux.just(AgentDelta.thinking("工具调用数量超过上限，已跳过该步骤的工具执行。"));
-                                }
-                                String callId = StringUtils.hasText(toolCall.callId())
-                                        ? toolCall.callId()
-                                        : "call_" + sanitize(toolCall.name()) + "_" + toolSeq;
-                                return executeTool(toolCall, callId, records, false);
-                            }, 1);
-
-                    return Flux.concat(stepThinkingFlux, expandedFlux);
-                }, 1);
     }
 
     private List<PlannedToolCall> expandToolCallsForStep(PlannedStep step) {
@@ -1439,40 +1262,25 @@ public class DefinitionDrivenAgent implements Agent {
         }
     }
 
-    private String buildThinkingText(PlannerDecision decision) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(normalize(decision.thinking(), "正在拆解问题并生成执行路径。"));
-
-        if (!decision.steps().isEmpty()) {
-            builder.append("\n计划：");
-            int i = 1;
-            for (PlannedStep step : decision.steps()) {
-                builder.append("\n").append(i++).append(". ").append(normalize(step.step(), "执行步骤"));
-                if (step.toolCall() != null) {
-                    builder.append(" (tool: ").append(step.toolCall().name()).append(")");
-                }
-            }
-        }
-
-        return builder.toString();
-    }
-
-    private String buildPlannerPrompt(AgentRequest request) {
+    private String buildPlanExecuteLoopPrompt(AgentRequest request, List<Map<String, Object>> toolRecords, int step) {
         return """
                 用户问题：%s
+                当前轮次：%d/%d
+                历史工具结果(JSON)：%s
                 可用工具：
                 %s
 
                 请按 OpenAI 原生 Function Calling 协议工作：
-                1) 单轮规划即可：先拆出完整任务列表（task），每个 task 可包含 0 或 1 个工具调用。
-                2) 需要工具时，直接发起 tool_calls，不要在正文输出 toolCall/toolCalls JSON。
-                3) 若需要多个工具，请在同一轮响应中给出全部 tool_calls，按依赖顺序排列，不要只调用一个就结束。
-                4) 不需要工具时，直接输出简洁结论文本。
-                5) 工具参数必须严格匹配工具 schema，避免缺省或隐式参数。
-                6) 若参数依赖时间，不要传 today/tomorrow/昨天/明天，优先传具体日期（YYYY-MM-DD）或先调用时间工具再传日期。
-                7) bash.command 必须是单条命令，不允许 &&、||、;、管道。
+                1) 需要继续查证时，直接发起 tool_calls，可在同一轮中调用多个工具（支持并行）。
+                2) 已可直接回答时，不再调用工具，直接输出最终结论文本。
+                3) 工具参数必须严格匹配工具 schema，避免缺省或隐式参数。
+                4) 若参数依赖时间，不要传 today/tomorrow/昨天/明天，优先传具体日期（YYYY-MM-DD）或先调用时间工具再传日期。
+                5) bash.command 必须是单条命令，不允许 &&、||、;、管道。
                 """.formatted(
                 request.message(),
+                step,
+                MAX_REACT_STEPS,
+                toJson(toolRecords),
                 enabledToolsPrompt()
         );
     }
@@ -1516,9 +1324,9 @@ public class DefinitionDrivenAgent implements Agent {
         );
     }
 
-    private String plannerSystemPrompt() {
+    private String planExecuteLoopSystemPrompt() {
         return normalize(systemPrompt(), "你是通用助理")
-                + "\n你当前处于任务编排阶段：先深度思考，再给出计划，并按需声明工具调用。";
+                + "\n你当前处于 PLAN-EXECUTE 循环阶段：每轮可调用一个或多个工具（支持并行），执行完成后再决策下一步。";
     }
 
     private String reactSystemPrompt() {
@@ -1531,23 +1339,14 @@ public class DefinitionDrivenAgent implements Agent {
                 + "\n你当前处于 PLAIN 单工具决策阶段：先判断是否需要工具；若需要，只能调用一个工具。";
     }
 
-    private String buildPlanExecuteFinalPrompt(
+    private String buildPlanExecuteLoopFinalPrompt(
             AgentRequest request,
-            PlannerDecision decision,
             List<Map<String, Object>> toolRecords
     ) {
         String toolResultJson = toJson(toolRecords);
-        String planText = decision.steps().isEmpty()
-                ? "[]"
-                : decision.steps().stream()
-                .map(step -> normalize(step.step(), "执行步骤"))
-                .reduce((left, right) -> left + " | " + right)
-                .orElse("[]");
 
         return """
                 用户问题：%s
-                思考摘要：%s
-                计划步骤：%s
                 工具执行结果(JSON)：%s
 
                 请基于以上信息输出最终回答：
@@ -1557,8 +1356,6 @@ public class DefinitionDrivenAgent implements Agent {
                 4) 保持简洁、可执行。
                 """.formatted(
                 request.message(),
-                normalize(decision.thinking(), "(empty)"),
-                planText,
                 toolResultJson
         );
     }
@@ -1836,12 +1633,6 @@ public class DefinitionDrivenAgent implements Agent {
         private String arguments() {
             return arguments.isEmpty() ? null : arguments.toString();
         }
-    }
-
-    private record PlannerDecision(
-            String thinking,
-            List<PlannedStep> steps
-    ) {
     }
 
     private record PlannedStep(

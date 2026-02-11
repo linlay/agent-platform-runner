@@ -321,6 +321,67 @@ public class LlmService {
         });
     }
 
+    public Flux<String> streamContentRawSse(
+            ProviderType providerType,
+            String model,
+            String systemPrompt,
+            List<Message> historyMessages,
+            String userPrompt,
+            String stage
+    ) {
+        return Flux.defer(() -> {
+            String traceId = "llm-" + UUID.randomUUID().toString().replace("-", "");
+            long startNanos = System.nanoTime();
+            StringBuilder responseBuffer = new StringBuilder();
+
+            log.info("[{}][{}] LLM raw SSE content stream request start provider={}, model={}", traceId, stage, providerType, model);
+            log.info("[{}][{}] LLM raw SSE content stream system prompt:\n{}", traceId, stage, normalizePrompt(systemPrompt));
+            log.info("[{}][{}] LLM raw SSE content stream history messages count={}", traceId, stage, historyMessages == null ? 0 : historyMessages.size());
+            log.info("[{}][{}] LLM raw SSE content stream user prompt:\n{}", traceId, stage, normalizePrompt(userPrompt));
+
+            AgentProviderProperties.ProviderConfig config = resolveProviderConfig(providerType);
+            WebClient webClient = buildRawWebClient(config);
+            Map<String, Object> request = buildRawStreamRequest(model, systemPrompt, historyMessages, userPrompt, List.of(), false);
+
+            return webClient.post()
+                    .uri(resolveRawCompletionsUri(config.getBaseUrl()))
+                    .accept(MediaType.TEXT_EVENT_STREAM)
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToFlux(String.class)
+                    .<String>handle((rawChunk, sink) -> {
+                        LlmStreamDelta delta = toStreamDeltaFromRawChunk(rawChunk);
+                        if (delta != null && delta.content() != null && !delta.content().isEmpty()) {
+                            sink.next(delta.content());
+                        }
+                    })
+                    .doOnNext(chunk -> responseBuffer.append(chunk))
+                    .doOnComplete(() -> log.info(
+                            "[{}][{}] LLM raw SSE content stream finished in {} ms:\n{}",
+                            traceId,
+                            stage,
+                            elapsedMs(startNanos),
+                            responseBuffer
+                    ))
+                    .doOnError(ex -> log.error(
+                            "[{}][{}] LLM raw SSE content stream failed in {} ms, partial response:\n{}",
+                            traceId,
+                            stage,
+                            elapsedMs(startNanos),
+                            responseBuffer,
+                            ex
+                    ))
+                    .doOnCancel(() -> log.warn(
+                            "[{}][{}] LLM raw SSE content stream canceled in {} ms, partial response:\n{}",
+                            traceId,
+                            stage,
+                            elapsedMs(startNanos),
+                            responseBuffer
+                    ))
+                    .timeout(Duration.ofSeconds(60));
+        });
+    }
+
     public Mono<String> completeText(ProviderType providerType, String model, String systemPrompt, String userPrompt) {
         return completeText(providerType, model, systemPrompt, userPrompt, "default");
     }
