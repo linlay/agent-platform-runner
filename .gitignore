@@ -21,7 +21,7 @@ logs/
 # Local configs and secrets
 agents/
 chats/
-com/
+/com/
 application-local.yml
 application-local.yaml
 .env
