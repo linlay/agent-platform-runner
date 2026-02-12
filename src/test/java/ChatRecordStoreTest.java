@@ -53,11 +53,8 @@ class ChatRecordStoreTest {
                         "request.query",
                         "chat.start",
                         "run.start",
-                        "task.start",
                         "content.snapshot",
-                        "task.complete",
-                        "run.complete",
-                        "chat.update"
+                        "run.complete"
                 );
         assertThat(detail.events().getFirst()).containsKey("seq");
         assertThat(detail.references()).isNull();
@@ -91,18 +88,18 @@ class ChatRecordStoreTest {
         assertThat(detail.messages().getFirst().get("role")).isEqualTo("user");
         assertThat(detail.events()).isNotNull();
         assertThat(detail.events()).extracting(item -> item.get("type"))
-                .contains("request.query", "chat.start", "run.start", "task.start", "content.snapshot", "tool.snapshot", "run.complete", "chat.update");
+                .contains("request.query", "chat.start", "run.start", "content.snapshot", "tool.snapshot", "run.complete");
 
         Map<String, Object> contentSnapshot = findFirstEvent(detail.events(), "content.snapshot");
-        assertThat(contentSnapshot).containsKeys("type", "contentId", "text", "timestamp", "taskId", "seq");
+        assertThat(contentSnapshot).containsKeys("type", "contentId", "text", "timestamp", "seq");
         assertThat(contentSnapshot.get("text")).isEqualTo("先执行 ls");
         assertThat(contentSnapshot).doesNotContainKey("reasoningId");
+        assertThat(contentSnapshot).doesNotContainKey("taskId");
 
         Map<String, Object> toolSnapshot = findFirstEvent(detail.events(), "tool.snapshot");
         assertThat(toolSnapshot).containsKeys(
                 "toolId",
                 "toolName",
-                "taskId",
                 "toolType",
                 "toolApi",
                 "toolParams",
@@ -113,6 +110,7 @@ class ChatRecordStoreTest {
         );
         assertThat(toolSnapshot.get("toolId")).isEqualTo("tool_call_1");
         assertThat(toolSnapshot).doesNotContainKey("result");
+        assertThat(toolSnapshot).doesNotContainKey("taskId");
     }
 
     @Test
@@ -211,6 +209,42 @@ class ChatRecordStoreTest {
     }
 
     @Test
+    void loadChatShouldEmitChatStartOnlyOnceAcrossMultipleRuns() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174016";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "多轮会话", 1707000300000L, 1707000400000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".json");
+        writeJsonLine(historyPath, runRecord(
+                chatId,
+                "run_004",
+                1707000300000L,
+                List.of(
+                        message("user", "第一轮", 1707000300000L, null, null, null, null),
+                        message("assistant", "第一轮回答", 1707000300001L, null, null, null, null)
+                )
+        ));
+        writeJsonLine(historyPath, runRecord(
+                chatId,
+                "run_005",
+                1707000400000L,
+                List.of(
+                        message("user", "第二轮", 1707000400000L, null, null, null, null),
+                        message("assistant", "第二轮回答", 1707000400001L, null, null, null, null)
+                )
+        ));
+
+        ChatRecordStore store = newStore();
+        AgwChatDetailResponse detail = store.loadChat(chatId, false);
+
+        assertThat(detail.events()).isNotNull();
+        assertThat(countType(detail.events(), "chat.start")).isEqualTo(1);
+        assertThat(countType(detail.events(), "run.start")).isEqualTo(2);
+        assertThat(countType(detail.events(), "run.complete")).isEqualTo(2);
+        assertThat(countType(detail.events(), "chat.update")).isEqualTo(0);
+    }
+
+    @Test
     void loadChatShouldRejectInvalidChatId() {
         ChatRecordStore store = newStore();
         assertThatThrownBy(() -> store.loadChat("not-a-uuid", false))
@@ -293,5 +327,9 @@ class ChatRecordStoreTest {
         }
         assertThat(matched).isNotEmpty();
         return matched.getFirst();
+    }
+
+    private long countType(List<Map<String, Object>> events, String type) {
+        return events.stream().filter(event -> type.equals(event.get("type"))).count();
     }
 }

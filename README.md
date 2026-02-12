@@ -72,7 +72,6 @@
       "seq": 5,
       "type": "content.snapshot",
       "contentId": "8ad0081d-191b-4990-9432-664ea0c38c3e_content_0",
-      "taskId": "8ad0081d-191b-4990-9432-664ea0c38c3e_task_1",
       "text": "碳是一种非金属元素...",
       "timestamp": 1770863186549
     }

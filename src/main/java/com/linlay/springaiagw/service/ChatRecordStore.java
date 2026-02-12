@@ -54,6 +54,7 @@ public class ChatRecordStore {
             }
             long now = System.currentTimeMillis();
             ChatIndexRecord record = recordsByChatId.get(chatId);
+            boolean created = false;
             if (record == null) {
                 record = new ChatIndexRecord();
                 record.chatId = chatId;
@@ -62,6 +63,7 @@ public class ChatRecordStore {
                 record.createdAt = now;
                 record.updatedAt = now;
                 recordsByChatId.put(chatId, record);
+                created = true;
             } else {
                 if (!StringUtils.hasText(record.chatName)) {
                     record.chatName = deriveChatName(firstMessage);
@@ -75,7 +77,7 @@ public class ChatRecordStore {
                 record.updatedAt = now;
             }
             writeIndexRecords(List.copyOf(recordsByChatId.values()));
-            return toChatSummary(record);
+            return toChatSummary(record, created);
         }
     }
 
@@ -126,7 +128,7 @@ public class ChatRecordStore {
                     .map(this::toChatSummary)
                     .orElseGet(() -> {
                         long createdAt = resolveCreatedAt(historyPath);
-                        return new ChatSummary(chatId, chatId, null, createdAt, createdAt);
+                        return new ChatSummary(chatId, chatId, null, createdAt, createdAt, false);
                     });
 
             ParsedChatContent content = readChatContent(
@@ -254,6 +256,7 @@ public class ChatRecordStore {
 
         List<Map<String, Object>> events = new ArrayList<>();
         long seq = 1L;
+        boolean emittedChatStart = false;
         for (RunSnapshot run : runs) {
             if (run.messages == null || run.messages.isEmpty()) {
                 continue;
@@ -263,7 +266,6 @@ public class ChatRecordStore {
             long runEndTs = resolveRunEndTimestamp(run, runStartTs);
             long timestampCursor = runStartTs;
             String firstUserMessage = firstUserText(run.messages);
-            String taskId = run.runId + "_task_1";
             int contentIndex = 0;
             int toolIndex = 0;
             Set<String> emittedToolCallIds = new HashSet<>();
@@ -275,13 +277,16 @@ public class ChatRecordStore {
             query.put("message", firstUserMessage);
             events.add(query);
 
-            timestampCursor = timestampCursor + 1;
-            Map<String, Object> chatStart = event("chat.start", timestampCursor, seq++);
-            chatStart.put("chatId", chatId);
-            if (StringUtils.hasText(chatName)) {
-                chatStart.put("chatName", chatName);
+            if (!emittedChatStart) {
+                timestampCursor = timestampCursor + 1;
+                Map<String, Object> chatStart = event("chat.start", timestampCursor, seq++);
+                chatStart.put("chatId", chatId);
+                if (StringUtils.hasText(chatName)) {
+                    chatStart.put("chatName", chatName);
+                }
+                events.add(chatStart);
+                emittedChatStart = true;
             }
-            events.add(chatStart);
 
             timestampCursor = timestampCursor + 1;
             Map<String, Object> runStart = event("run.start", timestampCursor, seq++);
@@ -289,26 +294,18 @@ public class ChatRecordStore {
             runStart.put("chatId", chatId);
             events.add(runStart);
 
-            timestampCursor = timestampCursor + 1;
-            Map<String, Object> taskStart = event("task.start", timestampCursor, seq++);
-            taskStart.put("taskId", taskId);
-            taskStart.put("runId", run.runId);
-            taskStart.put("taskName", "default");
-            events.add(taskStart);
-
             for (ChatWindowMemoryStore.StoredMessage message : run.messages) {
                 if (isAssistantTextMessage(message)) {
                     timestampCursor = normalizeEventTimestamp(resolveMessageTimestamp(message, timestampCursor), timestampCursor);
                     Map<String, Object> contentSnapshot = event("content.snapshot", timestampCursor, seq++);
                     contentSnapshot.put("contentId", run.runId + "_content_" + contentIndex++);
                     contentSnapshot.put("text", message.content);
-                    contentSnapshot.put("taskId", taskId);
                     events.add(contentSnapshot);
                 }
 
                 if (isAssistantToolCallMessage(message)) {
                     timestampCursor = normalizeEventTimestamp(resolveMessageTimestamp(message, timestampCursor), timestampCursor);
-                    Map<String, Object> toolSnapshot = toToolSnapshot(run.runId, taskId, toolIndex++, message, timestampCursor, seq++);
+                    Map<String, Object> toolSnapshot = toToolSnapshot(run.runId, toolIndex++, message, timestampCursor, seq++);
                     events.add(toolSnapshot);
                     if (StringUtils.hasText(message.toolCallId)) {
                         emittedToolCallIds.add(message.toolCallId.trim());
@@ -318,7 +315,7 @@ public class ChatRecordStore {
 
                 if (isToolMessage(message) && shouldEmitToolSnapshot(message, emittedToolCallIds)) {
                     timestampCursor = normalizeEventTimestamp(resolveMessageTimestamp(message, timestampCursor), timestampCursor);
-                    Map<String, Object> toolSnapshot = toToolSnapshot(run.runId, taskId, toolIndex++, message, timestampCursor, seq++);
+                    Map<String, Object> toolSnapshot = toToolSnapshot(run.runId, toolIndex++, message, timestampCursor, seq++);
                     events.add(toolSnapshot);
                     if (StringUtils.hasText(message.toolCallId)) {
                         emittedToolCallIds.add(message.toolCallId.trim());
@@ -327,30 +324,16 @@ public class ChatRecordStore {
             }
 
             timestampCursor = normalizeEventTimestamp(runEndTs + 1, timestampCursor);
-            Map<String, Object> taskComplete = event("task.complete", timestampCursor, seq++);
-            taskComplete.put("taskId", taskId);
-            events.add(taskComplete);
-
-            timestampCursor = timestampCursor + 1;
             Map<String, Object> runComplete = event("run.complete", timestampCursor, seq++);
             runComplete.put("runId", run.runId);
             runComplete.put("finishReason", "end_turn");
             events.add(runComplete);
-
-            timestampCursor = timestampCursor + 1;
-            Map<String, Object> chatUpdate = event("chat.update", timestampCursor, seq++);
-            chatUpdate.put("chatId", chatId);
-            if (StringUtils.hasText(chatName)) {
-                chatUpdate.put("chatName", chatName);
-            }
-            events.add(chatUpdate);
         }
         return List.copyOf(events);
     }
 
     private Map<String, Object> toToolSnapshot(
             String runId,
-            String taskId,
             int toolIndex,
             ChatWindowMemoryStore.StoredMessage message,
             long timestamp,
@@ -362,7 +345,6 @@ public class ChatRecordStore {
                 : runId + "_tool_" + toolIndex;
         snapshot.put("toolId", toolId);
         snapshot.put("toolName", StringUtils.hasText(message.name) ? message.name.trim() : "unknown_tool");
-        snapshot.put("taskId", taskId);
         snapshot.put("toolType", null);
         snapshot.put("toolApi", null);
         snapshot.put("toolParams", toToolParams(message.toolArgs));
@@ -690,6 +672,10 @@ public class ChatRecordStore {
     }
 
     private ChatSummary toChatSummary(ChatIndexRecord record) {
+        return toChatSummary(record, false);
+    }
+
+    private ChatSummary toChatSummary(ChatIndexRecord record, boolean created) {
         long createdAt = record.createdAt > 0 ? record.createdAt : record.updatedAt;
         long updatedAt = record.updatedAt > 0 ? record.updatedAt : createdAt;
         return new ChatSummary(
@@ -697,7 +683,8 @@ public class ChatRecordStore {
                 StringUtils.hasText(record.chatName) ? record.chatName : record.chatId,
                 nullable(record.firstAgentKey),
                 createdAt,
-                updatedAt
+                updatedAt,
+                created
         );
     }
 
@@ -731,7 +718,8 @@ public class ChatRecordStore {
             String chatName,
             String firstAgentKey,
             long createdAt,
-            long updatedAt
+            long updatedAt,
+            boolean created
     ) {
     }
 

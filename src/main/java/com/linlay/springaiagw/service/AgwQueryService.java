@@ -2,11 +2,10 @@ package com.linlay.springaiagw.service;
 
 import com.aiagent.agw.sdk.model.AgwInput;
 import com.aiagent.agw.sdk.model.AgwRequest;
+import com.aiagent.agw.sdk.service.AgwEventAssembler;
 import com.aiagent.agw.sdk.service.AgwSseStreamer;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.springaiagw.agent.Agent;
 import com.linlay.springaiagw.agent.AgentRegistry;
 import com.linlay.springaiagw.model.agw.AgwQueryRequest;
@@ -19,7 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -29,7 +30,6 @@ public class AgwQueryService {
 
     private static final String AUTO_AGENT = "auto";
     private static final String DEFAULT_AGENT = "default";
-    private static final String TOOL_RESULT_EVENT = "tool.result";
     private static final Pattern EVENT_TYPE_PATTERN = Pattern.compile("\"type\":\"([^\"]+)\"");
     private static final Logger log = LoggerFactory.getLogger(AgwQueryService.class);
 
@@ -60,6 +60,7 @@ public class AgwQueryService {
         String role = StringUtils.hasText(request.role()) ? request.role().trim() : "user";
         ChatRecordStore.ChatSummary summary = chatRecordStore.ensureChat(chatId, agent.id(), request.message());
         String chatName = summary.chatName();
+        Map<String, Object> queryParams = mergeQueryParams(request.params(), summary.created());
         AgwRequest.Query agwRequest = new AgwRequest.Query(
                 requestId,
                 chatId,
@@ -67,7 +68,7 @@ public class AgwQueryService {
                 request.message(),
                 request.agentKey(),
                 request.references() == null ? null : request.references().stream().map(value -> (Object) value).toList(),
-                request.params(),
+                queryParams,
                 serializeScene(request.scene()),
                 request.stream(),
                 chatName,
@@ -96,7 +97,6 @@ public class AgwQueryService {
         Flux<AgentDelta> deltas = session.agent().stream(session.agentRequest());
         Flux<AgwInput> inputs = new AgentDeltaToAgwInputMapper(session.request().runId()).map(deltas);
         return agwSseStreamer.stream(session.request(), inputs)
-                .map(this::normalizeToolResultPayload)
                 .doOnNext(event -> {
                     String eventType = extractEventType(event.data());
                     if (!isToolEvent(eventType)) {
@@ -112,68 +112,13 @@ public class AgwQueryService {
                 .doOnNext(event -> chatRecordStore.appendEvent(session.request().chatId(), event.data()));
     }
 
-    private ServerSentEvent<String> normalizeToolResultPayload(ServerSentEvent<String> event) {
-        if (event == null || !StringUtils.hasText(event.data())) {
-            return event;
+    private Map<String, Object> mergeQueryParams(Map<String, Object> requestParams, boolean created) {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (requestParams != null && !requestParams.isEmpty()) {
+            merged.putAll(requestParams);
         }
-        String eventType = extractEventType(event.data());
-        if (!TOOL_RESULT_EVENT.equals(eventType)) {
-            return event;
-        }
-
-        try {
-            JsonNode root = objectMapper.readTree(event.data());
-            if (!(root instanceof ObjectNode objectRoot)) {
-                return event;
-            }
-            JsonNode resultNode = objectRoot.get("result");
-            if (resultNode == null || !resultNode.isTextual()) {
-                return event;
-            }
-
-            String rawResultText = resultNode.asText();
-            JsonNode parsedResult = parseJson(rawResultText);
-            if (parsedResult == null) {
-                return event;
-            }
-
-            objectRoot.set("result", parsedResult);
-            String normalizedData = objectMapper.writeValueAsString(objectRoot);
-
-            ServerSentEvent.Builder<String> builder = ServerSentEvent.<String>builder()
-                    .data(normalizedData);
-            if (event.id() != null) {
-                builder.id(event.id());
-            }
-            if (event.event() != null) {
-                builder.event(event.event());
-            }
-            if (event.comment() != null) {
-                builder.comment(event.comment());
-            }
-            if (event.retry() != null) {
-                builder.retry(event.retry());
-            }
-            return builder.build();
-        } catch (Exception ex) {
-            log.debug("skip normalize tool.result payload due to parse failure", ex);
-            return event;
-        }
-    }
-
-    private JsonNode parseJson(String rawText) {
-        if (!StringUtils.hasText(rawText)) {
-            return null;
-        }
-        String trimmed = rawText.trim();
-        if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) {
-            return null;
-        }
-        try {
-            return objectMapper.readTree(trimmed);
-        } catch (JsonProcessingException ex) {
-            return null;
-        }
+        merged.put(AgwEventAssembler.INTERNAL_PARAM_EMIT_CHAT_START, created);
+        return merged;
     }
 
     private String extractEventType(String eventData) {

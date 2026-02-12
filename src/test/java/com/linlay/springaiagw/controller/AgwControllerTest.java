@@ -16,6 +16,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -324,6 +325,61 @@ class AgwControllerTest {
                 .expectStatus().isNotFound();
     }
 
+    @Test
+    void chatDetailShouldContainSingleChatStartAcrossMultipleRuns() {
+        FluxExchangeResult<String> firstRun = webTestClient.post()
+                .uri("/api/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "agentKey", "demoPlanExecute",
+                        "message", "第一轮"
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(String.class);
+        List<String> firstChunks = firstRun.getResponseBody()
+                .take(1600)
+                .collectList()
+                .block(Duration.ofSeconds(8));
+        assertThat(firstChunks).isNotNull();
+        String chatId = extractFirstValue(String.join("", firstChunks), "chatId");
+        assertThat(chatId).isNotBlank();
+
+        FluxExchangeResult<String> secondRun = webTestClient.post()
+                .uri("/api/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "chatId", chatId,
+                        "agentKey", "demoPlanExecute",
+                        "message", "第二轮"
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(String.class);
+        List<String> secondChunks = secondRun.getResponseBody()
+                .take(1600)
+                .collectList()
+                .block(Duration.ofSeconds(8));
+        assertThat(secondChunks).isNotNull();
+
+        byte[] responseBody = webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/chat")
+                        .queryParam("chatId", chatId)
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(responseBody).isNotNull();
+        String json = new String(responseBody, StandardCharsets.UTF_8);
+        assertThat(countOccurrences(json, "\"type\":\"chat.start\"")).isEqualTo(1);
+        assertThat(countOccurrences(json, "\"type\":\"run.start\"")).isGreaterThanOrEqualTo(2);
+        assertThat(json).doesNotContain("\"type\":\"chat.update\"");
+    }
+
     private String extractFirstValue(String text, String key) {
         Pattern pattern = Pattern.compile("\"" + key + "\":\"([^\"]+)\"");
         Matcher matcher = pattern.matcher(text);
@@ -331,5 +387,18 @@ class AgwControllerTest {
             return matcher.group(1);
         }
         return "";
+    }
+
+    private int countOccurrences(String text, String token) {
+        int count = 0;
+        int start = 0;
+        while (true) {
+            int index = text.indexOf(token, start);
+            if (index < 0) {
+                return count;
+            }
+            count++;
+            start = index + token.length();
+        }
     }
 }
