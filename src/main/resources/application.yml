@@ -18,6 +18,10 @@ agent:
   catalog:
     external-dir: ${AGENT_EXTERNAL_DIR:agents}
     refresh-interval-ms: ${AGENT_REFRESH_INTERVAL_MS:10000}
+  llm:
+    interaction-log:
+      enabled: ${AGENT_LLM_INTERACTION_LOG_ENABLED:true}
+      mask-sensitive: ${AGENT_LLM_INTERACTION_LOG_MASK_SENSITIVE:true}
   tools:
     bash:
       working-directory: ${AGENT_BASH_WORKING_DIRECTORY:${user.dir}}
@@ -33,4 +37,7 @@ logging:
   level:
     root: INFO
     com.linlay.springaiagw: INFO
+    com.linlay.springaiagw.service.LlmService: DEBUG
+    com.linlay.springaiagw.service.RawSseClient: DEBUG
+    com.linlay.springaiagw.service.LlmCallLogger: DEBUG
     com.linlay.springaiagw.llm.wiretap: DEBUG

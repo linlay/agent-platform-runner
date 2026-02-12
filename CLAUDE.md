@@ -50,7 +50,7 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 
 主配置 `application.yml`，本地覆盖 `application-local.yml`（含 API key）。
 
-关键环境变量：`SERVER_PORT`、`AGENT_EXTERNAL_DIR`、`AGENT_REFRESH_INTERVAL_MS`、`AGENT_BASH_WORKING_DIRECTORY`、`AGENT_BASH_ALLOWED_PATHS`、`MEMORY_CHAT_DIR`、`MEMORY_CHAT_K`
+关键环境变量：`SERVER_PORT`、`AGENT_EXTERNAL_DIR`、`AGENT_REFRESH_INTERVAL_MS`、`AGENT_BASH_WORKING_DIRECTORY`、`AGENT_BASH_ALLOWED_PATHS`、`MEMORY_CHAT_DIR`、`MEMORY_CHAT_K`、`AGENT_LLM_INTERACTION_LOG_ENABLED`、`AGENT_LLM_INTERACTION_LOG_MASK_SENSITIVE`
 
 ## Agent JSON 定义
 
@@ -99,3 +99,5 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 - 每个 SSE delta（thinking/content/tool_calls）逐条打印 `log.debug`
 - 工具调用 delta 打印 tool name、arguments 片段、finish_reason
 - `LlmService.appendDeltaLog` 带 traceId/stage 参数，`streamContent`/`streamContentRawSse` 均有逐 chunk debug 日志
+- 日志开关：`agent.llm.interaction-log.enabled`（默认 `true`）
+- 脱敏开关：`agent.llm.interaction-log.mask-sensitive`（默认 `true`），会脱敏 `authorization/apiKey/token/secret/password`

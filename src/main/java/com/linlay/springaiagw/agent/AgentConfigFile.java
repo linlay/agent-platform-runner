@@ -1,7 +1,6 @@
 package com.linlay.springaiagw.agent;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.linlay.springaiagw.model.ProviderType;
 
 import java.util.List;
 
@@ -9,7 +8,8 @@ import java.util.List;
 public class AgentConfigFile {
 
     private String description;
-    private ProviderType providerType;
+    private String providerKey;
+    private String providerType;
     private String model;
     private String systemPrompt;
     private Boolean deepThink;
@@ -24,11 +24,19 @@ public class AgentConfigFile {
         this.description = description;
     }
 
-    public ProviderType getProviderType() {
+    public String getProviderKey() {
+        return providerKey;
+    }
+
+    public void setProviderKey(String providerKey) {
+        this.providerKey = providerKey;
+    }
+
+    public String getProviderType() {
         return providerType;
     }
 
-    public void setProviderType(ProviderType providerType) {
+    public void setProviderType(String providerType) {
         this.providerType = providerType;
     }
 

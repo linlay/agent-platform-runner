@@ -129,7 +129,7 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("使用最简单的df和free看看服务器的资源情况", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("使用最简单的df和free看看服务器的资源情况", null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(3));
 
@@ -249,7 +249,7 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("从多个工具里选择一个执行", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("从多个工具里选择一个执行", null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(4));
 
@@ -361,7 +361,7 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("看看当前目录有哪些文件", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("看看当前目录有哪些文件", null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(6));
 
@@ -506,7 +506,7 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("查上海明天天气", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("查上海明天天气", null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(6));
 
@@ -636,7 +636,7 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("同时调用两个工具", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("同时调用两个工具", null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(6));
 
@@ -792,7 +792,7 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("顺序执行两个工具", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("顺序执行两个工具", null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(6));
 
@@ -893,7 +893,7 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("检查系统资源", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("检查系统资源", null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(6));
 
@@ -1017,7 +1017,7 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("顺序执行两个工具", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("顺序执行两个工具", null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(6));
         assertThat(deltas).isNotNull();
@@ -1143,7 +1143,7 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        AgentDelta firstToolCallDelta = agent.stream(new AgentRequest("执行一次 ls", null, null, null, null, null, null))
+        AgentDelta firstToolCallDelta = agent.stream(new AgentRequest("执行一次 ls", null, null, null))
                 .filter(delta -> delta.toolCalls() != null && !delta.toolCalls().isEmpty())
                 .blockFirst(Duration.ofMillis(250));
 
@@ -1272,7 +1272,7 @@ class DefinitionDrivenAgentTest {
                 objectMapper
         );
 
-        List<AgentDelta> deltas = agent.stream(new AgentRequest("查上海明天天气", null, null, null, null, null, null))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("查上海明天天气", null, null, null))
                 .collectList()
                 .block(Duration.ofSeconds(6));
 

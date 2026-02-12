@@ -2,7 +2,6 @@ package com.linlay.springaiagw.agent;
 
 import com.linlay.springaiagw.model.AgentDelta;
 import com.linlay.springaiagw.model.AgentRequest;
-import com.linlay.springaiagw.model.ProviderType;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -15,7 +14,7 @@ public interface Agent {
         return id();
     }
 
-    ProviderType providerType();
+    String providerKey();
 
     String model();
 

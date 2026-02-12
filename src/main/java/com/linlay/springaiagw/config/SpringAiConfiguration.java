@@ -1,25 +1,21 @@
 package com.linlay.springaiagw.config;
 
 import io.netty.handler.logging.LogLevel;
+import com.linlay.springaiagw.service.LlmLogSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.util.StreamUtils;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.ClientRequest;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.util.Assert;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.transport.logging.AdvancedByteBufFormat;
 
@@ -27,7 +23,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
+import java.util.function.Consumer;
 
 @Configuration
 public class SpringAiConfiguration {
@@ -35,92 +31,67 @@ public class SpringAiConfiguration {
     private static final Logger log = LoggerFactory.getLogger(SpringAiConfiguration.class);
     private static final String LLM_WIRETAP_LOGGER = "com.linlay.springaiagw.llm.wiretap";
 
-    @Bean("bailianChatModel")
-    public ChatModel bailianChatModel(AgentProviderProperties properties) {
-        return buildChatModel("bailian", properties.getBailian());
-    }
+    @Bean
+    public RestClient.Builder loggingRestClientBuilder(LlmInteractionLogProperties logProperties) {
+        RestClient.Builder builder = RestClient.builder();
+        if (!logProperties.isEnabled()) {
+            return builder;
+        }
 
-    @Bean("siliconflowChatModel")
-    public ChatModel siliconflowChatModel(AgentProviderProperties properties) {
-        return buildChatModel("siliconflow", properties.getSiliconflow());
-    }
-
-    @Bean("bailianChatClient")
-    public ChatClient bailianChatClient(@Qualifier("bailianChatModel") ChatModel chatModel) {
-        return ChatClient.create(chatModel);
-    }
-
-    @Bean("siliconflowChatClient")
-    public ChatClient siliconflowChatClient(@Qualifier("siliconflowChatModel") ChatModel chatModel) {
-        return ChatClient.create(chatModel);
-    }
-
-    private ChatModel buildChatModel(String providerName, AgentProviderProperties.ProviderConfig providerConfig) {
-        assertProviderConfig(providerName, providerConfig);
-        OpenAiApi api = OpenAiApi.builder()
-                .baseUrl(providerConfig.getBaseUrl())
-                .apiKey(providerConfig.getApiKey())
-                .restClientBuilder(loggingRestClientBuilder())
-                .webClientBuilder(loggingWebClientBuilder())
-                .build();
-
-        OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .model(providerConfig.getModel())
-                .temperature(0.2)
-                .build();
-
-        return OpenAiChatModel.builder()
-                .openAiApi(api)
-                .defaultOptions(options)
-                .build();
-    }
-
-    private RestClient.Builder loggingRestClientBuilder() {
-        return RestClient.builder()
+        return builder
                 .requestInterceptor((request, body, execution) -> {
+                    boolean maskSensitive = logProperties.isMaskSensitive();
                     log.info("[llm-http][request] {} {}", request.getMethod(), request.getURI());
-                    log.info("[llm-http][request-headers] {}", maskHeaders(request.getHeaders()));
-                    log.info("[llm-http][request-body]\n{}", new String(body, StandardCharsets.UTF_8));
+                    log.info("[llm-http][request-headers] {}", LlmLogSanitizer.maskHeaders(request.getHeaders(), maskSensitive));
+                    log.info("[llm-http][request-body]\n{}", LlmLogSanitizer.maskText(new String(body, StandardCharsets.UTF_8), maskSensitive));
 
                     ClientHttpResponse response = execution.execute(request, body);
                     byte[] responseBody = StreamUtils.copyToByteArray(response.getBody());
 
                     log.info("[llm-http][response] status={}", response.getStatusCode().value());
-                    log.info("[llm-http][response-headers] {}", response.getHeaders());
-                    log.info("[llm-http][response-body]\n{}", new String(responseBody, StandardCharsets.UTF_8));
+                    log.info("[llm-http][response-headers] {}", LlmLogSanitizer.maskHeaders(response.getHeaders(), maskSensitive));
+                    log.info("[llm-http][response-body]\n{}",
+                            LlmLogSanitizer.maskText(new String(responseBody, StandardCharsets.UTF_8), maskSensitive));
 
                     return new ReplayableClientHttpResponse(response, responseBody);
                 });
     }
 
-    private WebClient.Builder loggingWebClientBuilder() {
-        HttpClient httpClient = HttpClient.create()
-                .wiretap(LLM_WIRETAP_LOGGER, LogLevel.DEBUG, AdvancedByteBufFormat.TEXTUAL);
-        return WebClient.builder()
+    @Bean
+    public WebClient.Builder loggingWebClientBuilder(LlmInteractionLogProperties logProperties) {
+        HttpClient httpClient = HttpClient.create();
+        if (logProperties.isEnabled() && !logProperties.isMaskSensitive()) {
+            httpClient = httpClient.wiretap(LLM_WIRETAP_LOGGER, LogLevel.DEBUG, AdvancedByteBufFormat.TEXTUAL);
+        }
+
+        WebClient.Builder builder = WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .exchangeStrategies(ExchangeStrategies.builder()
                         .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(16 * 1024 * 1024))
                         .build());
-    }
-
-    private HttpHeaders maskHeaders(HttpHeaders headers) {
-        HttpHeaders masked = new HttpHeaders();
-        masked.putAll(headers);
-        List<String> authValues = masked.get(HttpHeaders.AUTHORIZATION);
-        if (authValues != null && !authValues.isEmpty()) {
-            masked.set(HttpHeaders.AUTHORIZATION, "Bearer ***");
+        if (!logProperties.isEnabled()) {
+            return builder;
         }
-        return masked;
+
+        boolean maskSensitive = logProperties.isMaskSensitive();
+        return builder.filter((request, next) -> {
+            log.info("[llm-webclient][request] {} {}", request.method(), request.url());
+            log.info("[llm-webclient][request-headers] {}", LlmLogSanitizer.maskHeaders(request.headers(), maskSensitive));
+            return next.exchange(request)
+                    .doOnNext(logResponse(maskSensitive, request));
+        });
     }
 
-    private void assertProviderConfig(String providerName, AgentProviderProperties.ProviderConfig providerConfig) {
-        Assert.notNull(providerConfig, "Missing config: agent.providers." + providerName);
-        Assert.hasText(providerConfig.getBaseUrl(),
-                "Missing config: agent.providers." + providerName + ".base-url");
-        Assert.hasText(providerConfig.getApiKey(),
-                "Missing config: agent.providers." + providerName + ".api-key");
-        Assert.hasText(providerConfig.getModel(),
-                "Missing config: agent.providers." + providerName + ".model");
+    private Consumer<ClientResponse> logResponse(boolean maskSensitive, ClientRequest request) {
+        return response -> {
+            log.info(
+                    "[llm-webclient][response] {} {} status={}",
+                    request.method(),
+                    request.url(),
+                    response.statusCode().value()
+            );
+            log.info("[llm-webclient][response-headers] {}", LlmLogSanitizer.maskHeaders(response.headers().asHttpHeaders(), maskSensitive));
+        };
     }
 
     private static final class ReplayableClientHttpResponse implements ClientHttpResponse {

@@ -1,41 +1,43 @@
 package com.linlay.springaiagw.config;
 
-import jakarta.validation.constraints.NotBlank;
+import com.linlay.springaiagw.model.ProviderProtocol;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 @Validated
-@ConfigurationProperties(prefix = "agent.providers")
+@ConfigurationProperties(prefix = "agent")
 public class AgentProviderProperties {
 
-    private ProviderConfig bailian = new ProviderConfig();
-    private ProviderConfig siliconflow = new ProviderConfig();
+    private Map<String, ProviderConfig> providers = new LinkedHashMap<>();
 
-    public ProviderConfig getBailian() {
-        return bailian;
+    public Map<String, ProviderConfig> getProviders() {
+        return providers;
     }
 
-    public void setBailian(ProviderConfig bailian) {
-        this.bailian = bailian;
+    public void setProviders(Map<String, ProviderConfig> providers) {
+        this.providers = providers == null ? new LinkedHashMap<>() : providers;
     }
 
-    public ProviderConfig getSiliconflow() {
-        return siliconflow;
-    }
-
-    public void setSiliconflow(ProviderConfig siliconflow) {
-        this.siliconflow = siliconflow;
+    public ProviderConfig getProvider(String key) {
+        return providers.get(key);
     }
 
     public static class ProviderConfig {
-        @NotBlank
+        private ProviderProtocol protocol = ProviderProtocol.OPENAI_COMPATIBLE;
         private String baseUrl;
-
-        @NotBlank
         private String apiKey;
-
-        @NotBlank
         private String model;
+
+        public ProviderProtocol getProtocol() {
+            return protocol;
+        }
+
+        public void setProtocol(ProviderProtocol protocol) {
+            this.protocol = protocol;
+        }
 
         public String getBaseUrl() {
             return baseUrl;

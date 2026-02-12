@@ -19,11 +19,8 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
-import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -74,10 +71,7 @@ public class AgwQueryService {
 
         AgentRequest agentRequest = new AgentRequest(
                 request.message(),
-                asStringParam(request.params(), "city"),
-                asStringParam(request.params(), "date"),
                 chatId,
-                chatName,
                 requestId,
                 runId
         );
@@ -201,14 +195,6 @@ public class AgwQueryService {
             return agentRegistry.defaultAgent();
         }
         return agentRegistry.get(normalized);
-    }
-
-    private String asStringParam(Map<String, Object> params, String key) {
-        if (params == null || !params.containsKey(key)) {
-            return null;
-        }
-        Object value = params.get(key);
-        return value == null ? null : String.valueOf(value);
     }
 
     private String parseOrGenerateUuid(String raw, String fieldName) {

@@ -1,9 +1,10 @@
 package com.linlay.springaiagw.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.springaiagw.model.ProviderType;
+import com.linlay.springaiagw.config.ChatClientRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -28,10 +29,18 @@ public class AgentDefinitionLoader {
 
     private final ObjectMapper objectMapper;
     private final AgentCatalogProperties properties;
+    private final ChatClientRegistry chatClientRegistry;
 
+    @Deprecated
     public AgentDefinitionLoader(ObjectMapper objectMapper, AgentCatalogProperties properties) {
+        this(objectMapper, properties, null);
+    }
+
+    @Autowired
+    public AgentDefinitionLoader(ObjectMapper objectMapper, AgentCatalogProperties properties, ChatClientRegistry chatClientRegistry) {
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.chatClientRegistry = chatClientRegistry;
     }
 
     public List<AgentDefinition> loadAll() {
@@ -51,9 +60,7 @@ public class AgentDefinitionLoader {
                 new AgentDefinition(
                         "demoPlain",
                         "默认示例：PLAIN 模式按需单次调用工具",
-                        // ProviderType.SILICONFLOW,
-                        // "deepseek-ai/DeepSeek-V3.2",
-                        ProviderType.BAILIAN,
+                        "bailian",
                         "qwen3-max",
                         "你是简洁的助理。严格使用原生 Function Calling：需要工具时发起 tool_calls；不需要工具时直接给可执行结论（120 字以内）。",
                         AgentMode.PLAIN,
@@ -62,7 +69,7 @@ public class AgentDefinitionLoader {
                 new AgentDefinition(
                         "demoReAct",
                         "默认示例：RE-ACT 模式按需调用工具",
-                        ProviderType.BAILIAN,
+                        "bailian",
                         "qwen3-max",
                         "你是 RE-ACT 助手。严格使用原生 Function Calling：每轮最多一个 tool_call；需要工具就调用，不需要工具就直接输出最终结论。",
                         AgentMode.RE_ACT,
@@ -71,7 +78,7 @@ public class AgentDefinitionLoader {
                 new AgentDefinition(
                         "demoPlanExecute",
                         "默认示例：PLAN-EXECUTE 模式先规划后执行工具",
-                        ProviderType.BAILIAN,
+                        "bailian",
                         "qwen3-max",
                         "你是高级规划助手。严格使用原生 Function Calling：需要工具时用 tool_calls 顺序执行，不在正文输出工具调用 JSON，最后给简洁总结。",
                         AgentMode.PLAN_EXECUTE,
@@ -80,7 +87,7 @@ public class AgentDefinitionLoader {
                 new AgentDefinition(
                         "agentCreator",
                         "内置智能体：根据需求创建 agents 目录下的智能体配置",
-                        ProviderType.BAILIAN,
+                        "bailian",
                         "qwen3-max",
                         "你是 Agent 创建助手。目标是把用户需求转成智能体配置，并调用工具创建到 agents 目录。"
                                 + "严格使用原生 Function Calling，不在正文输出工具调用 JSON；缺失字段用最小合理默认值，并在最终回答中说明。",
@@ -126,9 +133,9 @@ public class AgentDefinitionLoader {
 
         try {
             AgentConfigFile config = readAgentConfig(file);
-            ProviderType providerType = config.getProviderType() == null ? ProviderType.BAILIAN : config.getProviderType();
+            String providerKey = resolveProviderKey(config);
             AgentMode mode = resolveMode(config.getMode(), config.getDeepThink());
-            String model = normalize(config.getModel(), defaultModel(providerType));
+            String model = normalize(config.getModel(), resolveDefaultModel(providerKey));
             String systemPrompt = normalize(config.getSystemPrompt(), "你是通用助理，回答要清晰和可执行。");
             String description = normalize(config.getDescription(), "external agent from " + fileName);
             List<String> tools = normalizeToolNames(config.getTools());
@@ -136,7 +143,7 @@ public class AgentDefinitionLoader {
             return java.util.Optional.of(new AgentDefinition(
                     agentId,
                     description,
-                    providerType,
+                    providerKey,
                     model,
                     systemPrompt,
                     mode,
@@ -185,8 +192,27 @@ public class AgentDefinitionLoader {
         return value == null || value.isBlank() ? fallback : value;
     }
 
-    private String defaultModel(ProviderType providerType) {
-        return providerType == ProviderType.SILICONFLOW ? "deepseek-ai/DeepSeek-V3" : "qwen3-max";
+    private String resolveProviderKey(AgentConfigFile config) {
+        if (config.getProviderKey() != null && !config.getProviderKey().isBlank()) {
+            return config.getProviderKey().trim().toLowerCase(Locale.ROOT);
+        }
+        if (config.getProviderType() != null && !config.getProviderType().isBlank()) {
+            return config.getProviderType().trim().toLowerCase(Locale.ROOT);
+        }
+        return "bailian";
+    }
+
+    private String resolveDefaultModel(String providerKey) {
+        if (chatClientRegistry != null) {
+            String dynamicModel = chatClientRegistry.defaultModel(providerKey);
+            if (dynamicModel != null && !dynamicModel.isBlank()) {
+                return dynamicModel;
+            }
+        }
+        if ("siliconflow".equalsIgnoreCase(providerKey)) {
+            return "deepseek-ai/DeepSeek-V3.2";
+        }
+        return "qwen3-max";
     }
 
     private AgentMode resolveMode(AgentMode mode, Boolean deepThink) {

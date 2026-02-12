@@ -1,14 +1,9 @@
 package com.linlay.springaiagw.agent;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.springaiagw.memory.ChatWindowMemoryStore;
 import com.linlay.springaiagw.model.AgentDelta;
 import com.linlay.springaiagw.model.AgentRequest;
-import com.linlay.springaiagw.model.ProviderType;
 import com.linlay.springaiagw.model.SseChunk;
 import com.linlay.springaiagw.service.DeltaStreamService;
 import com.linlay.springaiagw.service.LlmService;
@@ -22,35 +17,20 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class DefinitionDrivenAgent implements Agent {
 
     private static final Logger log = LoggerFactory.getLogger(DefinitionDrivenAgent.class);
     private static final int MAX_TOOL_CALLS = 6;
     private static final int MAX_REACT_STEPS = 6;
-    private static final Pattern ARG_TEMPLATE_PATTERN = Pattern.compile("^\\{\\{\\s*([a-zA-Z0-9_]+)\\.([a-zA-Z0-9_]+)([+-]\\d+d)?\\s*}}$");
-    private static final Set<String> DATE_KEYWORDS_TODAY = Set.of("today", "今天");
-    private static final Set<String> DATE_KEYWORDS_TOMORROW = Set.of("tomorrow", "明天");
-    private static final Set<String> DATE_KEYWORDS_YESTERDAY = Set.of("yesterday", "昨天");
-    private static final Set<String> DATE_KEYWORDS_DAY_AFTER_TOMORROW = Set.of("day_after_tomorrow", "day after tomorrow", "后天");
-    private static final Set<String> DATE_KEYWORDS_DAY_BEFORE_YESTERDAY = Set.of("day_before_yesterday", "day before yesterday", "前天");
-    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
-    };
 
     private final AgentDefinition definition;
     private final LlmService llmService;
@@ -60,6 +40,11 @@ public class DefinitionDrivenAgent implements Agent {
     private final ObjectMapper objectMapper;
     private final ChatWindowMemoryStore chatWindowMemoryStore;
     private final Map<String, BaseTool> enabledToolsByName;
+    private final DecisionChunkHandler decisionChunkHandler;
+    private final DecisionParser decisionParser;
+    private final ToolArgumentResolver toolArgumentResolver;
+    private final AgentPromptBuilder promptBuilder;
+    private final ToolExecutor toolExecutor;
 
     public DefinitionDrivenAgent(
             AgentDefinition definition,
@@ -86,6 +71,11 @@ public class DefinitionDrivenAgent implements Agent {
         this.objectMapper = objectMapper;
         this.chatWindowMemoryStore = chatWindowMemoryStore;
         this.enabledToolsByName = resolveEnabledTools(definition.tools());
+        this.decisionChunkHandler = new DecisionChunkHandler(objectMapper, definition.id());
+        this.decisionParser = new DecisionParser(objectMapper);
+        this.toolArgumentResolver = new ToolArgumentResolver(objectMapper);
+        this.promptBuilder = new AgentPromptBuilder(objectMapper, definition.systemPrompt(), this.enabledToolsByName);
+        this.toolExecutor = new ToolExecutor(toolRegistry, this.toolArgumentResolver, objectMapper, this.promptBuilder, this.enabledToolsByName, definition.id());
     }
 
     @Override
@@ -99,8 +89,8 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     @Override
-    public ProviderType providerType() {
-        return definition.providerType();
+    public String providerKey() {
+        return definition.providerKey();
     }
 
     @Override
@@ -128,7 +118,7 @@ public class DefinitionDrivenAgent implements Agent {
         log.info(
                 "[agent:{}] stream start provider={}, model={}, mode={}, tools={}, message={}",
                 id(),
-                providerType(),
+                providerKey(),
                 model(),
                 definition.mode(),
                 enabledToolsByName.keySet(),
@@ -169,7 +159,7 @@ public class DefinitionDrivenAgent implements Agent {
 
     private Flux<AgentDelta> plainDirectContent(AgentRequest request, List<Message> historyMessages, String stage) {
         Flux<String> contentTextFlux = llmService.streamContentRawSse(
-                        providerType(),
+                        providerKey(),
                         model(),
                         systemPrompt(),
                         historyMessages,
@@ -179,7 +169,7 @@ public class DefinitionDrivenAgent implements Agent {
                 .onErrorResume(ex -> {
                     log.warn("[agent:{}] raw SSE stream failed for plain content, fallback to ChatClient", id(), ex);
                     return llmService.streamContent(
-                            providerType(), model(), systemPrompt(),
+                            providerKey(), model(), systemPrompt(),
                             historyMessages, request.message(), stage
                     );
                 })
@@ -189,7 +179,7 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     private Flux<AgentDelta> plainSingleToolFlow(AgentRequest request, List<Message> historyMessages) {
-        String decisionPrompt = buildPlainDecisionPrompt(request);
+        String decisionPrompt = promptBuilder.buildPlainDecisionPrompt(request);
         log.info("[agent:{}] plain decision prompt:\n{}", id(), decisionPrompt);
 
         StringBuilder rawDecisionBuffer = new StringBuilder();
@@ -201,15 +191,15 @@ public class DefinitionDrivenAgent implements Agent {
         List<String> earlyBuffer = new ArrayList<>();
 
         Flux<AgentDelta> decisionThinkingFlux = llmService.streamDeltas(
-                        providerType(),
+                        providerKey(),
                         model(),
-                        plainDecisionSystemPrompt(),
+                        promptBuilder.plainDecisionSystemPrompt(),
                         historyMessages,
                         decisionPrompt,
-                        enabledFunctionTools(),
+                        toolExecutor.enabledFunctionTools(),
                         "agent-plain-decision"
                 )
-                .handle((chunk, sink) -> handleDecisionChunk(
+                .handle((chunk, sink) -> decisionChunkHandler.handleDecisionChunk(
                         chunk, sink, rawDecisionBuffer, emittedThinking,
                         nativeToolCalls, nativeToolSeq,
                         formatDecided, plainTextDetected, earlyBuffer
@@ -219,15 +209,15 @@ public class DefinitionDrivenAgent implements Agent {
                 decisionThinkingFlux,
                 Flux.defer(() -> {
                     String raw = rawDecisionBuffer.toString();
-                    List<PlannedToolCall> nativeCalls = toPlannedToolCalls(nativeToolCalls);
+                    List<PlannedToolCall> nativeCalls = decisionChunkHandler.toPlannedToolCalls(nativeToolCalls);
                     PlainDecision decision = nativeCalls.isEmpty()
-                            ? parsePlainDecision(raw)
+                            ? decisionParser.parsePlainDecision(raw)
                             : new PlainDecision("", nativeCalls.getFirst(), true);
                     log.info("[agent:{}] plain raw decision:\n{}", id(), raw);
-                    log.info("[agent:{}] plain parsed decision={}", id(), toJson(decision));
+                    log.info("[agent:{}] plain parsed decision={}", id(), promptBuilder.toJson(decision));
 
                     // Content already streamed during handle phase for plain-text responses
-                    if (nativeCalls.isEmpty() && !raw.isBlank() && readJsonObject(raw) == null) {
+                    if (nativeCalls.isEmpty() && !raw.isBlank() && decisionParser.readJsonObject(raw) == null) {
                         return Flux.just(AgentDelta.finish("stop"));
                     }
 
@@ -250,16 +240,16 @@ public class DefinitionDrivenAgent implements Agent {
                         String callId = StringUtils.hasText(decision.toolCall().callId())
                                 ? decision.toolCall().callId()
                                 : "call_" + sanitize(decision.toolCall().name()) + "_plain_1";
-                        toolFlux = executeTool(decision.toolCall(), callId, toolRecords, !nativeCalls.isEmpty());
+                        toolFlux = toolExecutor.executeTool(decision.toolCall(), callId, toolRecords, !nativeCalls.isEmpty());
                         finalStage = "agent-plain-final-with-tool";
                     }
 
                     String stage = finalStage;
                     Flux<AgentDelta> contentFlux = Flux.defer(() -> {
-                        String finalPrompt = buildPlainFinalPrompt(request, toolRecords);
+                        String finalPrompt = promptBuilder.buildPlainFinalPrompt(request, toolRecords);
                         log.info("[agent:{}] plain final prompt:\n{}", id(), finalPrompt);
                         return llmService.streamContent(
-                                        providerType(),
+                                        providerKey(),
                                         model(),
                                         systemPrompt(),
                                         historyMessages,
@@ -288,7 +278,7 @@ public class DefinitionDrivenAgent implements Agent {
                         }),
                         Flux.just(AgentDelta.thinking("计划执行流程失败，降级为直接回答。")),
                         llmService.streamContent(
-                                        providerType(),
+                                        providerKey(),
                                         model(),
                                         systemPrompt(),
                                         historyMessages,
@@ -312,7 +302,7 @@ public class DefinitionDrivenAgent implements Agent {
             return finalizePlanExecuteAnswer(request, historyMessages, toolRecords, "达到 PLAN-EXECUTE 最大轮次，转为总结输出。", "agent-plan-execute-final-max");
         }
 
-        String loopPrompt = buildPlanExecuteLoopPrompt(request, toolRecords, step);
+        String loopPrompt = promptBuilder.buildPlanExecuteLoopPrompt(request, toolRecords, step);
         log.info("[agent:{}] plan-execute step={} prompt:\n{}", id(), step, loopPrompt);
 
         String stage = "agent-plan-execute-step-" + step;
@@ -325,16 +315,16 @@ public class DefinitionDrivenAgent implements Agent {
         List<String> earlyBuffer = new ArrayList<>();
 
         Flux<AgentDelta> stepThinkingFlux = llmService.streamDeltas(
-                        providerType(),
+                        providerKey(),
                         model(),
-                        planExecuteLoopSystemPrompt(),
+                        promptBuilder.planExecuteLoopSystemPrompt(),
                         historyMessages,
                         loopPrompt,
-                        enabledFunctionTools(),
+                        toolExecutor.enabledFunctionTools(),
                         stage,
                         true
                 )
-                .handle((chunk, sink) -> handleDecisionChunk(
+                .handle((chunk, sink) -> decisionChunkHandler.handleDecisionChunk(
                         chunk, sink, rawBuffer, emittedThinking,
                         nativeToolCalls, nativeToolSeq,
                         formatDecided, plainTextDetected, earlyBuffer
@@ -344,12 +334,12 @@ public class DefinitionDrivenAgent implements Agent {
                 stepThinkingFlux,
                 Flux.defer(() -> {
                     String raw = rawBuffer.toString();
-                    List<PlannedToolCall> nativeCalls = toPlannedToolCalls(nativeToolCalls);
+                    List<PlannedToolCall> nativeCalls = decisionChunkHandler.toPlannedToolCalls(nativeToolCalls);
                     log.info("[agent:{}] plan-execute step={} raw decision:\n{}", id(), step, raw);
                     log.info("[agent:{}] plan-execute step={} native tool_calls count={}", id(), step, nativeCalls.size());
 
                     // Content already streamed during handle phase for plain-text responses
-                    if (nativeCalls.isEmpty() && !raw.isBlank() && readJsonObject(raw) == null) {
+                    if (nativeCalls.isEmpty() && !raw.isBlank() && decisionParser.readJsonObject(raw) == null) {
                         return Flux.just(AgentDelta.finish("stop"));
                     }
 
@@ -378,12 +368,12 @@ public class DefinitionDrivenAgent implements Agent {
 
                                 // Expand bash commands and execute
                                 PlannedStep wrappedStep = new PlannedStep("执行工具 " + toolCall.name(), toolCall);
-                                List<PlannedToolCall> expandedToolCalls = expandToolCallsForStep(wrappedStep);
+                                List<PlannedToolCall> expandedToolCalls = toolExecutor.expandToolCallsForStep(wrappedStep);
                                 return Flux.fromIterable(expandedToolCalls)
                                         .concatMap(expanded -> {
                                             String expandedCallId = expanded == toolCall ? callId
                                                     : callId + "_" + sanitize(String.valueOf(expanded.arguments().getOrDefault("command", "")));
-                                            return executeTool(expanded, expandedCallId, toolRecords, !nativeCalls.isEmpty());
+                                            return toolExecutor.executeTool(expanded, expandedCallId, toolRecords, !nativeCalls.isEmpty());
                                         }, 1);
                             }, 1);
 
@@ -403,13 +393,13 @@ public class DefinitionDrivenAgent implements Agent {
             String thinkingNote,
             String stage
     ) {
-        String prompt = buildPlanExecuteLoopFinalPrompt(request, toolRecords);
+        String prompt = promptBuilder.buildPlanExecuteLoopFinalPrompt(request, toolRecords);
         log.info("[agent:{}] plan-execute final prompt:\n{}", id(), prompt);
         Flux<AgentDelta> noteFlux = thinkingNote == null || thinkingNote.isBlank()
                 ? Flux.empty()
                 : Flux.just(AgentDelta.thinking(thinkingNote));
         Flux<AgentDelta> contentFlux = llmService.streamContentRawSse(
-                        providerType(),
+                        providerKey(),
                         model(),
                         systemPrompt(),
                         historyMessages,
@@ -419,7 +409,7 @@ public class DefinitionDrivenAgent implements Agent {
                 .onErrorResume(ex -> {
                     log.warn("[agent:{}] raw SSE final answer failed, fallback to ChatClient stream", id(), ex);
                     return llmService.streamContent(
-                            providerType(),
+                            providerKey(),
                             model(),
                             systemPrompt(),
                             historyMessages,
@@ -446,7 +436,7 @@ public class DefinitionDrivenAgent implements Agent {
                         }),
                         Flux.just(AgentDelta.thinking("RE-ACT 流程失败，降级为直接回答。")),
                         llmService.streamContent(
-                                        providerType(),
+                                        providerKey(),
                                         model(),
                                         systemPrompt(),
                                         historyMessages,
@@ -470,7 +460,7 @@ public class DefinitionDrivenAgent implements Agent {
             return finalizeReactAnswer(request, historyMessages, toolRecords, "达到 RE-ACT 最大轮次，转为总结输出。", "agent-react-final-max");
         }
 
-        String reactPrompt = buildReactPrompt(request, toolRecords, step);
+        String reactPrompt = promptBuilder.buildReactPrompt(request, toolRecords, step);
         log.info("[agent:{}] react step={} prompt:\n{}", id(), step, reactPrompt);
 
         String stage = "agent-react-step-" + step;
@@ -483,15 +473,15 @@ public class DefinitionDrivenAgent implements Agent {
         List<String> earlyBuffer = new ArrayList<>();
 
         Flux<AgentDelta> stepThinkingFlux = llmService.streamDeltas(
-                        providerType(),
+                        providerKey(),
                         model(),
-                        reactSystemPrompt(),
+                        promptBuilder.reactSystemPrompt(),
                         historyMessages,
                         reactPrompt,
-                        enabledFunctionTools(),
+                        toolExecutor.enabledFunctionTools(),
                         stage
                 )
-                .handle((chunk, sink) -> handleDecisionChunk(
+                .handle((chunk, sink) -> decisionChunkHandler.handleDecisionChunk(
                         chunk, sink, rawDecisionBuffer, emittedThinking,
                         nativeToolCalls, nativeToolSeq,
                         formatDecided, plainTextDetected, earlyBuffer
@@ -501,15 +491,15 @@ public class DefinitionDrivenAgent implements Agent {
                 stepThinkingFlux,
                 Flux.defer(() -> {
                     String raw = rawDecisionBuffer.toString();
-                    List<PlannedToolCall> nativeCalls = toPlannedToolCalls(nativeToolCalls);
+                    List<PlannedToolCall> nativeCalls = decisionChunkHandler.toPlannedToolCalls(nativeToolCalls);
                     ReactDecision decision = nativeCalls.isEmpty()
-                            ? parseReactDecision(raw)
+                            ? decisionParser.parseReactDecision(raw)
                             : new ReactDecision("", nativeCalls.getFirst(), false);
                     log.info("[agent:{}] react step={} raw decision:\n{}", id(), step, raw);
-                    log.info("[agent:{}] react step={} parsed decision={}", id(), step, toJson(decision));
+                    log.info("[agent:{}] react step={} parsed decision={}", id(), step, promptBuilder.toJson(decision));
 
                     // Content already streamed during handle phase for plain-text responses
-                    if (nativeCalls.isEmpty() && !raw.isBlank() && readJsonObject(raw) == null) {
+                    if (nativeCalls.isEmpty() && !raw.isBlank() && decisionParser.readJsonObject(raw) == null) {
                         return Flux.just(AgentDelta.finish("stop"));
                     }
 
@@ -549,7 +539,7 @@ public class DefinitionDrivenAgent implements Agent {
 
                     return Flux.concat(
                             summaryThinkingFlux,
-                            executeTool(decision.action(), callId, toolRecords, !nativeCalls.isEmpty()),
+                            toolExecutor.executeTool(decision.action(), callId, toolRecords, !nativeCalls.isEmpty()),
                             Flux.defer(() -> reactLoop(request, historyMessages, toolRecords, step + 1))
                     );
                 })
@@ -563,12 +553,12 @@ public class DefinitionDrivenAgent implements Agent {
             String thinkingNote,
             String stage
     ) {
-        String prompt = buildReactFinalPrompt(request, toolRecords);
+        String prompt = promptBuilder.buildReactFinalPrompt(request, toolRecords);
         Flux<AgentDelta> noteFlux = thinkingNote == null || thinkingNote.isBlank()
                 ? Flux.empty()
                 : Flux.just(AgentDelta.thinking(thinkingNote));
         Flux<AgentDelta> contentFlux = llmService.streamContentRawSse(
-                        providerType(),
+                        providerKey(),
                         model(),
                         systemPrompt(),
                         historyMessages,
@@ -578,7 +568,7 @@ public class DefinitionDrivenAgent implements Agent {
                 .onErrorResume(ex -> {
                     log.warn("[agent:{}] raw SSE final answer failed, fallback to ChatClient stream", id(), ex);
                     return llmService.streamContent(
-                            providerType(),
+                            providerKey(),
                             model(),
                             systemPrompt(),
                             historyMessages,
@@ -591,868 +581,6 @@ public class DefinitionDrivenAgent implements Agent {
                 .map(AgentDelta::content);
 
         return Flux.concat(noteFlux, contentFlux, Flux.just(AgentDelta.finish("stop")));
-    }
-
-    private void handleDecisionChunk(
-            LlmService.LlmStreamDelta chunk,
-            reactor.core.publisher.SynchronousSink<AgentDelta> sink,
-            StringBuilder rawBuffer,
-            StringBuilder emittedThinking,
-            Map<String, NativeToolCall> nativeToolCalls,
-            AtomicInteger nativeToolSeq,
-            boolean[] formatDecided,
-            boolean[] plainTextDetected,
-            List<String> earlyBuffer
-    ) {
-        if (chunk == null) {
-            return;
-        }
-        if (StringUtils.hasText(chunk.content())) {
-            rawBuffer.append(chunk.content());
-
-            if (!formatDecided[0]) {
-                earlyBuffer.add(chunk.content());
-                String trimmed = rawBuffer.toString().trim();
-                if (!trimmed.isEmpty()) {
-                    formatDecided[0] = true;
-                    if (trimmed.charAt(0) != '{' && trimmed.charAt(0) != '`') {
-                        plainTextDetected[0] = true;
-                        for (String buffered : earlyBuffer) {
-                            sink.next(AgentDelta.content(buffered));
-                        }
-                        earlyBuffer.clear();
-                    }
-                }
-            } else if (plainTextDetected[0]) {
-                sink.next(AgentDelta.content(chunk.content()));
-            }
-        }
-        List<SseChunk.ToolCall> streamedToolCalls = captureNativeToolCalls(
-                chunk.toolCalls(),
-                nativeToolCalls,
-                nativeToolSeq
-        );
-        if (!streamedToolCalls.isEmpty()) {
-            sink.next(AgentDelta.toolCalls(streamedToolCalls));
-        }
-        // Thinking extraction only applies to JSON decision format
-        if (!plainTextDetected[0]) {
-            String thinkingDelta = extractNewThinkingDelta(rawBuffer, emittedThinking);
-            if (!thinkingDelta.isEmpty()) {
-                sink.next(AgentDelta.thinking(thinkingDelta));
-            }
-        }
-    }
-
-    private String extractNewThinkingDelta(StringBuilder rawPlanBuffer, StringBuilder emittedThinking) {
-        String current = extractThinkingFieldValue(rawPlanBuffer.toString());
-        if (current.isEmpty() || current.length() <= emittedThinking.length()) {
-            return "";
-        }
-        String delta = current.substring(emittedThinking.length());
-        emittedThinking.append(delta);
-        return delta;
-    }
-
-    private String extractThinkingFieldValue(String rawPlan) {
-        if (rawPlan == null || rawPlan.isBlank()) {
-            return "";
-        }
-
-        int keyStart = rawPlan.indexOf("\"thinking\"");
-        if (keyStart < 0) {
-            return "";
-        }
-
-        int colon = rawPlan.indexOf(':', keyStart + 10);
-        if (colon < 0) {
-            return "";
-        }
-
-        int valueStart = skipWhitespace(rawPlan, colon + 1);
-        if (valueStart >= rawPlan.length() || rawPlan.charAt(valueStart) != '"') {
-            return "";
-        }
-
-        StringBuilder value = new StringBuilder();
-        int i = valueStart + 1;
-        while (i < rawPlan.length()) {
-            char ch = rawPlan.charAt(i);
-            if (ch == '"') {
-                return value.toString();
-            }
-            if (ch != '\\') {
-                value.append(ch);
-                i++;
-                continue;
-            }
-            if (i + 1 >= rawPlan.length()) {
-                return value.toString();
-            }
-
-            char escaped = rawPlan.charAt(i + 1);
-            switch (escaped) {
-                case '"', '\\', '/' -> value.append(escaped);
-                case 'b' -> value.append('\b');
-                case 'f' -> value.append('\f');
-                case 'n' -> value.append('\n');
-                case 'r' -> value.append('\r');
-                case 't' -> value.append('\t');
-                case 'u' -> {
-                    if (i + 5 >= rawPlan.length()) {
-                        return value.toString();
-                    }
-                    String hex = rawPlan.substring(i + 2, i + 6);
-                    if (!isHex(hex)) {
-                        value.append("\\u").append(hex);
-                    } else {
-                        value.append((char) Integer.parseInt(hex, 16));
-                    }
-                    i += 4;
-                }
-                default -> value.append(escaped);
-            }
-            i += 2;
-        }
-
-        return value.toString();
-    }
-
-    private int skipWhitespace(String text, int start) {
-        int index = start;
-        while (index < text.length() && Character.isWhitespace(text.charAt(index))) {
-            index++;
-        }
-        return index;
-    }
-
-    private boolean isHex(String value) {
-        for (int i = 0; i < value.length(); i++) {
-            char ch = value.charAt(i);
-            boolean digit = ch >= '0' && ch <= '9';
-            boolean lower = ch >= 'a' && ch <= 'f';
-            boolean upper = ch >= 'A' && ch <= 'F';
-            if (!digit && !lower && !upper) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private ReactDecision parseReactDecision(String rawDecision) {
-        JsonNode root = readJsonObject(rawDecision);
-        if (root == null || !root.isObject()) {
-            return new ReactDecision(
-                    "RE-ACT 输出无法解析为 JSON，转为直接生成最终回答。",
-                    null,
-                    true
-            );
-        }
-
-        String thinking = normalize(root.path("thinking").asText(), "");
-
-        boolean done = root.path("done").asBoolean(false);
-        String finalAnswer = normalize(root.path("finalAnswer").asText(), "");
-        if (!finalAnswer.isBlank() && !"null".equalsIgnoreCase(finalAnswer)) {
-            // Backward compatibility: old prompt may still return finalAnswer directly.
-            done = true;
-        }
-
-        PlannedToolCall action = null;
-        JsonNode actionNode = root.path("action");
-        if (actionNode.isObject()) {
-            action = readPlannedToolCall(actionNode);
-        }
-
-        if (done) {
-            action = null;
-        }
-        return new ReactDecision(thinking, action, done);
-    }
-
-    private PlainDecision parsePlainDecision(String rawDecision) {
-        JsonNode root = readJsonObject(rawDecision);
-        if (root == null || !root.isObject()) {
-            return new PlainDecision(
-                    "PLAIN 决策输出无法解析为 JSON，转为直接回答。",
-                    null,
-                    false
-            );
-        }
-
-        String thinking = normalize(root.path("thinking").asText(), "");
-        PlannedToolCall toolCall = null;
-
-        JsonNode toolCallNode = root.path("toolCall");
-        if (toolCallNode.isObject()) {
-            toolCall = readPlannedToolCall(toolCallNode);
-        }
-
-        if (toolCall == null) {
-            JsonNode actionNode = root.path("action");
-            if (actionNode.isObject()) {
-                toolCall = readPlannedToolCall(actionNode);
-            }
-        }
-
-        if (toolCall == null) {
-            JsonNode toolCallsNode = root.path("toolCalls");
-            if (toolCallsNode.isArray()) {
-                for (JsonNode callNode : toolCallsNode) {
-                    toolCall = readPlannedToolCall(callNode);
-                    if (toolCall != null) {
-                        break;
-                    }
-                }
-            }
-        }
-
-        return new PlainDecision(thinking, toolCall, true);
-    }
-
-    private PlannedToolCall readPlannedToolCall(JsonNode callNode) {
-        String toolName = normalizeToolName(callNode.path("name").asText());
-        if (toolName.isBlank()) {
-            return null;
-        }
-
-        Map<String, Object> arguments = new LinkedHashMap<>();
-        JsonNode argumentsNode = callNode.path("arguments");
-        if (argumentsNode.isObject()) {
-            Map<String, Object> converted = objectMapper.convertValue(argumentsNode, MAP_TYPE);
-            if (converted != null) {
-                arguments.putAll(converted);
-            }
-        }
-
-        String callId = normalize(callNode.path("id").asText(), "");
-        if (callId.isBlank()) {
-            callId = normalize(callNode.path("toolCallId").asText(), "");
-        }
-        return new PlannedToolCall(toolName, arguments, callId.isBlank() ? null : callId);
-    }
-
-    private List<LlmService.LlmFunctionTool> enabledFunctionTools() {
-        if (enabledToolsByName.isEmpty()) {
-            return List.of();
-        }
-        return enabledToolsByName.values().stream()
-                .sorted(Comparator.comparing(BaseTool::name))
-                .map(tool -> new LlmService.LlmFunctionTool(
-                        normalizeToolName(tool.name()),
-                        normalize(tool.description(), ""),
-                        tool.parametersSchema(),
-                        false
-                ))
-                .toList();
-    }
-
-    private List<SseChunk.ToolCall> captureNativeToolCalls(
-            List<SseChunk.ToolCall> chunkToolCalls,
-            Map<String, NativeToolCall> collector,
-            AtomicInteger seq
-    ) {
-        if (chunkToolCalls == null || chunkToolCalls.isEmpty()) {
-            return List.of();
-        }
-        List<SseChunk.ToolCall> streamed = new ArrayList<>();
-        for (SseChunk.ToolCall toolCall : chunkToolCalls) {
-            if (toolCall == null) {
-                continue;
-            }
-            String toolId = normalize(toolCall.id(), "");
-            if (toolId.isBlank()) {
-                toolId = latestCollectorToolId(collector);
-            }
-            if (toolId.isBlank()) {
-                toolId = "call_native_" + seq.incrementAndGet();
-            }
-            NativeToolCall nativeCall = collector.computeIfAbsent(toolId, NativeToolCall::new);
-            if (toolCall.function() == null) {
-                continue;
-            }
-            if (StringUtils.hasText(toolCall.function().name())) {
-                nativeCall.toolName = toolCall.function().name();
-            }
-            if (StringUtils.hasText(toolCall.function().arguments())) {
-                nativeCall.arguments.append(toolCall.function().arguments());
-            }
-
-            String normalizedType = normalize(toolCall.type(), "function");
-            String emittedName = StringUtils.hasText(toolCall.function().name())
-                    ? toolCall.function().name()
-                    : nativeCall.toolName;
-            String emittedArgs = toolCall.function().arguments();
-            // Only forward real argument deltas from model. Never emit synthetic "{}" chunks.
-            if (!StringUtils.hasText(emittedArgs)) {
-                continue;
-            }
-            streamed.add(new SseChunk.ToolCall(
-                    toolId,
-                    normalizedType,
-                    new SseChunk.Function(emittedName, emittedArgs)
-            ));
-        }
-        return streamed;
-    }
-
-    private String latestCollectorToolId(Map<String, NativeToolCall> collector) {
-        if (collector == null || collector.isEmpty()) {
-            return "";
-        }
-        String latest = "";
-        for (String id : collector.keySet()) {
-            latest = id;
-        }
-        return latest;
-    }
-
-    private List<PlannedToolCall> toPlannedToolCalls(Map<String, NativeToolCall> collector) {
-        if (collector == null || collector.isEmpty()) {
-            return List.of();
-        }
-        List<PlannedToolCall> calls = new ArrayList<>();
-        for (NativeToolCall nativeCall : collector.values()) {
-            String toolName = normalizeToolName(nativeCall.toolName);
-            if (toolName.isBlank()) {
-                continue;
-            }
-            Map<String, Object> arguments = parseToolArguments(nativeCall.arguments.toString());
-            calls.add(new PlannedToolCall(toolName, arguments, nativeCall.toolId));
-        }
-        return calls;
-    }
-
-    private Map<String, Object> parseToolArguments(String rawArguments) {
-        if (!StringUtils.hasText(rawArguments)) {
-            return new LinkedHashMap<>();
-        }
-        String normalized = rawArguments.trim();
-        try {
-            JsonNode node = objectMapper.readTree(normalized);
-            if (!node.isObject()) {
-                return new LinkedHashMap<>();
-            }
-            Map<String, Object> converted = objectMapper.convertValue(node, MAP_TYPE);
-            return converted == null ? new LinkedHashMap<>() : new LinkedHashMap<>(converted);
-        } catch (Exception ex) {
-            log.warn("[agent:{}] cannot parse tool arguments as JSON, fallback to empty object: {}", id(), normalized);
-            return new LinkedHashMap<>();
-        }
-    }
-
-    private List<PlannedToolCall> expandToolCallsForStep(PlannedStep step) {
-        if (step == null || step.toolCall() == null) {
-            return List.of();
-        }
-        PlannedToolCall toolCall = step.toolCall();
-        if (!"bash".equals(normalizeToolName(toolCall.name()))) {
-            return List.of(toolCall);
-        }
-        if (toolCall.arguments() == null) {
-            return List.of(toolCall);
-        }
-
-        Object rawCommand = toolCall.arguments().get("command");
-        if (!(rawCommand instanceof String commandText)) {
-            return List.of(toolCall);
-        }
-
-        List<String> splitCommands = splitBashCommands(commandText);
-        if (splitCommands.size() <= 1) {
-            return List.of(toolCall);
-        }
-
-        log.info("[agent:{}] split bash composite command in step '{}' to {} commands: {}", id(), normalize(step.step(), "unknown-step"), splitCommands.size(), splitCommands);
-
-        List<PlannedToolCall> expanded = new ArrayList<>();
-        for (String splitCommand : splitCommands) {
-            Map<String, Object> splitArgs = new LinkedHashMap<>(toolCall.arguments());
-            splitArgs.put("command", splitCommand);
-            expanded.add(new PlannedToolCall(toolCall.name(), splitArgs, null));
-        }
-        return expanded;
-    }
-
-    private List<String> splitBashCommands(String commandText) {
-        if (commandText == null || commandText.isBlank()) {
-            return List.of();
-        }
-        String[] parts = commandText.split("\\s*(?:&&|\\|\\||;|\\|)\\s*");
-        List<String> commands = new ArrayList<>();
-        for (String part : parts) {
-            String normalized = normalize(part, "").trim();
-            if (!normalized.isBlank()) {
-                commands.add(normalized);
-            }
-        }
-        return commands;
-    }
-
-    private Flux<AgentDelta> executeTool(
-            PlannedToolCall plannedCall, String callId,
-            List<Map<String, Object>> records,
-            boolean skipToolCallEmission
-    ) {
-        Map<String, Object> args = new LinkedHashMap<>();
-        if (plannedCall.arguments() != null) {
-            args.putAll(plannedCall.arguments());
-        }
-        Map<String, Object> resolvedArgs = resolveToolArguments(plannedCall.name(), args, records);
-
-        if (!resolvedArgs.equals(args)) {
-            log.info("[agent:{}] resolved tool args callId={}, tool={}, planned={}, resolved={}", id(), callId, plannedCall.name(), toJson(args), toJson(resolvedArgs));
-        }
-
-        Flux<AgentDelta> toolCallFlux;
-        if (skipToolCallEmission) {
-            // Native FC path: tool_calls already streamed during LLM phase, skip duplicate emission
-            toolCallFlux = Flux.empty();
-        } else {
-            // Non-native path (JSON parse fallback): emit full arguments in a single event, no fake chunking
-            String argsJson = toJson(resolvedArgs);
-            toolCallFlux = Flux.just(
-                    AgentDelta.toolCalls(List.of(toolCall(callId, plannedCall.name(), argsJson)))
-            );
-        }
-
-        Mono<AgentDelta> toolResultDelta = Mono.fromCallable(() -> {
-                    JsonNode result = safeInvoke(plannedCall.name(), resolvedArgs);
-                    Map<String, Object> record = toolRecord(callId, plannedCall.name(), resolvedArgs, result);
-                    records.add(record);
-                    log.info("[agent:{}] tool finished callId={}, tool={}, record={}", id(), callId, plannedCall.name(), toJson(record));
-                    return AgentDelta.toolResult(callId, result);
-                })
-                .subscribeOn(Schedulers.boundedElastic());
-
-        return Flux.concat(toolCallFlux, toolResultDelta.flux());
-    }
-
-    private Map<String, Object> resolveToolArguments(String toolName, Map<String, Object> plannedArgs, List<Map<String, Object>> records) {
-        Map<String, Object> resolved = new LinkedHashMap<>();
-        for (Map.Entry<String, Object> entry : plannedArgs.entrySet()) {
-            Object value = resolveArgumentValue(entry.getKey(), entry.getValue(), resolved, records);
-            resolved.put(entry.getKey(), value);
-        }
-        if (resolved.isEmpty()) {
-            return resolved;
-        }
-
-        if ("mock_city_weather".equals(normalizeToolName(toolName))) {
-            Object rawDate = resolved.get("date");
-            if (rawDate instanceof String dateText) {
-                String normalizedDate = resolveRelativeDate(dateText, String.valueOf(resolved.getOrDefault("city", "")), records);
-                resolved.put("date", normalizedDate);
-            }
-        }
-        return resolved;
-    }
-
-    private Object resolveArgumentValue(
-            String key,
-            Object rawValue,
-            Map<String, Object> partialResolvedArgs,
-            List<Map<String, Object>> records
-    ) {
-        if (rawValue instanceof String text) {
-            String trimmed = text.trim();
-            Object templateResolved = resolveTemplateValue(trimmed, records);
-            if (templateResolved != null) {
-                return templateResolved;
-            }
-            if ("date".equalsIgnoreCase(normalize(key, ""))) {
-                String city = String.valueOf(partialResolvedArgs.getOrDefault("city", ""));
-                return resolveRelativeDate(trimmed, city, records);
-            }
-            return rawValue;
-        }
-
-        if (rawValue instanceof Map<?, ?> rawMap) {
-            Map<String, Object> resolvedMap = new LinkedHashMap<>();
-            for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
-                String childKey = String.valueOf(entry.getKey());
-                Object childValue = resolveArgumentValue(childKey, entry.getValue(), resolvedMap, records);
-                resolvedMap.put(childKey, childValue);
-            }
-            return resolvedMap;
-        }
-
-        if (rawValue instanceof List<?> rawList) {
-            List<Object> resolvedList = new ArrayList<>();
-            for (Object item : rawList) {
-                resolvedList.add(resolveArgumentValue(key, item, partialResolvedArgs, records));
-            }
-            return resolvedList;
-        }
-
-        return rawValue;
-    }
-
-    private Object resolveTemplateValue(String value, List<Map<String, Object>> records) {
-        Matcher matcher = ARG_TEMPLATE_PATTERN.matcher(value);
-        if (!matcher.matches()) {
-            return null;
-        }
-
-        String toolName = normalizeToolName(matcher.group(1));
-        String fieldName = matcher.group(2);
-        String dayOffsetText = matcher.group(3);
-        Integer dayOffset = parseDayOffset(dayOffsetText);
-
-        JsonNode fieldNode = latestToolResultField(records, toolName, fieldName);
-        if (fieldNode == null || fieldNode.isNull()) {
-            return null;
-        }
-        if (dayOffset != null) {
-            if (!fieldNode.isTextual()) {
-                return null;
-            }
-            LocalDate parsed = parseLocalDate(fieldNode.asText());
-            if (parsed == null) {
-                return null;
-            }
-            return parsed.plusDays(dayOffset).toString();
-        }
-        return objectMapper.convertValue(fieldNode, Object.class);
-    }
-
-    private Integer parseDayOffset(String dayOffsetText) {
-        if (dayOffsetText == null || dayOffsetText.isBlank()) {
-            return null;
-        }
-        String normalized = dayOffsetText.trim().toLowerCase(Locale.ROOT);
-        if (!normalized.endsWith("d")) {
-            return null;
-        }
-        try {
-            return Integer.parseInt(normalized.substring(0, normalized.length() - 1));
-        } catch (NumberFormatException ex) {
-            return null;
-        }
-    }
-
-    private JsonNode latestToolResultField(List<Map<String, Object>> records, String toolName, String fieldName) {
-        if (records == null || records.isEmpty()) {
-            return null;
-        }
-        for (int i = records.size() - 1; i >= 0; i--) {
-            Map<String, Object> record = records.get(i);
-            String recordToolName = normalizeToolName(String.valueOf(record.getOrDefault("toolName", "")));
-            if (!toolName.equals(recordToolName)) {
-                continue;
-            }
-            Object result = record.get("result");
-            if (!(result instanceof JsonNode resultNode) || !resultNode.isObject()) {
-                continue;
-            }
-            JsonNode field = resultNode.path(fieldName);
-            if (!field.isMissingNode()) {
-                return field;
-            }
-        }
-        return null;
-    }
-
-    private String resolveRelativeDate(String value, String city, List<Map<String, Object>> records) {
-        Integer dayOffset = relativeDayOffset(value);
-        if (dayOffset == null) {
-            return value;
-        }
-        LocalDate baseDate = latestCityDate(records, city);
-        if (baseDate == null) {
-            return value;
-        }
-        return baseDate.plusDays(dayOffset).toString();
-    }
-
-    private Integer relativeDayOffset(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        String trimmed = value.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        if (DATE_KEYWORDS_TODAY.contains(lower) || DATE_KEYWORDS_TODAY.contains(trimmed)) {
-            return 0;
-        }
-        if (DATE_KEYWORDS_TOMORROW.contains(lower) || DATE_KEYWORDS_TOMORROW.contains(trimmed)) {
-            return 1;
-        }
-        if (DATE_KEYWORDS_YESTERDAY.contains(lower) || DATE_KEYWORDS_YESTERDAY.contains(trimmed)) {
-            return -1;
-        }
-        if (DATE_KEYWORDS_DAY_AFTER_TOMORROW.contains(lower) || DATE_KEYWORDS_DAY_AFTER_TOMORROW.contains(trimmed)) {
-            return 2;
-        }
-        if (DATE_KEYWORDS_DAY_BEFORE_YESTERDAY.contains(lower) || DATE_KEYWORDS_DAY_BEFORE_YESTERDAY.contains(trimmed)) {
-            return -2;
-        }
-        return null;
-    }
-
-    private LocalDate latestCityDate(List<Map<String, Object>> records, String city) {
-        if (records == null || records.isEmpty()) {
-            return null;
-        }
-        String normalizedTargetCity = normalizeCity(city);
-        for (int i = records.size() - 1; i >= 0; i--) {
-            Map<String, Object> record = records.get(i);
-            String toolName = normalizeToolName(String.valueOf(record.getOrDefault("toolName", "")));
-            if (!"city_datetime".equals(toolName)) {
-                continue;
-            }
-            Object result = record.get("result");
-            if (!(result instanceof JsonNode resultNode) || !resultNode.isObject()) {
-                continue;
-            }
-            if (!normalizedTargetCity.isBlank()) {
-                String recordCity = normalizeCity(resultNode.path("city").asText(""));
-                if (!recordCity.isBlank() && !recordCity.equals(normalizedTargetCity)) {
-                    continue;
-                }
-            }
-            LocalDate parsed = parseLocalDate(resultNode.path("date").asText(""));
-            if (parsed != null) {
-                return parsed;
-            }
-        }
-        return null;
-    }
-
-    private LocalDate parseLocalDate(String text) {
-        if (text == null || text.isBlank()) {
-            return null;
-        }
-        try {
-            return LocalDate.parse(text.trim());
-        } catch (DateTimeParseException ex) {
-            return null;
-        }
-    }
-
-    private String normalizeCity(String city) {
-        if (city == null) {
-            return "";
-        }
-        String normalized = city.trim().toLowerCase(Locale.ROOT).replace(" ", "");
-        Set<String> aliases = new HashSet<>(Set.of("shanghai", "shanghaishi", "上海", "上海市"));
-        if (aliases.contains(normalized)) {
-            return "shanghai";
-        }
-        return normalized;
-    }
-
-    private Map<String, Object> toolRecord(String callId, String toolName, Map<String, Object> args, JsonNode result) {
-        Map<String, Object> record = new LinkedHashMap<>();
-        record.put("callId", callId);
-        record.put("toolName", toolName);
-        record.put("arguments", args);
-        record.put("result", result);
-        return record;
-    }
-
-    private JsonNode safeInvoke(String toolName, Map<String, Object> args) {
-        String normalizedName = normalizeToolName(toolName);
-        try {
-            if (!enabledToolsByName.containsKey(normalizedName)) {
-                ObjectNode error = objectMapper.createObjectNode();
-                error.put("tool", normalizedName);
-                error.put("ok", false);
-                error.put("error", "Tool is not enabled for this agent: " + normalizedName);
-                return error;
-            }
-            return toolRegistry.invoke(normalizedName, args);
-        } catch (Exception ex) {
-            ObjectNode error = objectMapper.createObjectNode();
-            error.put("tool", normalizedName);
-            error.put("ok", false);
-            error.put("error", ex.getMessage());
-            return error;
-        }
-    }
-
-    private String buildPlanExecuteLoopPrompt(AgentRequest request, List<Map<String, Object>> toolRecords, int step) {
-        return """
-                用户问题：%s
-                当前轮次：%d/%d
-                历史工具结果(JSON)：%s
-                可用工具：
-                %s
-
-                请按 OpenAI 原生 Function Calling 协议工作：
-                1) 需要继续查证时，直接发起 tool_calls，可在同一轮中调用多个工具（支持并行）。
-                2) 已可直接回答时，不再调用工具，直接输出最终结论文本。
-                3) 工具参数必须严格匹配工具 schema，避免缺省或隐式参数。
-                4) 若参数依赖时间，不要传 today/tomorrow/昨天/明天，优先传具体日期（YYYY-MM-DD）或先调用时间工具再传日期。
-                5) bash.command 必须是单条命令，不允许 &&、||、;、管道。
-                """.formatted(
-                request.message(),
-                step,
-                MAX_REACT_STEPS,
-                toJson(toolRecords),
-                enabledToolsPrompt()
-        );
-    }
-
-    private String buildReactPrompt(AgentRequest request, List<Map<String, Object>> toolRecords, int step) {
-        return """
-                用户问题：%s
-                当前轮次：%d/%d
-                历史工具结果(JSON)：%s
-                可用工具：
-                %s
-
-                请按 OpenAI 原生 Function Calling 协议工作：
-                1) 需要继续查证时，直接发起 tool_calls，不要在正文输出 action/toolCall JSON。
-                2) 已可直接回答时，不再调用工具，直接输出最终结论文本。
-                3) 每轮最多一个工具调用。
-                4) 参数必须严格符合工具 schema。
-                """.formatted(
-                request.message(),
-                step,
-                MAX_REACT_STEPS,
-                toJson(toolRecords),
-                enabledToolsPrompt()
-        );
-    }
-
-    private String buildPlainDecisionPrompt(AgentRequest request) {
-        return """
-                用户问题：%s
-                可用工具：
-                %s
-
-                请按 OpenAI 原生 Function Calling 协议工作：
-                1) 需要工具时，直接发起 tool_calls，不要在正文输出 toolCall/toolCalls JSON。
-                2) 此模式最多允许一个工具调用。
-                3) 不需要工具时，直接输出最终回答文本。
-                4) 参数必须严格符合工具 schema。
-                """.formatted(
-                request.message(),
-                enabledToolsPrompt()
-        );
-    }
-
-    private String planExecuteLoopSystemPrompt() {
-        return normalize(systemPrompt(), "你是通用助理")
-                + "\n你当前处于 PLAN-EXECUTE 循环阶段：每轮可调用一个或多个工具（支持并行），执行完成后再决策下一步。";
-    }
-
-    private String reactSystemPrompt() {
-        return normalize(systemPrompt(), "你是通用助理")
-                + "\n你当前处于 RE-ACT 阶段：每轮只做一个动作决策（继续调用工具或直接给最终回答）。";
-    }
-
-    private String plainDecisionSystemPrompt() {
-        return normalize(systemPrompt(), "你是通用助理")
-                + "\n你当前处于 PLAIN 单工具决策阶段：先判断是否需要工具；若需要，只能调用一个工具。";
-    }
-
-    private String buildPlanExecuteLoopFinalPrompt(
-            AgentRequest request,
-            List<Map<String, Object>> toolRecords
-    ) {
-        String toolResultJson = toJson(toolRecords);
-
-        return """
-                用户问题：%s
-                工具执行结果(JSON)：%s
-
-                请基于以上信息输出最终回答：
-                1) 先给结论。
-                2) 若有工具结果，引用关键结果再总结。
-                3) 必要时给简短行动建议。
-                4) 保持简洁、可执行。
-                """.formatted(
-                request.message(),
-                toolResultJson
-        );
-    }
-
-    private String buildReactFinalPrompt(AgentRequest request, List<Map<String, Object>> toolRecords) {
-        return """
-                用户问题：%s
-                工具执行结果(JSON)：%s
-
-                请输出最终回答：
-                1) 先给结论。
-                2) 若有工具结果，引用关键结果再总结。
-                3) 必要时给简短行动建议。
-                4) 保持简洁、可执行。
-                """.formatted(
-                request.message(),
-                toJson(toolRecords)
-        );
-    }
-
-    private String buildPlainFinalPrompt(AgentRequest request, List<Map<String, Object>> toolRecords) {
-        return """
-                用户问题：%s
-                工具执行结果(JSON)：%s
-
-                请输出最终回答：
-                1) 先给结论。
-                2) 若有工具结果，引用关键结果再总结。
-                3) 保持简洁、可执行。
-                """.formatted(
-                request.message(),
-                toJson(toolRecords)
-        );
-    }
-
-    private String enabledToolsPrompt() {
-        if (enabledToolsByName.isEmpty()) {
-            return "- 无可用工具";
-        }
-        return enabledToolsByName.values().stream()
-                .sorted(Comparator.comparing(BaseTool::name))
-                .map(tool -> "- " + tool.name() + "：" + tool.description())
-                .reduce((left, right) -> left + "\n" + right)
-                .orElse("- 无可用工具");
-    }
-
-    private List<String> readTextArray(JsonNode node) {
-        if (!node.isArray()) {
-            return List.of();
-        }
-
-        List<String> values = new ArrayList<>();
-        for (JsonNode item : node) {
-            String text = normalize(item.asText(), "");
-            if (!text.isBlank()) {
-                values.add(text);
-            }
-        }
-        return values;
-    }
-
-    private JsonNode readJsonObject(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-
-        String normalized = raw.trim();
-        if (normalized.startsWith("```") && normalized.endsWith("```")) {
-            normalized = normalized.substring(3, normalized.length() - 3).trim();
-            if (normalized.startsWith("json")) {
-                normalized = normalized.substring(4).trim();
-            }
-        }
-
-        try {
-            return objectMapper.readTree(normalized);
-        } catch (Exception ex) {
-            int start = normalized.indexOf('{');
-            int end = normalized.lastIndexOf('}');
-            if (start < 0 || end <= start) {
-                return null;
-            }
-            String body = normalized.substring(start, end + 1);
-            try {
-                return objectMapper.readTree(body);
-            } catch (Exception ignored) {
-                return null;
-            }
-        }
     }
 
     private Map<String, BaseTool> resolveEnabledTools(List<String> configuredTools) {
@@ -1480,18 +608,6 @@ public class DefinitionDrivenAgent implements Agent {
 
     private String normalizeToolName(String raw) {
         return normalize(raw, "").trim().toLowerCase(Locale.ROOT);
-    }
-
-    private SseChunk.ToolCall toolCall(String callId, String toolName, String arguments) {
-        return new SseChunk.ToolCall(callId, "function", new SseChunk.Function(toolName, arguments));
-    }
-
-    private String toJson(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Cannot serialize json", ex);
-        }
     }
 
     private String sanitize(String input) {
@@ -1640,43 +756,6 @@ public class DefinitionDrivenAgent implements Agent {
 
         private String arguments() {
             return arguments.isEmpty() ? null : arguments.toString();
-        }
-    }
-
-    private record PlannedStep(
-            String step,
-            PlannedToolCall toolCall
-    ) {
-    }
-
-    private record ReactDecision(
-            String thinking,
-            PlannedToolCall action,
-            boolean done
-    ) {
-    }
-
-    private record PlainDecision(
-            String thinking,
-            PlannedToolCall toolCall,
-            boolean valid
-    ) {
-    }
-
-    private record PlannedToolCall(
-            String name,
-            Map<String, Object> arguments,
-            String callId
-    ) {
-    }
-
-    private static final class NativeToolCall {
-        private final String toolId;
-        private String toolName;
-        private final StringBuilder arguments = new StringBuilder();
-
-        private NativeToolCall(String toolId) {
-            this.toolId = Objects.requireNonNull(toolId);
         }
     }
 

@@ -31,6 +31,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @RestController
@@ -131,7 +132,7 @@ public class AgwController {
                 agent.id(),
                 agent.description(),
                 null,
-                buildMeta(agent)
+                buildSummaryMeta(agent)
         );
     }
 
@@ -142,13 +143,21 @@ public class AgwController {
                 agent.description(),
                 agent.systemPrompt(),
                 null,
-                buildMeta(agent)
+                buildDetailMeta(agent)
         );
     }
 
-    private Map<String, Object> buildMeta(Agent agent) {
+    private Map<String, Object> buildSummaryMeta(Agent agent) {
         return Map.of(
-                "providerType", agent.providerType().name(),
+                "model", agent.model(),
+                "mode", agent.mode().name(),
+                "tools", agent.tools()
+        );
+    }
+
+    private Map<String, Object> buildDetailMeta(Agent agent) {
+        return Map.of(
+                "providerType", agent.providerKey().toUpperCase(Locale.ROOT),
                 "model", agent.model(),
                 "mode", agent.mode().name(),
                 "tools", agent.tools()

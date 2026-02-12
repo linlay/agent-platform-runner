@@ -97,6 +97,7 @@ class AgwControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.msg").isEqualTo("success")
                 .jsonPath("$.data[0].key").exists()
+                .jsonPath("$.data[0].meta.providerType").doesNotExist()
                 .jsonPath("$.data[?(@.key=='demoPlanExecute')]").exists();
     }
 
@@ -110,6 +111,7 @@ class AgwControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.msg").isEqualTo("success")
                 .jsonPath("$.data.key").isEqualTo("demoPlanExecute")
+                .jsonPath("$.data.meta.providerType").isEqualTo("BAILIAN")
                 .jsonPath("$.data.instructions").isEqualTo("你是高级规划助手。严格使用原生 Function Calling：需要工具时用 tool_calls 顺序执行，不在正文输出工具调用 JSON，最后给简洁总结。");
     }
 
