@@ -43,8 +43,69 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 - **工具参数模板** — `{{tool_name.field+Nd}}` 日期运算和链式引用
 - **双路径 LLM** — WebClient 原生 SSE 和 ChatClient，按需选择
 - **响应格式** — 非 SSE 接口统一 `{"code": 0, "msg": "success", "data": {}}`
-- **会话详情格式** — `GET /api/chat` 的 `data` 字段固定为 `chatId/chatName/messages/events/references`；当 `includeEvents=true` 时返回 `message.snapshot/tool.snapshot` 历史快照事件
+- **会话详情格式** — `GET /api/chat` 的 `data` 字段固定为 `chatId/chatName/messages/events/references`；当 `includeEvents=true` 时历史事件与最新 SSE 规则对齐，使用 `*.snapshot` 事件承载历史内容
 - **真流式首字符检测** — `handleDecisionChunk` 方法：首个非空字符非 `{`/`` ` `` 则判定为纯文本立即流式推送，否则走 JSON 决策积累
+
+## SSE 事件契约（最新）
+
+### 1. 基础字段（所有 SSE 事件）
+
+- 必带字段：`seq`, `type`, `timestamp`
+- 不再输出：`rawEvent`
+
+### 2. 输入与会话事件
+
+- `request.query`：`requestId`, `chatId`, `role`, `message`, `agentKey?`, `references?`, `params?`, `scene?`, `stream?`
+- `request.upload`：`requestId`, `chatId?`, `upload:{type,name,sizeBytes,mimeType,sha256?}`
+- `request.submit`：`requestId`, `chatId`, `runId`, `toolId`, `payload`, `viewId?`
+- `chat.start`：`chatId`, `chatName?`（仅该 chat 首次 run 发送一次）
+- `chat.update`：当前不发送
+
+### 3. 计划、运行与任务事件
+
+- `plan.create`：`planId`, `chatId`, `plan`
+- `plan.update`：`planId`, `chatId`, `plan`（总是带 `chatId`）
+- `run.start`：`runId`, `chatId`
+- `run.complete`：`runId`, `finishReason?`
+- `run.cancel`：`runId`
+- `run.error`：`runId`, `error`
+- `task.*`：仅在“已有 plan 且显式 `task.start` 输入”时出现；不自动创建 task
+
+### 4. 推理与内容事件
+
+- `reasoning.start`：`reasoningId`, `runId`, `taskId?`
+- `reasoning.delta`：`reasoningId`, `delta`
+- `reasoning.end`：`reasoningId`
+- `reasoning.snapshot`：`reasoningId`, `text`, `taskId?`
+- `content.start`：`contentId`, `runId`, `taskId?`
+- `content.delta`：`contentId`, `delta`
+- `content.end`：`contentId`
+- `content.snapshot`：`contentId`, `text`, `taskId?`
+
+### 5. 工具与动作事件
+
+- `tool.start`：`toolId`, `runId`, `taskId?`, `toolName?`, `toolType?`, `toolApi?`, `toolParams?`, `description?`
+- `tool.args`：`toolId`, `delta`, `chunkIndex?`（字段名保持 `delta`，不使用 `args`）
+- `tool.end`：`toolId`
+- `tool.result`：`toolId`, `result`
+- `tool.snapshot`：`toolId`, `toolName?`, `taskId?`, `toolType?`, `toolApi?`, `toolParams?`, `description?`, `arguments?`
+- `action.start`：`actionId`, `runId`, `taskId?`, `actionName?`, `description?`
+- `action.args`：`actionId`, `delta`
+- `action.end`：`actionId`
+- `action.param`：`actionId`, `param`
+- `action.result`：`actionId`, `result`
+- `action.snapshot`：`actionId`, `actionName?`, `taskId?`, `description?`, `arguments?`
+
+### 6. 来源事件
+
+- `source.snapshot`：`sourceId`, `runId?`, `taskId?`, `icon?`, `title?`, `url?`
+
+### 7. 补充行为约束
+
+- 无活跃 task 出错时：只发 `run.error`（不补 `task.fail`）
+- plain 模式（当前无 plan）不应出现 `task.*`，叶子事件直接归属 `run`
+- `GET /api/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件
+- 历史里 `run.complete` 每个 run 都保留，`chat.start` 仅首次一次
 
 ## Configuration
 
