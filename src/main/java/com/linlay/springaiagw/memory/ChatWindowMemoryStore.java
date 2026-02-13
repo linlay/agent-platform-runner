@@ -181,12 +181,12 @@ public class ChatWindowMemoryStore {
 
         ToolIdentity identity = toolIdentityByCallId.computeIfAbsent(
                 toolCallId,
-                key -> createToolIdentity(toolCallId, toolName)
+                key -> createToolIdentity(toolCallId, toolName, message.toolCallType())
         );
 
         StoredToolCall toolCall = new StoredToolCall();
         toolCall.id = toolCallId;
-        toolCall.type = "function";
+        toolCall.type = hasText(message.toolCallType()) ? message.toolCallType().trim() : "function";
         FunctionCall function = new FunctionCall();
         function.name = toolName;
         function.arguments = message.toolArgs().trim();
@@ -219,7 +219,7 @@ public class ChatWindowMemoryStore {
 
         ToolIdentity identity = toolIdentityByCallId.computeIfAbsent(
                 toolCallId,
-                key -> createToolIdentity(toolCallId, toolName)
+                key -> createToolIdentity(toolCallId, toolName, null)
         );
 
         StoredMessage stored = new StoredMessage();
@@ -534,11 +534,18 @@ public class ChatWindowMemoryStore {
         return leftNode.equals(rightNode);
     }
 
-    private ToolIdentity createToolIdentity(String toolCallId, String toolName) {
-        boolean action = isActionTool(toolName);
+    private ToolIdentity createToolIdentity(String toolCallId, String toolName, String toolType) {
+        boolean action = "action".equalsIgnoreCase(normalizeType(toolType)) || isActionTool(toolName);
         String prefix = action ? "action" : "tool";
         String id = shortId(prefix, toolCallId);
         return new ToolIdentity(id, action);
+    }
+
+    private String normalizeType(String rawType) {
+        if (!hasText(rawType)) {
+            return "";
+        }
+        return rawType.trim().toLowerCase();
     }
 
     private boolean isActionTool(String toolName) {
@@ -647,6 +654,7 @@ public class ChatWindowMemoryStore {
             String text,
             String name,
             String toolCallId,
+            String toolCallType,
             String toolArgs,
             String reasoningId,
             String contentId,
@@ -656,27 +664,27 @@ public class ChatWindowMemoryStore {
     ) {
 
         public static RunMessage user(String content) {
-            return new RunMessage("user", "user_content", content, null, null, null, null, null, null, null, null);
+            return new RunMessage("user", "user_content", content, null, null, null, null, null, null, null, null, null);
         }
 
         public static RunMessage user(String content, Long ts) {
-            return new RunMessage("user", "user_content", content, null, null, null, null, null, ts, null, null);
+            return new RunMessage("user", "user_content", content, null, null, null, null, null, null, ts, null, null);
         }
 
         public static RunMessage assistantReasoning(String content, Long ts, Long timing, Map<String, Object> usage) {
-            return new RunMessage("assistant", "assistant_reasoning", content, null, null, null, null, null, ts, timing, usage);
+            return new RunMessage("assistant", "assistant_reasoning", content, null, null, null, null, null, null, ts, timing, usage);
         }
 
         public static RunMessage assistantContent(String content) {
-            return new RunMessage("assistant", "assistant_content", content, null, null, null, null, null, null, null, null);
+            return new RunMessage("assistant", "assistant_content", content, null, null, null, null, null, null, null, null, null);
         }
 
         public static RunMessage assistantContent(String content, Long ts, Long timing, Map<String, Object> usage) {
-            return new RunMessage("assistant", "assistant_content", content, null, null, null, null, null, ts, timing, usage);
+            return new RunMessage("assistant", "assistant_content", content, null, null, null, null, null, null, ts, timing, usage);
         }
 
         public static RunMessage assistantToolCall(String toolName, String toolCallId, String toolArgs) {
-            return new RunMessage("assistant", "assistant_tool_call", null, toolName, toolCallId, toolArgs, null, null, null, null, null);
+            return assistantToolCall(toolName, toolCallId, "function", toolArgs, null, null, null);
         }
 
         public static RunMessage assistantToolCall(
@@ -687,11 +695,23 @@ public class ChatWindowMemoryStore {
                 Long timing,
                 Map<String, Object> usage
         ) {
-            return new RunMessage("assistant", "assistant_tool_call", null, toolName, toolCallId, toolArgs, null, null, ts, timing, usage);
+            return assistantToolCall(toolName, toolCallId, "function", toolArgs, ts, timing, usage);
+        }
+
+        public static RunMessage assistantToolCall(
+                String toolName,
+                String toolCallId,
+                String toolCallType,
+                String toolArgs,
+                Long ts,
+                Long timing,
+                Map<String, Object> usage
+        ) {
+            return new RunMessage("assistant", "assistant_tool_call", null, toolName, toolCallId, toolCallType, toolArgs, null, null, ts, timing, usage);
         }
 
         public static RunMessage toolResult(String toolName, String toolCallId, String toolArgs, String toolResult) {
-            return new RunMessage("tool", "tool_result", toolResult, toolName, toolCallId, toolArgs, null, null, null, null, null);
+            return new RunMessage("tool", "tool_result", toolResult, toolName, toolCallId, null, toolArgs, null, null, null, null, null);
         }
 
         public static RunMessage toolResult(
@@ -701,7 +721,7 @@ public class ChatWindowMemoryStore {
                 Long ts,
                 Long timing
         ) {
-            return new RunMessage("tool", "tool_result", toolResult, toolName, toolCallId, null, null, null, ts, timing, null);
+            return new RunMessage("tool", "tool_result", toolResult, toolName, toolCallId, null, null, null, null, ts, timing, null);
         }
     }
 

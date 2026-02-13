@@ -1,7 +1,10 @@
 package com.linlay.springaiagw.controller;
 
+import com.linlay.springaiagw.config.ViewportCatalogProperties;
 import com.linlay.springaiagw.model.ProviderType;
+import com.linlay.springaiagw.service.FrontendSubmitCoordinator;
 import com.linlay.springaiagw.service.LlmService;
+import com.linlay.springaiagw.service.ViewportRegistryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
@@ -16,6 +19,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -34,7 +39,10 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.providers.siliconflow.base-url=https://example.com/v1",
                 "agent.providers.siliconflow.api-key=test-siliconflow-key",
                 "agent.providers.siliconflow.model=test-siliconflow-model",
-                "memory.chat.dir=${java.io.tmpdir}/springai-agw-test-chats-${random.uuid}"
+                "memory.chat.dir=${java.io.tmpdir}/springai-agw-test-chats-${random.uuid}",
+                "agent.viewport.external-dir=${java.io.tmpdir}/springai-agw-test-viewports-${random.uuid}",
+                "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agw-test-tools-${random.uuid}",
+                "agent.capability.actions-external-dir=${java.io.tmpdir}/springai-agw-test-actions-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient
@@ -43,6 +51,12 @@ class AgwControllerTest {
 
     @Autowired
     private WebTestClient webTestClient;
+    @Autowired
+    private FrontendSubmitCoordinator frontendSubmitCoordinator;
+    @Autowired
+    private ViewportCatalogProperties viewportCatalogProperties;
+    @Autowired
+    private ViewportRegistryService viewportRegistryService;
 
     @TestConfiguration
     static class TestLlmServiceConfig {
@@ -194,6 +208,11 @@ class AgwControllerTest {
 
     @Test
     void submitShouldReturnAcceptedAck() {
+        String runId = "123e4567-e89b-12d3-a456-426614174001";
+        String toolId = "tool_abc";
+        Mono<Object> pending = frontendSubmitCoordinator.awaitSubmit(runId, toolId).cache();
+        pending.subscribe();
+
         webTestClient.post()
                 .uri("/api/submit")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -201,10 +220,10 @@ class AgwControllerTest {
                 .bodyValue(Map.of(
                         "requestId", "req_submit_001",
                         "chatId", "123e4567-e89b-12d3-a456-426614174000",
-                        "runId", "123e4567-e89b-12d3-a456-426614174001",
-                        "toolId", "tool_abc",
+                        "runId", runId,
+                        "toolId", toolId,
                         "viewId", "view_abc",
-                        "payload", Map.of("confirmed", true)
+                        "payload", Map.of("params", Map.of("confirmed", true))
                 ))
                 .exchange()
                 .expectStatus().isOk()
@@ -213,8 +232,62 @@ class AgwControllerTest {
                 .jsonPath("$.msg").isEqualTo("success")
                 .jsonPath("$.data.requestId").isEqualTo("req_submit_001")
                 .jsonPath("$.data.accepted").isEqualTo(true)
-                .jsonPath("$.data.runId").isEqualTo("123e4567-e89b-12d3-a456-426614174001")
-                .jsonPath("$.data.toolId").isEqualTo("tool_abc");
+                .jsonPath("$.data.runId").isEqualTo(runId)
+                .jsonPath("$.data.toolId").isEqualTo(toolId);
+
+        assertThat(pending.block(Duration.ofSeconds(2))).isEqualTo(Map.of("confirmed", true));
+    }
+
+    @Test
+    void viewportShouldReturnHtmlData() throws Exception {
+        Path viewportDir = Path.of(viewportCatalogProperties.getExternalDir());
+        Files.createDirectories(viewportDir);
+        Files.writeString(viewportDir.resolve("weather_card.html"), "<div>sunny</div>");
+        viewportRegistryService.refreshViewports();
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/viewport")
+                        .queryParam("viewportKey", "weather_card")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.html").isEqualTo("<div>sunny</div>");
+    }
+
+    @Test
+    void viewportShouldReturnQlcJsonData() throws Exception {
+        Path viewportDir = Path.of(viewportCatalogProperties.getExternalDir());
+        Files.createDirectories(viewportDir);
+        Files.writeString(viewportDir.resolve("flight_form.qlc"), "{\"schema\":{\"type\":\"object\"},\"packages\":[\"pkg-a\"]}");
+        viewportRegistryService.refreshViewports();
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/viewport")
+                        .queryParam("viewportKey", "flight_form")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.schema.type").isEqualTo("object")
+                .jsonPath("$.data.packages[0]").isEqualTo("pkg-a");
+    }
+
+    @Test
+    void viewportShouldReturn404WhenMissing() {
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/viewport")
+                        .queryParam("viewportKey", "missing_viewport")
+                        .build())
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(404);
     }
 
     @Test

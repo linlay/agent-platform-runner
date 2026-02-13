@@ -14,10 +14,14 @@ import com.linlay.springaiagw.model.agw.ApiResponse;
 import com.linlay.springaiagw.service.AgwQueryService;
 import com.linlay.springaiagw.service.AgwQueryService.QuerySession;
 import com.linlay.springaiagw.service.ChatRecordStore;
+import com.linlay.springaiagw.service.FrontendSubmitCoordinator;
+import com.linlay.springaiagw.service.ViewportRegistryService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,17 +48,23 @@ public class AgwController {
     private final AgwQueryService agwQueryService;
     private final ChatRecordStore chatRecordStore;
     private final SseFlushWriter sseFlushWriter;
+    private final ViewportRegistryService viewportRegistryService;
+    private final FrontendSubmitCoordinator frontendSubmitCoordinator;
 
     public AgwController(
             AgentRegistry agentRegistry,
             AgwQueryService agwQueryService,
             ChatRecordStore chatRecordStore,
-            SseFlushWriter sseFlushWriter
+            SseFlushWriter sseFlushWriter,
+            ViewportRegistryService viewportRegistryService,
+            FrontendSubmitCoordinator frontendSubmitCoordinator
     ) {
         this.agentRegistry = agentRegistry;
         this.agwQueryService = agwQueryService;
         this.chatRecordStore = chatRecordStore;
         this.sseFlushWriter = sseFlushWriter;
+        this.viewportRegistryService = viewportRegistryService;
+        this.frontendSubmitCoordinator = frontendSubmitCoordinator;
     }
 
     @GetMapping("/agents")
@@ -101,19 +111,46 @@ public class AgwController {
 
     @PostMapping("/submit")
     public ApiResponse<AgwSubmitResponse> submit(@Valid @RequestBody AgwSubmitRequest request) {
+        boolean accepted = frontendSubmitCoordinator.submit(request.runId(), request.toolId(), request.payload());
         log.info(
-                "Received human-in-the-loop submit requestId={}, runId={}, toolId={}, viewId={}",
+                "Received human-in-the-loop submit requestId={}, runId={}, toolId={}, viewId={}, accepted={}",
                 request.requestId(),
                 request.runId(),
                 request.toolId(),
-                request.viewId()
+                request.viewId(),
+                accepted
         );
         return ApiResponse.success(new AgwSubmitResponse(
                 request.requestId(),
-                true,
+                accepted,
                 request.runId(),
                 request.toolId()
         ));
+    }
+
+    @GetMapping("/viewport")
+    public ResponseEntity<ApiResponse<Object>> viewport(
+            @RequestParam String viewportKey,
+            @RequestParam(required = false) String chatId,
+            @RequestParam(required = false) String runId
+    ) {
+        if (!StringUtils.hasText(viewportKey)) {
+            throw new IllegalArgumentException("viewportKey is required");
+        }
+        return viewportRegistryService.find(viewportKey)
+                .<ResponseEntity<ApiResponse<Object>>>map(viewport -> {
+                    Object data = viewport.payload();
+                    if ("html".equalsIgnoreCase(viewport.viewportType().value())) {
+                        data = Map.of("html", String.valueOf(viewport.payload()));
+                    }
+                    return ResponseEntity.ok(ApiResponse.success(data));
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponse.failure(
+                                HttpStatus.NOT_FOUND.value(),
+                                "Viewport not found: " + viewportKey,
+                                (Object) Map.of()
+                        )));
     }
 
     private boolean matchesTag(Agent agent, String tag) {

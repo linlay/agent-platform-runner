@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 /**
  * 处理 LLM 流式 delta 的首字符检测与分发逻辑。
@@ -24,10 +25,16 @@ class DecisionChunkHandler {
 
     private final ObjectMapper objectMapper;
     private final String agentId;
+    private final Function<String, String> toolTypeResolver;
 
     DecisionChunkHandler(ObjectMapper objectMapper, String agentId) {
+        this(objectMapper, agentId, name -> "function");
+    }
+
+    DecisionChunkHandler(ObjectMapper objectMapper, String agentId, Function<String, String> toolTypeResolver) {
         this.objectMapper = objectMapper;
         this.agentId = agentId;
+        this.toolTypeResolver = toolTypeResolver == null ? name -> "function" : toolTypeResolver;
     }
 
     void handleDecisionChunk(
@@ -191,9 +198,13 @@ class DecisionChunkHandler {
             String emittedName = StringUtils.hasText(toolCall.name())
                     ? toolCall.name()
                     : nativeCall.toolName;
+            String resolvedType = normalize(
+                    toolTypeResolver.apply(normalizeToolName(emittedName)),
+                    normalizedType
+            );
             streamed.add(new ToolCallDelta(
                     toolId,
-                    normalizedType,
+                    resolvedType,
                     emittedName,
                     emittedArgs
             ));

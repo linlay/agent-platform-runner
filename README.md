@@ -9,6 +9,7 @@
 - `GET /api/chats`: 会话列表
 - `GET /api/chat?chatId=...`: 会话详情（默认返回快照事件流）
 - `GET /api/chat?chatId=...&includeRawMessages=true`: 会话详情（附带原始 messages）
+- `GET /api/viewport?viewportKey=...`: 获取工具/动作视图内容
 - `POST /api/query`: 提问接口（默认返回 AGW 标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
 - `POST /api/submit`: Human-in-the-loop 提交接口
 
@@ -30,6 +31,7 @@
   - 智能体列表：`data` 直接是 `agents[]`
   - 智能体详情：`data` 直接是 `agent`
   - 会话详情：`data` 直接是 `chat`
+  - 视图详情：`data` 直接是视图内容（`html` 时为 `{ "html": "..." }`，`qlc/dqlc` 时为 schema JSON）
 - `GET /api/chat` 默认始终返回 `events`；仅当 `includeRawMessages=true` 时才返回 `messages`。
 - `includeEvents` 参数已废弃，传入将返回 `400`。
 - 事件协议仅支持 AGW Event Model v2，不兼容旧命名（如 `query.message`、`message.start|delta|end`、`message.snapshot`）。
@@ -101,6 +103,9 @@
 │   └── agw-springai-sdk-0.0.1-SNAPSHOT.jar
 ├── src/
 ├── agents/
+├── viewports/
+├── tools/
+├── actions/
 ├── pom.xml
 ├── settings.xml
 └── Dockerfile
@@ -208,6 +213,42 @@ curl -N -X POST "http://localhost:8080/api/query" \
 - 流式消费 `delta.tool_calls`
 - 不再依赖正文中的 `toolCall/toolCalls` JSON 字段（仍保留向后兼容解析）
 
+## viewports / tools / actions 目录
+
+- 运行目录默认值：
+  - `viewports/`
+  - `tools/`
+  - `actions/`
+- 启动时会尝试将 `src/main/resources/viewports|tools|actions` 下文件同步到运行目录（不覆盖同名文件）。
+- `viewports` 支持后缀：`.html`、`.qlc`、`.dqlc`、`.json_schema`、`.custom`，默认每 30 秒刷新内存快照。
+- `tools`:
+  - 后端工具文件：`*.backend`
+  - 前端工具文件：`*.html` / `*.qlc` / `*.dqlc`
+  - 文件内容均为模型工具定义 JSON（`{"tools":[...]}`）
+- `actions`:
+  - 动作文件：`*.action`
+  - 文件内容同样为模型工具定义 JSON（`{"tools":[...]}`）
+- 工具名冲突策略：冲突项会被跳过，其它项继续生效。
+
+### /api/viewport 约定
+
+- `GET /api/viewport?viewportKey=weather_card`
+- `chatId`、`runId` 为可选参数，不参与必填校验。
+- 返回：
+  - `html` 文件：`data = {"html":"<...>"}`
+  - `qlc/dqlc/json_schema/custom`：`data` 直接是文件内 JSON 对象
+- `viewportKey` 不存在时返回 `404`。
+
+### 前端 tool 提交流程
+
+- 前端工具触发后会发送 `tool.start`（`toolType` 为 `html/qlc/dqlc`），并等待 `/api/submit`。
+- 默认等待超时 `5 分钟`（可配置）。
+- `POST /api/submit` 成功命中后会释放对应 `runId + toolId` 的等待。
+- 工具返回值提取规则：
+  - 优先返回 `payload.params`
+  - 若无 `params`，返回 `{}`。
+- 动作工具触发 `action.start` 后不等待提交，直接返回 `"OK"` 给模型。
+
 ## 内置 agentCreator 智能体
 
 - 内置 `agentCreator` 智能体，模式为 `PLAN_EXECUTE`
@@ -247,6 +288,17 @@ agent:
 ```bash
 AGENT_BASH_WORKING_DIRECTORY=/opt/app
 AGENT_BASH_ALLOWED_PATHS=/opt,/data
+```
+
+动态目录相关环境变量：
+
+```bash
+AGENT_VIEWPORT_EXTERNAL_DIR=/opt/viewports
+AGENT_VIEWPORT_REFRESH_INTERVAL_MS=30000
+AGENT_TOOLS_EXTERNAL_DIR=/opt/tools
+AGENT_ACTIONS_EXTERNAL_DIR=/opt/actions
+AGENT_CAPABILITY_REFRESH_INTERVAL_MS=30000
+AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS=300000
 ```
 
 ```bash

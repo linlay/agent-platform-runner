@@ -6,6 +6,7 @@ import com.linlay.springaiagw.model.AgentRequest;
 import com.linlay.springaiagw.model.agw.AgentDelta;
 import com.aiagent.agw.sdk.model.ToolCallDelta;
 import com.linlay.springaiagw.service.DeltaStreamService;
+import com.linlay.springaiagw.service.FrontendSubmitCoordinator;
 import com.linlay.springaiagw.service.LlmService;
 import com.linlay.springaiagw.tool.BaseTool;
 import com.linlay.springaiagw.tool.ToolRegistry;
@@ -53,7 +54,7 @@ public class DefinitionDrivenAgent implements Agent {
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper
     ) {
-        this(definition, llmService, deltaStreamService, toolRegistry, objectMapper, null);
+        this(definition, llmService, deltaStreamService, toolRegistry, objectMapper, null, null);
     }
 
     public DefinitionDrivenAgent(
@@ -64,6 +65,18 @@ public class DefinitionDrivenAgent implements Agent {
             ObjectMapper objectMapper,
             ChatWindowMemoryStore chatWindowMemoryStore
     ) {
+        this(definition, llmService, deltaStreamService, toolRegistry, objectMapper, chatWindowMemoryStore, null);
+    }
+
+    public DefinitionDrivenAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            DeltaStreamService deltaStreamService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator
+    ) {
         this.definition = definition;
         this.llmService = llmService;
         this.deltaStreamService = deltaStreamService;
@@ -71,11 +84,19 @@ public class DefinitionDrivenAgent implements Agent {
         this.objectMapper = objectMapper;
         this.chatWindowMemoryStore = chatWindowMemoryStore;
         this.enabledToolsByName = resolveEnabledTools(definition.tools());
-        this.decisionChunkHandler = new DecisionChunkHandler(objectMapper, definition.id());
+        this.decisionChunkHandler = new DecisionChunkHandler(objectMapper, definition.id(), toolRegistry::toolCallType);
         this.decisionParser = new DecisionParser(objectMapper);
         this.toolArgumentResolver = new ToolArgumentResolver(objectMapper);
         this.promptBuilder = new AgentPromptBuilder(objectMapper, definition.systemPrompt(), this.enabledToolsByName);
-        this.toolExecutor = new ToolExecutor(toolRegistry, this.toolArgumentResolver, objectMapper, this.promptBuilder, this.enabledToolsByName, definition.id());
+        this.toolExecutor = new ToolExecutor(
+                toolRegistry,
+                this.toolArgumentResolver,
+                objectMapper,
+                this.promptBuilder,
+                this.enabledToolsByName,
+                definition.id(),
+                frontendSubmitCoordinator
+        );
     }
 
     @Override
@@ -240,7 +261,13 @@ public class DefinitionDrivenAgent implements Agent {
                         String callId = StringUtils.hasText(decision.toolCall().callId())
                                 ? decision.toolCall().callId()
                                 : "call_" + sanitize(decision.toolCall().name()) + "_plain_1";
-                        toolFlux = toolExecutor.executeTool(decision.toolCall(), callId, toolRecords, !nativeCalls.isEmpty());
+                        toolFlux = toolExecutor.executeTool(
+                                decision.toolCall(),
+                                callId,
+                                request.runId(),
+                                toolRecords,
+                                !nativeCalls.isEmpty()
+                        );
                         finalStage = "agent-plain-final-with-tool";
                     }
 
@@ -373,7 +400,13 @@ public class DefinitionDrivenAgent implements Agent {
                                         .concatMap(expanded -> {
                                             String expandedCallId = expanded == toolCall ? callId
                                                     : callId + "_" + sanitize(String.valueOf(expanded.arguments().getOrDefault("command", "")));
-                                            return toolExecutor.executeTool(expanded, expandedCallId, toolRecords, !nativeCalls.isEmpty());
+                                            return toolExecutor.executeTool(
+                                                    expanded,
+                                                    expandedCallId,
+                                                    request.runId(),
+                                                    toolRecords,
+                                                    !nativeCalls.isEmpty()
+                                            );
                                         }, 1);
                             }, 1);
 
@@ -539,7 +572,13 @@ public class DefinitionDrivenAgent implements Agent {
 
                     return Flux.concat(
                             summaryThinkingFlux,
-                            toolExecutor.executeTool(decision.action(), callId, toolRecords, !nativeCalls.isEmpty()),
+                            toolExecutor.executeTool(
+                                    decision.action(),
+                                    callId,
+                                    request.runId(),
+                                    toolRecords,
+                                    !nativeCalls.isEmpty()
+                            ),
                             Flux.defer(() -> reactLoop(request, historyMessages, toolRecords, step + 1))
                     );
                 })
@@ -675,7 +714,7 @@ public class DefinitionDrivenAgent implements Agent {
                     .sorted(java.util.Comparator.comparing(BaseTool::name))
                     .map(tool -> {
                         ChatWindowMemoryStore.SystemToolSnapshot item = new ChatWindowMemoryStore.SystemToolSnapshot();
-                        item.type = "function";
+                        item.type = toolRegistry.toolCallType(tool.name());
                         item.name = tool.name();
                         item.description = tool.description();
                         item.parameters = tool.parametersSchema();
@@ -774,6 +813,9 @@ public class DefinitionDrivenAgent implements Agent {
                     if (StringUtils.hasText(toolCall.name())) {
                         trace.toolName = toolCall.name();
                     }
+                    if (StringUtils.hasText(toolCall.type())) {
+                        trace.toolType = toolCall.type();
+                    }
                     if (StringUtils.hasText(toolCall.arguments())) {
                         trace.appendArguments(toolCall.arguments());
                     }
@@ -826,6 +868,7 @@ public class DefinitionDrivenAgent implements Agent {
             orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantToolCall(
                     trace.toolName,
                     trace.toolCallId,
+                    trace.toolType,
                     trace.arguments(),
                     ts,
                     durationOrNull(trace.firstSeenAt, trace.resultAt > 0 ? trace.resultAt : ts),
@@ -869,6 +912,7 @@ public class DefinitionDrivenAgent implements Agent {
     private static final class ToolTrace {
         private final String toolCallId;
         private String toolName;
+        private String toolType;
         private final StringBuilder arguments = new StringBuilder();
         private long firstSeenAt;
         private long resultAt;

@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.springaiagw.model.agw.AgentDelta;
+import com.linlay.springaiagw.service.FrontendSubmitCoordinator;
 import com.linlay.springaiagw.service.LlmService;
 import com.linlay.springaiagw.tool.BaseTool;
 import com.linlay.springaiagw.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -29,6 +31,7 @@ class ToolExecutor {
     private final AgentPromptBuilder promptBuilder;
     private final Map<String, BaseTool> enabledToolsByName;
     private final String agentId;
+    private final FrontendSubmitCoordinator frontendSubmitCoordinator;
 
     ToolExecutor(
             ToolRegistry toolRegistry,
@@ -36,7 +39,8 @@ class ToolExecutor {
             ObjectMapper objectMapper,
             AgentPromptBuilder promptBuilder,
             Map<String, BaseTool> enabledToolsByName,
-            String agentId
+            String agentId,
+            FrontendSubmitCoordinator frontendSubmitCoordinator
     ) {
         this.toolRegistry = toolRegistry;
         this.toolArgumentResolver = toolArgumentResolver;
@@ -44,21 +48,34 @@ class ToolExecutor {
         this.promptBuilder = promptBuilder;
         this.enabledToolsByName = enabledToolsByName;
         this.agentId = agentId;
+        this.frontendSubmitCoordinator = frontendSubmitCoordinator;
     }
+
     Flux<AgentDelta> executeTool(
-            PlannedToolCall plannedCall, String callId,
+            PlannedToolCall plannedCall,
+            String callId,
+            String runId,
             List<Map<String, Object>> records,
             boolean skipToolCallEmission
     ) {
+        String normalizedToolName = DecisionChunkHandler.normalizeToolName(plannedCall.name());
+        if (!enabledToolsByName.containsKey(normalizedToolName)) {
+            return Flux.just(AgentDelta.toolResult(
+                    callId,
+                    errorResult(normalizedToolName, "Tool is not enabled for this agent: " + normalizedToolName)
+            ));
+        }
+
         Map<String, Object> args = new LinkedHashMap<>();
         if (plannedCall.arguments() != null) {
             args.putAll(plannedCall.arguments());
         }
-        Map<String, Object> resolvedArgs = toolArgumentResolver.resolveToolArguments(plannedCall.name(), args, records);
+        Map<String, Object> resolvedArgs = toolArgumentResolver.resolveToolArguments(normalizedToolName, args, records);
+        String callType = toolRegistry.toolCallType(normalizedToolName);
 
         if (!resolvedArgs.equals(args)) {
             log.info("[agent:{}] resolved tool args callId={}, tool={}, planned={}, resolved={}",
-                    agentId, callId, plannedCall.name(), promptBuilder.toJson(args), promptBuilder.toJson(resolvedArgs));
+                    agentId, callId, normalizedToolName, promptBuilder.toJson(args), promptBuilder.toJson(resolvedArgs));
         }
 
         Flux<AgentDelta> toolCallFlux;
@@ -67,19 +84,22 @@ class ToolExecutor {
         } else {
             String argsJson = promptBuilder.toJson(resolvedArgs);
             toolCallFlux = Flux.just(
-                    AgentDelta.toolCalls(List.of(toolCall(callId, plannedCall.name(), argsJson)))
+                    AgentDelta.toolCalls(List.of(toolCall(callId, normalizedToolName, argsJson, callType)))
             );
         }
 
-        Mono<AgentDelta> toolResultDelta = Mono.fromCallable(() -> {
-                    JsonNode result = safeInvoke(plannedCall.name(), resolvedArgs);
-                    Map<String, Object> record = toolRecord(callId, plannedCall.name(), resolvedArgs, result);
+        Mono<AgentDelta> toolResultDelta = invokeByKind(runId, callId, normalizedToolName, callType, resolvedArgs)
+                .map(result -> {
+                    Map<String, Object> record = toolRecord(callId, normalizedToolName, callType, resolvedArgs, result);
                     records.add(record);
                     log.info("[agent:{}] tool finished callId={}, tool={}, record={}",
-                            agentId, callId, plannedCall.name(), promptBuilder.toJson(record));
+                            agentId, callId, normalizedToolName, promptBuilder.toJson(record));
                     return AgentDelta.toolResult(callId, result);
                 })
-                .subscribeOn(Schedulers.boundedElastic());
+                .onErrorResume(ex -> Mono.just(AgentDelta.toolResult(
+                        callId,
+                        errorResult(normalizedToolName, ex.getMessage())
+                )));
 
         return Flux.concat(toolCallFlux, toolResultDelta.flux());
     }
@@ -147,36 +167,65 @@ class ToolExecutor {
         return commands;
     }
 
-    Map<String, Object> toolRecord(String callId, String toolName, Map<String, Object> args, JsonNode result) {
+    Map<String, Object> toolRecord(String callId, String toolName, String toolType, Map<String, Object> args, JsonNode result) {
         Map<String, Object> record = new LinkedHashMap<>();
         record.put("callId", callId);
         record.put("toolName", toolName);
+        record.put("toolType", toolType);
         record.put("arguments", args);
         record.put("result", result);
         return record;
+    }
+
+    private Mono<JsonNode> invokeByKind(
+            String runId,
+            String toolId,
+            String toolName,
+            String toolType,
+            Map<String, Object> args
+    ) {
+        if ("action".equalsIgnoreCase(toolType)) {
+            return Mono.just(objectMapper.getNodeFactory().textNode("OK"));
+        }
+        if (toolRegistry.isFrontend(toolName)) {
+            if (frontendSubmitCoordinator == null) {
+                return Mono.<JsonNode>just(errorResult(toolName, "Frontend submit coordinator is not configured"));
+            }
+            if (!StringUtils.hasText(runId)) {
+                return Mono.<JsonNode>just(errorResult(toolName, "Missing runId for frontend tool submission"));
+            }
+            return frontendSubmitCoordinator.awaitSubmit(runId.trim(), toolId)
+                    .<JsonNode>map(value -> {
+                        Object payload = value == null ? Map.of() : value;
+                        return objectMapper.valueToTree(payload);
+                    })
+                    .onErrorResume(ex -> Mono.<JsonNode>just(errorResult(toolName, ex.getMessage())));
+        }
+        return Mono.fromCallable(() -> safeInvoke(toolName, args))
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     JsonNode safeInvoke(String toolName, Map<String, Object> args) {
         String normalizedName = DecisionChunkHandler.normalizeToolName(toolName);
         try {
             if (!enabledToolsByName.containsKey(normalizedName)) {
-                ObjectNode error = objectMapper.createObjectNode();
-                error.put("tool", normalizedName);
-                error.put("ok", false);
-                error.put("error", "Tool is not enabled for this agent: " + normalizedName);
-                return error;
+                return errorResult(normalizedName, "Tool is not enabled for this agent: " + normalizedName);
             }
             return toolRegistry.invoke(normalizedName, args);
         } catch (Exception ex) {
-            ObjectNode error = objectMapper.createObjectNode();
-            error.put("tool", normalizedName);
-            error.put("ok", false);
-            error.put("error", ex.getMessage());
-            return error;
+            return errorResult(normalizedName, ex.getMessage());
         }
     }
 
-    private ToolCallDelta toolCall(String callId, String toolName, String arguments) {
-        return new ToolCallDelta(callId, "function", toolName, arguments);
+    private ObjectNode errorResult(String toolName, String message) {
+        ObjectNode error = objectMapper.createObjectNode();
+        error.put("tool", toolName);
+        error.put("ok", false);
+        error.put("error", message == null ? "unknown error" : message);
+        return error;
+    }
+
+    private ToolCallDelta toolCall(String callId, String toolName, String arguments, String toolType) {
+        return new ToolCallDelta(callId, toolType, toolName, arguments);
     }
 }

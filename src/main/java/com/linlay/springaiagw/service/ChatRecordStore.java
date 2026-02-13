@@ -421,14 +421,22 @@ public class ChatRecordStore {
             int toolIndex,
             int actionIndex
     ) {
+        boolean actionByType = StringUtils.hasText(toolCall.type)
+                && "action".equalsIgnoreCase(toolCall.type.trim());
         if (StringUtils.hasText(toolCall.actionId)) {
             return new IdBinding(toolCall.actionId.trim(), true);
         }
         if (StringUtils.hasText(toolCall.toolId)) {
             return new IdBinding(toolCall.toolId.trim(), false);
         }
+        if (actionByType && StringUtils.hasText(toolCall.id)) {
+            return new IdBinding(toolCall.id.trim(), true);
+        }
         if (StringUtils.hasText(toolCall.id)) {
             return new IdBinding(toolCall.id.trim(), false);
+        }
+        if (actionByType) {
+            return new IdBinding(runId + "_action_" + actionIndex, true);
         }
         return new IdBinding(runId + "_tool_" + toolIndex + "_action_" + actionIndex, false);
     }

@@ -2,14 +2,18 @@ package com.linlay.springaiagw.service;
 
 import com.aiagent.agw.sdk.model.AgwInput;
 import com.aiagent.agw.sdk.model.ToolCallDelta;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.springaiagw.model.agw.AgentDelta;
+import com.linlay.springaiagw.tool.ToolRegistry;
 import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -18,17 +22,26 @@ public class AgentDeltaToAgwInputMapper {
     private final AtomicLong idCounter = new AtomicLong(0);
     private final Map<Integer, String> indexedToolIds = new HashMap<>();
     private final Map<String, AtomicInteger> toolArgChunkCounters = new HashMap<>();
+    private final Map<String, StringBuilder> toolArgsBuffer = new HashMap<>();
+    private final Set<String> actionToolIds = new HashSet<>();
     private final String reasoningId;
     private final String contentId;
+    private final ToolRegistry toolRegistry;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AgentDeltaToAgwInputMapper() {
-        this(null);
+        this(null, null);
     }
 
     public AgentDeltaToAgwInputMapper(String runId) {
+        this(runId, null);
+    }
+
+    public AgentDeltaToAgwInputMapper(String runId, ToolRegistry toolRegistry) {
         String prefix = hasText(runId) ? runId : "run";
         this.reasoningId = prefix + "_reasoning_1";
         this.contentId = prefix + "_content_1";
+        this.toolRegistry = toolRegistry;
     }
 
     public Flux<AgwInput> map(Flux<AgentDelta> deltas) {
@@ -58,18 +71,35 @@ public class AgentDeltaToAgwInputMapper {
                     continue;
                 }
                 String toolId = resolveToolId(toolCall, i);
+                String toolName = toolCall.name();
+                String normalizedType = resolveToolType(toolName, toolCall.type());
+                String argsDelta = toolCall.arguments() == null ? "" : toolCall.arguments();
+                toolArgsBuffer.computeIfAbsent(toolId, key -> new StringBuilder()).append(argsDelta);
+
+                if ("action".equalsIgnoreCase(normalizedType)) {
+                    actionToolIds.add(toolId);
+                    inputs.add(new AgwInput.ActionArgs(
+                            toolId,
+                            argsDelta,
+                            null,
+                            toolName,
+                            resolveDescription(toolName)
+                    ));
+                    continue;
+                }
+
                 int chunkIndex = toolArgChunkCounters
                         .computeIfAbsent(toolId, key -> new AtomicInteger(0))
                         .getAndIncrement();
                 inputs.add(new AgwInput.ToolArgs(
                         toolId,
-                        toolCall.arguments() == null ? "" : toolCall.arguments(),
+                        argsDelta,
                         null,
-                        toolCall.name(),
-                        toolCall.type(),
-                        null,
-                        null,
-                        null,
+                        toolName,
+                        normalizedType,
+                        resolveToolApi(toolName),
+                        parseToolParams(toolId),
+                        resolveDescription(toolName),
                         chunkIndex
                 ));
             }
@@ -80,10 +110,20 @@ public class AgentDeltaToAgwInputMapper {
                 if (toolResult == null || !hasText(toolResult.toolId())) {
                     continue;
                 }
+                if (actionToolIds.contains(toolResult.toolId())) {
+                    inputs.add(new AgwInput.ActionResult(
+                            toolResult.toolId(),
+                            parseResult(toolResult.result())
+                    ));
+                    actionToolIds.remove(toolResult.toolId());
+                    toolArgsBuffer.remove(toolResult.toolId());
+                    continue;
+                }
                 inputs.add(new AgwInput.ToolResult(
                         toolResult.toolId(),
                         toolResult.result() == null ? "null" : toolResult.result()
                 ));
+                toolArgsBuffer.remove(toolResult.toolId());
             }
         }
 
@@ -108,6 +148,51 @@ public class AgentDeltaToAgwInputMapper {
         String generated = "tool_" + idCounter.incrementAndGet();
         indexedToolIds.put(effectiveIndex, generated);
         return generated;
+    }
+
+    private String resolveToolType(String toolName, String rawType) {
+        if (toolRegistry != null && hasText(toolName)) {
+            return toolRegistry.toolCallType(toolName);
+        }
+        return hasText(rawType) ? rawType.trim() : "function";
+    }
+
+    private Object parseToolParams(String toolId) {
+        StringBuilder builder = toolArgsBuffer.get(toolId);
+        if (builder == null || builder.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(builder.toString(), Object.class);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private Object parseResult(String raw) {
+        String value = raw == null ? "null" : raw;
+        try {
+            return objectMapper.readValue(value, Object.class);
+        } catch (Exception ignored) {
+            return value;
+        }
+    }
+
+    private String resolveDescription(String toolName) {
+        if (toolRegistry == null || !hasText(toolName)) {
+            return null;
+        }
+        String description = toolRegistry.description(toolName);
+        return hasText(description) ? description : null;
+    }
+
+    private String resolveToolApi(String toolName) {
+        if (toolRegistry == null || !hasText(toolName)) {
+            return null;
+        }
+        return toolRegistry.capability(toolName)
+                .map(descriptor -> hasText(descriptor.toolApi()) ? descriptor.toolApi() : null)
+                .orElse(null);
     }
 
     private boolean hasText(String value) {

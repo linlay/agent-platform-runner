@@ -18,11 +18,20 @@ agent:
   catalog:
     external-dir: ${AGENT_EXTERNAL_DIR:agents}
     refresh-interval-ms: ${AGENT_REFRESH_INTERVAL_MS:10000}
+  viewport:
+    external-dir: ${AGENT_VIEWPORT_EXTERNAL_DIR:viewports}
+    refresh-interval-ms: ${AGENT_VIEWPORT_REFRESH_INTERVAL_MS:30000}
+  capability:
+    tools-external-dir: ${AGENT_TOOLS_EXTERNAL_DIR:tools}
+    actions-external-dir: ${AGENT_ACTIONS_EXTERNAL_DIR:actions}
+    refresh-interval-ms: ${AGENT_CAPABILITY_REFRESH_INTERVAL_MS:30000}
   llm:
     interaction-log:
       enabled: ${AGENT_LLM_INTERACTION_LOG_ENABLED:true}
       mask-sensitive: ${AGENT_LLM_INTERACTION_LOG_MASK_SENSITIVE:true}
   tools:
+    frontend:
+      submit-timeout-ms: ${AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS:300000}
     bash:
       working-directory: ${AGENT_BASH_WORKING_DIRECTORY:${user.dir}}
       allowed-paths: ${AGENT_BASH_ALLOWED_PATHS:}

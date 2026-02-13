@@ -3,10 +3,12 @@ package com.linlay.springaiagw.agent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.springaiagw.memory.ChatWindowMemoryStore;
 import com.linlay.springaiagw.service.DeltaStreamService;
+import com.linlay.springaiagw.service.FrontendSubmitCoordinator;
 import com.linlay.springaiagw.service.LlmService;
 import com.linlay.springaiagw.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +28,7 @@ public class AgentRegistry {
     private final ToolRegistry toolRegistry;
     private final ObjectMapper objectMapper;
     private final ChatWindowMemoryStore chatWindowMemoryStore;
+    private final FrontendSubmitCoordinator frontendSubmitCoordinator;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, Agent> agents = Map.of();
@@ -38,12 +41,26 @@ public class AgentRegistry {
             ObjectMapper objectMapper,
             ChatWindowMemoryStore chatWindowMemoryStore
     ) {
+        this(definitionLoader, llmService, deltaStreamService, toolRegistry, objectMapper, chatWindowMemoryStore, null);
+    }
+
+    @Autowired
+    public AgentRegistry(
+            AgentDefinitionLoader definitionLoader,
+            LlmService llmService,
+            DeltaStreamService deltaStreamService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator
+    ) {
         this.definitionLoader = definitionLoader;
         this.llmService = llmService;
         this.deltaStreamService = deltaStreamService;
         this.toolRegistry = toolRegistry;
         this.objectMapper = objectMapper;
         this.chatWindowMemoryStore = chatWindowMemoryStore;
+        this.frontendSubmitCoordinator = frontendSubmitCoordinator;
         refreshAgents();
     }
 
@@ -87,7 +104,8 @@ public class AgentRegistry {
                             deltaStreamService,
                             toolRegistry,
                             objectMapper,
-                            chatWindowMemoryStore
+                            chatWindowMemoryStore,
+                            frontendSubmitCoordinator
                     );
                     updated.put(agent.id(), agent);
                 }

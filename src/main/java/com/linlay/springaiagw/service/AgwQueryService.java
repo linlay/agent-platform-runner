@@ -11,6 +11,7 @@ import com.linlay.springaiagw.agent.AgentRegistry;
 import com.linlay.springaiagw.model.agw.AgwQueryRequest;
 import com.linlay.springaiagw.model.AgentRequest;
 import com.linlay.springaiagw.model.agw.AgentDelta;
+import com.linlay.springaiagw.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.codec.ServerSentEvent;
@@ -37,17 +38,20 @@ public class AgwQueryService {
     private final AgwSseStreamer agwSseStreamer;
     private final ObjectMapper objectMapper;
     private final ChatRecordStore chatRecordStore;
+    private final ToolRegistry toolRegistry;
 
     public AgwQueryService(
             AgentRegistry agentRegistry,
             AgwSseStreamer agwSseStreamer,
             ObjectMapper objectMapper,
-            ChatRecordStore chatRecordStore
+            ChatRecordStore chatRecordStore,
+            ToolRegistry toolRegistry
     ) {
         this.agentRegistry = agentRegistry;
         this.agwSseStreamer = agwSseStreamer;
         this.objectMapper = objectMapper;
         this.chatRecordStore = chatRecordStore;
+        this.toolRegistry = toolRegistry;
     }
 
     public QuerySession prepare(AgwQueryRequest request) {
@@ -97,7 +101,7 @@ public class AgwQueryService {
 
     public Flux<ServerSentEvent<String>> stream(QuerySession session) {
         Flux<AgentDelta> deltas = session.agent().stream(session.agentRequest());
-        Flux<AgwInput> inputs = new AgentDeltaToAgwInputMapper(session.request().runId()).map(deltas);
+        Flux<AgwInput> inputs = new AgentDeltaToAgwInputMapper(session.request().runId(), toolRegistry).map(deltas);
         return agwSseStreamer.stream(session.request(), inputs)
                 .doOnNext(event -> {
                     String eventType = extractEventType(event.data());
