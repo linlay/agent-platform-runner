@@ -58,6 +58,7 @@ public class AgwQueryService {
                 ? request.requestId().trim()
                 : runId;
         String role = StringUtils.hasText(request.role()) ? request.role().trim() : "user";
+        Map<String, Object> querySnapshot = buildQuerySnapshot(request, requestId, chatId, role);
         ChatRecordStore.ChatSummary summary = chatRecordStore.ensureChat(chatId, agent.id(), request.message());
         String chatName = summary.chatName();
         Map<String, Object> queryParams = mergeQueryParams(request.params(), summary.created());
@@ -79,7 +80,8 @@ public class AgwQueryService {
                 request.message(),
                 chatId,
                 requestId,
-                runId
+                runId,
+                querySnapshot
         );
         chatRecordStore.appendRequest(
                 chatId,
@@ -168,6 +170,25 @@ public class AgwQueryService {
         } catch (JsonProcessingException ex) {
             return scene.toString();
         }
+    }
+
+    private Map<String, Object> buildQuerySnapshot(
+            AgwQueryRequest request,
+            String requestId,
+            String chatId,
+            String role
+    ) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("requestId", requestId);
+        snapshot.put("chatId", chatId);
+        snapshot.put("agentKey", StringUtils.hasText(request.agentKey()) ? request.agentKey().trim() : null);
+        snapshot.put("role", role);
+        snapshot.put("message", request.message());
+        snapshot.put("references", request.references());
+        snapshot.put("params", request.params());
+        snapshot.put("scene", request.scene());
+        snapshot.put("stream", request.stream());
+        return snapshot;
     }
 
     public record QuerySession(

@@ -21,12 +21,10 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -34,7 +32,6 @@ public class ChatRecordStore {
 
     private static final Logger log = LoggerFactory.getLogger(ChatRecordStore.class);
     private static final String CHAT_INDEX_FILE = "_chats.jsonl";
-    private static final String RECORD_TYPE = "recordType";
 
     private final ObjectMapper objectMapper;
     private final ChatWindowMemoryProperties properties;
@@ -90,11 +87,11 @@ public class ChatRecordStore {
             List<AgwQueryRequest.Reference> references,
             AgwQueryRequest.Scene scene
     ) {
-        // recordType snapshots are disabled; request metadata is no longer persisted to chat files.
+        // request metadata is persisted in memory run.query
     }
 
     public void appendEvent(String chatId, String eventData) {
-        // recordType snapshots are disabled; events are only emitted over SSE/console.
+        // events are emitted over SSE; no event append file in current design.
     }
 
     public List<AgwChatSummaryResponse> listChats() {
@@ -136,8 +133,11 @@ public class ChatRecordStore {
                     summary.chatId,
                     summary.chatName
             );
+
             List<Map<String, Object>> events = List.copyOf(content.events);
-            List<Map<String, Object>> messages = includeRawMessages ? List.copyOf(content.messages) : null;
+            List<Map<String, Object>> rawMessages = includeRawMessages
+                    ? List.copyOf(content.rawMessages)
+                    : null;
             List<AgwQueryRequest.Reference> references = content.references.isEmpty()
                     ? null
                     : List.copyOf(content.references.values());
@@ -145,7 +145,7 @@ public class ChatRecordStore {
             return new AgwChatDetailResponse(
                     summary.chatId,
                     summary.chatName,
-                    messages,
+                    rawMessages,
                     events,
                     references
             );
@@ -159,6 +159,7 @@ public class ChatRecordStore {
     ) {
         ParsedChatContent content = new ParsedChatContent();
         readHistoryLines(historyPath, content);
+
         content.runs.sort(
                 Comparator.comparingLong(this::sortByUpdatedAt)
                         .thenComparingInt(RunSnapshot::lineIndex)
@@ -166,9 +167,9 @@ public class ChatRecordStore {
 
         for (RunSnapshot run : content.runs) {
             for (ChatWindowMemoryStore.StoredMessage message : run.messages) {
-                Map<String, Object> normalized = toMessageMap(run.runId, message);
-                if (!normalized.isEmpty()) {
-                    content.messages.add(normalized);
+                Map<String, Object> raw = toRawMessageMap(run.runId, message);
+                if (!raw.isEmpty()) {
+                    content.rawMessages.add(raw);
                 }
             }
         }
@@ -190,27 +191,31 @@ public class ChatRecordStore {
                 }
 
                 JsonNode node = parseLine(line);
-                if (node == null || !node.isObject()) {
-                    lineIndex++;
-                    continue;
-                }
-
-                String recordType = textValue(node.get(RECORD_TYPE));
-                if (StringUtils.hasText(recordType)) {
-                    collectReferences(node, content);
+                if (node == null || !node.isObject() || !node.path("messages").isArray()) {
                     lineIndex++;
                     continue;
                 }
 
                 ChatWindowMemoryStore.RunRecord runRecord = toRunRecord(node, lineIndex);
-                if (runRecord == null || runRecord.messages == null || runRecord.messages.isEmpty()) {
+                if (runRecord == null) {
                     lineIndex++;
                     continue;
                 }
+
+                if (runRecord.query != null) {
+                    collectReferencesFromQuery(runRecord.query, content);
+                }
+
+                List<ChatWindowMemoryStore.StoredMessage> messages = runRecord.messages == null
+                        ? List.of()
+                        : List.copyOf(runRecord.messages);
+
                 content.runs.add(new RunSnapshot(
                         runRecord.runId,
                         runRecord.updatedAt,
-                        List.copyOf(runRecord.messages),
+                        runRecord.query == null ? Map.of() : new LinkedHashMap<>(runRecord.query),
+                        runRecord.system,
+                        messages,
                         lineIndex
                 ));
                 lineIndex++;
@@ -220,27 +225,27 @@ public class ChatRecordStore {
         }
     }
 
-    private void collectReferences(JsonNode node, ParsedChatContent content) {
-        JsonNode referencesNode = node.get("references");
-        if ((referencesNode == null || referencesNode.isNull()) && node.has("payload")) {
-            referencesNode = node.path("payload").get("references");
+    private void collectReferencesFromQuery(Map<String, Object> query, ParsedChatContent content) {
+        if (query == null || query.isEmpty()) {
+            return;
         }
-        if (referencesNode == null || !referencesNode.isArray()) {
+        Object referencesObject = query.get("references");
+        if (!(referencesObject instanceof List<?> referencesList)) {
             return;
         }
 
-        for (JsonNode referenceNode : referencesNode) {
-            if (referenceNode == null || !referenceNode.isObject()) {
+        for (Object item : referencesList) {
+            if (item == null) {
                 continue;
             }
             try {
-                AgwQueryRequest.Reference reference = objectMapper.treeToValue(referenceNode, AgwQueryRequest.Reference.class);
+                AgwQueryRequest.Reference reference = objectMapper.convertValue(item, AgwQueryRequest.Reference.class);
                 if (reference == null || !StringUtils.hasText(reference.id())) {
                     continue;
                 }
                 content.references.putIfAbsent(reference.id().trim(), reference);
             } catch (Exception ignored) {
-                // Ignore invalid reference entry and continue parsing the rest.
+                // ignore invalid reference item
             }
         }
     }
@@ -257,166 +262,249 @@ public class ChatRecordStore {
         List<Map<String, Object>> events = new ArrayList<>();
         long seq = 1L;
         boolean emittedChatStart = false;
-        for (RunSnapshot run : runs) {
-            if (run.messages == null || run.messages.isEmpty()) {
-                continue;
-            }
 
+        for (RunSnapshot run : runs) {
             long runStartTs = resolveRunStartTimestamp(run);
             long runEndTs = resolveRunEndTimestamp(run, runStartTs);
             long timestampCursor = runStartTs;
-            String firstUserMessage = firstUserText(run.messages);
+            int reasoningIndex = 0;
             int contentIndex = 0;
             int toolIndex = 0;
-            Set<String> emittedToolCallIds = new HashSet<>();
+            int actionIndex = 0;
+            Map<String, IdBinding> bindingByCallId = new LinkedHashMap<>();
 
-            Map<String, Object> query = event("request.query", timestampCursor, seq++);
-            query.put("requestId", run.runId);
-            query.put("chatId", chatId);
-            query.put("role", "user");
-            query.put("message", firstUserMessage);
-            events.add(query);
+            Map<String, Object> requestQueryPayload = buildRequestQueryPayload(chatId, run);
+            events.add(event("request.query", timestampCursor, seq++, requestQueryPayload));
 
             if (!emittedChatStart) {
-                timestampCursor = timestampCursor + 1;
-                Map<String, Object> chatStart = event("chat.start", timestampCursor, seq++);
-                chatStart.put("chatId", chatId);
+                timestampCursor = normalizeEventTimestamp(timestampCursor + 1, timestampCursor);
+                Map<String, Object> chatStartPayload = new LinkedHashMap<>();
+                chatStartPayload.put("chatId", chatId);
                 if (StringUtils.hasText(chatName)) {
-                    chatStart.put("chatName", chatName);
+                    chatStartPayload.put("chatName", chatName);
                 }
-                events.add(chatStart);
+                events.add(event("chat.start", timestampCursor, seq++, chatStartPayload));
                 emittedChatStart = true;
             }
 
-            timestampCursor = timestampCursor + 1;
-            Map<String, Object> runStart = event("run.start", timestampCursor, seq++);
-            runStart.put("runId", run.runId);
-            runStart.put("chatId", chatId);
-            events.add(runStart);
+            timestampCursor = normalizeEventTimestamp(timestampCursor + 1, timestampCursor);
+            Map<String, Object> runStartPayload = new LinkedHashMap<>();
+            runStartPayload.put("runId", run.runId);
+            runStartPayload.put("chatId", chatId);
+            events.add(event("run.start", timestampCursor, seq++, runStartPayload));
 
             for (ChatWindowMemoryStore.StoredMessage message : run.messages) {
-                if (isAssistantTextMessage(message)) {
-                    timestampCursor = normalizeEventTimestamp(resolveMessageTimestamp(message, timestampCursor), timestampCursor);
-                    Map<String, Object> contentSnapshot = event("content.snapshot", timestampCursor, seq++);
-                    contentSnapshot.put("contentId", run.runId + "_content_" + contentIndex++);
-                    contentSnapshot.put("text", message.content);
-                    events.add(contentSnapshot);
+                if (message == null || !StringUtils.hasText(message.role)) {
+                    continue;
                 }
+                long messageTs = normalizeEventTimestamp(resolveMessageTimestamp(message, timestampCursor), timestampCursor);
+                String role = message.role.trim().toLowerCase();
 
-                if (isAssistantToolCallMessage(message)) {
-                    timestampCursor = normalizeEventTimestamp(resolveMessageTimestamp(message, timestampCursor), timestampCursor);
-                    Map<String, Object> toolSnapshot = toToolSnapshot(run.runId, toolIndex++, message, timestampCursor, seq++);
-                    events.add(toolSnapshot);
-                    if (StringUtils.hasText(message.toolCallId)) {
-                        emittedToolCallIds.add(message.toolCallId.trim());
+                if ("assistant".equals(role)) {
+                    if (message.reasoningContent != null && !message.reasoningContent.isEmpty()) {
+                        String text = textFromContent(message.reasoningContent);
+                        if (StringUtils.hasText(text)) {
+                            Map<String, Object> payload = new LinkedHashMap<>();
+                            payload.put("reasoningId", StringUtils.hasText(message.reasoningId)
+                                    ? message.reasoningId
+                                    : run.runId + "_reasoning_" + reasoningIndex++);
+                            payload.put("text", text);
+                            events.add(event("reasoning.snapshot", messageTs, seq++, payload));
+                            timestampCursor = messageTs;
+                        }
+                    }
+                    if (message.content != null && !message.content.isEmpty()) {
+                        String text = textFromContent(message.content);
+                        if (StringUtils.hasText(text)) {
+                            Map<String, Object> payload = new LinkedHashMap<>();
+                            payload.put("contentId", StringUtils.hasText(message.contentId)
+                                    ? message.contentId
+                                    : run.runId + "_content_" + contentIndex++);
+                            payload.put("text", text);
+                            events.add(event("content.snapshot", messageTs, seq++, payload));
+                            timestampCursor = messageTs;
+                        }
+                    }
+                    if (message.toolCalls != null && !message.toolCalls.isEmpty()) {
+                        for (ChatWindowMemoryStore.StoredToolCall toolCall : message.toolCalls) {
+                            if (toolCall == null || toolCall.function == null || !StringUtils.hasText(toolCall.function.name)) {
+                                continue;
+                            }
+                            IdBinding binding = resolveBindingForAssistantToolCall(run.runId, toolCall, toolIndex, actionIndex);
+                            if (binding.action) {
+                                actionIndex++;
+                            } else {
+                                toolIndex++;
+                            }
+                            if (StringUtils.hasText(toolCall.id)) {
+                                bindingByCallId.put(toolCall.id.trim(), binding);
+                            }
+
+                            Map<String, Object> payload = new LinkedHashMap<>();
+                            payload.put(binding.action ? "actionId" : "toolId", binding.id);
+                            payload.put(binding.action ? "actionName" : "toolName", toolCall.function.name);
+                            payload.put("arguments", toolCall.function.arguments);
+
+                            if (!binding.action) {
+                                payload.put("toolType", StringUtils.hasText(toolCall.type) ? toolCall.type : "function");
+                                payload.put("toolApi", null);
+                                payload.put("toolParams", toToolParams(toolCall.function.arguments));
+                                payload.put("description", null);
+                            } else {
+                                payload.put("description", null);
+                            }
+
+                            timestampCursor = normalizeEventTimestamp(messageTs, timestampCursor);
+                            events.add(event(binding.action ? "action.snapshot" : "tool.snapshot", timestampCursor, seq++, payload));
+                            messageTs = timestampCursor + 1;
+                        }
                     }
                     continue;
                 }
 
-                if (isToolMessage(message) && shouldEmitToolSnapshot(message, emittedToolCallIds)) {
-                    timestampCursor = normalizeEventTimestamp(resolveMessageTimestamp(message, timestampCursor), timestampCursor);
-                    Map<String, Object> toolSnapshot = toToolSnapshot(run.runId, toolIndex++, message, timestampCursor, seq++);
-                    events.add(toolSnapshot);
-                    if (StringUtils.hasText(message.toolCallId)) {
-                        emittedToolCallIds.add(message.toolCallId.trim());
-                    }
+                if (!"tool".equals(role)) {
+                    continue;
                 }
+
+                String result = textFromContent(message.content);
+                if (!StringUtils.hasText(result)) {
+                    result = "";
+                }
+
+                IdBinding binding = resolveBindingForToolResult(run.runId, message, bindingByCallId, toolIndex, actionIndex);
+                if (binding == null) {
+                    continue;
+                }
+                if (binding.action) {
+                    actionIndex++;
+                } else {
+                    toolIndex++;
+                }
+
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put(binding.action ? "actionId" : "toolId", binding.id);
+                payload.put("result", result);
+                timestampCursor = normalizeEventTimestamp(messageTs, timestampCursor);
+                events.add(event(binding.action ? "action.result" : "tool.result", timestampCursor, seq++, payload));
             }
 
             timestampCursor = normalizeEventTimestamp(runEndTs + 1, timestampCursor);
-            Map<String, Object> runComplete = event("run.complete", timestampCursor, seq++);
-            runComplete.put("runId", run.runId);
-            runComplete.put("finishReason", "end_turn");
-            events.add(runComplete);
+            Map<String, Object> runCompletePayload = new LinkedHashMap<>();
+            runCompletePayload.put("runId", run.runId);
+            runCompletePayload.put("finishReason", "end_turn");
+            events.add(event("run.complete", timestampCursor, seq++, runCompletePayload));
         }
+
         return List.copyOf(events);
     }
 
-    private Map<String, Object> toToolSnapshot(
+    private Map<String, Object> buildRequestQueryPayload(String chatId, RunSnapshot run) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        Map<String, Object> query = run.query == null ? Map.of() : run.query;
+
+        Object requestId = query.get("requestId");
+        payload.put("requestId", textOrFallback(requestId, run.runId));
+        payload.put("chatId", textOrFallback(query.get("chatId"), chatId));
+        payload.put("role", textOrFallback(query.get("role"), "user"));
+        payload.put("message", textOrFallback(query.get("message"), firstUserText(run.messages)));
+        putIfNonNull(payload, "agentKey", query.get("agentKey"));
+        putIfNonNull(payload, "references", query.get("references"));
+        putIfNonNull(payload, "params", query.get("params"));
+        putIfNonNull(payload, "scene", query.get("scene"));
+        putIfNonNull(payload, "stream", query.get("stream"));
+        return payload;
+    }
+
+    private IdBinding resolveBindingForAssistantToolCall(
             String runId,
+            ChatWindowMemoryStore.StoredToolCall toolCall,
             int toolIndex,
-            ChatWindowMemoryStore.StoredMessage message,
-            long timestamp,
-            long seq
+            int actionIndex
     ) {
-        Map<String, Object> snapshot = event("tool.snapshot", timestamp, seq);
-        String toolId = StringUtils.hasText(message.toolCallId)
-                ? message.toolCallId.trim()
-                : runId + "_tool_" + toolIndex;
-        snapshot.put("toolId", toolId);
-        snapshot.put("toolName", StringUtils.hasText(message.name) ? message.name.trim() : "unknown_tool");
-        snapshot.put("toolType", null);
-        snapshot.put("toolApi", null);
-        snapshot.put("toolParams", toToolParams(message.toolArgs));
-        snapshot.put("description", null);
-        snapshot.put("arguments", stringifyToolArguments(message.toolArgs));
-        return snapshot;
+        if (StringUtils.hasText(toolCall.actionId)) {
+            return new IdBinding(toolCall.actionId.trim(), true);
+        }
+        if (StringUtils.hasText(toolCall.toolId)) {
+            return new IdBinding(toolCall.toolId.trim(), false);
+        }
+        if (StringUtils.hasText(toolCall.id)) {
+            return new IdBinding(toolCall.id.trim(), false);
+        }
+        return new IdBinding(runId + "_tool_" + toolIndex + "_action_" + actionIndex, false);
     }
 
-    private Object toToolParams(JsonNode toolArgs) {
-        if (toolArgs == null || toolArgs.isNull()) {
+    private IdBinding resolveBindingForToolResult(
+            String runId,
+            ChatWindowMemoryStore.StoredMessage message,
+            Map<String, IdBinding> bindingByCallId,
+            int toolIndex,
+            int actionIndex
+    ) {
+        if (StringUtils.hasText(message.actionId)) {
+            return new IdBinding(message.actionId.trim(), true);
+        }
+        if (StringUtils.hasText(message.toolId)) {
+            return new IdBinding(message.toolId.trim(), false);
+        }
+        if (StringUtils.hasText(message.toolCallId)) {
+            IdBinding binding = bindingByCallId.get(message.toolCallId.trim());
+            if (binding != null) {
+                return binding;
+            }
+            return new IdBinding(message.toolCallId.trim(), false);
+        }
+        if (!StringUtils.hasText(message.name)) {
             return null;
         }
-        return objectMapper.convertValue(toolArgs, Object.class);
+        return new IdBinding(runId + "_tool_result_" + toolIndex + "_action_" + actionIndex, false);
     }
 
-    private String stringifyToolArguments(JsonNode toolArgs) {
-        if (toolArgs == null || toolArgs.isNull()) {
+    private Object toToolParams(String arguments) {
+        if (!StringUtils.hasText(arguments)) {
             return null;
-        }
-        if (toolArgs.isTextual()) {
-            return toolArgs.asText();
         }
         try {
-            return objectMapper.writeValueAsString(toolArgs);
+            JsonNode parsed = objectMapper.readTree(arguments);
+            return objectMapper.convertValue(parsed, Object.class);
         } catch (Exception ex) {
-            return String.valueOf(toolArgs);
+            return null;
         }
-    }
-
-    private boolean isAssistantTextMessage(ChatWindowMemoryStore.StoredMessage message) {
-        return message != null
-                && "assistant".equalsIgnoreCase(message.role)
-                && StringUtils.hasText(message.content);
-    }
-
-    private boolean isAssistantToolCallMessage(ChatWindowMemoryStore.StoredMessage message) {
-        return message != null
-                && "assistant".equalsIgnoreCase(message.role)
-                && StringUtils.hasText(message.name)
-                && StringUtils.hasText(message.toolCallId);
-    }
-
-    private boolean isToolMessage(ChatWindowMemoryStore.StoredMessage message) {
-        return message != null
-                && "tool".equalsIgnoreCase(message.role)
-                && StringUtils.hasText(message.name);
-    }
-
-    private boolean shouldEmitToolSnapshot(ChatWindowMemoryStore.StoredMessage message, Set<String> emittedToolCallIds) {
-        String toolCallId = nullable(message.toolCallId);
-        if (toolCallId == null) {
-            return true;
-        }
-        return !emittedToolCallIds.contains(toolCallId);
     }
 
     private String firstUserText(List<ChatWindowMemoryStore.StoredMessage> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return "";
+        }
         for (ChatWindowMemoryStore.StoredMessage message : messages) {
             if (message == null || !"user".equalsIgnoreCase(message.role)) {
                 continue;
             }
-            if (StringUtils.hasText(message.content)) {
-                return message.content;
+            String text = textFromContent(message.content);
+            if (StringUtils.hasText(text)) {
+                return text;
             }
         }
         return "";
     }
 
+    private String textFromContent(List<ChatWindowMemoryStore.ContentPart> contentParts) {
+        if (contentParts == null || contentParts.isEmpty()) {
+            return "";
+        }
+        StringBuilder text = new StringBuilder();
+        for (ChatWindowMemoryStore.ContentPart contentPart : contentParts) {
+            if (contentPart == null || !StringUtils.hasText(contentPart.text)) {
+                continue;
+            }
+            text.append(contentPart.text);
+        }
+        return text.toString();
+    }
+
     private long resolveRunStartTimestamp(RunSnapshot run) {
         long earliest = Long.MAX_VALUE;
         for (ChatWindowMemoryStore.StoredMessage message : run.messages) {
-            if (message != null && message.ts > 0 && message.ts < earliest) {
+            if (message != null && message.ts != null && message.ts > 0 && message.ts < earliest) {
                 earliest = message.ts;
             }
         }
@@ -432,7 +520,7 @@ public class ChatRecordStore {
     private long resolveRunEndTimestamp(RunSnapshot run, long fallbackStart) {
         long latest = Long.MIN_VALUE;
         for (ChatWindowMemoryStore.StoredMessage message : run.messages) {
-            if (message != null && message.ts > 0 && message.ts > latest) {
+            if (message != null && message.ts != null && message.ts > 0 && message.ts > latest) {
                 latest = message.ts;
             }
         }
@@ -446,7 +534,7 @@ public class ChatRecordStore {
     }
 
     private long resolveMessageTimestamp(ChatWindowMemoryStore.StoredMessage message, long fallback) {
-        if (message != null && message.ts > 0) {
+        if (message != null && message.ts != null && message.ts > 0) {
             return message.ts;
         }
         return fallback;
@@ -466,40 +554,33 @@ public class ChatRecordStore {
         return run.updatedAt;
     }
 
-    private Map<String, Object> event(String type, long timestamp, long seq) {
+    private Map<String, Object> event(String type, long timestamp, long seq, Map<String, Object> payload) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("seq", seq);
         data.put("type", type);
         data.put("timestamp", timestamp);
+        if (payload != null && !payload.isEmpty()) {
+            data.putAll(payload);
+        }
         return data;
     }
 
-    private Map<String, Object> toMessageMap(String runId, ChatWindowMemoryStore.StoredMessage message) {
+    private Map<String, Object> toRawMessageMap(String runId, ChatWindowMemoryStore.StoredMessage message) {
         if (message == null || !StringUtils.hasText(message.role)) {
             return Map.of();
         }
-        Map<String, Object> root = new LinkedHashMap<>();
-        root.put("role", message.role);
-        root.put("content", message.content);
-        root.put("ts", message.ts);
-        putIfText(root, "runId", runId);
-        putIfText(root, "name", message.name);
-        putIfText(root, "toolCallId", message.toolCallId);
-        putIfText(root, "toolResult", message.toolResult);
-        if (message.toolArgs != null && !message.toolArgs.isNull()) {
-            root.put("toolArgs", objectMapper.convertValue(message.toolArgs, Object.class));
-        }
+        Map<String, Object> root = objectMapper.convertValue(
+                message,
+                objectMapper.getTypeFactory().constructMapType(LinkedHashMap.class, String.class, Object.class)
+        );
+        root.put("runId", runId);
         return root;
     }
 
     private ChatWindowMemoryStore.RunRecord toRunRecord(JsonNode node, int lineIndex) {
-        JsonNode messages = node.get("messages");
-        if (messages == null || !messages.isArray()) {
-            return null;
-        }
         try {
             ChatWindowMemoryStore.RunRecord run = objectMapper.treeToValue(node, ChatWindowMemoryStore.RunRecord.class);
-            if (run == null) {
+            if (run == null || run.messages == null) {
                 return null;
             }
             if (!StringUtils.hasText(run.runId)) {
@@ -579,23 +660,6 @@ public class ChatRecordStore {
             );
         } catch (IOException ex) {
             throw new IllegalStateException("Cannot rewrite chat index file=" + path, ex);
-        }
-    }
-
-    private void appendJsonLine(Path path, JsonNode node) {
-        try {
-            Files.createDirectories(path.getParent());
-            String line = objectMapper.writeValueAsString(node) + System.lineSeparator();
-            Files.writeString(
-                    path,
-                    line,
-                    resolveCharset(),
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.APPEND,
-                    StandardOpenOption.WRITE
-            );
-        } catch (IOException ex) {
-            throw new IllegalStateException("Cannot append chat record file=" + path, ex);
         }
     }
 
@@ -699,18 +763,17 @@ public class ChatRecordStore {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    private void putIfText(Map<String, Object> node, String key, String value) {
-        if (StringUtils.hasText(value)) {
-            node.put(key, value.trim());
+    private void putIfNonNull(Map<String, Object> node, String key, Object value) {
+        if (value != null) {
+            node.put(key, value);
         }
     }
 
-    private String textValue(JsonNode node) {
-        if (node == null || node.isNull()) {
-            return null;
+    private String textOrFallback(Object value, String fallback) {
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            return text.trim();
         }
-        String text = node.asText();
-        return StringUtils.hasText(text) ? text.trim() : null;
+        return fallback;
     }
 
     public record ChatSummary(
@@ -725,7 +788,7 @@ public class ChatRecordStore {
 
     private static final class ParsedChatContent {
         private final List<RunSnapshot> runs = new ArrayList<>();
-        private final List<Map<String, Object>> messages = new ArrayList<>();
+        private final List<Map<String, Object>> rawMessages = new ArrayList<>();
         private final List<Map<String, Object>> events = new ArrayList<>();
         private final LinkedHashMap<String, AgwQueryRequest.Reference> references = new LinkedHashMap<>();
     }
@@ -733,9 +796,14 @@ public class ChatRecordStore {
     private record RunSnapshot(
             String runId,
             long updatedAt,
+            Map<String, Object> query,
+            ChatWindowMemoryStore.SystemSnapshot system,
             List<ChatWindowMemoryStore.StoredMessage> messages,
             int lineIndex
     ) {
+    }
+
+    private record IdBinding(String id, boolean action) {
     }
 
     private static final class ChatIndexRecord {

@@ -633,15 +633,18 @@ public class DefinitionDrivenAgent implements Agent {
         try {
             List<ChatWindowMemoryStore.RunMessage> runMessages = new ArrayList<>();
             if (StringUtils.hasText(request.message())) {
-                runMessages.add(ChatWindowMemoryStore.RunMessage.user(request.message()));
+                runMessages.add(ChatWindowMemoryStore.RunMessage.user(request.message(), System.currentTimeMillis()));
             }
             runMessages.addAll(trace.runMessages());
             if (runMessages.isEmpty()) {
                 return;
             }
+            String runId = resolveRunId(request);
             chatWindowMemoryStore.appendRun(
                     request.chatId(),
-                    resolveRunId(request),
+                    runId,
+                    request.query(),
+                    buildSystemSnapshot(request),
                     runMessages
             );
         } catch (Exception ex) {
@@ -656,12 +659,83 @@ public class DefinitionDrivenAgent implements Agent {
         return UUID.randomUUID().toString();
     }
 
+    private ChatWindowMemoryStore.SystemSnapshot buildSystemSnapshot(AgentRequest request) {
+        ChatWindowMemoryStore.SystemSnapshot snapshot = new ChatWindowMemoryStore.SystemSnapshot();
+        snapshot.model = model();
+
+        if (StringUtils.hasText(systemPrompt())) {
+            ChatWindowMemoryStore.SystemMessageSnapshot systemMessage = new ChatWindowMemoryStore.SystemMessageSnapshot();
+            systemMessage.role = "system";
+            systemMessage.content = systemPrompt();
+            snapshot.messages = List.of(systemMessage);
+        }
+
+        if (!enabledToolsByName.isEmpty()) {
+            List<ChatWindowMemoryStore.SystemToolSnapshot> tools = enabledToolsByName.values().stream()
+                    .sorted(java.util.Comparator.comparing(BaseTool::name))
+                    .map(tool -> {
+                        ChatWindowMemoryStore.SystemToolSnapshot item = new ChatWindowMemoryStore.SystemToolSnapshot();
+                        item.type = "function";
+                        item.name = tool.name();
+                        item.description = tool.description();
+                        item.parameters = tool.parametersSchema();
+                        return item;
+                    })
+                    .toList();
+            if (!tools.isEmpty()) {
+                snapshot.tools = tools;
+            }
+        }
+
+        snapshot.stream = resolveStreamFlag(request);
+        return snapshot;
+    }
+
+    private boolean resolveStreamFlag(AgentRequest request) {
+        if (request == null || request.query() == null || !request.query().containsKey("stream")) {
+            return true;
+        }
+        Object stream = request.query().get("stream");
+        if (stream instanceof Boolean value) {
+            return value;
+        }
+        if (stream instanceof Number value) {
+            return value.intValue() != 0;
+        }
+        if (stream instanceof String value && !value.isBlank()) {
+            return Boolean.parseBoolean(value.trim());
+        }
+        return true;
+    }
+
+    private Map<String, Object> usagePlaceholder() {
+        Map<String, Object> usage = new LinkedHashMap<>();
+        usage.put("input_tokens", null);
+        usage.put("output_tokens", null);
+        usage.put("total_tokens", null);
+        return usage;
+    }
+
+    private Long durationOrNull(long startTs, long endTs) {
+        if (startTs <= 0 || endTs < startTs) {
+            return null;
+        }
+        return endTs - startTs;
+    }
+
+    private String generateToolCallId() {
+        return "call_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+    }
+
     private String normalize(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
     }
 
     private final class TurnTrace {
+        private final StringBuilder pendingReasoning = new StringBuilder();
+        private long pendingReasoningStartedAt;
         private final StringBuilder pendingAssistant = new StringBuilder();
+        private long pendingAssistantStartedAt;
         private final List<ChatWindowMemoryStore.RunMessage> orderedMessages = new ArrayList<>();
         private final Map<String, ToolTrace> toolByCallId = new LinkedHashMap<>();
 
@@ -669,18 +743,34 @@ public class DefinitionDrivenAgent implements Agent {
             if (delta == null) {
                 return;
             }
+            long now = System.currentTimeMillis();
+
+            if (StringUtils.hasText(delta.thinking())) {
+                if (pendingReasoningStartedAt <= 0) {
+                    pendingReasoningStartedAt = now;
+                }
+                pendingReasoning.append(delta.thinking());
+            }
 
             if (StringUtils.hasText(delta.content())) {
+                if (pendingAssistantStartedAt <= 0) {
+                    pendingAssistantStartedAt = now;
+                }
                 pendingAssistant.append(delta.content());
             }
 
-            if (delta.toolCalls() != null) {
+            if (delta.toolCalls() != null && !delta.toolCalls().isEmpty()) {
+                flushReasoning(now);
                 flushAssistantContent();
                 for (ToolCallDelta toolCall : delta.toolCalls()) {
-                    if (toolCall == null || !StringUtils.hasText(toolCall.id())) {
+                    if (toolCall == null) {
                         continue;
                     }
-                    ToolTrace trace = toolByCallId.computeIfAbsent(toolCall.id(), ToolTrace::new);
+                    String toolCallId = StringUtils.hasText(toolCall.id()) ? toolCall.id() : generateToolCallId();
+                    ToolTrace trace = toolByCallId.computeIfAbsent(toolCallId, ToolTrace::new);
+                    if (trace.firstSeenAt <= 0) {
+                        trace.firstSeenAt = now;
+                    }
                     if (StringUtils.hasText(toolCall.name())) {
                         trace.toolName = toolCall.name();
                     }
@@ -690,49 +780,89 @@ public class DefinitionDrivenAgent implements Agent {
                 }
             }
 
-            if (delta.toolResults() != null) {
+            if (delta.toolResults() != null && !delta.toolResults().isEmpty()) {
+                flushReasoning(now);
                 flushAssistantContent();
                 for (AgentDelta.ToolResult toolResult : delta.toolResults()) {
                     if (toolResult == null || !StringUtils.hasText(toolResult.toolId())) {
                         continue;
                     }
                     ToolTrace trace = toolByCallId.computeIfAbsent(toolResult.toolId(), ToolTrace::new);
-                    appendAssistantToolCallIfNeeded(trace);
+                    if (trace.firstSeenAt <= 0) {
+                        trace.firstSeenAt = now;
+                    }
+                    trace.resultAt = now;
+                    appendAssistantToolCallIfNeeded(trace, now);
                     String result = StringUtils.hasText(toolResult.result()) ? toolResult.result() : "null";
                     orderedMessages.add(ChatWindowMemoryStore.RunMessage.toolResult(
                             trace.toolName,
                             trace.toolCallId,
-                            trace.arguments(),
-                            result
+                            result,
+                            now,
+                            durationOrNull(trace.firstSeenAt, now)
                     ));
                 }
             }
         }
 
         private List<ChatWindowMemoryStore.RunMessage> runMessages() {
+            long now = System.currentTimeMillis();
+            flushReasoning(now);
             flushAssistantContent();
-            toolByCallId.values().forEach(this::appendAssistantToolCallIfNeeded);
+            toolByCallId.values().forEach(toolTrace -> appendAssistantToolCallIfNeeded(
+                    toolTrace,
+                    toolTrace.resultAt > 0 ? toolTrace.resultAt : now
+            ));
             return List.copyOf(orderedMessages);
         }
 
-        private void appendAssistantToolCallIfNeeded(ToolTrace trace) {
+        private void appendAssistantToolCallIfNeeded(ToolTrace trace, long ts) {
             if (trace == null || trace.recorded) {
+                return;
+            }
+            if (!StringUtils.hasText(trace.toolName)) {
                 return;
             }
             orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantToolCall(
                     trace.toolName,
                     trace.toolCallId,
-                    trace.arguments()
+                    trace.arguments(),
+                    ts,
+                    durationOrNull(trace.firstSeenAt, trace.resultAt > 0 ? trace.resultAt : ts),
+                    usagePlaceholder()
             ));
             trace.recorded = true;
+        }
+
+        private void flushReasoning(long now) {
+            if (!StringUtils.hasText(pendingReasoning)) {
+                return;
+            }
+            long startedAt = pendingReasoningStartedAt > 0 ? pendingReasoningStartedAt : now;
+            orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantReasoning(
+                    pendingReasoning.toString(),
+                    startedAt,
+                    durationOrNull(startedAt, now),
+                    usagePlaceholder()
+            ));
+            pendingReasoning.setLength(0);
+            pendingReasoningStartedAt = 0L;
         }
 
         private void flushAssistantContent() {
             if (!StringUtils.hasText(pendingAssistant)) {
                 return;
             }
-            orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantContent(pendingAssistant.toString()));
+            long now = System.currentTimeMillis();
+            long startedAt = pendingAssistantStartedAt > 0 ? pendingAssistantStartedAt : now;
+            orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantContent(
+                    pendingAssistant.toString(),
+                    startedAt,
+                    durationOrNull(startedAt, now),
+                    usagePlaceholder()
+            ));
             pendingAssistant.setLength(0);
+            pendingAssistantStartedAt = 0L;
         }
     }
 
@@ -740,6 +870,8 @@ public class DefinitionDrivenAgent implements Agent {
         private final String toolCallId;
         private String toolName;
         private final StringBuilder arguments = new StringBuilder();
+        private long firstSeenAt;
+        private long resultAt;
         private boolean recorded;
 
         private ToolTrace(String toolCallId) {

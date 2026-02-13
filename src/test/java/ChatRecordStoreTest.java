@@ -35,9 +35,10 @@ class ChatRecordStoreTest {
                 chatId,
                 "run_001",
                 1707000000000L,
+                query("run_001", chatId, "你好", List.of()),
                 List.of(
-                        message("user", "你好", 1707000000000L, null, null, null, null),
-                        message("assistant", "你好，我是助手", 1707000000001L, null, null, null, null)
+                        userMessage("你好", 1707000000000L),
+                        assistantContentMessage("你好，我是助手", 1707000000001L)
                 )
         ));
 
@@ -46,7 +47,7 @@ class ChatRecordStoreTest {
 
         assertThat(detail.chatId()).isEqualTo(chatId);
         assertThat(detail.chatName()).isEqualTo("测试会话");
-        assertThat(detail.messages()).isNull();
+        assertThat(detail.rawMessages()).isNull();
         assertThat(detail.events()).isNotNull();
         assertThat(detail.events()).extracting(item -> item.get("type"))
                 .contains(
@@ -61,86 +62,82 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void loadChatShouldReturnEventsAndMessagesWhenIncludeRawMessagesIsTrue() throws Exception {
+    void loadChatShouldReturnRawMessagesAndSnapshotEventsWhenIncludeRawMessagesIsTrue() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174011";
-        String runId = "run_002";
         Path chatDir = tempDir.resolve("chats");
         writeIndex(chatDir, chatId, "快照会话", 1707000100000L, 1707000100000L);
 
         Path historyPath = chatDir.resolve(chatId + ".json");
         writeJsonLine(historyPath, runRecord(
                 chatId,
-                runId,
+                "run_002",
                 1707000100000L,
+                query("run_002", chatId, "帮我列目录", List.of()),
                 List.of(
-                        message("user", "帮我列目录", 1707000100000L, null, null, null, null),
-                        message("assistant", "先执行 ls", 1707000100001L, null, null, null, null),
-                        message("assistant", "", 1707000100002L, "bash", "tool_call_1", Map.of("command", "ls"), null),
-                        message("tool", "{\"ok\":true}", 1707000100003L, "bash", "tool_call_1", Map.of("command", "ls"), "{\"ok\":true}")
+                        userMessage("帮我列目录", 1707000100000L),
+                        assistantReasoningMessage("先判断是否需要工具", 1707000100001L),
+                        assistantToolCallMessage("bash", "call_tool_1", "{\"command\":\"ls\"}", 1707000100002L, "tool_short_1", null),
+                        toolMessage("bash", "call_tool_1", "{\"ok\":true}", 1707000100003L, "tool_short_1", null),
+                        assistantToolCallMessage("switch_frontend_theme", "call_tool_2", "{\"theme\":\"dark\"}", 1707000100004L, null, "action_short_1"),
+                        toolMessage("switch_frontend_theme", "call_tool_2", "OK", 1707000100005L, null, "action_short_1"),
+                        assistantContentMessage("处理完成", 1707000100006L)
                 )
         ));
 
         ChatRecordStore store = newStore();
         AgwChatDetailResponse detail = store.loadChat(chatId, true);
 
-        assertThat(detail.messages()).isNotNull();
-        assertThat(detail.messages()).hasSize(4);
-        assertThat(detail.messages().getFirst().get("role")).isEqualTo("user");
+        assertThat(detail.rawMessages()).isNotNull();
+        assertThat(detail.rawMessages()).hasSize(7);
+        assertThat(detail.rawMessages().getFirst().get("role")).isEqualTo("user");
+
         assertThat(detail.events()).isNotNull();
-        assertThat(detail.events()).extracting(item -> item.get("type"))
-                .contains("request.query", "chat.start", "run.start", "content.snapshot", "tool.snapshot", "run.complete");
-
-        Map<String, Object> contentSnapshot = findFirstEvent(detail.events(), "content.snapshot");
-        assertThat(contentSnapshot).containsKeys("type", "contentId", "text", "timestamp", "seq");
-        assertThat(contentSnapshot.get("text")).isEqualTo("先执行 ls");
-        assertThat(contentSnapshot).doesNotContainKey("reasoningId");
-        assertThat(contentSnapshot).doesNotContainKey("taskId");
-
-        Map<String, Object> toolSnapshot = findFirstEvent(detail.events(), "tool.snapshot");
-        assertThat(toolSnapshot).containsKeys(
-                "toolId",
-                "toolName",
-                "toolType",
-                "toolApi",
-                "toolParams",
-                "description",
-                "arguments",
-                "timestamp",
-                "seq"
+        assertThat(detail.events()).extracting(item -> item.get("type")).contains(
+                "request.query",
+                "chat.start",
+                "run.start",
+                "reasoning.snapshot",
+                "tool.snapshot",
+                "tool.result",
+                "action.snapshot",
+                "action.result",
+                "content.snapshot",
+                "run.complete"
         );
-        assertThat(toolSnapshot.get("toolId")).isEqualTo("tool_call_1");
-        assertThat(toolSnapshot).doesNotContainKey("result");
-        assertThat(toolSnapshot).doesNotContainKey("taskId");
+
+        assertThat(countType(detail.events(), "tool.start")).isEqualTo(0);
+        assertThat(countType(detail.events(), "tool.args")).isEqualTo(0);
+        assertThat(countType(detail.events(), "tool.end")).isEqualTo(0);
+        assertThat(countType(detail.events(), "action.start")).isEqualTo(0);
+        assertThat(countType(detail.events(), "action.args")).isEqualTo(0);
+        assertThat(countType(detail.events(), "action.end")).isEqualTo(0);
     }
 
     @Test
-    void loadChatShouldCollectReferencesFromRecordTypeLines() throws Exception {
+    void loadChatShouldCollectReferencesFromRunQuery() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174012";
         Path chatDir = tempDir.resolve("chats");
         writeIndex(chatDir, chatId, "引用会话", 1707000200000L, 1707000200000L);
 
         Path historyPath = chatDir.resolve(chatId + ".json");
-        writeJsonLine(historyPath, Map.of(
-                "recordType", "request.query",
-                "references", List.of(
-                        Map.of("id", "ref_001", "type", "url", "name", "A", "url", "https://example.com/a"),
-                        Map.of("id", "ref_001", "type", "url", "name", "B", "url", "https://example.com/b")
-                )
-        ));
         writeJsonLine(historyPath, runRecord(
                 chatId,
                 "run_003",
                 1707000200000L,
+                query("run_003", chatId, "你好", List.of(
+                        Map.of("id", "ref_001", "type", "url", "name", "A", "url", "https://example.com/a"),
+                        Map.of("id", "ref_001", "type", "url", "name", "B", "url", "https://example.com/b")
+                )),
                 List.of(
-                        message("user", "你好", 1707000200000L, null, null, null, null),
-                        message("assistant", "你好", 1707000200001L, null, null, null, null)
+                        userMessage("你好", 1707000200000L),
+                        assistantContentMessage("你好", 1707000200001L)
                 )
         ));
 
         ChatRecordStore store = newStore();
         AgwChatDetailResponse detail = store.loadChat(chatId, false);
 
-        assertThat(detail.messages()).isNull();
+        assertThat(detail.rawMessages()).isNull();
         assertThat(detail.events()).isNotNull();
         assertThat(detail.references()).isNotNull();
         assertThat(detail.references()).hasSize(1);
@@ -219,18 +216,20 @@ class ChatRecordStoreTest {
                 chatId,
                 "run_004",
                 1707000300000L,
+                query("run_004", chatId, "第一轮", List.of()),
                 List.of(
-                        message("user", "第一轮", 1707000300000L, null, null, null, null),
-                        message("assistant", "第一轮回答", 1707000300001L, null, null, null, null)
+                        userMessage("第一轮", 1707000300000L),
+                        assistantContentMessage("第一轮回答", 1707000300001L)
                 )
         ));
         writeJsonLine(historyPath, runRecord(
                 chatId,
                 "run_005",
                 1707000400000L,
+                query("run_005", chatId, "第二轮", List.of()),
                 List.of(
-                        message("user", "第二轮", 1707000400000L, null, null, null, null),
-                        message("assistant", "第二轮回答", 1707000400001L, null, null, null, null)
+                        userMessage("第二轮", 1707000400000L),
+                        assistantContentMessage("第二轮回答", 1707000400001L)
                 )
         ));
 
@@ -287,46 +286,134 @@ class ChatRecordStoreTest {
             String chatId,
             String runId,
             long updatedAt,
+            Map<String, Object> query,
             List<Map<String, Object>> messages
     ) {
         Map<String, Object> record = new LinkedHashMap<>();
-        record.put("v", 1);
         record.put("chatId", chatId);
         record.put("runId", runId);
+        record.put("transactionId", runId);
         record.put("updatedAt", updatedAt);
+        record.put("query", query);
         record.put("messages", messages);
         return record;
     }
 
-    private Map<String, Object> message(
-            String role,
-            String content,
-            long ts,
-            String name,
-            String toolCallId,
-            Object toolArgs,
-            String toolResult
+    private Map<String, Object> query(
+            String requestId,
+            String chatId,
+            String message,
+            List<Map<String, Object>> references
     ) {
+        Map<String, Object> query = new LinkedHashMap<>();
+        query.put("requestId", requestId);
+        query.put("chatId", chatId);
+        query.put("agentKey", "demo");
+        query.put("role", "user");
+        query.put("message", message);
+        query.put("references", references);
+        query.put("params", Map.of("k", "v"));
+        query.put("scene", Map.of("url", "https://example.com", "title", "demo"));
+        query.put("stream", true);
+        return query;
+    }
+
+    private Map<String, Object> userMessage(String text, long ts) {
+        return Map.of(
+                "role", "user",
+                "content", List.of(textPart(text)),
+                "ts", ts
+        );
+    }
+
+    private Map<String, Object> assistantReasoningMessage(String text, long ts) {
         Map<String, Object> message = new LinkedHashMap<>();
-        message.put("role", role);
-        message.put("content", content);
+        message.put("role", "assistant");
+        message.put("reasoning_content", List.of(textPart(text)));
         message.put("ts", ts);
-        message.put("name", name);
-        message.put("toolCallId", toolCallId);
-        message.put("toolArgs", toolArgs);
-        message.put("toolResult", toolResult);
+        message.put("_reasoningId", "reasoning_short_1");
+        message.put("_timing", 12);
+        message.put("_usage", usage());
         return message;
     }
 
-    private Map<String, Object> findFirstEvent(List<Map<String, Object>> events, String type) {
-        List<Map<String, Object>> matched = new ArrayList<>();
-        for (Map<String, Object> event : events) {
-            if (type.equals(event.get("type"))) {
-                matched.add(event);
-            }
+    private Map<String, Object> assistantContentMessage(String text, long ts) {
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("role", "assistant");
+        message.put("content", List.of(textPart(text)));
+        message.put("ts", ts);
+        message.put("_contentId", "content_short_1");
+        message.put("_timing", 12);
+        message.put("_usage", usage());
+        return message;
+    }
+
+    private Map<String, Object> assistantToolCallMessage(
+            String toolName,
+            String toolCallId,
+            String arguments,
+            long ts,
+            String toolId,
+            String actionId
+    ) {
+        Map<String, Object> function = new LinkedHashMap<>();
+        function.put("name", toolName);
+        function.put("arguments", arguments);
+
+        Map<String, Object> call = new LinkedHashMap<>();
+        call.put("id", toolCallId);
+        call.put("type", "function");
+        call.put("function", function);
+        if (toolId != null) {
+            call.put("_toolId", toolId);
         }
-        assertThat(matched).isNotEmpty();
-        return matched.getFirst();
+        if (actionId != null) {
+            call.put("_actionId", actionId);
+        }
+
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("role", "assistant");
+        message.put("tool_calls", List.of(call));
+        message.put("ts", ts);
+        message.put("_timing", 20);
+        message.put("_usage", usage());
+        return message;
+    }
+
+    private Map<String, Object> toolMessage(
+            String toolName,
+            String toolCallId,
+            String result,
+            long ts,
+            String toolId,
+            String actionId
+    ) {
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("role", "tool");
+        message.put("name", toolName);
+        message.put("tool_call_id", toolCallId);
+        message.put("content", List.of(textPart(result)));
+        message.put("ts", ts);
+        message.put("_timing", 8);
+        if (toolId != null) {
+            message.put("_toolId", toolId);
+        }
+        if (actionId != null) {
+            message.put("_actionId", actionId);
+        }
+        return message;
+    }
+
+    private Map<String, Object> textPart(String text) {
+        return Map.of("type", "text", "text", text);
+    }
+
+    private Map<String, Object> usage() {
+        Map<String, Object> usage = new LinkedHashMap<>();
+        usage.put("input_tokens", null);
+        usage.put("output_tokens", null);
+        usage.put("total_tokens", null);
+        return usage;
     }
 
     private long countType(List<Map<String, Object>> events, String type) {

@@ -9,7 +9,7 @@ import java.util.Map;
 public record AgwChatDetailResponse(
         String chatId,
         String chatName,
-        List<Map<String, Object>> messages,
+        List<Map<String, Object>> rawMessages,
         List<Map<String, Object>> events,
         List<AgwQueryRequest.Reference> references
 ) {

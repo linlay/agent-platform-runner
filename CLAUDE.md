@@ -43,8 +43,23 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 - **工具参数模板** — `{{tool_name.field+Nd}}` 日期运算和链式引用
 - **双路径 LLM** — WebClient 原生 SSE 和 ChatClient，按需选择
 - **响应格式** — 非 SSE 接口统一 `{"code": 0, "msg": "success", "data": {}}`
-- **会话详情格式** — `GET /api/chat` 的 `data` 字段固定为 `chatId/chatName/messages/events/references`；当 `includeEvents=true` 时历史事件与最新 SSE 规则对齐，使用 `*.snapshot` 事件承载历史内容
+- **会话详情格式** — `GET /api/chat` 的 `data` 字段固定为 `chatId/chatName/rawMessages/events/references`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回
 - **真流式首字符检测** — `handleDecisionChunk` 方法：首个非空字符非 `{`/`` ` `` 则判定为纯文本立即流式推送，否则走 JSON 决策积累
+
+## Chat Memory V2（JSONL）
+
+- 存储文件：`chats/{chatId}.json`，JSONL 格式，**每个 run 一行标准 JSON**。
+- 每行 run 顶层字段：`chatId`、`runId`、`transactionId`（同 `runId`）、`updatedAt`、`query`、`messages`，以及按需 `system`。
+- `query` 放顶层，保存完整 query 结构（`requestId/chatId/agentKey/role/message/references/params/scene/stream`）。
+- `system` 只在 chat 首次 run 写入；若后续 system 配置发生变化则再次写入；仅写可获取字段（当前为 `model/messages/tools/stream`）。
+- `messages` 采用 OpenAI 风格：
+  - `role=user`：`content[]`（text parts）+ `ts`
+  - `role=assistant`：三种快照形态之一：`content[]` / `reasoning_content[]` / `tool_calls[]`
+  - `role=tool`：`name` + `tool_call_id` + `content[]` + `ts`
+- assistant/tool 扩展字段支持：`_reasoningId`、`_contentId`、`_toolId`、`_actionId`、`_timing`、`_usage`。
+- action/tool 判定：通过 `memory.chat.action-tools` 白名单；命中写 `_actionId`，否则写 `_toolId`。
+- memory 回放约束：`reasoning_content` **不回传**给下一轮模型上下文。
+- 兼容策略：仅支持 V2 JSONL 行格式；不再解析旧 memory 结构。
 
 ## SSE 事件契约（最新）
 
@@ -104,14 +119,14 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 
 - 无活跃 task 出错时：只发 `run.error`（不补 `task.fail`）
 - plain 模式（当前无 plan）不应出现 `task.*`，叶子事件直接归属 `run`
-- `GET /api/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件
+- `GET /api/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件，并保留 `tool.result` / `action.result`
 - 历史里 `run.complete` 每个 run 都保留，`chat.start` 仅首次一次
 
 ## Configuration
 
 主配置 `application.yml`，本地覆盖 `application-local.yml`（含 API key）。
 
-关键环境变量：`SERVER_PORT`、`AGENT_EXTERNAL_DIR`、`AGENT_REFRESH_INTERVAL_MS`、`AGENT_BASH_WORKING_DIRECTORY`、`AGENT_BASH_ALLOWED_PATHS`、`MEMORY_CHAT_DIR`、`MEMORY_CHAT_K`、`AGENT_LLM_INTERACTION_LOG_ENABLED`、`AGENT_LLM_INTERACTION_LOG_MASK_SENSITIVE`
+关键环境变量：`SERVER_PORT`、`AGENT_EXTERNAL_DIR`、`AGENT_REFRESH_INTERVAL_MS`、`AGENT_BASH_WORKING_DIRECTORY`、`AGENT_BASH_ALLOWED_PATHS`、`MEMORY_CHAT_DIR`、`MEMORY_CHAT_K`、`MEMORY_CHAT_ACTION_TOOLS`、`AGENT_LLM_INTERACTION_LOG_ENABLED`、`AGENT_LLM_INTERACTION_LOG_MASK_SENSITIVE`
 
 ## Agent JSON 定义
 

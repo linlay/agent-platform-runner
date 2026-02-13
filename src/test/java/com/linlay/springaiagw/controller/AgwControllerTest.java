@@ -270,7 +270,7 @@ class AgwControllerTest {
                 .jsonPath("$.msg").isEqualTo("success")
                 .jsonPath("$.data.chatId").isEqualTo(chatId)
                 .jsonPath("$.data.chatName").isEqualTo("0123456789")
-                .jsonPath("$.data.messages").doesNotExist()
+                .jsonPath("$.data.rawMessages").doesNotExist()
                 .jsonPath("$.data.events[?(@.type=='request.query')]").exists()
                 .jsonPath("$.data.events[?(@.type=='run.start')]").exists()
                 .jsonPath("$.data.events[?(@.type=='content.snapshot')]").exists()
@@ -281,11 +281,11 @@ class AgwControllerTest {
                         .path("/api/chat")
                         .queryParam("chatId", chatId)
                         .queryParam("includeRawMessages", true)
-                        .build())
+                .build())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.data.messages[0].role").isEqualTo("user")
+                .jsonPath("$.data.rawMessages[0].role").isEqualTo("user")
                 .jsonPath("$.data.events[?(@.type=='request.query')]").exists();
     }
 
