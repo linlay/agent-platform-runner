@@ -21,6 +21,7 @@ class ToolRegistryTest {
 
     private final CityDateTimeTool cityDateTimeTool = new CityDateTimeTool();
     private final MockCityWeatherTool cityWeatherTool = new MockCityWeatherTool();
+    private final MockLogisticsStatusTool logisticsStatusTool = new MockLogisticsStatusTool();
     private final MockSensitiveDataDetectorTool sensitiveDataDetectorTool = new MockSensitiveDataDetectorTool();
     private final BashTool bashTool = new BashTool();
 
@@ -32,6 +33,30 @@ class ToolRegistryTest {
         JsonNode second = cityWeatherTool.invoke(args);
 
         assertThat(first).isEqualTo(second);
+    }
+
+    @Test
+    void sameArgsShouldReturnSameLogisticsJson() {
+        Map<String, Object> args = Map.of("trackingNo", "SF123456789CN", "carrier", "SF Express");
+
+        JsonNode first = logisticsStatusTool.invoke(args);
+        JsonNode second = logisticsStatusTool.invoke(args);
+
+        assertThat(first).isEqualTo(second);
+    }
+
+    @Test
+    void logisticsToolShouldReturnStructuredPayload() {
+        JsonNode result = logisticsStatusTool.invoke(Map.of("trackingNo", "YT1234567890"));
+
+        assertThat(result.path("tool").asText()).isEqualTo("mock_logistics_status");
+        assertThat(result.path("trackingNo").asText()).isEqualTo("YT1234567890");
+        assertThat(result.path("carrier").asText()).isNotBlank();
+        assertThat(result.path("status").asText()).isNotBlank();
+        assertThat(result.path("currentNode").asText()).isNotBlank();
+        assertThat(result.path("etaDate").asText()).isNotBlank();
+        assertThat(result.path("updatedAt").asText()).isNotBlank();
+        assertThat(result.path("mockTag").asText()).isEqualTo("idempotent-random-json");
     }
 
     @Test

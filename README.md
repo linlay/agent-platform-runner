@@ -260,11 +260,18 @@ type=html, key=show_weather_card
   - 优先返回 `payload.params`
   - 若无 `params`，返回 `{}`。
 - 动作工具触发 `action.start` 后不等待提交，直接返回 `"OK"` 给模型。
+- 动作事件顺序：`action.start` -> `action.args`（可多次）-> `action.end` -> `action.result`。
+
+### 内置 action 能力
+
+- `switch_theme(theme)`：主题切换，`theme` 仅支持 `light/dark`。
+- `launch_fireworks(durationMs?)`：播放烟花特效，`durationMs` 可选（毫秒）。
+- `show_modal(title, content, closeText?)`：弹出模态框，`title/content` 必填，`closeText` 可选。
 
 ## 内置智能体
 
 - `demoViewport`（`PLAN_EXECUTE`）：调用 `city_datetime`、`mock_city_weather`，最终按 `viewport` 代码块协议输出天气卡片数据。
-- `demoAction`（`PLAIN`）：调用 `switch_theme` 执行主题切换（`theme` 仅支持 `light/dark`）。
+- `demoAction`（`PLAIN`）：根据用户意图调用 `switch_theme` / `launch_fireworks` / `show_modal`。
 - `agentCreator`（`PLAN_EXECUTE`）：调用 `agent_file_create` 创建/更新 `agents/{agentId}.json`。
 - 使用 `agentCreator` 时建议提供：`agentId`、`description`、`systemPrompt`、`providerType`、`model`、`deepThink`。
 - `agent_file_create` 会校验 `agentId`（仅允许 `A-Za-z0-9_-`，最长 64）。
@@ -350,4 +357,16 @@ curl -N -X POST "http://localhost:8080/api/query" \
 curl -N -X POST "http://localhost:8080/api/query" \
   -H "Content-Type: application/json" \
   -d '{"message":"切换到深色主题","agentKey":"demoAction"}'
+```
+
+```bash
+curl -N -X POST "http://localhost:8080/api/query" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"放一场 8 秒的烟花","agentKey":"demoAction"}'
+```
+
+```bash
+curl -N -X POST "http://localhost:8080/api/query" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"弹一个模态框，标题是系统通知，内容是发布成功，按钮写关闭","agentKey":"demoAction"}'
 ```

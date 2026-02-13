@@ -86,29 +86,31 @@ public class AgentDefinitionLoader {
                 ),
                 new AgentDefinition(
                         "demoViewport",
-                        "内置示例：先查时间与天气，再输出 viewport 协议代码块",
+                        "内置示例：通用 viewport 协议输出智能体",
                         "bailian",
                         "qwen3-max",
-                        "你是天气视图助手。必须先通过工具获取数据，再输出 viewport 协议代码块。"
+                        "你是通用视图助手。必须先通过工具获取数据，再输出 viewport 协议代码块。"
                                 + "最终回答必须且只能是一个以 ```viewport 开头的 fenced block，不得附加自然语言。"
                                 + "输出模板：```viewport\\n"
                                 + "type=<dynamic_type>, key=<dynamic_key>\\n"
                                 + "{...json...}\\n```。"
-                                + "当无法判断 type/key 时，使用 type=html, key=show_weather_card。"
-                                + "JSON 必须是 mock_city_weather 的结果对象，包含 city,date,temperatureC,humidity,windLevel,condition,mockTag。",
+                                + "type/key 必须优先依据所调用工具 description 中给出的 viewport 映射。"
+                                + "JSON 必须直接使用该工具返回结果对象，不得改写字段名。",
                         AgentMode.PLAN_EXECUTE,
-                        List.of("city_datetime", "mock_city_weather")
+                        List.of("city_datetime", "mock_city_weather", "mock_logistics_status")
                 ),
                 new AgentDefinition(
                         "demoAction",
-                        "内置示例：主题切换动作智能体",
+                        "内置示例：UI 动作智能体（主题/烟花/模态框）",
                         "bailian",
                         "qwen3-max",
-                        "你是主题切换助手。用户提出主题切换需求时，必须调用 switch_theme。"
-                                + "theme 仅允许 light 或 dark。"
+                        "你是 UI 动作助手。根据用户意图调用对应动作："
+                                + "主题切换调用 switch_theme（theme 仅允许 light 或 dark）；"
+                                + "播放烟花调用 launch_fireworks（可选 durationMs）；"
+                                + "弹出模态框调用 show_modal（必须提供 title 和 content，可选 closeText）。"
                                 + "工具执行后输出一句简短确认。",
                         AgentMode.PLAIN,
-                        List.of("switch_theme")
+                        List.of("switch_theme", "launch_fireworks", "show_modal")
                 ),
                 new AgentDefinition(
                         "agentCreator",

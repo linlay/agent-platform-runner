@@ -34,6 +34,20 @@ class CapabilityRegistryServiceTest {
                   ]
                 }
                 """);
+        Files.writeString(toolsDir.resolve("launch_fireworks.action"), """
+                {
+                  "tools": [
+                    {"type":"function", "name":"launch_fireworks", "description":"fireworks", "parameters":{"type":"object"}}
+                  ]
+                }
+                """);
+        Files.writeString(toolsDir.resolve("show_modal.action"), """
+                {
+                  "tools": [
+                    {"type":"function", "name":"show_modal", "description":"modal", "parameters":{"type":"object"}}
+                  ]
+                }
+                """);
 
         CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
         properties.setToolsExternalDir(toolsDir.toString());
@@ -42,6 +56,8 @@ class CapabilityRegistryServiceTest {
 
         CapabilityDescriptor backend = service.find("bash").orElseThrow();
         CapabilityDescriptor action = service.find("switch_theme").orElseThrow();
+        CapabilityDescriptor fireworks = service.find("launch_fireworks").orElseThrow();
+        CapabilityDescriptor modal = service.find("show_modal").orElseThrow();
 
         assertThat(backend.kind()).isEqualTo(CapabilityKind.BACKEND);
         assertThat(backend.toolType()).isEqualTo("function");
@@ -49,6 +65,10 @@ class CapabilityRegistryServiceTest {
 
         assertThat(action.kind()).isEqualTo(CapabilityKind.ACTION);
         assertThat(action.toolType()).isEqualTo("action");
+        assertThat(fireworks.kind()).isEqualTo(CapabilityKind.ACTION);
+        assertThat(fireworks.toolType()).isEqualTo("action");
+        assertThat(modal.kind()).isEqualTo(CapabilityKind.ACTION);
+        assertThat(modal.toolType()).isEqualTo("action");
     }
 
     @Test

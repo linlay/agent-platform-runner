@@ -111,6 +111,7 @@ public class AgentDeltaToAgwInputMapper {
                     continue;
                 }
                 if (actionToolIds.contains(toolResult.toolId())) {
+                    inputs.add(new AgwInput.ActionEnd(toolResult.toolId()));
                     inputs.add(new AgwInput.ActionResult(
                             toolResult.toolId(),
                             parseResult(toolResult.result())
