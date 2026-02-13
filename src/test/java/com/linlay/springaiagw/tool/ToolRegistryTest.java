@@ -2,7 +2,10 @@ package com.linlay.springaiagw.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.linlay.springaiagw.agent.AgentCatalogProperties;
 import com.linlay.springaiagw.config.CapabilityCatalogProperties;
+import com.linlay.springaiagw.config.ViewportCatalogProperties;
+import com.linlay.springaiagw.service.RuntimeResourceSyncService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
@@ -101,7 +104,11 @@ class ToolRegistryTest {
 
         CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
         properties.setToolsExternalDir(toolsDir.toString());
-        CapabilityRegistryService capabilityRegistryService = new CapabilityRegistryService(new ObjectMapper(), properties);
+        CapabilityRegistryService capabilityRegistryService = new CapabilityRegistryService(
+                new ObjectMapper(),
+                properties,
+                createRuntimeResourceSyncService(tempDir, toolsDir)
+        );
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("capabilityRegistryService", capabilityRegistryService);
@@ -253,5 +260,15 @@ class ToolRegistryTest {
 
         assertThat(result.path("hasSensitiveData").asBoolean()).isFalse();
         assertThat(result.path("result").asText()).isEqualTo("没有敏感数据");
+    }
+
+    private RuntimeResourceSyncService createRuntimeResourceSyncService(Path root, Path toolsDir) {
+        AgentCatalogProperties agentProperties = new AgentCatalogProperties();
+        agentProperties.setExternalDir(root.resolve("agents").toString());
+        ViewportCatalogProperties viewportProperties = new ViewportCatalogProperties();
+        viewportProperties.setExternalDir(root.resolve("viewports").toString());
+        CapabilityCatalogProperties capabilityProperties = new CapabilityCatalogProperties();
+        capabilityProperties.setToolsExternalDir(toolsDir.toString());
+        return new RuntimeResourceSyncService(agentProperties, viewportProperties, capabilityProperties);
     }
 }

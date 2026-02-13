@@ -1,5 +1,8 @@
 package com.linlay.springaiagw.service;
 
+import com.linlay.springaiagw.agent.AgentCatalogProperties;
+import com.linlay.springaiagw.config.CapabilityCatalogProperties;
+import com.linlay.springaiagw.config.ViewportCatalogProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -23,14 +26,14 @@ class RuntimeResourceSyncServiceTest {
         Files.createDirectories(toolsDir);
         Files.createDirectories(viewportsDir);
 
-        Path demoPlainAgent = agentsDir.resolve("demoPlain.json");
+        Path modePlainAgent = agentsDir.resolve("modePlain.json");
         Path weatherTool = toolsDir.resolve("mock_city_weather.backend");
         Path weatherViewport = viewportsDir.resolve("show_weather_card.html");
         Path extraAgent = agentsDir.resolve("custom_agent.json");
         Path extraTool = toolsDir.resolve("custom.backend");
         Path extraViewport = viewportsDir.resolve("custom.html");
 
-        Files.writeString(demoPlainAgent, "old-agent-content");
+        Files.writeString(modePlainAgent, "old-agent-content");
         Files.writeString(weatherTool, "old-tool-content");
         Files.writeString(weatherViewport, "old-viewport-content");
         Files.writeString(extraAgent, "custom agent content");
@@ -39,14 +42,16 @@ class RuntimeResourceSyncServiceTest {
 
         RuntimeResourceSyncService service = new RuntimeResourceSyncService(
                 new PathMatchingResourcePatternResolver(),
-                tempDir
+                agentsDir,
+                viewportsDir,
+                toolsDir
         );
         service.syncRuntimeDirectories();
         service.syncRuntimeDirectories();
 
         String syncedTool = Files.readString(weatherTool);
         String syncedViewport = Files.readString(weatherViewport);
-        String syncedAgent = Files.readString(demoPlainAgent);
+        String syncedAgent = Files.readString(modePlainAgent);
 
         assertThat(syncedAgent).contains("\"mode\"").contains("\"PLAIN\"");
         assertThat(syncedTool).contains("\"name\": \"mock_city_weather\"");
@@ -55,5 +60,44 @@ class RuntimeResourceSyncServiceTest {
         assertThat(Files.readString(extraAgent)).isEqualTo("custom agent content");
         assertThat(Files.readString(extraTool)).isEqualTo("custom tool content");
         assertThat(Files.readString(extraViewport)).isEqualTo("custom viewport content");
+    }
+
+    @Test
+    void shouldSyncToConfiguredDirectoriesInsteadOfUserDirRoot() throws Exception {
+        Path configuredAgentsDir = tempDir.resolve("configured").resolve("agents");
+        Path configuredViewportsDir = tempDir.resolve("configured").resolve("viewports");
+        Path configuredToolsDir = tempDir.resolve("configured").resolve("tools");
+        Path legacyUserDir = tempDir.resolve("legacy-user-dir");
+
+        AgentCatalogProperties agentProperties = new AgentCatalogProperties();
+        agentProperties.setExternalDir(configuredAgentsDir.toString());
+        ViewportCatalogProperties viewportProperties = new ViewportCatalogProperties();
+        viewportProperties.setExternalDir(configuredViewportsDir.toString());
+        CapabilityCatalogProperties capabilityProperties = new CapabilityCatalogProperties();
+        capabilityProperties.setToolsExternalDir(configuredToolsDir.toString());
+
+        String originalUserDir = System.getProperty("user.dir");
+        try {
+            System.setProperty("user.dir", legacyUserDir.toString());
+            RuntimeResourceSyncService service = new RuntimeResourceSyncService(
+                    agentProperties,
+                    viewportProperties,
+                    capabilityProperties
+            );
+            service.syncRuntimeDirectories();
+        } finally {
+            if (originalUserDir == null) {
+                System.clearProperty("user.dir");
+            } else {
+                System.setProperty("user.dir", originalUserDir);
+            }
+        }
+
+        assertThat(configuredAgentsDir.resolve("modePlain.json")).exists();
+        assertThat(configuredViewportsDir.resolve("show_weather_card.html")).exists();
+        assertThat(configuredToolsDir.resolve("mock_city_weather.backend")).exists();
+        assertThat(legacyUserDir.resolve("agents")).doesNotExist();
+        assertThat(legacyUserDir.resolve("viewports")).doesNotExist();
+        assertThat(legacyUserDir.resolve("tools")).doesNotExist();
     }
 }

@@ -112,21 +112,27 @@ class AgwControllerTest {
                 .jsonPath("$.msg").isEqualTo("success")
                 .jsonPath("$.data[0].key").exists()
                 .jsonPath("$.data[0].meta.providerType").doesNotExist()
-                .jsonPath("$.data[?(@.key=='demoPlanExecute')]").exists()
+                .jsonPath("$.data[?(@.key=='modePlain')]").exists()
+                .jsonPath("$.data[?(@.key=='modeThinking')]").exists()
+                .jsonPath("$.data[?(@.key=='modePlainTooling')]").exists()
+                .jsonPath("$.data[?(@.key=='modeThinkingTooling')]").exists()
+                .jsonPath("$.data[?(@.key=='modeReact')]").exists()
+                .jsonPath("$.data[?(@.key=='modePlanExecute')]").exists()
                 .jsonPath("$.data[?(@.key=='demoViewport')]").exists()
-                .jsonPath("$.data[?(@.key=='demoAction')]").exists();
+                .jsonPath("$.data[?(@.key=='demoAction')]").exists()
+                .jsonPath("$.data[?(@.key=='demoAgentCreator')]").exists();
     }
 
     @Test
     void agentShouldReturnDetailByAgentKey() {
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/agent").queryParam("agentKey", "demoPlanExecute").build())
+                .uri(uriBuilder -> uriBuilder.path("/api/agent").queryParam("agentKey", "modePlanExecute").build())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.msg").isEqualTo("success")
-                .jsonPath("$.data.key").isEqualTo("demoPlanExecute")
+                .jsonPath("$.data.key").isEqualTo("modePlanExecute")
                 .jsonPath("$.data.meta.providerType").isEqualTo("BAILIAN")
                 .jsonPath("$.data.instructions").isEqualTo("你是高级执行助手。基于步骤上下文执行工具并产出步骤结果。");
     }
@@ -137,7 +143,7 @@ class AgwControllerTest {
                 .uri("/api/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
-                        "agentKey", "demoPlanExecute",
+                        "agentKey", "modePlanExecute",
                         "message", "查询上海天气"
                 ))
                 .exchange()
@@ -169,7 +175,7 @@ class AgwControllerTest {
                 .uri("/api/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
-                        "agentKey", "demoPlain",
+                        "agentKey", "modePlain",
                         "message", "流式测试"
                 ))
                 .exchange()
@@ -200,7 +206,7 @@ class AgwControllerTest {
                 .bodyValue(Map.of(
                         "requestId", "req_001",
                         "chatId", chatId,
-                        "agentKey", "demoPlanExecute",
+                        "agentKey", "modePlanExecute",
                         "message", "查询上海天气"
                 ))
                 .exchange()
@@ -226,7 +232,7 @@ class AgwControllerTest {
                 .uri("/api/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
-                        "agentKey", "demoPlanExecute",
+                        "agentKey", "modePlanExecute",
                         "chatId", "not-a-uuid",
                         "message", "查询上海天气"
                 ))
@@ -326,7 +332,7 @@ class AgwControllerTest {
                 .uri("/api/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
-                        "agentKey", "demoPlanExecute",
+                        "agentKey", "modePlanExecute",
                         "message", message,
                         "references", List.of(Map.of(
                                 "id", "ref_001",
@@ -356,7 +362,7 @@ class AgwControllerTest {
                 .expectBody()
                 .jsonPath("$.data[0].chatId").isEqualTo(chatId)
                 .jsonPath("$.data[0].chatName").isEqualTo("0123456789")
-                .jsonPath("$.data[0].firstAgentKey").isEqualTo("demoPlanExecute")
+                .jsonPath("$.data[0].firstAgentKey").isEqualTo("modePlanExecute")
                 .jsonPath("$.data[0].createdAt").isNumber()
                 .jsonPath("$.data[0].updatedAt").isNumber();
 
@@ -433,7 +439,7 @@ class AgwControllerTest {
                 .uri("/api/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
-                        "agentKey", "demoPlanExecute",
+                        "agentKey", "modePlanExecute",
                         "message", "第一轮"
                 ))
                 .exchange()
@@ -452,7 +458,7 @@ class AgwControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
                         "chatId", chatId,
-                        "agentKey", "demoPlanExecute",
+                        "agentKey", "modePlanExecute",
                         "message", "第二轮"
                 ))
                 .exchange()

@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 public class AgentFileCreateTool extends AbstractDeterministicTool {
 
     private static final Pattern AGENT_ID_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
-    private static final String DEFAULT_DESCRIPTION = "由 agentCreator 创建的智能体";
+    private static final String DEFAULT_DESCRIPTION = "由 demoAgentCreator 创建的智能体";
     private static final String DEFAULT_MODEL = "qwen3-max";
     private static final String DEFAULT_PROVIDER_KEY = "bailian";
     private static final String DEFAULT_PROMPT = "你是通用助理，回答要清晰和可执行。";

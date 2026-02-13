@@ -46,7 +46,7 @@
     {
       "chatId": "d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656",
       "chatName": "元素碳的简介，100",
-      "firstAgentKey": "demoPlain",
+      "firstAgentKey": "modePlain",
       "createdAt": 1770866044047,
       "updatedAt": 1770866412459
     }
@@ -158,7 +158,7 @@ curl -N -X GET "http://localhost:8080/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a9
 ```bash
 curl -N -X POST "http://localhost:8080/api/query" \
   -H "Content-Type: application/json" \
-  -d '{"message":"给我一个微服务网关的落地方案，100字内","agentKey":"demoPlanExecute"}'
+  -d '{"message":"给我一个微服务网关的落地方案，100字内","agentKey":"modePlanExecute"}'
 ```
 
 ## settings.xml 说明
@@ -178,11 +178,12 @@ curl -N -X POST "http://localhost:8080/api/query" \
 ```json
 {
   "description": "算命大师",
-  "providerType": "BAILIAN",
+  "providerKey": "bailian",
   "model": "qwen3-max",
-  "systemPrompt": "你是算命大师",
   "mode": "PLAIN",
-  "tools": []
+  "plain": {
+    "systemPrompt": "你是算命大师"
+  }
 }
 ```
 
@@ -191,21 +192,29 @@ curl -N -X POST "http://localhost:8080/api/query" \
 ```json
 {
   "description": "算命大师",
-  "providerType": "BAILIAN",
+  "providerKey": "bailian",
   "model": "qwen3-max",
-  "systemPrompt": """
+  "mode": "REACT",
+  "tools": ["bash", "city_datetime"],
+  "react": {
+    "systemPrompt": """
 你是算命大师
 请先问出生日期
 """,
-  "mode": "RE_ACT",
-  "tools": ["bash", "city_datetime"]
+    "maxSteps": 6
+  }
 }
 ```
 
 `mode` 支持：
-- `PLAIN`（默认直答；当配置了 tools 时，会先决策是否调用工具，最多调用 1 次）
-- `RE_ACT`（兼容旧值 `THINKING_AND_CONTENT`）
-- `PLAN_EXECUTE`（兼容旧值 `THINKING_AND_CONTENT_WITH_DUAL_TOOL_CALLS`）
+- `PLAIN`：默认直答（无需工具）
+- `THINKING`：先推理再回答（无工具）
+- `PLAIN_TOOLING`：单轮按需工具调用
+- `THINKING_TOOLING`：推理 + 单轮按需工具调用
+- `REACT`：多轮工具循环推理
+- `PLAN_EXECUTE`：先规划再逐步执行（支持每步 0~N 工具）
+
+兼容旧值：`RE_ACT` -> `REACT`，`THINKING_AND_CONTENT` -> `REACT`，`THINKING_AND_CONTENT_WITH_DUAL_TOOL_CALLS` -> `PLAN_EXECUTE`。
 
 当 `tools` 非空时，服务会按 OpenAI 兼容的原生 Function Calling 协议请求模型：
 - 请求体包含 `tools[]`
@@ -222,9 +231,14 @@ curl -N -X POST "http://localhost:8080/api/query" \
 ## viewports / tools 目录
 
 - 运行目录默认值：
-  - `viewports/`
-  - `tools/`
-- 启动时会尝试将 `src/main/resources/viewports|tools` 下文件同步到运行目录（不覆盖同名文件）。
+  - agents: `agents/`
+  - viewports: `viewports/`
+  - tools: `tools/`
+- 启动时会将 `src/main/resources/agents|viewports|tools` 同步到外部目录：
+  - `AGENT_EXTERNAL_DIR`
+  - `AGENT_VIEWPORT_EXTERNAL_DIR`
+  - `AGENT_TOOLS_EXTERNAL_DIR`
+- 同名内置文件会覆盖；外部额外自定义文件会保留，不会被删除。
 - `viewports` 支持后缀：`.html`、`.qlc`、`.dqlc`、`.json_schema`、`.custom`，默认每 30 秒刷新内存快照。
 - `tools`:
   - 后端工具文件：`*.backend`
@@ -277,25 +291,33 @@ type=html, key=show_weather_card
 
 ## 内置智能体
 
+- `modePlain`（`PLAIN`）：单次直答。
+- `modeThinking`（`THINKING`）：先思考后作答。
+- `modePlainTooling`（`PLAIN_TOOLING`）：单轮按需调用工具。
+- `modeThinkingTooling`（`THINKING_TOOLING`）：思考并单轮按需调用工具。
+- `modeReact`（`REACT`）：按需多轮工具调用。
+- `modePlanExecute`（`PLAN_EXECUTE`）：先规划后执行。
 - `demoViewport`（`PLAN_EXECUTE`）：调用 `city_datetime`、`mock_city_weather`，最终按 `viewport` 代码块协议输出天气卡片数据。
-- `demoAction`（`PLAIN`）：根据用户意图调用 `switch_theme` / `launch_fireworks` / `show_modal`。
-- `agentCreator`（`PLAN_EXECUTE`）：调用 `agent_file_create` 创建/更新 `agents/{agentId}.json`。
-- 使用 `agentCreator` 时建议提供：`agentId`、`description`、`systemPrompt`、`providerType`、`model`、`deepThink`。
+- `demoAction`（`PLAIN_TOOLING`）：根据用户意图调用 `switch_theme` / `launch_fireworks` / `show_modal`。
+- `demoAgentCreator`（`PLAN_EXECUTE`）：调用 `agent_file_create` 创建/更新 `agents/{agentId}.json`。
+- 使用 `demoAgentCreator` 时建议提供：`agentId`、`description`、`model`、`mode`、`tools`、各 mode 的 prompt 字段。
 - `agent_file_create` 会校验 `agentId`（仅允许 `A-Za-z0-9_-`，最长 64）。
-- `providerType` 不做白名单校验；未提供时默认 `BAILIAN`。
+- `providerKey/providerType` 不做白名单校验；未提供时默认 `bailian`。
 - 生成格式：
 
 ```json
 {
   "description": "算命大师",
-  "providerType": "BAILIAN",
+  "providerKey": "bailian",
   "model": "qwen3-max",
-  "systemPrompt": "你是算命大师",
-  "deepThink": false
+  "mode": "PLAIN",
+  "plain": {
+    "systemPrompt": "你是算命大师"
+  }
 }
 ```
 
-- `systemPrompt` 为多行时会写成 `"""` 形式
+- `systemPrompt` 为多行时会写成标准 JSON 字符串（含 `\\n` 换行）。
 
 ## Bash 工具目录授权
 
@@ -330,28 +352,46 @@ AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS=300000
 ```bash
 curl -N -X POST "http://localhost:8080/api/query" \
   -H "Content-Type: application/json" \
-  -d '{"message":"元素碳的简介，200字","agentKey":"demoPlain"}'
+  -d '{"message":"元素碳的简介，200字","agentKey":"demoModePlain"}'
 curl -N -X POST "http://localhost:8080/api/query" \
   -H "Content-Type: application/json" \
-  -d '{"chatId":"","message":"下一个元素的简介","agentKey":"demoPlain"}'
+  -d '{"chatId":"","message":"下一个元素的简介","agentKey":"demoModePlain"}'
 ```
 
 ```bash
 curl -N -X POST "http://localhost:8080/api/query" \
   -H "Content-Type: application/json" \
-  -d '{"message":"【确认是否有敏感信息】本项目突破传统竖井式系统建设模式，基于1+1+3+N架构（1个企业级数据库、1套OneID客户主数据、3类客群CRM系统整合优化、N个展业数字化应用），打造了覆盖展业全生命周期、贯通公司全客群管理的OneLink分支一体化数智展业服务平台。在数据基础层面，本项目首创企业级数据库及OneID客户主数据运作体系，实现公司全域客户及业务数据物理入湖，并通过事前注册、事中应用管理、事后可分析的机制，实现个人、企业、机构三类客群千万级客户的统一识别与关联。","agentKey":"demoPlain"}'
+  -d '{"message":"【确认是否有敏感信息】本项目突破传统竖井式系统建设模式，基于1+1+3+N架构（1个企业级数据库、1套OneID客户主数据、3类客群CRM系统整合优化、N个展业数字化应用），打造了覆盖展业全生命周期、贯通公司全客群管理的OneLink分支一体化数智展业服务平台。在数据基础层面，本项目首创企业级数据库及OneID客户主数据运作体系，实现公司全域客户及业务数据物理入湖，并通过事前注册、事中应用管理、事后可分析的机制，实现个人、企业、机构三类客群千万级客户的统一识别与关联。","agentKey":"demoModePlain"}'
 ```
 
 ```bash
 curl -N -X POST "http://localhost:8080/api/query" \
   -H "Content-Type: application/json" \
-  -d '{"message":"我周日要搬迁机房到上海，你先对当前服务器做一下检测，然后决定下搬迁条件","agentKey":"demoReAct"}'
+  -d '{"message":"给我一个机房搬迁风险分析摘要","agentKey":"demoModeThinking"}'
 ```
 
 ```bash
 curl -N -X POST "http://localhost:8080/api/query" \
   -H "Content-Type: application/json" \
-  -d '{"message":"规划上海机房明天搬迁的实施计划，你要先列给我看计划，然后再一步步落实","agentKey":"demoPlanExecute"}'
+  -d '{"message":"请查上海当前时间并评估是否适合安排变更窗口","agentKey":"demoModeThinkingTooling"}'
+```
+
+```bash
+curl -N -X POST "http://localhost:8080/api/query" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"查一下上海今天天气并给出出行建议","agentKey":"demoModePlainTooling"}'
+```
+
+```bash
+curl -N -X POST "http://localhost:8080/api/query" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"我周日要搬迁机房到上海，你先对当前服务器做一下检测，然后决定下搬迁条件","agentKey":"demoModeReact"}'
+```
+
+```bash
+curl -N -X POST "http://localhost:8080/api/query" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"规划上海机房明天搬迁的实施计划，你要先列给我看计划，然后再一步步落实","agentKey":"demoModePlanExecute"}'
 ```
 
 ```bash

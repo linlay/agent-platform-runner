@@ -32,13 +32,20 @@ public class ViewportRegistryService {
 
     private final ObjectMapper objectMapper;
     private final ViewportCatalogProperties properties;
+    @SuppressWarnings("unused")
+    private final RuntimeResourceSyncService runtimeResourceSyncService;
 
     private final Object refreshLock = new Object();
     private volatile Map<String, ViewportEntry> byKey = Map.of();
 
-    public ViewportRegistryService(ObjectMapper objectMapper, ViewportCatalogProperties properties) {
+    public ViewportRegistryService(
+            ObjectMapper objectMapper,
+            ViewportCatalogProperties properties,
+            RuntimeResourceSyncService runtimeResourceSyncService
+    ) {
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.runtimeResourceSyncService = runtimeResourceSyncService;
         refreshViewports();
     }
 

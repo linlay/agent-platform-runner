@@ -1,8 +1,12 @@
 package com.linlay.springaiagw.service;
 
+import com.linlay.springaiagw.agent.AgentCatalogProperties;
+import com.linlay.springaiagw.config.CapabilityCatalogProperties;
+import com.linlay.springaiagw.config.ViewportCatalogProperties;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternResolver;
@@ -21,25 +25,41 @@ public class RuntimeResourceSyncService {
     private static final Logger log = LoggerFactory.getLogger(RuntimeResourceSyncService.class);
 
     private final ResourcePatternResolver resourceResolver;
-    private final Path runtimeRootDir;
+    private final Path agentsDir;
+    private final Path viewportsDir;
+    private final Path toolsDir;
 
-    public RuntimeResourceSyncService() {
+    @Autowired
+    public RuntimeResourceSyncService(
+            AgentCatalogProperties agentCatalogProperties,
+            ViewportCatalogProperties viewportCatalogProperties,
+            CapabilityCatalogProperties capabilityCatalogProperties
+    ) {
         this(
                 new PathMatchingResourcePatternResolver(),
-                Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize()
+                Path.of(agentCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(viewportCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(capabilityCatalogProperties.getToolsExternalDir()).toAbsolutePath().normalize()
         );
     }
 
-    RuntimeResourceSyncService(ResourcePatternResolver resourceResolver, Path runtimeRootDir) {
+    RuntimeResourceSyncService(
+            ResourcePatternResolver resourceResolver,
+            Path agentsDir,
+            Path viewportsDir,
+            Path toolsDir
+    ) {
         this.resourceResolver = resourceResolver;
-        this.runtimeRootDir = runtimeRootDir;
+        this.agentsDir = agentsDir;
+        this.viewportsDir = viewportsDir;
+        this.toolsDir = toolsDir;
     }
 
     @PostConstruct
     public void syncRuntimeDirectories() {
-        syncResourceDirectory("agents", runtimeRootDir.resolve("agents").toAbsolutePath().normalize());
-        syncResourceDirectory("viewports", runtimeRootDir.resolve("viewports").toAbsolutePath().normalize());
-        syncResourceDirectory("tools", runtimeRootDir.resolve("tools").toAbsolutePath().normalize());
+        syncResourceDirectory("agents", agentsDir);
+        syncResourceDirectory("viewports", viewportsDir);
+        syncResourceDirectory("tools", toolsDir);
     }
 
     private void syncResourceDirectory(String resourceDir, Path targetDir) {
