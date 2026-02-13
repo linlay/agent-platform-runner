@@ -46,7 +46,7 @@
     {
       "chatId": "d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656",
       "chatName": "元素碳的简介，100",
-      "firstAgentKey": "modePlain",
+      "firstAgentKey": "demoModePlain",
       "createdAt": 1770866044047,
       "updatedAt": 1770866412459
     }
@@ -158,7 +158,7 @@ curl -N -X GET "http://localhost:8080/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a9
 ```bash
 curl -N -X POST "http://localhost:8080/api/query" \
   -H "Content-Type: application/json" \
-  -d '{"message":"给我一个微服务网关的落地方案，100字内","agentKey":"modePlanExecute"}'
+  -d '{"message":"给我一个微服务网关的落地方案，100字内","agentKey":"demoModePlanExecute"}'
 ```
 
 ## settings.xml 说明
@@ -291,12 +291,12 @@ type=html, key=show_weather_card
 
 ## 内置智能体
 
-- `modePlain`（`PLAIN`）：单次直答。
-- `modeThinking`（`THINKING`）：先思考后作答。
-- `modePlainTooling`（`PLAIN_TOOLING`）：单轮按需调用工具。
-- `modeThinkingTooling`（`THINKING_TOOLING`）：思考并单轮按需调用工具。
-- `modeReact`（`REACT`）：按需多轮工具调用。
-- `modePlanExecute`（`PLAN_EXECUTE`）：先规划后执行。
+- `demoModePlain`（`PLAIN`）：单次直答。
+- `demoModeThinking`（`THINKING`）：先思考后作答。
+- `demoModePlainTooling`（`PLAIN_TOOLING`）：单轮按需调用工具。
+- `demoModeThinkingTooling`（`THINKING_TOOLING`）：思考并单轮按需调用工具。
+- `demoModeReact`（`REACT`）：按需多轮工具调用。
+- `demoModePlanExecute`（`PLAN_EXECUTE`）：先规划后执行。
 - `demoViewport`（`PLAN_EXECUTE`）：调用 `city_datetime`、`mock_city_weather`，最终按 `viewport` 代码块协议输出天气卡片数据。
 - `demoAction`（`PLAIN_TOOLING`）：根据用户意图调用 `switch_theme` / `launch_fireworks` / `show_modal`。
 - `demoAgentCreator`（`PLAN_EXECUTE`）：调用 `agent_file_create` 创建/更新 `agents/{agentId}.json`。

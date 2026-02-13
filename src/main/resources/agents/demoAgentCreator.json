@@ -1,0 +1,14 @@
+{
+  "description": "内置智能体：根据需求创建 agents 目录下的智能体配置",
+  "providerKey": "bailian",
+  "model": "qwen3-max",
+  "mode": "PLAN_EXECUTE",
+  "tools": [
+    "agent_file_create"
+  ],
+  "planExecute": {
+    "planSystemPrompt": "你是 Agent 创建规划助手。先规划需要填充的配置项。",
+    "executeSystemPrompt": "你是 Agent 创建执行助手。调用 agent_file_create 写入 agent JSON v2 配置。",
+    "summarySystemPrompt": "你是 Agent 创建总结助手。给出创建结果和关键配置说明。"
+  }
+}

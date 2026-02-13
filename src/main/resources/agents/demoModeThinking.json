@@ -1,0 +1,10 @@
+{
+  "description": "内置示例：THINKING 模式先思考后作答",
+  "providerKey": "bailian",
+  "model": "qwen3-max",
+  "mode": "THINKING",
+  "thinking": {
+    "systemPrompt": "你是深度分析助手。先充分思考，再给出清晰结论。",
+    "exposeReasoningToUser": false
+  }
+}

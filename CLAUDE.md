@@ -128,20 +128,33 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 
 关键环境变量：`SERVER_PORT`、`AGENT_EXTERNAL_DIR`、`AGENT_REFRESH_INTERVAL_MS`、`AGENT_BASH_WORKING_DIRECTORY`、`AGENT_BASH_ALLOWED_PATHS`、`MEMORY_CHAT_DIR`、`MEMORY_CHAT_K`、`MEMORY_CHAT_ACTION_TOOLS`、`AGENT_LLM_INTERACTION_LOG_ENABLED`、`AGENT_LLM_INTERACTION_LOG_MASK_SENSITIVE`
 
-## Agent JSON 定义
+## Agent JSON 定义（v2）
 
 ```json
 {
   "description": "描述",
-  "providerType": "BAILIAN",
+  "providerKey": "bailian",
   "model": "qwen3-max",
-  "systemPrompt": "系统提示词",
-  "mode": "PLAIN | RE_ACT | PLAN_EXECUTE",
-  "tools": ["bash", "city_datetime"]
+  "mode": "PLAIN | THINKING | PLAIN_TOOLING | THINKING_TOOLING | REACT | PLAN_EXECUTE",
+  "tools": ["bash", "city_datetime"],
+  "plain": {
+    "systemPrompt": "系统提示词"
+  }
 }
 ```
 
-`systemPrompt` 支持 `"""..."""` 三引号多行语法。兼容旧名：`THINKING_AND_CONTENT` → `RE_ACT`，`THINKING_AND_CONTENT_WITH_DUAL_TOOL_CALLS` → `PLAN_EXECUTE`。
+各模式对应配置块（至少需要一个）：
+- `PLAIN` -> `plain.systemPrompt`
+- `THINKING` -> `thinking.systemPrompt`
+- `PLAIN_TOOLING` -> `plainTooling.systemPrompt`
+- `THINKING_TOOLING` -> `thinkingTooling.systemPrompt`
+- `REACT` -> `react.systemPrompt`
+- `PLAN_EXECUTE` -> `planExecute.planSystemPrompt` + `planExecute.executeSystemPrompt`
+
+兼容策略：
+- `RE_ACT` 兼容映射为 `REACT`
+- `THINKING_AND_CONTENT` 兼容映射为 `REACT`
+- `THINKING_AND_CONTENT_WITH_DUAL_TOOL_CALLS` 兼容映射为 `PLAN_EXECUTE`
 
 ## 开发硬性要求（MUST）
 
@@ -149,9 +162,15 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 
 ### 1. Agent 模式行为规范
 
-**PLAIN** — 直接调用 0 或 1 个工具，给出答案，不多轮迭代。
+**PLAIN** — 无工具单轮直答。
 
-**RE_ACT** — 最多 6 轮循环：思考 → 调 1 个工具 → 观察结果，直到给出最终答案。每轮最多 1 个工具。
+**THINKING** — 无工具单轮推理后输出结论。
+
+**PLAIN_TOOLING** — 最多调用 1 轮工具后输出答案。
+
+**THINKING_TOOLING** — 先推理，再最多调用 1 轮工具后输出答案。
+
+**REACT** — 最多 6 轮循环：思考 → 调 1 个工具 → 观察结果，直到给出最终答案。每轮最多 1 个工具。
 
 **PLAN_EXECUTE** — LLM 逐步决策，每步可调用 0~N 个工具（支持并行 tool_calls），按顺序执行，下一步可引用上一步的工具结果（链式引用）。
 
@@ -180,38 +199,7 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 - 日志开关：`agent.llm.interaction-log.enabled`（默认 `true`）
 - 脱敏开关：`agent.llm.interaction-log.mask-sensitive`（默认 `true`），会脱敏 `authorization/apiKey/token/secret/password`
 
-## 本次改造落地记录（2026-02-13）
+## 变更记录
 
-### 目标
-
-- 完成 `/api/query` 全链路真流式改造：禁止先聚合后发送，保证上游 delta 到达后立即下游发射。
-- 保留 `VerifyPolicy.SECOND_PASS_FIX`，并将第二轮校验结果改为实时流式输出。
-- 工具决策轮文本按策略“外发全部文本”，不隐藏中间文本。
-
-### 核心实现
-
-- 主编排接口改为流式：`AgentOrchestrator.runStream(...)`，替代列表式聚合返回。
-- `DefinitionDrivenAgent.stream(...)` 改为直接消费 `orchestrator.runStream(...)`，并保留 `TurnTrace` 的 `doOnNext` 累积和 `doOnComplete` 持久化。
-- 新增 `callModelTurnStreaming(...)`：对 `llmService.streamDeltas(...)` 的 `content/tool_calls` 增量即时透传，同时在本地累积 `finalText/plannedToolCalls` 供后续决策。
-- THINKING 系列新增增量结构化提取：`StreamingJsonFieldExtractor` 按 chunk 提取 `reasoningSummary/finalText` 并实时发射，禁止最终整段回放。
-- Verify 流式化：`VerifyService.streamSecondPass(...)`，`SECOND_PASS_FIX` 下首轮答案仅内部候选，不对外发；仅第二轮校验文本按 chunk 流式对外发。
-- 工具事件语义保持不变：`tool.start -> tool.args(多次) -> tool.end -> tool.result`，`tool.args` 来源于实时 `tool_calls.arguments` 增量，不做合并。
-
-### 覆盖模式
-
-- 已覆盖：`PLAIN`、`PLAIN_TOOLING`、`REACT`、`PLAN_EXECUTE`、`THINKING`、`THINKING_TOOLING`。
-
-### 关键文件
-
-- `src/main/java/com/linlay/springaiagw/agent/DefinitionDrivenAgent.java`
-- `src/main/java/com/linlay/springaiagw/agent/runtime/AgentOrchestrator.java`
-- `src/main/java/com/linlay/springaiagw/agent/runtime/VerifyService.java`
-- `src/main/java/com/linlay/springaiagw/agent/runtime/StreamingJsonFieldExtractor.java`
-- `src/test/java/com/linlay/springaiagw/agent/DefinitionDrivenAgentTest.java`
-- `src/test/java/com/linlay/springaiagw/service/AgentDeltaToAgwInputMapperTest.java`
-- `src/test/java/com/linlay/springaiagw/controller/AgwControllerTest.java`
-
-### 验证结果
-
-- `mvn -Dtest=DefinitionDrivenAgentTest,AgwControllerTest,AgentDeltaToAgwInputMapperTest test`：通过
-- `mvn test`：全量通过
+一次性改造记录迁移到独立文档，`CLAUDE.md` 仅保留长期有效的架构与契约信息：
+- `docs/changes/2026-02-13-streaming-refactor.md`

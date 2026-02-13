@@ -1,0 +1,14 @@
+{
+  "description": "内置示例：PLAIN_TOOLING 模式单轮按需调用工具",
+  "providerKey": "bailian",
+  "model": "qwen3-max",
+  "mode": "PLAIN_TOOLING",
+  "tools": [
+    "city_datetime",
+    "mock_city_weather",
+    "mock_sensitive_data_detector"
+  ],
+  "plainTooling": {
+    "systemPrompt": "你是工具辅助助手。优先调用工具获取实时信息，再输出简洁结论。"
+  }
+}

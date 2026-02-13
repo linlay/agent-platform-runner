@@ -1,0 +1,16 @@
+{
+  "description": "内置示例：REACT 模式按需多轮工具调用",
+  "providerKey": "bailian",
+  "model": "qwen3-max",
+  "mode": "REACT",
+  "tools": [
+    "city_datetime",
+    "mock_city_weather",
+    "mock_sensitive_data_detector",
+    "bash"
+  ],
+  "react": {
+    "systemPrompt": "你是 REACT 助手。按需调用工具，完成后输出最终答案。",
+    "maxSteps": 6
+  }
+}

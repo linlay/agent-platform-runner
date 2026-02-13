@@ -19,15 +19,23 @@ Thumbs.db
 logs/
 
 # Local configs and secrets
-agents/
-chats/
-tools/
-viewports/
+/agents/
+/chats/
+/tools/
+/viewports/
 /com/
 application-local.yml
 application-local.yaml
 .env
 .env.*
+
+# Keep classpath runtime resources tracked
+!/src/main/resources/agents/
+!/src/main/resources/agents/**
+!/src/main/resources/tools/
+!/src/main/resources/tools/**
+!/src/main/resources/viewports/
+!/src/main/resources/viewports/**
 
 # Java
 hs_err_pid*

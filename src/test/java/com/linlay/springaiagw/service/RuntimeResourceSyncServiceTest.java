@@ -26,7 +26,7 @@ class RuntimeResourceSyncServiceTest {
         Files.createDirectories(toolsDir);
         Files.createDirectories(viewportsDir);
 
-        Path modePlainAgent = agentsDir.resolve("modePlain.json");
+        Path modePlainAgent = agentsDir.resolve("demoModePlain.json");
         Path weatherTool = toolsDir.resolve("mock_city_weather.backend");
         Path weatherViewport = viewportsDir.resolve("show_weather_card.html");
         Path extraAgent = agentsDir.resolve("custom_agent.json");
@@ -93,7 +93,7 @@ class RuntimeResourceSyncServiceTest {
             }
         }
 
-        assertThat(configuredAgentsDir.resolve("modePlain.json")).exists();
+        assertThat(configuredAgentsDir.resolve("demoModePlain.json")).exists();
         assertThat(configuredViewportsDir.resolve("show_weather_card.html")).exists();
         assertThat(configuredToolsDir.resolve("mock_city_weather.backend")).exists();
         assertThat(legacyUserDir.resolve("agents")).doesNotExist();

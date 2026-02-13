@@ -1,0 +1,15 @@
+{
+  "description": "内置示例：THINKING_TOOLING 模式思考并调用工具",
+  "providerKey": "bailian",
+  "model": "qwen3-max",
+  "mode": "THINKING_TOOLING",
+  "tools": [
+    "city_datetime",
+    "mock_city_weather",
+    "mock_sensitive_data_detector"
+  ],
+  "thinkingTooling": {
+    "systemPrompt": "你是推理与工具联合助手。先充分思考，再按需调用工具补齐信息后给出结论。",
+    "exposeReasoningToUser": false
+  }
+}

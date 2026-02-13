@@ -1,0 +1,12 @@
+{
+  "description": "内置示例：PLAIN 模式单次直答",
+  "providerKey": "bailian",
+  "model": "qwen3-max",
+  "mode": "PLAIN",
+  "tools": [
+    "mock_sensitive_data_detector"
+  ],
+  "plain": {
+    "systemPrompt": "你是简洁的助理。给出清晰可执行结论。"
+  }
+}
