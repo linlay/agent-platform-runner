@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.springaiagw.agent.PlannedToolCall;
 import com.linlay.springaiagw.agent.ToolArgumentResolver;
-import com.linlay.springaiagw.model.agw.AgentDelta;
+import com.linlay.springaiagw.model.stream.AgentDelta;
 import com.linlay.springaiagw.service.FrontendSubmitCoordinator;
 import com.linlay.springaiagw.tool.BaseTool;
 import com.linlay.springaiagw.tool.ToolRegistry;

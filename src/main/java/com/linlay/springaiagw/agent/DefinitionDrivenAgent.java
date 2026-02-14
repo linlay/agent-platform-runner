@@ -8,7 +8,7 @@ import com.linlay.springaiagw.agent.runtime.ToolExecutionService;
 import com.linlay.springaiagw.agent.runtime.VerifyService;
 import com.linlay.springaiagw.memory.ChatWindowMemoryStore;
 import com.linlay.springaiagw.model.AgentRequest;
-import com.linlay.springaiagw.model.agw.AgentDelta;
+import com.linlay.springaiagw.model.stream.AgentDelta;
 import com.linlay.springaiagw.service.DeltaStreamService;
 import com.linlay.springaiagw.service.FrontendSubmitCoordinator;
 import com.linlay.springaiagw.service.LlmService;
@@ -41,27 +41,6 @@ public class DefinitionDrivenAgent implements Agent {
 
     @SuppressWarnings("unused")
     private final DeltaStreamService deltaStreamService;
-
-    public DefinitionDrivenAgent(
-            AgentDefinition definition,
-            LlmService llmService,
-            DeltaStreamService deltaStreamService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper
-    ) {
-        this(definition, llmService, deltaStreamService, toolRegistry, objectMapper, null, null);
-    }
-
-    public DefinitionDrivenAgent(
-            AgentDefinition definition,
-            LlmService llmService,
-            DeltaStreamService deltaStreamService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore
-    ) {
-        this(definition, llmService, deltaStreamService, toolRegistry, objectMapper, chatWindowMemoryStore, null);
-    }
 
     public DefinitionDrivenAgent(
             AgentDefinition definition,

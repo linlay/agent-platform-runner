@@ -2,8 +2,8 @@ package com.linlay.springaiagw.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.springaiagw.memory.ChatWindowMemoryProperties;
-import com.linlay.springaiagw.model.agw.AgwChatDetailResponse;
-import com.linlay.springaiagw.model.agw.AgwChatSummaryResponse;
+import com.linlay.springaiagw.model.api.AgwChatDetailResponse;
+import com.linlay.springaiagw.model.api.AgwChatSummaryResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

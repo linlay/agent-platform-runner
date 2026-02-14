@@ -2,10 +2,9 @@ package com.linlay.springaiagw.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.springaiagw.config.ViewportCatalogProperties;
-import com.linlay.springaiagw.model.agw.ViewportType;
+import com.linlay.springaiagw.model.ViewportType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -57,7 +56,6 @@ public class ViewportRegistryService {
         return Optional.ofNullable(byKey.get(normalized));
     }
 
-    @Scheduled(fixedDelayString = "${agent.viewport.refresh-interval-ms:30000}")
     public void refreshViewports() {
         synchronized (refreshLock) {
             Path dir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();

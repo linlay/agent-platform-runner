@@ -3,7 +3,7 @@ package com.linlay.springaiagw.service;
 import com.aiagent.agw.sdk.model.AgwInput;
 import com.aiagent.agw.sdk.model.ToolCallDelta;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.springaiagw.model.agw.AgentDelta;
+import com.linlay.springaiagw.model.stream.AgentDelta;
 import com.linlay.springaiagw.tool.ToolRegistry;
 import reactor.core.publisher.Flux;
 

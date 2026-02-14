@@ -1,4 +1,4 @@
-package com.linlay.springaiagw.model.agw;
+package com.linlay.springaiagw.model.stream;
 
 import com.aiagent.agw.sdk.model.ToolCallDelta;
 import com.fasterxml.jackson.databind.JsonNode;

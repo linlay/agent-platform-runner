@@ -43,7 +43,7 @@ class AgentRegistryTest {
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(agentsDir.toString());
 
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties);
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
         LlmService llmService = new LlmService(null, null);
         DeltaStreamService deltaStreamService = new DeltaStreamService();
         ToolRegistry toolRegistry = new ToolRegistry(List.of(
@@ -60,7 +60,9 @@ class AgentRegistryTest {
                 deltaStreamService,
                 toolRegistry,
                 new ObjectMapper(),
-                memoryStore
+                memoryStore,
+                null,
+                null
         );
 
         assertThat(registry.listIds()).contains("demo_one");

@@ -1,4 +1,4 @@
-package com.linlay.springaiagw.model.agw;
+package com.linlay.springaiagw.model.api;
 
 public record AgwChatSummaryResponse(
         String chatId,

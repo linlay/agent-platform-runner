@@ -1,4 +1,4 @@
-package com.linlay.springaiagw.model.agw;
+package com.linlay.springaiagw.model;
 
 public enum ViewportType {
     JSON_SCHEMA("json_schema"),

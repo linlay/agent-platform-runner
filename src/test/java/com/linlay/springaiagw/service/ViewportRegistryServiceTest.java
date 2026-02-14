@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.springaiagw.agent.AgentCatalogProperties;
 import com.linlay.springaiagw.config.CapabilityCatalogProperties;
 import com.linlay.springaiagw.config.ViewportCatalogProperties;
-import com.linlay.springaiagw.model.agw.ViewportType;
+import com.linlay.springaiagw.model.ViewportType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

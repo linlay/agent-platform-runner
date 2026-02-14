@@ -43,7 +43,7 @@ public class ToolArgumentResolver {
         if (resolved.isEmpty()) {
             return resolved;
         }
-        if ("mock_city_weather".equals(DecisionChunkHandler.normalizeToolName(toolName))) {
+        if ("mock_city_weather".equals(normalizeToolName(toolName))) {
             Object rawDate = resolved.get("date");
             if (rawDate instanceof String dateText) {
                 String normalizedDate = resolveRelativeDate(
@@ -69,7 +69,7 @@ public class ToolArgumentResolver {
             if (templateResolved != null) {
                 return templateResolved;
             }
-            if ("date".equalsIgnoreCase(DecisionChunkHandler.normalize(key, ""))) {
+            if ("date".equalsIgnoreCase(normalize(key, ""))) {
                 String city = String.valueOf(partialResolvedArgs.getOrDefault("city", ""));
                 return resolveRelativeDate(trimmed, city, records);
             }
@@ -99,7 +99,7 @@ public class ToolArgumentResolver {
         if (!matcher.matches()) {
             return null;
         }
-        String toolName = DecisionChunkHandler.normalizeToolName(matcher.group(1));
+        String toolName = normalizeToolName(matcher.group(1));
         String fieldName = matcher.group(2);
         String dayOffsetText = matcher.group(3);
         Integer dayOffset = parseDayOffset(dayOffsetText);
@@ -142,7 +142,7 @@ public class ToolArgumentResolver {
         }
         for (int i = records.size() - 1; i >= 0; i--) {
             Map<String, Object> record = records.get(i);
-            String recordToolName = DecisionChunkHandler.normalizeToolName(
+            String recordToolName = normalizeToolName(
                     String.valueOf(record.getOrDefault("toolName", ""))
             );
             if (!toolName.equals(recordToolName)) {
@@ -203,7 +203,7 @@ public class ToolArgumentResolver {
         String normalizedTargetCity = normalizeCity(city);
         for (int i = records.size() - 1; i >= 0; i--) {
             Map<String, Object> record = records.get(i);
-            String toolName = DecisionChunkHandler.normalizeToolName(
+            String toolName = normalizeToolName(
                     String.valueOf(record.getOrDefault("toolName", ""))
             );
             if (!"city_datetime".equals(toolName)) {
@@ -248,5 +248,13 @@ public class ToolArgumentResolver {
             return "shanghai";
         }
         return normalized;
+    }
+
+    static String normalizeToolName(String raw) {
+        return normalize(raw, "").trim().toLowerCase(Locale.ROOT);
+    }
+
+    static String normalize(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 }

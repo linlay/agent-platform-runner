@@ -10,7 +10,6 @@ import com.linlay.springaiagw.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -35,30 +34,6 @@ public class AgentRegistry {
 
     private final Object reloadLock = new Object();
     private volatile Map<String, Agent> agents = Map.of();
-
-    public AgentRegistry(
-            AgentDefinitionLoader definitionLoader,
-            LlmService llmService,
-            DeltaStreamService deltaStreamService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore
-    ) {
-        this(definitionLoader, llmService, deltaStreamService, toolRegistry, objectMapper, chatWindowMemoryStore, null);
-    }
-
-    public AgentRegistry(
-            AgentDefinitionLoader definitionLoader,
-            LlmService llmService,
-            DeltaStreamService deltaStreamService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator
-    ) {
-        this(definitionLoader, llmService, deltaStreamService, toolRegistry, objectMapper, chatWindowMemoryStore,
-                frontendSubmitCoordinator, null);
-    }
 
     @Autowired
     public AgentRegistry(
@@ -109,7 +84,6 @@ public class AgentRegistry {
         return current.getFirst();
     }
 
-    @Scheduled(fixedDelayString = "${agent.catalog.refresh-interval-ms:10000}")
     public void refreshAgents() {
         synchronized (reloadLock) {
             try {

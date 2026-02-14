@@ -5,7 +5,7 @@ import com.aiagent.agw.sdk.model.AgwInput;
 import com.aiagent.agw.sdk.model.AgwRequest;
 import com.aiagent.agw.sdk.model.ToolCallDelta;
 import com.aiagent.agw.sdk.service.AgwEventAssembler;
-import com.linlay.springaiagw.model.agw.AgentDelta;
+import com.linlay.springaiagw.model.stream.AgentDelta;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

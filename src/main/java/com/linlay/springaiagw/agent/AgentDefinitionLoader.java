@@ -33,11 +33,6 @@ public class AgentDefinitionLoader {
     private final AgentCatalogProperties properties;
     private final ChatClientRegistry chatClientRegistry;
 
-    @Deprecated
-    public AgentDefinitionLoader(ObjectMapper objectMapper, AgentCatalogProperties properties) {
-        this(objectMapper, properties, null);
-    }
-
     @Autowired
     public AgentDefinitionLoader(ObjectMapper objectMapper, AgentCatalogProperties properties, ChatClientRegistry chatClientRegistry) {
         this.objectMapper = objectMapper;
@@ -184,19 +179,7 @@ public class AgentDefinitionLoader {
         if (root == null || !root.isObject()) {
             return true;
         }
-        return root.has("deepThink") || root.has("systemPrompt") || root.has("mode") && root.path("mode").isTextual()
-                && isLegacyMode(root.path("mode").asText());
-    }
-
-    private boolean isLegacyMode(String mode) {
-        if (mode == null || mode.isBlank()) {
-            return false;
-        }
-        String normalized = mode.trim().replace('-', '_').toUpperCase(Locale.ROOT);
-        return "RE_ACT".equals(normalized)
-                || "PLAIN_CONTENT".equals(normalized)
-                || "THINKING_AND_CONTENT".equals(normalized)
-                || "THINKING_AND_CONTENT_WITH_DUAL_TOOL_CALLS".equals(normalized);
+        return root.has("deepThink") || root.has("systemPrompt");
     }
 
     private String normalizeMultilinePrompts(String rawJson) throws IOException {

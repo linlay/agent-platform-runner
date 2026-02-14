@@ -7,7 +7,6 @@ import com.linlay.springaiagw.config.CapabilityCatalogProperties;
 import com.linlay.springaiagw.service.RuntimeResourceSyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -67,7 +66,6 @@ public class CapabilityRegistryService {
         return Optional.ofNullable(byName.get(normalizeName(toolName)));
     }
 
-    @Scheduled(fixedDelayString = "${agent.capability.refresh-interval-ms:30000}")
     public void refreshCapabilities() {
         synchronized (reloadLock) {
             Map<String, CapabilityDescriptor> loaded = new LinkedHashMap<>();

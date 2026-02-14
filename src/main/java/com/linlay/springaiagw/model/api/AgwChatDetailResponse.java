@@ -1,4 +1,4 @@
-package com.linlay.springaiagw.model.agw;
+package com.linlay.springaiagw.model.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 

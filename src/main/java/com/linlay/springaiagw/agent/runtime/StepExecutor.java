@@ -1,6 +1,6 @@
 package com.linlay.springaiagw.agent.runtime;
 
-import com.linlay.springaiagw.model.agw.AgentDelta;
+import com.linlay.springaiagw.model.stream.AgentDelta;
 
 import java.util.List;
 

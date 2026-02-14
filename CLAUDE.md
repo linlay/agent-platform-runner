@@ -30,9 +30,14 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 
 | 包 | 职责 |
 |---|------|
-| `agent` | Agent 接口、`DefinitionDrivenAgent` 主实现、`AgentRegistry`（10s 热刷新）、JSON 定义加载 |
-| `service` | `LlmService`（WebClient SSE + ChatClient 双路径）、`AgwQueryService`（流编排）、`ChatRecordStore` |
-| `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册，内置 bash/city_datetime/mock_city_weather 等 |
+| `agent` | Agent 接口、`DefinitionDrivenAgent` 主实现、`AgentRegistry`（WatchService 热刷新）、JSON 定义加载 |
+| `agent.runtime` | `AgentOrchestrator` 流式编排、`ToolExecutionService`、`VerifyService`、`ModePresetMapper` |
+| `agent.runtime.policy` | `RunSpec`、`ControlStrategy`、`Budget` 等策略定义 |
+| `model` | `AgentRequest`、`ProviderProtocol`、`ProviderType`、`ViewportType` |
+| `model.api` | REST 契约：`ApiResponse`、`AgwQueryRequest`、`AgwSubmitRequest`、`AgwChatDetailResponse` 等 |
+| `model.stream` | 流式类型：`AgentDelta` |
+| `service` | `LlmService`（WebClient SSE + ChatClient 双路径）、`AgwQueryService`（流编排）、`ChatRecordStore`、`DirectoryWatchService` |
+| `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册、`CapabilityRegistryService`（外部工具），内置 bash/city_datetime/mock_city_weather 等 |
 | `controller` | REST API：`/api/agents`、`/api/agent`、`/api/chats`、`/api/chat`、`/api/query`（SSE）、`/api/submit` |
 | `memory` | 滑动窗口聊天记忆（k=20），文件存储于 `chats/` |
 
@@ -44,7 +49,6 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 - **双路径 LLM** — WebClient 原生 SSE 和 ChatClient，按需选择
 - **响应格式** — 非 SSE 接口统一 `{"code": 0, "msg": "success", "data": {}}`
 - **会话详情格式** — `GET /api/chat` 的 `data` 字段固定为 `chatId/chatName/rawMessages/events/references`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回
-- **真流式首字符检测** — `handleDecisionChunk` 方法：首个非空字符非 `{`/`` ` `` 则判定为纯文本立即流式推送，否则走 JSON 决策积累
 
 ## Chat Memory V2（JSONL）
 
@@ -59,7 +63,6 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 - assistant/tool 扩展字段支持：`_reasoningId`、`_contentId`、`_toolId`、`_actionId`、`_timing`、`_usage`。
 - action/tool 判定：通过 `memory.chat.action-tools` 白名单；命中写 `_actionId`，否则写 `_toolId`。
 - memory 回放约束：`reasoning_content` **不回传**给下一轮模型上下文。
-- 兼容策略：仅支持 V2 JSONL 行格式；不再解析旧 memory 结构。
 
 ## SSE 事件契约（最新）
 
@@ -151,10 +154,120 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 - `REACT` -> `react.systemPrompt`
 - `PLAN_EXECUTE` -> `planExecute.planSystemPrompt` + `planExecute.executeSystemPrompt`
 
-兼容策略：
-- `RE_ACT` 兼容映射为 `REACT`
-- `THINKING_AND_CONTENT` 兼容映射为 `REACT`
-- `THINKING_AND_CONTENT_WITH_DUAL_TOOL_CALLS` 兼容映射为 `PLAN_EXECUTE`
+## 各模式 JSON 配置示例
+
+**PLAIN** — 无工具单轮直答：
+
+```json
+{
+  "mode": "PLAIN",
+  "plain": { "systemPrompt": "你是助手" }
+}
+```
+
+**THINKING** — 无工具单轮推理后输出结论：
+
+```json
+{
+  "mode": "THINKING",
+  "thinking": { "systemPrompt": "你是助手", "exposeReasoningToUser": true }
+}
+```
+
+**PLAIN_TOOLING** — 最多调用 1 轮工具后输出答案：
+
+```json
+{
+  "mode": "PLAIN_TOOLING",
+  "tools": ["bash", "city_datetime"],
+  "plainTooling": { "systemPrompt": "你是助手" }
+}
+```
+
+**THINKING_TOOLING** — 先推理，再最多调用 1 轮工具后输出答案：
+
+```json
+{
+  "mode": "THINKING_TOOLING",
+  "tools": ["bash"],
+  "thinkingTooling": { "systemPrompt": "你是助手", "exposeReasoningToUser": false }
+}
+```
+
+**REACT** — 最多 N 轮循环（默认 6）：思考 → 调 1 个工具 → 观察结果：
+
+```json
+{
+  "mode": "REACT",
+  "tools": ["bash", "city_datetime"],
+  "react": { "systemPrompt": "你是助手", "maxSteps": 5 }
+}
+```
+
+**PLAN_EXECUTE** — LLM 逐步决策，每步可调用 0~N 个工具（支持并行 tool_calls）：
+
+```json
+{
+  "mode": "PLAN_EXECUTE",
+  "tools": ["bash", "city_datetime"],
+  "planExecute": {
+    "planSystemPrompt": "先规划",
+    "executeSystemPrompt": "再执行",
+    "summarySystemPrompt": "最后总结"
+  }
+}
+```
+
+## Tool 类型定义
+
+`tools/` 目录下的文件按后缀区分三种类型：
+
+| 后缀 | CapabilityKind | 说明 |
+|------|----------------|------|
+| `.backend` | `BACKEND` | 后端工具，模型通过 Function Calling 调用。`description` 用于 OpenAI tool schema，`prompt` 用于注入 system prompt |
+| `.action` | `ACTION` | 动作工具，触发前端行为（如主题切换、烟花特效）。不等待 `/api/submit`，直接返回 `"OK"` |
+| `.html` / `.qlc` / `.dqlc` | `FRONTEND` | 前端工具，触发 UI 渲染并等待 `/api/submit` 提交 |
+
+文件内容均为 `{"tools":[...]}` 格式的 JSON。
+
+## 多行 Prompt 写法
+
+`systemPrompt` 字段支持 `"""..."""` 三引号格式（非标准 JSON，预处理阶段转换）：
+
+```json
+{
+  "react": {
+    "systemPrompt": """
+你是算命大师
+请先问出生日期
+"""
+  }
+}
+```
+
+仅匹配字段名含 `systemPrompt` 的键（大小写不敏感）。
+
+## 策略覆盖能力
+
+Agent JSON 中可显式覆盖模式预设的策略值：
+
+```json
+{
+  "mode": "PLAIN",
+  "compute": "HIGH",
+  "output": "REASONING_SUMMARY",
+  "toolPolicy": "REQUIRE",
+  "verify": "SECOND_PASS_FIX",
+  "budget": { "maxModelCalls": 20, "maxToolCalls": 10, "maxSteps": 6, "timeoutMs": 120000 },
+  "plain": { "systemPrompt": "..." }
+}
+```
+
+可覆盖字段：`compute`（`LOW/MEDIUM/HIGH`）、`output`（`PLAIN/REASONING_SUMMARY`）、`toolPolicy`（`DISALLOW/ALLOW/REQUIRE`）、`verify`（`NONE/SECOND_PASS_FIX`）、`budget`。
+
+## 设计原则
+
+Agent 行为应由 LLM 推理和工具调用驱动（通过 prompt 引导），Java 层只负责编排、流式传输和工具执行管理。
 
 ## 开发硬性要求（MUST）
 

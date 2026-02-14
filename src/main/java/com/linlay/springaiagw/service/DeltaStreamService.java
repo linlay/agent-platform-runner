@@ -1,6 +1,6 @@
 package com.linlay.springaiagw.service;
 
-import com.linlay.springaiagw.model.agw.AgentDelta;
+import com.linlay.springaiagw.model.stream.AgentDelta;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 

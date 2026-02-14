@@ -39,7 +39,7 @@ class AgentDefinitionLoaderTest {
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
 
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties);
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
@@ -68,7 +68,7 @@ class AgentDefinitionLoaderTest {
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
 
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties);
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
 
@@ -95,7 +95,7 @@ class AgentDefinitionLoaderTest {
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
 
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties);
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
@@ -180,7 +180,7 @@ class AgentDefinitionLoaderTest {
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
 
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties);
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
 

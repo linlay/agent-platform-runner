@@ -1,6 +1,6 @@
 package com.linlay.springaiagw.controller;
 
-import com.linlay.springaiagw.model.agw.ApiResponse;
+import com.linlay.springaiagw.model.api.ApiResponse;
 import com.linlay.springaiagw.service.ChatNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

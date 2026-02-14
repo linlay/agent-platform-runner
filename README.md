@@ -214,8 +214,6 @@ curl -N -X POST "http://localhost:8080/api/query" \
 - `REACT`：多轮工具循环推理
 - `PLAN_EXECUTE`：先规划再逐步执行（支持每步 0~N 工具）
 
-兼容旧值：`RE_ACT` -> `REACT`，`THINKING_AND_CONTENT` -> `REACT`，`THINKING_AND_CONTENT_WITH_DUAL_TOOL_CALLS` -> `PLAN_EXECUTE`。
-
 当 `tools` 非空时，服务会按 OpenAI 兼容的原生 Function Calling 协议请求模型：
 - 请求体包含 `tools[]`
 - 流式消费 `delta.tool_calls`
@@ -361,7 +359,7 @@ curl -N -X POST "http://localhost:8080/api/query" \
 ```bash
 curl -N -X POST "http://localhost:8080/api/query" \
   -H "Content-Type: application/json" \
-  -d '{"message":"【确认是否有敏感信息】本项目突破传统竖井式系统建设模式，基于1+1+3+N架构（1个企业级数据库、1套OneID客户主数据、3类客群CRM系统整合优化、N个展业数字化应用），打造了覆盖展业全生命周期、贯通公司全客群管理的OneLink分支一体化数智展业服务平台。在数据基础层面，本项目首创企业级数据库及OneID客户主数据运作体系，实现公司全域客户及业务数据物理入湖，并通过事前注册、事中应用管理、事后可分析的机制，实现个人、企业、机构三类客群千万级客户的统一识别与关联。","agentKey":"demoModePlain"}'
+  -d '{"message":"【确认是否有敏感信息】本项目突破传统竖井式系统建设模式，基于1+1+3+N架构（1个企业级数据库、1套OneID客户主数据、3类客群CRM系统整合优化、N个展业数字化应用），打造了覆盖展业全生命周期、贯通公司全客群管理的OneLink分支一体化数智展业服务平台。在数据基础层面，本项目首创企业级数据库及OneID客户主数据运作体系，实现公司全域客户及业务数据物理入湖，并通过事前注册、事中应用管理、事后可分析的机制，实现个人、企业、机构三类客群千万级客户的统一识别与关联。","agentKey":"demoModePlainTooling"}'
 ```
 
 ```bash

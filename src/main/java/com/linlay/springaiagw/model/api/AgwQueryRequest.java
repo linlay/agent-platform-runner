@@ -1,4 +1,4 @@
-package com.linlay.springaiagw.model.agw;
+package com.linlay.springaiagw.model.api;
 
 import jakarta.validation.constraints.NotBlank;
 

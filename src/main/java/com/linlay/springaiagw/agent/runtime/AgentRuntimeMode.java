@@ -23,7 +23,7 @@ public enum AgentRuntimeMode {
             case "THINKING" -> THINKING;
             case "PLAIN_TOOLING" -> PLAIN_TOOLING;
             case "THINKING_TOOLING" -> THINKING_TOOLING;
-            case "REACT", "RE_ACT" -> REACT;
+            case "REACT" -> REACT;
             case "PLAN_EXECUTE" -> PLAN_EXECUTE;
             default -> throw new IllegalArgumentException("Unknown AgentRuntimeMode: " + raw);
         };
