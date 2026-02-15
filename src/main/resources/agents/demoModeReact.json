@@ -3,12 +3,13 @@
   "name": "示例-REACT",
   "icon": "emoji:🤖",
   "description": "内置示例：REACT 模式按需多轮工具调用",
+  "mode": "REACT",
   "modelConfig": {
     "providerKey": "bailian",
     "model": "qwen3-max",
     "reasoning": {
       "enabled": true,
-      "effort": "MEDIUM"
+      "effort": "LOW"
     }
   },
   "toolConfig": {
@@ -21,7 +22,6 @@
     "frontends": [],
     "actions": []
   },
-  "mode": "REACT",
   "react": {
     "systemPrompt": "你是 REACT 助手。按需调用工具，完成后输出最终答案。",
     "maxSteps": 6

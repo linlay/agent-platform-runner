@@ -3,55 +3,44 @@
   "name": "示例-先规划后执行",
   "icon": "emoji:📅",
   "description": "内置示例：PLAN_EXECUTE 模式先规划后执行",
-  "modelConfig": {
-    "providerKey": "bailian",
-    "model": "qwen3-max",
-    "reasoning": {
-      "enabled": true,
-      "effort": "LOW"
-    }
-  },
   "mode": "PLAN_EXECUTE",
+  "toolConfig": {
+    "backends": [
+      "mock_ops_runbook",
+      "city_datetime",
+      "mock_city_weather",
+      "mock_sensitive_data_detector",
+      "_bash_"
+    ],
+    "frontends": [],
+    "actions": []
+  },
   "planExecute": {
     "plan": {
-      "systemPrompt": "你是高级规划助手。首先进行深度思考拆解用户的问题，然后调用 _plan_add_tasks_ 添加计划任务；如无法调用工具，再输出可解析的步骤列表。",
+      "systemPrompt": """
+        你是高级规划助手。
+        根据用户的问题进行深度思考，然后规划出2～4个任务。
+      """,
       "modelConfig": {
         "providerKey": "bailian",
         "model": "qwen3-max",
         "reasoning": {
           "enabled": true,
-          "effort": "MEDIUM"
+          "effort": "HIGH"
         }
-      },
-      "toolConfig": {
-        "backends": [
-          "_plan_add_tasks_"
-        ],
-        "frontends": [],
-        "actions": []
       }
     },
     "execute": {
-      "systemPrompt": "你是高级执行助手。根据框架给出的任务列表与当前 taskId 执行任务；完成当前任务后必须调用 _plan_update_task_ 更新状态，再继续下一个任务。",
+      "systemPrompt": """
+        你是高级执行助手。根据框架给出的任务列表与当前 taskId 执行任务；
+        完成当前任务后必须调用工具更新任务状态。
+      """,
       "modelConfig": {
         "providerKey": "bailian",
         "model": "qwen3-max",
         "reasoning": {
-          "enabled": true,
-          "effort": "LOW"
+          "enabled": false
         }
-      },
-      "toolConfig": {
-        "backends": [
-          "_plan_update_task_",
-          "mock_ops_runbook",
-          "city_datetime",
-          "mock_city_weather",
-          "mock_sensitive_data_detector",
-          "_bash_"
-        ],
-        "frontends": [],
-        "actions": []
       }
     },
     "summary": {
@@ -60,7 +49,8 @@
         "providerKey": "bailian",
         "model": "qwen3-max",
         "reasoning": {
-          "enabled": false
+          "enabled": true,
+          "effort": "LOW"
         }
       },
       "toolConfig": null
