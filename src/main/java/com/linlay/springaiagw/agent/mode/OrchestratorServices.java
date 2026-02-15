@@ -29,11 +29,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 public class OrchestratorServices {
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
+    private static final Pattern STEP_PREFIX = Pattern.compile(
+            "^(?:[-*•]|\\d+[.)]|步骤\\s*\\d+[:：.)]?|[一二三四五六七八九十]+[、.)])\\s*(.+)$"
+    );
 
     private final LlmService llmService;
     private final ToolExecutionService toolExecutionService;
@@ -317,21 +321,49 @@ public class OrchestratorServices {
 
     public List<PlanStep> parsePlanSteps(String raw) {
         JsonNode root = readJson(raw);
-        if (root == null || !root.isObject() || !root.path("steps").isArray()) {
-            return List.of();
+        if (root != null && root.isObject() && root.path("steps").isArray()) {
+            List<PlanStep> steps = new ArrayList<>();
+            int index = 0;
+            for (JsonNode node : root.path("steps")) {
+                index++;
+                String id = normalize(node.path("id").asText("step-" + index));
+                String title = normalize(node.path("title").asText("Step " + index));
+                String goal = normalize(node.path("goal").asText(title));
+                String success = normalize(node.path("successCriteria").asText("完成步骤"));
+                steps.add(new PlanStep(id, title, goal, success));
+            }
+            if (!steps.isEmpty()) {
+                return steps;
+            }
         }
 
+        if (!StringUtils.hasText(raw)) {
+            return List.of();
+        }
         List<PlanStep> steps = new ArrayList<>();
+        String normalized = raw.replace("\r\n", "\n");
         int index = 0;
-        for (JsonNode node : root.path("steps")) {
+        for (String line : normalized.split("\n")) {
+            if (!StringUtils.hasText(line)) {
+                continue;
+            }
+            String trimmed = line.trim();
+            java.util.regex.Matcher matcher = STEP_PREFIX.matcher(trimmed);
+            if (!matcher.matches()) {
+                continue;
+            }
+            String content = normalize(matcher.group(1));
+            if (content.isBlank()) {
+                continue;
+            }
             index++;
-            String id = normalize(node.path("id").asText("step-" + index));
-            String title = normalize(node.path("title").asText("Step " + index));
-            String goal = normalize(node.path("goal").asText(title));
-            String success = normalize(node.path("successCriteria").asText("完成步骤"));
+            String id = "step-" + index;
+            String title = content;
+            String goal = content;
+            String success = "完成任务: " + content;
             steps.add(new PlanStep(id, title, goal, success));
         }
-        return steps;
+        return List.copyOf(steps);
     }
 
     public record PlanStep(

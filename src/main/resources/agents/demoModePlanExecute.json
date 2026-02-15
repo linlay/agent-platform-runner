@@ -8,12 +8,13 @@
     "model": "qwen3-max",
     "reasoning": {
       "enabled": true,
-      "effort": "HIGH"
+      "effort": "LOW"
     }
   },
   "toolConfig": {
     "backends": [
       "_plan_create_",
+      "_plan_get_",
       "_plan_task_update_",
       "mock_ops_runbook",
       "city_datetime",
@@ -27,7 +28,15 @@
   "mode": "PLAN_EXECUTE",
   "planExecute": {
     "plan": {
-      "systemPrompt": "你是高级规划助手。先输出结构化计划 JSON。",
+      "systemPrompt": "你是高级规划助手。优先调用 _plan_create_ 创建计划任务；如无法调用工具，再输出可解析的步骤列表。",
+      "modelConfig": {
+        "providerKey": "bailian",
+        "model": "qwen3-max",
+        "reasoning": {
+          "enabled": true,
+          "effort": "HIGH"
+        }
+      },
       "toolConfig": {
         "backends": [
           "_plan_create_"
@@ -37,9 +46,18 @@
       }
     },
     "execute": {
-      "systemPrompt": "你是高级执行助手。基于步骤上下文执行工具并产出步骤结果。",
+      "systemPrompt": "你是高级执行助手。每次先调用 _plan_get_ 查看当前任务，完成当前任务后必须调用 _plan_task_update_ 更新状态，再继续下一个任务。",
+      "modelConfig": {
+        "providerKey": "bailian",
+        "model": "qwen3-max",
+        "reasoning": {
+          "enabled": true,
+          "effort": "LOW"
+        }
+      },
       "toolConfig": {
         "backends": [
+          "_plan_get_",
           "_plan_task_update_",
           "mock_ops_runbook",
           "city_datetime",
@@ -53,6 +71,13 @@
     },
     "summary": {
       "systemPrompt": "你是总结助手。综合所有步骤信息，输出最终结论。",
+      "modelConfig": {
+        "providerKey": "bailian",
+        "model": "qwen3-max",
+        "reasoning": {
+          "enabled": false
+        }
+      },
       "toolConfig": null
     }
   }

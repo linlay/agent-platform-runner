@@ -4,6 +4,7 @@ import com.aiagent.agw.sdk.model.ToolCallDelta;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.springaiagw.agent.runtime.AgentRuntimeMode;
 import com.linlay.springaiagw.agent.runtime.ExecutionContext;
+import com.linlay.springaiagw.agent.runtime.PlanExecutionStalledException;
 import com.linlay.springaiagw.agent.runtime.ToolExecutionService;
 import com.linlay.springaiagw.agent.runtime.VerifyService;
 import com.linlay.springaiagw.agent.mode.OrchestratorServices;
@@ -148,6 +149,13 @@ public class DefinitionDrivenAgent implements Agent {
                 services.emit(sink, AgentDelta.planUpdate(context.planId(), context.request().chatId(), context.planTasks()));
             }
             definition.agentMode().run(context, enabledToolsByName, services, sink);
+            services.emit(sink, AgentDelta.finish("stop"));
+            if (!sink.isCancelled()) {
+                sink.complete();
+            }
+        } catch (PlanExecutionStalledException ex) {
+            log.warn("[agent:{}] plan execution stalled", definition.id(), ex);
+            services.emit(sink, AgentDelta.content(ex.getMessage()));
             services.emit(sink, AgentDelta.finish("stop"));
             if (!sink.isCancelled()) {
                 sink.complete();

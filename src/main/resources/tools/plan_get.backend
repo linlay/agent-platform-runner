@@ -1,0 +1,14 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "name": "_plan_get_",
+      "description": "获取当前计划快照，返回 planId、chatId 和 tasks 列表。",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    }
+  ]
+}

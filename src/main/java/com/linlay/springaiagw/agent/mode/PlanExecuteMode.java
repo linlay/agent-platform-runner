@@ -3,6 +3,8 @@ package com.linlay.springaiagw.agent.mode;
 import com.linlay.springaiagw.agent.AgentConfigFile;
 import com.linlay.springaiagw.agent.runtime.AgentRuntimeMode;
 import com.linlay.springaiagw.agent.runtime.ExecutionContext;
+import com.linlay.springaiagw.agent.runtime.PlanExecutionStalledException;
+import com.linlay.springaiagw.agent.runtime.ToolExecutionService;
 import com.linlay.springaiagw.agent.runtime.policy.Budget;
 import com.linlay.springaiagw.agent.runtime.policy.ControlStrategy;
 import com.linlay.springaiagw.agent.runtime.policy.OutputPolicy;
@@ -15,8 +17,10 @@ import com.linlay.springaiagw.tool.BaseTool;
 import org.springframework.ai.chat.messages.UserMessage;
 import reactor.core.publisher.FluxSink;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public final class PlanExecuteMode extends AgentMode {
 
@@ -88,7 +92,7 @@ public final class PlanExecuteMode extends AgentMode {
                 context,
                 planStage,
                 context.planMessages(),
-                "请输出结构化计划（JSON），包含 steps 字段，每个 step 含 title、goal、successCriteria。",
+                "请先规划任务。优先调用 _plan_create_ 创建计划任务；如无法调用工具，请输出可解析的步骤列表。",
                 services.toolExecutionService().enabledFunctionTools(planTools),
                 planTools.isEmpty() ? ToolChoice.NONE : ToolChoice.AUTO,
                 "agent-plan-generate",
@@ -102,23 +106,31 @@ public final class PlanExecuteMode extends AgentMode {
             services.executeToolsAndEmit(context, planTools, planTurn.toolCalls(), sink);
         }
 
-        List<OrchestratorServices.PlanStep> steps = context.hasPlan()
-                ? toStepsFromPlanTasks(context.planTasks())
-                : services.parsePlanSteps(planTurn.finalText());
-        if (steps.isEmpty()) {
-            steps = List.of(new OrchestratorServices.PlanStep("step-1", "执行任务", context.request().message(), "输出可执行结果"));
+        if (!context.hasPlan()) {
+            List<OrchestratorServices.PlanStep> fallbackSteps = services.parsePlanSteps(planTurn.finalText());
+            if (fallbackSteps.isEmpty()) {
+                fallbackSteps = List.of(new OrchestratorServices.PlanStep("step-1", "执行任务", context.request().message(), "输出可执行结果"));
+            }
+            context.initializePlan(context.planId(), toPlanTasks(fallbackSteps));
+            services.emit(sink, AgentDelta.planUpdate(context.planId(), context.request().chatId(), context.planTasks()));
         }
 
         int stepNo = 0;
-        for (OrchestratorServices.PlanStep step : steps) {
-            stepNo++;
-            if (stepNo > context.budget().maxSteps()) {
+        int stalledCount = 0;
+        String stalledTaskId = null;
+
+        while (stepNo < context.budget().maxSteps()) {
+            ToolExecutionService.PlanSnapshot beforeSnapshot = services.toolExecutionService().planSnapshot(context);
+            AgentDelta.PlanTask step = firstUnfinishedTask(beforeSnapshot.tasks());
+            if (step == null) {
                 break;
             }
+
+            stepNo++;
             context.executeMessages().add(new UserMessage(
-                    "当前执行步骤 [" + stepNo + "/" + steps.size() + "]: " + step.title()
-                            + "\n目标: " + step.goal()
-                            + "\n成功标准: " + step.successCriteria()
+                    "当前执行任务 [" + stepNo + "/" + context.budget().maxSteps() + "]: " + normalize(step.taskId(), "unknown")
+                            + "\n描述: " + normalize(step.description(), "无描述")
+                            + "\n要求: 完成后必须调用 _plan_task_update_ 更新该 task 状态。"
             ));
 
             OrchestratorServices.ModelTurn stepTurn = services.callModelTurnStreaming(
@@ -177,18 +189,41 @@ public final class PlanExecuteMode extends AgentMode {
                 services.appendAssistantMessage(context.executeMessages(), summaryText);
                 if (!summaryText.isBlank()) {
                     context.toolRecords().add(Map.of(
-                            "stepId", step.id(),
-                            "stepTitle", step.title(),
+                            "stepId", normalize(step.taskId(), "unknown"),
+                            "stepTitle", normalize(step.description(), "执行任务"),
                             "summary", summaryText
                     ));
                 }
             } else if (!services.normalize(stepTurn.finalText()).isBlank()) {
                 services.appendAssistantMessage(context.executeMessages(), services.normalize(stepTurn.finalText()));
                 context.toolRecords().add(Map.of(
-                        "stepId", step.id(),
-                        "stepTitle", step.title(),
+                        "stepId", normalize(step.taskId(), "unknown"),
+                        "stepTitle", normalize(step.description(), "执行任务"),
                         "summary", services.normalize(stepTurn.finalText())
                 ));
+            }
+
+            ToolExecutionService.PlanSnapshot afterSnapshot = services.toolExecutionService().planSnapshot(context);
+            String beforeStatus = normalizeStatus(step.status());
+            String afterStatus = statusOfTask(afterSnapshot.tasks(), step.taskId());
+            boolean progressed = afterStatus == null || !Objects.equals(beforeStatus, afterStatus);
+            if (progressed) {
+                stalledTaskId = null;
+                stalledCount = 0;
+                continue;
+            }
+
+            if (Objects.equals(stalledTaskId, step.taskId())) {
+                stalledCount++;
+            } else {
+                stalledTaskId = step.taskId();
+                stalledCount = 1;
+            }
+            if (stalledCount >= 2) {
+                throw new PlanExecutionStalledException(
+                        "计划任务执行中断：任务 [" + normalize(step.taskId(), "unknown")
+                                + "] 连续 2 次无状态推进，请在任务完成后调用 _plan_task_update_ 更新状态。"
+                );
             }
         }
 
@@ -201,23 +236,67 @@ public final class PlanExecuteMode extends AgentMode {
         services.emitFinalAnswer(context, context.executeMessages(), finalText, !secondPass, sink);
     }
 
-    private List<OrchestratorServices.PlanStep> toStepsFromPlanTasks(List<com.linlay.springaiagw.model.stream.AgentDelta.PlanTask> tasks) {
-        if (tasks == null || tasks.isEmpty()) {
+    private List<AgentDelta.PlanTask> toPlanTasks(List<OrchestratorServices.PlanStep> steps) {
+        if (steps == null || steps.isEmpty()) {
             return List.of();
         }
-        List<OrchestratorServices.PlanStep> steps = new java.util.ArrayList<>();
-        for (com.linlay.springaiagw.model.stream.AgentDelta.PlanTask task : tasks) {
-            if (task == null || task.taskId() == null || task.taskId().isBlank() || task.description() == null || task.description().isBlank()) {
+        List<AgentDelta.PlanTask> tasks = new ArrayList<>();
+        int index = 1;
+        for (OrchestratorServices.PlanStep step : steps) {
+            if (step == null || step.title() == null || step.title().isBlank()) {
                 continue;
             }
-            String title = task.description().trim();
-            steps.add(new OrchestratorServices.PlanStep(
-                    task.taskId().trim(),
-                    title,
-                    title,
-                    "完成任务: " + title
+            String taskId = normalize(step.id(), "task" + index);
+            String description = normalize(step.title(), normalize(step.goal(), "执行任务"));
+            tasks.add(new AgentDelta.PlanTask(
+                    taskId,
+                    description,
+                    "init"
             ));
+            index++;
         }
-        return List.copyOf(steps);
+        return List.copyOf(tasks);
+    }
+
+    private AgentDelta.PlanTask firstUnfinishedTask(List<AgentDelta.PlanTask> tasks) {
+        if (tasks == null || tasks.isEmpty()) {
+            return null;
+        }
+        for (AgentDelta.PlanTask task : tasks) {
+            if (task == null || task.taskId() == null || task.taskId().isBlank()) {
+                continue;
+            }
+            String status = normalizeStatus(task.status());
+            if (!"completed".equals(status) && !"canceled".equals(status)) {
+                return task;
+            }
+        }
+        return null;
+    }
+
+    private String statusOfTask(List<AgentDelta.PlanTask> tasks, String taskId) {
+        if (tasks == null || tasks.isEmpty() || taskId == null || taskId.isBlank()) {
+            return null;
+        }
+        for (AgentDelta.PlanTask task : tasks) {
+            if (task == null || task.taskId() == null) {
+                continue;
+            }
+            if (taskId.trim().equals(task.taskId().trim())) {
+                return normalizeStatus(task.status());
+            }
+        }
+        return null;
+    }
+
+    private String normalizeStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "init";
+        }
+        return status.trim().toLowerCase();
+    }
+
+    private String normalize(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
     }
 }

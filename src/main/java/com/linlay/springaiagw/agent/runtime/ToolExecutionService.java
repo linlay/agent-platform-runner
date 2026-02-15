@@ -3,6 +3,7 @@ package com.linlay.springaiagw.agent.runtime;
 import com.aiagent.agw.sdk.model.ToolCallDelta;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.springaiagw.agent.PlannedToolCall;
 import com.linlay.springaiagw.agent.ToolArgumentResolver;
@@ -73,7 +74,7 @@ public class ToolExecutionService {
                 deltas.add(AgentDelta.toolCalls(List.of(new ToolCallDelta(callId, toolType, toolName, argsJson))));
             }
 
-            JsonNode resultNode = invokeByKind(runId, callId, toolName, toolType, resolvedArgs, enabledToolsByName);
+            JsonNode resultNode = invokeByKind(runId, callId, toolName, toolType, resolvedArgs, enabledToolsByName, context);
             String resultText = toResultText(resultNode);
             deltas.add(AgentDelta.toolResult(callId, resultText));
             records.add(buildToolRecord(callId, toolName, toolType, resolvedArgs, resultNode));
@@ -103,16 +104,30 @@ public class ToolExecutionService {
                 .toList();
     }
 
+    public PlanSnapshot planSnapshot(ExecutionContext context) {
+        if (context == null) {
+            return new PlanSnapshot("plan_default", null, List.of());
+        }
+        String planId = context.planId();
+        String chatId = context.request() == null ? null : context.request().chatId();
+        return new PlanSnapshot(planId, chatId, context.planTasks());
+    }
+
     private JsonNode invokeByKind(
             String runId,
             String toolId,
             String toolName,
             String toolType,
             Map<String, Object> args,
-            Map<String, BaseTool> enabledToolsByName
+            Map<String, BaseTool> enabledToolsByName,
+            ExecutionContext context
     ) {
         if (!enabledToolsByName.containsKey(toolName)) {
             return errorResult(toolName, "Tool is not enabled for this agent: " + toolName);
+        }
+
+        if ("_plan_get_".equals(toolName)) {
+            return planGetResult(planSnapshot(context));
         }
 
         if ("action".equalsIgnoreCase(toolType)) {
@@ -174,6 +189,32 @@ public class ToolExecutionService {
             return result.asText();
         }
         return result.toString();
+    }
+
+    private JsonNode planGetResult(PlanSnapshot snapshot) {
+        ObjectNode result = objectMapper.createObjectNode();
+        result.put("tool", "_plan_get_");
+        result.put("ok", true);
+        result.put("planId", snapshot.planId());
+        if (snapshot.chatId() == null) {
+            result.putNull("chatId");
+        } else {
+            result.put("chatId", snapshot.chatId());
+        }
+
+        ArrayNode tasks = objectMapper.createArrayNode();
+        for (AgentDelta.PlanTask task : snapshot.tasks()) {
+            if (task == null) {
+                continue;
+            }
+            ObjectNode item = objectMapper.createObjectNode();
+            item.put("taskId", normalize(task.taskId()));
+            item.put("description", normalize(task.description()));
+            item.put("status", normalizeStatus(task.status()));
+            tasks.add(item);
+        }
+        result.set("tasks", tasks);
+        return result;
     }
 
     private String normalizeToolName(String raw) {
@@ -331,5 +372,19 @@ public class ToolExecutionService {
             List<AgentDelta> deltas,
             List<ToolExecutionEvent> events
     ) {
+    }
+
+    public record PlanSnapshot(
+            String planId,
+            String chatId,
+            List<AgentDelta.PlanTask> tasks
+    ) {
+        public PlanSnapshot {
+            if (tasks == null) {
+                tasks = List.of();
+            } else {
+                tasks = List.copyOf(tasks);
+            }
+        }
     }
 }
