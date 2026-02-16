@@ -23,7 +23,16 @@
     "actions": []
   },
   "react": {
-    "systemPrompt": "你是 REACT 助手。按需调用工具，完成后输出最终答案。",
+    "systemPrompt": """
+      你是 REACT 助手。按需调用工具，完成后输出最终答案。
+      如果工具有调用后指令，需要参照执行。
+      viewport视图块结构如下：
+      ```viewport
+      type=TYPE, key=KEY
+      {填充tool.result的json}
+      ```
+      以上是viewport视图块，type可选值:html/qhtml/qlc/dqlc，key的值从使用的工具提示中获取
+    """,
     "maxSteps": 6
   }
 }
