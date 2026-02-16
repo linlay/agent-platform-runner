@@ -17,6 +17,8 @@ import com.linlay.springaiagw.agent.runtime.policy.RunSpec;
 import com.linlay.springaiagw.agent.runtime.policy.ToolChoice;
 import com.linlay.springaiagw.agent.runtime.policy.ToolPolicy;
 import com.linlay.springaiagw.agent.runtime.policy.VerifyPolicy;
+import com.linlay.springaiagw.memory.ChatWindowMemoryProperties;
+import com.linlay.springaiagw.memory.ChatWindowMemoryStore;
 import com.linlay.springaiagw.model.AgentRequest;
 import com.linlay.springaiagw.model.stream.AgentDelta;
 import com.linlay.springaiagw.service.DeltaStreamService;
@@ -40,6 +42,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
@@ -212,7 +215,7 @@ class DefinitionDrivenAgentTest {
     }
 
     @Test
-    void shouldInjectSkillPromptIntoSystemPrompt() throws Exception {
+    void shouldInjectSkillCatalogIntoSystemPromptOnly() throws Exception {
         Path skillsRoot = Files.createTempDirectory("skills-registry");
         Path skillFile = skillsRoot.resolve("screenshot").resolve("SKILL.md");
         Files.createDirectories(skillFile.getParent());
@@ -272,7 +275,287 @@ class DefinitionDrivenAgentTest {
         assertThat(captured.get()).isNotNull();
         assertThat(captured.get().systemPrompt()).contains("你是测试助手");
         assertThat(captured.get().systemPrompt()).contains("skillId: screenshot");
-        assertThat(captured.get().systemPrompt()).contains("always verify target window.");
+        assertThat(captured.get().systemPrompt()).contains("description: capture screenshots");
+        assertThat(captured.get().systemPrompt()).doesNotContain("instructions:");
+        assertThat(captured.get().systemPrompt()).doesNotContain("always verify target window.");
+        assertThat(captured.get().userPrompt()).isNull();
+    }
+
+    @Test
+    void shouldAppendDeferredSkillPromptAfterSkillToolCall() throws Exception {
+        SkillRegistryService skillRegistryService = createSkillRegistry("always verify target window.");
+        Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
+
+        AgentDefinition definition = new AgentDefinition(
+                "demoSkillDeferredPrompt",
+                "demoSkillDeferredPrompt",
+                null,
+                "demo deferred prompt",
+                "bailian",
+                "qwen3-max",
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("_skill_script_run_"), false, ComputePolicy.MEDIUM)),
+                List.of("_skill_script_run_"),
+                List.of("screenshot")
+        );
+
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                stageSpecs.put(spec.stage(), spec);
+                if ("agent-oneshot-tool-first".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta(
+                                    "call_skill_1",
+                                    "function",
+                                    "_skill_script_run_",
+                                    "{\"skill\":\"screenshot\",\"script\":\"scripts/demo_echo.py\"}"
+                            )),
+                            "tool_calls"
+                    ));
+                }
+                if ("agent-oneshot-tool-final".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta("完成", null, "stop"));
+                }
+                return Flux.empty();
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                new DeltaStreamService(),
+                new ToolRegistry(List.of(skillScriptRunTool())),
+                objectMapper,
+                null,
+                null,
+                skillRegistryService
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试 skill 延迟注入", null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(stageSpecs.get("agent-oneshot-tool-first")).isNotNull();
+        assertThat(stageSpecs.get("agent-oneshot-tool-final")).isNotNull();
+        assertThat(stageSpecs.get("agent-oneshot-tool-first").systemPrompt())
+                .contains("skillId: screenshot")
+                .doesNotContain("always verify target window.");
+        assertThat(stageSpecs.get("agent-oneshot-tool-first").userPrompt()).isNull();
+        assertThat(stageSpecs.get("agent-oneshot-tool-final").userPrompt())
+                .contains("请基于已有信息输出最终答案，不再调用工具。")
+                .contains("skillId: screenshot")
+                .contains("instructions:")
+                .contains("always verify target window.");
+    }
+
+    @Test
+    void shouldDiscloseSameSkillOnlyOnceAcrossMultipleToolCalls() throws Exception {
+        SkillRegistryService skillRegistryService = createSkillRegistry("always verify target window.");
+        Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
+
+        AgentDefinition definition = new AgentDefinition(
+                "demoSkillDedup",
+                "demoSkillDedup",
+                null,
+                "demo skill dedup",
+                "bailian",
+                "qwen3-max",
+                AgentRuntimeMode.REACT,
+                new RunSpec(ControlStrategy.REACT_LOOP, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, new Budget(10, 10, 4, 60_000)),
+                new ReactMode(new StageSettings("你是测试助手", null, null, List.of("_skill_script_run_"), false, ComputePolicy.MEDIUM), 4),
+                List.of("_skill_script_run_"),
+                List.of("screenshot")
+        );
+
+        LlmService llmService = new StubLlmService() {
+            private int step;
+
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                stageSpecs.put(spec.stage(), spec);
+                if (!spec.stage().startsWith("agent-react-step-")) {
+                    return Flux.empty();
+                }
+                step++;
+                if (step <= 2) {
+                    return Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta(
+                                    "call_skill_" + step,
+                                    "function",
+                                    "_skill_script_run_",
+                                    "{\"skill\":\"screenshot\",\"script\":\"scripts/demo_echo.py\"}"
+                            )),
+                            "tool_calls"
+                    ));
+                }
+                return Flux.just(new LlmDelta("完成", null, "stop"));
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                new DeltaStreamService(),
+                new ToolRegistry(List.of(skillScriptRunTool())),
+                objectMapper,
+                null,
+                null,
+                skillRegistryService
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试 skill 去重披露", null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(stageSpecs.get("agent-react-step-1")).isNotNull();
+        assertThat(stageSpecs.get("agent-react-step-2")).isNotNull();
+        assertThat(stageSpecs.get("agent-react-step-3")).isNotNull();
+        assertThat(stageSpecs.get("agent-react-step-1").userPrompt()).isNull();
+        assertThat(stageSpecs.get("agent-react-step-2").userPrompt()).contains("always verify target window.");
+        assertThat(stageSpecs.get("agent-react-step-3").userPrompt()).isNull();
+    }
+
+    @Test
+    void shouldIgnoreUnknownSkillFromToolCallAndLogWarning(CapturedOutput output) throws Exception {
+        SkillRegistryService skillRegistryService = createSkillRegistry("always verify target window.");
+        Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
+
+        AgentDefinition definition = new AgentDefinition(
+                "demoSkillUnknown",
+                "demoSkillUnknown",
+                null,
+                "demo unknown skill",
+                "bailian",
+                "qwen3-max",
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("_skill_script_run_"), false, ComputePolicy.MEDIUM)),
+                List.of("_skill_script_run_"),
+                List.of("screenshot")
+        );
+
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                stageSpecs.put(spec.stage(), spec);
+                if ("agent-oneshot-tool-first".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta(
+                                    "call_skill_unknown",
+                                    "function",
+                                    "_skill_script_run_",
+                                    "{\"skill\":\"unknown_skill\",\"script\":\"scripts/demo_echo.py\"}"
+                            )),
+                            "tool_calls"
+                    ));
+                }
+                if ("agent-oneshot-tool-final".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta("完成", null, "stop"));
+                }
+                return Flux.empty();
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                new DeltaStreamService(),
+                new ToolRegistry(List.of(skillScriptRunTool())),
+                objectMapper,
+                null,
+                null,
+                skillRegistryService
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试未知 skill", null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(stageSpecs.get("agent-oneshot-tool-final")).isNotNull();
+        assertThat(stageSpecs.get("agent-oneshot-tool-final").userPrompt())
+                .contains("请基于已有信息输出最终答案，不再调用工具。")
+                .doesNotContain("instructions:")
+                .doesNotContain("always verify target window.");
+        String logs = output.getOut() + output.getErr();
+        assertThat(logs).contains("requested unknown skill");
+    }
+
+    @Test
+    void shouldNotPersistDeferredSkillPromptIntoChatMemory() throws Exception {
+        SkillRegistryService skillRegistryService = createSkillRegistry("always verify target window.");
+        Path memoryDir = Files.createTempDirectory("chat-memory");
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        properties.setDir(memoryDir.toString());
+        properties.setK(20);
+        ChatWindowMemoryStore chatWindowMemoryStore = new ChatWindowMemoryStore(objectMapper, properties);
+        String chatId = UUID.randomUUID().toString();
+
+        AgentDefinition definition = new AgentDefinition(
+                "demoSkillMemory",
+                "demoSkillMemory",
+                null,
+                "demo skill memory",
+                "bailian",
+                "qwen3-max",
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("_skill_script_run_"), false, ComputePolicy.MEDIUM)),
+                List.of("_skill_script_run_"),
+                List.of("screenshot")
+        );
+
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                if ("agent-oneshot-tool-first".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta(
+                                    "call_skill_memory",
+                                    "function",
+                                    "_skill_script_run_",
+                                    "{\"skill\":\"screenshot\",\"script\":\"scripts/demo_echo.py\"}"
+                            )),
+                            "tool_calls"
+                    ));
+                }
+                if ("agent-oneshot-tool-final".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta("完成", null, "stop"));
+                }
+                return Flux.empty();
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                new DeltaStreamService(),
+                new ToolRegistry(List.of(skillScriptRunTool())),
+                objectMapper,
+                chatWindowMemoryStore,
+                null,
+                skillRegistryService
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试 memory", chatId, "req_memory", "run_memory"))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        Path memoryFile = memoryDir.resolve(chatId + ".json");
+        assertThat(memoryFile).exists();
+        String stored = Files.readString(memoryFile);
+        assertThat(stored).contains("测试 memory");
+        assertThat(stored).doesNotContain("always verify target window.");
+        assertThat(stored).doesNotContain("instructions:");
     }
 
     @Test
@@ -1035,6 +1318,44 @@ class DefinitionDrivenAgentTest {
                 .filter(value -> value != null && !value.isBlank())
                 .toList();
         assertThat(contentDeltas).containsExactly("修", "复");
+    }
+
+    private SkillRegistryService createSkillRegistry(String promptText) throws Exception {
+        Path skillsRoot = Files.createTempDirectory("skills-registry");
+        Path skillFile = skillsRoot.resolve("screenshot").resolve("SKILL.md");
+        Files.createDirectories(skillFile.getParent());
+        Files.writeString(skillFile, """
+                ---
+                name: "screenshot"
+                description: "capture screenshots"
+                ---
+                # Skill Prompt
+                %s
+                """.formatted(promptText));
+
+        SkillCatalogProperties skillProperties = new SkillCatalogProperties();
+        skillProperties.setExternalDir(skillsRoot.toString());
+        skillProperties.setMaxPromptChars(1000);
+        return new SkillRegistryService(skillProperties, null);
+    }
+
+    private BaseTool skillScriptRunTool() {
+        return new BaseTool() {
+            @Override
+            public String name() {
+                return "_skill_script_run_";
+            }
+
+            @Override
+            public String description() {
+                return "run skill scripts";
+            }
+
+            @Override
+            public JsonNode invoke(Map<String, Object> args) {
+                return objectMapper.valueToTree(Map.of("ok", true, "stdout", "ok"));
+            }
+        };
     }
 
     private AgentDefinition definition(

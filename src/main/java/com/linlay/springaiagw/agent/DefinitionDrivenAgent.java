@@ -176,8 +176,14 @@ public class DefinitionDrivenAgent implements Agent {
                     List<Message> historyMessages = loadHistoryMessages(request.chatId());
                     ChatWindowMemoryStore.PlanSnapshot latestPlanSnapshot = loadLatestPlanSnapshot(request.chatId());
                     TurnTrace trace = new TurnTrace();
-                    String skillPrompt = resolveSkillPrompt();
-                    ExecutionContext context = new ExecutionContext(definition, request, historyMessages, skillPrompt);
+                    SkillPromptBundle skillPromptBundle = resolveSkillPrompts();
+                    ExecutionContext context = new ExecutionContext(
+                            definition,
+                            request,
+                            historyMessages,
+                            skillPromptBundle.catalogPrompt(),
+                            skillPromptBundle.resolvedSkillsById()
+                    );
                     if (latestPlanSnapshot != null) {
                         context.initializePlan(latestPlanSnapshot.planId, toPlanTasks(latestPlanSnapshot.plan));
                     }
@@ -246,11 +252,12 @@ public class DefinitionDrivenAgent implements Agent {
         return normalize(input, "tool").replaceAll("[^a-zA-Z0-9_]", "_").toLowerCase(Locale.ROOT);
     }
 
-    private String resolveSkillPrompt() {
+    private SkillPromptBundle resolveSkillPrompts() {
         if (skillRegistryService == null || definition.skills().isEmpty()) {
-            return "";
+            return new SkillPromptBundle("", Map.of());
         }
-        List<String> blocks = new ArrayList<>();
+        List<String> catalogBlocks = new ArrayList<>();
+        Map<String, SkillDescriptor> resolvedSkillsById = new LinkedHashMap<>();
         for (String configuredSkill : definition.skills()) {
             String skillId = normalize(configuredSkill, "").trim().toLowerCase(Locale.ROOT);
             if (!StringUtils.hasText(skillId)) {
@@ -261,10 +268,7 @@ public class DefinitionDrivenAgent implements Agent {
                 log.warn("[agent:{}] configured skill not found and will be ignored: {}", id(), skillId);
                 continue;
             }
-            String prompt = normalize(descriptor.prompt(), "");
-            if (!StringUtils.hasText(prompt)) {
-                continue;
-            }
+            resolvedSkillsById.putIfAbsent(descriptor.id(), descriptor);
             StringBuilder block = new StringBuilder();
             block.append("skillId: ").append(descriptor.id());
             if (StringUtils.hasText(descriptor.name())) {
@@ -273,14 +277,14 @@ public class DefinitionDrivenAgent implements Agent {
             if (StringUtils.hasText(descriptor.description())) {
                 block.append("\ndescription: ").append(descriptor.description());
             }
-            block.append("\ninstructions:\n").append(prompt);
-            blocks.add(block.toString());
+            catalogBlocks.add(block.toString());
         }
-        if (blocks.isEmpty()) {
-            return "";
+        if (catalogBlocks.isEmpty()) {
+            return new SkillPromptBundle("", Map.copyOf(resolvedSkillsById));
         }
-        return "可用 skills（按需使用，不要虚构不存在的 skill 或脚本）:\n\n"
-                + String.join("\n\n---\n\n", blocks);
+        String catalogPrompt = "可用 skills（目录摘要，按需使用，不要虚构不存在的 skill 或脚本）:\n\n"
+                + String.join("\n\n---\n\n", catalogBlocks);
+        return new SkillPromptBundle(catalogPrompt, Map.copyOf(resolvedSkillsById));
     }
 
     private List<Message> loadHistoryMessages(String chatId) {
@@ -802,6 +806,12 @@ public class DefinitionDrivenAgent implements Agent {
             snapshot.plan = List.copyOf(tasks);
             return snapshot;
         }
+    }
+
+    private record SkillPromptBundle(
+            String catalogPrompt,
+            Map<String, SkillDescriptor> resolvedSkillsById
+    ) {
     }
 
     private static final class ToolTrace {

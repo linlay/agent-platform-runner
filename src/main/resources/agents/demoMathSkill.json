@@ -1,5 +1,5 @@
 {
-  "key": "demoModePlainSkillMath",
+  "key": "demoMathSkill",
   "name": "示例-单轮Skill数学",
   "icon": "emoji:🧮",
   "description": "内置示例：ONESHOT 模式结合 skills 与 Python 脚本执行",

@@ -134,6 +134,8 @@ public class OrchestratorServices {
         Objects.requireNonNull(stageSettings, "stageSettings must not be null");
         context.incrementModelCalls();
         String stageSystemPrompt = context.stageSystemPrompt(stageSettings.systemPrompt());
+        String deferredSkillPrompt = context.consumeDeferredSkillUserPrompt();
+        String effectiveUserPrompt = mergeUserPrompt(userPrompt, deferredSkillPrompt);
         String effectiveSystemPrompt = toolExecutionService.applyBackendPrompts(
                 stageSystemPrompt,
                 stageTools,
@@ -153,7 +155,7 @@ public class OrchestratorServices {
                 resolveModel(stageSettings, context),
                 effectiveSystemPrompt,
                 messages,
-                userPrompt,
+                effectiveUserPrompt,
                 tools,
                 toolChoice,
                 null,
@@ -257,6 +259,7 @@ public class OrchestratorServices {
             List<PlannedToolCall> plannedToolCalls,
             FluxSink<AgentDelta> sink
     ) {
+        context.registerSkillUsageFromToolCalls(plannedToolCalls);
         ToolExecutionService.ToolExecutionBatch batch = toolExecutionService.executeToolCalls(
                 plannedToolCalls,
                 enabledToolsByName,
@@ -527,6 +530,18 @@ public class OrchestratorServices {
             return model;
         }
         return context.definition().model();
+    }
+
+    private String mergeUserPrompt(String userPrompt, String deferredSkillPrompt) {
+        boolean hasUserPrompt = StringUtils.hasText(userPrompt);
+        boolean hasDeferred = StringUtils.hasText(deferredSkillPrompt);
+        if (!hasUserPrompt) {
+            return hasDeferred ? deferredSkillPrompt : null;
+        }
+        if (!hasDeferred) {
+            return userPrompt;
+        }
+        return userPrompt + "\n\n" + deferredSkillPrompt;
     }
 
     private ComputePolicy resolveEffort(StageSettings stageSettings) {
