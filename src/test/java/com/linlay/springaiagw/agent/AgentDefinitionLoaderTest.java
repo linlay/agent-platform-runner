@@ -449,7 +449,7 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
-    void shouldParseRuntimePromptsAndFallbackToDefaults() throws IOException {
+    void shouldParseSupportedRuntimePromptsAndFallbackToDefaults() throws IOException {
         Files.writeString(tempDir.resolve("runtime_prompts.json"), """
                 {
                   "key": "runtime_prompts",
@@ -461,15 +461,8 @@ class AgentDefinitionLoaderTest {
                   "mode": "ONESHOT",
                   "plain": { "systemPrompt": "plain prompt" },
                   "runtimePrompts": {
-                    "verify": {
-                      "systemPrompt": "verify-system-override",
-                      "userPromptTemplate": "candidate={{candidate_final_text}}"
-                    },
-                    "oneshot": {
-                      "requireToolUserPrompt": "oneshot-require-tool-override"
-                    },
                     "planExecute": {
-                      "taskContinueUserPrompt": "plan-continue-override"
+                      "taskExecutionPromptTemplate": "TASK={{task_id}}|{{task_description}}"
                     },
                     "skill": {
                       "catalogHeader": "skills-header-override"
@@ -492,18 +485,35 @@ class AgentDefinitionLoaderTest {
         RuntimePromptTemplates prompts = definition.agentMode().runtimePrompts();
         RuntimePromptTemplates defaults = RuntimePromptTemplates.defaults();
 
-        assertThat(prompts.verify().systemPrompt()).isEqualTo("verify-system-override");
-        assertThat(prompts.render(prompts.verify().userPromptTemplate(), Map.of("candidate_final_text", "OK")))
-                .isEqualTo("candidate=OK");
-        assertThat(prompts.oneshot().requireToolUserPrompt()).isEqualTo("oneshot-require-tool-override");
-        assertThat(prompts.oneshot().finalAnswerUserPrompt()).isEqualTo(defaults.oneshot().finalAnswerUserPrompt());
-        assertThat(prompts.react().requireToolUserPrompt()).isEqualTo(defaults.react().requireToolUserPrompt());
-        assertThat(prompts.planExecute().taskContinueUserPrompt()).isEqualTo("plan-continue-override");
-        assertThat(prompts.planExecute().taskRequireToolUserPrompt()).isEqualTo(defaults.planExecute().taskRequireToolUserPrompt());
+        assertThat(prompts.planExecute().taskExecutionPromptTemplate()).isEqualTo("TASK={{task_id}}|{{task_description}}");
         assertThat(prompts.skill().catalogHeader()).isEqualTo("skills-header-override");
         assertThat(prompts.skill().disclosureHeader()).isEqualTo(defaults.skill().disclosureHeader());
         assertThat(prompts.toolAppendix().toolDescriptionTitle()).isEqualTo("tool-desc-title-override");
         assertThat(prompts.toolAppendix().afterCallHintTitle()).isEqualTo(defaults.toolAppendix().afterCallHintTitle());
+    }
+
+    @Test
+    void shouldRejectRemovedVerifyAndRuntimePromptFields() throws IOException {
+        Files.writeString(tempDir.resolve("removed_fields.json"), """
+                {
+                  "key": "removed_fields",
+                  "description": "removed fields",
+                  "modelConfig": {
+                    "providerKey": "bailian",
+                    "model": "qwen3-max"
+                  },
+                  "verify": "NONE",
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "plain prompt" },
+                  "runtimePrompts": {
+                    "verify": {
+                      "systemPrompt": "legacy"
+                    }
+                  }
+                }
+                """);
+
+        assertThat(loadById()).doesNotContainKey("removed_fields");
     }
 
     @Test

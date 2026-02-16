@@ -97,6 +97,10 @@ public class AgentDefinitionLoader {
                 log.warn("Skip legacy agent config {}. Only Agent JSON v2 is supported.", file);
                 return java.util.Optional.empty();
             }
+            if (hasRemovedFields(root)) {
+                log.warn("Skip agent config {}. Removed fields are no longer supported.", file);
+                return java.util.Optional.empty();
+            }
 
             AgentConfigFile config = objectMapper.treeToValue(root, AgentConfigFile.class);
             AgentRuntimeMode mode = config.getMode();
@@ -176,6 +180,41 @@ public class AgentDefinitionLoader {
                 || node.has("model")
                 || node.has("reasoning")
                 || node.has("tools");
+    }
+
+    private boolean hasRemovedFields(JsonNode root) {
+        if (root == null || !root.isObject()) {
+            return false;
+        }
+        if (root.has("verify")) {
+            return true;
+        }
+        JsonNode runtimePrompts = root.path("runtimePrompts");
+        if (!runtimePrompts.isObject()) {
+            return false;
+        }
+        if (runtimePrompts.has("verify")
+                || runtimePrompts.has("finalAnswer")
+                || runtimePrompts.has("oneshot")
+                || runtimePrompts.has("react")) {
+            return true;
+        }
+        JsonNode planExecute = runtimePrompts.path("planExecute");
+        if (!planExecute.isObject()) {
+            return false;
+        }
+        return planExecute.has("executeToolsTitle")
+                || planExecute.has("planCallableToolsTitle")
+                || planExecute.has("draftInstructionBlock")
+                || planExecute.has("generateInstructionBlockFromDraft")
+                || planExecute.has("generateInstructionBlockDirect")
+                || planExecute.has("taskRequireToolUserPrompt")
+                || planExecute.has("taskMultipleToolsUserPrompt")
+                || planExecute.has("taskUpdateNoProgressUserPrompt")
+                || planExecute.has("taskContinueUserPrompt")
+                || planExecute.has("updateRoundPromptTemplate")
+                || planExecute.has("updateRoundMultipleToolsUserPrompt")
+                || planExecute.has("allStepsCompletedUserPrompt");
     }
 
     private String normalizeMultilinePrompts(String rawJson) throws IOException {

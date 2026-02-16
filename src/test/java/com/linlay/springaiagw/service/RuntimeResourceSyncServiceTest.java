@@ -209,13 +209,13 @@ class RuntimeResourceSyncServiceTest {
         Files.createDirectories(toolsDir);
         Files.createDirectories(viewportsDir);
 
-        Path legacySkillScript = toolsDir.resolve("_skill_script_run_.backend");
+        Path legacySkillScript = toolsDir.resolve("_skill_run_script_.backend");
         Files.writeString(legacySkillScript, """
                 {
                   "tools": [
                     {
                       "type": "function",
-                      "name": "_skill_script_run_",
+                      "name": "_skill_run_script_",
                       "description": "legacy alias"
                     }
                   ]

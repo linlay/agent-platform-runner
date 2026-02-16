@@ -10,12 +10,10 @@ import com.linlay.springaiagw.agent.runtime.policy.OutputPolicy;
 import com.linlay.springaiagw.agent.runtime.policy.RunSpec;
 import com.linlay.springaiagw.agent.runtime.policy.ToolChoice;
 import com.linlay.springaiagw.agent.runtime.policy.ToolPolicy;
-import com.linlay.springaiagw.agent.runtime.policy.VerifyPolicy;
 import com.linlay.springaiagw.model.stream.AgentDelta;
 import com.linlay.springaiagw.tool.BaseTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.messages.UserMessage;
 import reactor.core.publisher.FluxSink;
 
 import java.util.List;
@@ -54,7 +52,6 @@ public final class OneshotMode extends AgentMode {
                 ControlStrategy.ONESHOT,
                 config != null && config.getOutput() != null ? config.getOutput() : OutputPolicy.PLAIN,
                 config != null && config.getToolPolicy() != null ? config.getToolPolicy() : defaultPolicy,
-                config != null && config.getVerify() != null ? config.getVerify() : VerifyPolicy.NONE,
                 config != null && config.getBudget() != null ? config.getBudget().toBudget() : Budget.LIGHT
         );
     }
@@ -74,7 +71,6 @@ public final class OneshotMode extends AgentMode {
         boolean emitReasoning = stageSettings.reasoningEnabled();
 
         if (!hasTools) {
-            boolean secondPass = services.verifyService().requiresSecondPass(context.definition().runSpec().verify());
             OrchestratorServices.ModelTurn turn = services.callModelTurnStreaming(
                     context,
                     stageSettings,
@@ -86,18 +82,15 @@ public final class OneshotMode extends AgentMode {
                     "agent-oneshot",
                     false,
                     emitReasoning,
-                    !secondPass,
+                    true,
                     true,
                     sink
             );
             String finalText = services.normalize(turn.finalText());
             services.appendAssistantMessage(context.conversationMessages(), finalText);
             services.emitFinalAnswer(
-                    context,
-                    context.conversationMessages(),
                     finalText,
-                    !secondPass,
-                    stageSettings.systemPrompt(),
+                    true,
                     sink
             );
             return;
@@ -117,13 +110,10 @@ public final class OneshotMode extends AgentMode {
                 emitReasoning,
                 true,
                 true,
-                sink
-        );
+                    sink
+            );
 
         if (firstTurn.toolCalls().isEmpty() && services.requiresTool(context)) {
-            context.conversationMessages().add(new UserMessage(
-                    runtimePrompts().oneshot().requireToolUserPrompt()
-            ));
             firstTurn = services.callModelTurnStreaming(
                     context,
                     stageSettings,
@@ -139,21 +129,40 @@ public final class OneshotMode extends AgentMode {
                     true,
                     sink
             );
+            if (firstTurn.toolCalls().isEmpty()) {
+                firstTurn = services.callModelTurnStreaming(
+                        context,
+                        stageSettings,
+                        context.conversationMessages(),
+                        null,
+                        stageTools,
+                        services.toolExecutionService().enabledFunctionTools(stageTools),
+                        ToolChoice.REQUIRED,
+                        "agent-oneshot-tool-first-repair-2",
+                        false,
+                        emitReasoning,
+                        true,
+                        true,
+                        sink
+                );
+            }
         }
 
         if (firstTurn.toolCalls().isEmpty()) {
             if (services.requiresTool(context)) {
                 log.warn("[agent:{}] ToolPolicy.REQUIRE violated in ONESHOT: no tool call produced",
                         context.definition().id());
+                services.emit(
+                        sink,
+                        AgentDelta.content("执行中断：ToolPolicy.REQUIRE 要求调用工具，但模型连续 3 次未发起工具调用。")
+                );
+                return;
             }
             String finalText = services.normalize(firstTurn.finalText());
             services.appendAssistantMessage(context.conversationMessages(), finalText);
             services.emitFinalAnswer(
-                    context,
-                    context.conversationMessages(),
                     finalText,
                     true,
-                    stageSettings.systemPrompt(),
                     sink
             );
             return;
@@ -161,30 +170,26 @@ public final class OneshotMode extends AgentMode {
 
         services.executeToolsAndEmit(context, stageTools, firstTurn.toolCalls(), sink);
 
-        boolean secondPass = services.verifyService().requiresSecondPass(context.definition().runSpec().verify());
         OrchestratorServices.ModelTurn secondTurn = services.callModelTurnStreaming(
                 context,
                 stageSettings,
                 context.conversationMessages(),
-                runtimePrompts().oneshot().finalAnswerUserPrompt(),
+                null,
                 stageTools,
                 List.of(),
                 ToolChoice.NONE,
                 "agent-oneshot-tool-final",
                 false,
                 emitReasoning,
-                !secondPass,
+                true,
                 true,
                 sink
         );
         String finalText = services.normalize(secondTurn.finalText());
         services.appendAssistantMessage(context.conversationMessages(), finalText);
         services.emitFinalAnswer(
-                context,
-                context.conversationMessages(),
                 finalText,
-                !secondPass,
-                stageSettings.systemPrompt(),
+                true,
                 sink
         );
     }

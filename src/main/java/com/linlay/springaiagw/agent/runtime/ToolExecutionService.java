@@ -136,6 +136,7 @@ public class ToolExecutionService {
         RuntimePromptTemplates templates = runtimePrompts == null ? RuntimePromptTemplates.defaults() : runtimePrompts;
         String base = normalize(systemPrompt);
         List<String> sections = new ArrayList<>();
+        // Tool appendix is always merged into system prompt after stage/skill sections.
         sections.add(backendToolDescriptionSection(stageTools, templates.toolAppendix().toolDescriptionTitle()));
         if (includeAfterCallHints) {
             sections.add(backendAfterCallHintSection(stageTools, templates.toolAppendix().afterCallHintTitle()));

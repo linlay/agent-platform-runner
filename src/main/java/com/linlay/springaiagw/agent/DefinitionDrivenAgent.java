@@ -11,7 +11,6 @@ import com.linlay.springaiagw.agent.runtime.AgentRuntimeMode;
 import com.linlay.springaiagw.agent.runtime.ExecutionContext;
 import com.linlay.springaiagw.agent.runtime.PlanExecutionStalledException;
 import com.linlay.springaiagw.agent.runtime.ToolExecutionService;
-import com.linlay.springaiagw.agent.runtime.VerifyService;
 import com.linlay.springaiagw.agent.runtime.policy.Budget;
 import com.linlay.springaiagw.agent.runtime.policy.RunSpec;
 import com.linlay.springaiagw.agent.mode.OrchestratorServices;
@@ -104,8 +103,7 @@ public class DefinitionDrivenAgent implements Agent {
                 objectMapper,
                 frontendSubmitCoordinator
         );
-        VerifyService verifyService = new VerifyService(llmService);
-        this.services = new OrchestratorServices(llmService, toolExecutionService, verifyService, objectMapper);
+        this.services = new OrchestratorServices(llmService, toolExecutionService, objectMapper);
     }
 
     @Override
@@ -485,7 +483,6 @@ public class DefinitionDrivenAgent implements Agent {
         item.put("control", runSpec.control());
         item.put("output", runSpec.output());
         item.put("toolPolicy", runSpec.toolPolicy());
-        item.put("verify", runSpec.verify());
         Budget budget = runSpec.budget();
         Map<String, Object> budgetMap = new LinkedHashMap<>();
         budgetMap.put("maxModelCalls", budget.maxModelCalls());

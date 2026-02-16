@@ -243,6 +243,7 @@ curl -N -X POST "http://localhost:8080/api/query" \
 - 不再依赖正文中的 `toolCall/toolCalls` JSON 字段（仍保留向后兼容解析）
 
 Agent JSON 已仅支持新结构：`modelConfig/toolConfig/skillConfig`。旧字段 `providerKey/providerType/model/reasoning/tools` 不再兼容。
+同时已移除顶层 `verify` 字段；保留该字段会导致该 agent 配置被拒绝加载。
 
 顶层 skills 配置支持两种写法（会合并去重）：
 
@@ -260,12 +261,35 @@ Agent JSON 已仅支持新结构：`modelConfig/toolConfig/skillConfig`。旧字
 }
 ```
 
+`runtimePrompts`（精简后）仅支持以下字段：
+
+```json
+{
+  "runtimePrompts": {
+    "planExecute": {
+      "taskExecutionPromptTemplate": "..."
+    },
+    "skill": {
+      "catalogHeader": "...",
+      "disclosureHeader": "...",
+      "instructionsLabel": "..."
+    },
+    "toolAppendix": {
+      "toolDescriptionTitle": "...",
+      "afterCallHintTitle": "..."
+    }
+  }
+}
+```
+
+以下字段已删除，出现即拒绝加载：`runtimePrompts.verify`、`runtimePrompts.finalAnswer`、`runtimePrompts.oneshot`、`runtimePrompts.react`，以及 `runtimePrompts.planExecute` 下除 `taskExecutionPromptTemplate` 之外的旧子字段。
+
 ### 真流式约束（CRITICAL）
 
 - `/api/query` 全链路严格真流式：上游 LLM 每到一个 delta，立即下发对应 AGW 事件，禁止先 `collect/reduce/block` 再输出。
 - 禁止将多个 delta 合并后再切片发送；输出粒度以“上游 delta 语义块”为准。
 - 工具调用必须保持事件顺序：`tool.start` -> `tool.args`（可多次）-> `tool.end` -> `tool.result`。
-- `VerifyPolicy.SECOND_PASS_FIX` 场景下，首轮候选答案仅内部使用；对外只流式下发二次校验生成的 chunk。
+- 不再进行二次校验回合（无 `agent-verify`）；每次模型回合只输出一次真实流式内容，避免重复答案。
 
 ## viewports / tools / skills 目录
 

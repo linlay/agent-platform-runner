@@ -156,6 +156,7 @@ public class ExecutionContext {
     }
 
     public String stageSystemPrompt(String stageSystemPrompt) {
+        // Skill catalog is always merged into system prompt at stage entrance.
         if (!StringUtils.hasText(skillCatalogPrompt)) {
             return stageSystemPrompt == null ? "" : stageSystemPrompt;
         }
@@ -192,7 +193,7 @@ public class ExecutionContext {
         }
     }
 
-    public String consumeDeferredSkillUserPrompt() {
+    public String consumeDeferredSkillSystemPrompt() {
         if (pendingSkillIds.isEmpty()) {
             return "";
         }
@@ -214,6 +215,7 @@ public class ExecutionContext {
         if (blocks.isEmpty()) {
             return "";
         }
+        // Deferred skill disclosure is merged into system prompt in the next model turn.
         return runtimePrompts.skill().disclosureHeader() + "\n\n"
                 + String.join("\n\n---\n\n", blocks);
     }

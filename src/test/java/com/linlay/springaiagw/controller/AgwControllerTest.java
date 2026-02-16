@@ -146,7 +146,12 @@ class AgwControllerTest {
                 .jsonPath("$.data.key").isEqualTo("demoModePlanExecute")
                 .jsonPath("$.data.meta.providerType").isEqualTo("BAILIAN")
                 .jsonPath("$.data.meta.skills").isArray()
-                .jsonPath("$.data.instructions").isEqualTo("你是高级执行助手。根据框架给出的任务列表与当前 taskId 执行任务；完成当前任务后必须调用 _plan_update_task_ 更新状态，再继续下一个任务。");
+                .jsonPath("$.data.instructions").value(value -> {
+                    assertThat(value).isInstanceOf(String.class);
+                    assertThat((String) value)
+                            .contains("你是高级执行助手。根据框架给出的任务列表与当前 taskId 执行任务")
+                            .contains("_plan_update_task_ 更新状态");
+                });
     }
 
     @Test

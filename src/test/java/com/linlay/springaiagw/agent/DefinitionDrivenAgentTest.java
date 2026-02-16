@@ -16,7 +16,6 @@ import com.linlay.springaiagw.agent.runtime.policy.OutputPolicy;
 import com.linlay.springaiagw.agent.runtime.policy.RunSpec;
 import com.linlay.springaiagw.agent.runtime.policy.ToolChoice;
 import com.linlay.springaiagw.agent.runtime.policy.ToolPolicy;
-import com.linlay.springaiagw.agent.runtime.policy.VerifyPolicy;
 import com.linlay.springaiagw.memory.ChatWindowMemoryProperties;
 import com.linlay.springaiagw.memory.ChatWindowMemoryStore;
 import com.linlay.springaiagw.model.AgentRequest;
@@ -63,7 +62,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoOneshotTooling",
                 AgentRuntimeMode.ONESHOT,
-                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("echo_tool"), false, ComputePolicy.MEDIUM)),
                 List.of("echo_tool")
         );
@@ -130,7 +129,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoOneshot",
                 AgentRuntimeMode.ONESHOT,
-                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.DISALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.DISALLOW, Budget.DEFAULT),
                 new OneshotMode(new StageSettings("你是测试助手", null, null, List.of(), false, ComputePolicy.MEDIUM)),
                 List.of()
         );
@@ -177,7 +176,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoReasoning",
                 AgentRuntimeMode.ONESHOT,
-                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.DISALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.DISALLOW, Budget.DEFAULT),
                 new OneshotMode(new StageSettings("你是测试助手", null, null, List.of(), true, ComputePolicy.HIGH)),
                 List.of()
         );
@@ -241,7 +240,7 @@ class DefinitionDrivenAgentTest {
                 "bailian",
                 "qwen3-max",
                 AgentRuntimeMode.ONESHOT,
-                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.DISALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.DISALLOW, Budget.DEFAULT),
                 new OneshotMode(new StageSettings("你是测试助手", null, null, List.of(), false, ComputePolicy.MEDIUM)),
                 List.of(),
                 List.of("screenshot")
@@ -294,7 +293,7 @@ class DefinitionDrivenAgentTest {
                 "bailian",
                 "qwen3-max",
                 AgentRuntimeMode.ONESHOT,
-                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("_skill_run_script_"), false, ComputePolicy.MEDIUM)),
                 List.of("_skill_run_script_"),
                 List.of("screenshot")
@@ -345,11 +344,11 @@ class DefinitionDrivenAgentTest {
                 .contains("skillId: screenshot")
                 .doesNotContain("always verify target window.");
         assertThat(stageSpecs.get("agent-oneshot-tool-first").userPrompt()).isNull();
-        assertThat(stageSpecs.get("agent-oneshot-tool-final").userPrompt())
-                .contains("请基于已有信息输出最终答案，不再调用工具。")
+        assertThat(stageSpecs.get("agent-oneshot-tool-final").systemPrompt())
                 .contains("skillId: screenshot")
                 .contains("instructions:")
                 .contains("always verify target window.");
+        assertThat(stageSpecs.get("agent-oneshot-tool-final").userPrompt()).isNull();
     }
 
     @Test
@@ -365,7 +364,7 @@ class DefinitionDrivenAgentTest {
                 "bailian",
                 "qwen3-max",
                 AgentRuntimeMode.REACT,
-                new RunSpec(ControlStrategy.REACT_LOOP, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, new Budget(10, 10, 4, 60_000)),
+                new RunSpec(ControlStrategy.REACT_LOOP, OutputPolicy.PLAIN, ToolPolicy.ALLOW, new Budget(10, 10, 4, 60_000)),
                 new ReactMode(new StageSettings("你是测试助手", null, null, List.of("_skill_run_script_"), false, ComputePolicy.MEDIUM), 4),
                 List.of("_skill_run_script_"),
                 List.of("screenshot")
@@ -417,7 +416,9 @@ class DefinitionDrivenAgentTest {
         assertThat(stageSpecs.get("agent-react-step-2")).isNotNull();
         assertThat(stageSpecs.get("agent-react-step-3")).isNotNull();
         assertThat(stageSpecs.get("agent-react-step-1").userPrompt()).isNull();
-        assertThat(stageSpecs.get("agent-react-step-2").userPrompt()).contains("always verify target window.");
+        assertThat(stageSpecs.get("agent-react-step-2").systemPrompt()).contains("always verify target window.");
+        assertThat(stageSpecs.get("agent-react-step-3").systemPrompt()).doesNotContain("always verify target window.");
+        assertThat(stageSpecs.get("agent-react-step-2").userPrompt()).isNull();
         assertThat(stageSpecs.get("agent-react-step-3").userPrompt()).isNull();
     }
 
@@ -434,7 +435,7 @@ class DefinitionDrivenAgentTest {
                 "bailian",
                 "qwen3-max",
                 AgentRuntimeMode.ONESHOT,
-                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("_skill_run_script_"), false, ComputePolicy.MEDIUM)),
                 List.of("_skill_run_script_"),
                 List.of("screenshot")
@@ -480,10 +481,10 @@ class DefinitionDrivenAgentTest {
 
         assertThat(deltas).isNotNull();
         assertThat(stageSpecs.get("agent-oneshot-tool-final")).isNotNull();
-        assertThat(stageSpecs.get("agent-oneshot-tool-final").userPrompt())
-                .contains("请基于已有信息输出最终答案，不再调用工具。")
+        assertThat(stageSpecs.get("agent-oneshot-tool-final").systemPrompt())
                 .doesNotContain("instructions:")
                 .doesNotContain("always verify target window.");
+        assertThat(stageSpecs.get("agent-oneshot-tool-final").userPrompt()).isNull();
         String logs = output.getOut() + output.getErr();
         assertThat(logs).contains("requested unknown skill");
     }
@@ -506,7 +507,7 @@ class DefinitionDrivenAgentTest {
                 "bailian",
                 "qwen3-max",
                 AgentRuntimeMode.ONESHOT,
-                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("_skill_run_script_"), false, ComputePolicy.MEDIUM)),
                 List.of("_skill_run_script_"),
                 List.of("screenshot")
@@ -563,7 +564,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoReact",
                 AgentRuntimeMode.REACT,
-                new RunSpec(ControlStrategy.REACT_LOOP, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, new Budget(10, 10, 4, 60_000)),
+                new RunSpec(ControlStrategy.REACT_LOOP, OutputPolicy.PLAIN, ToolPolicy.ALLOW, new Budget(10, 10, 4, 60_000)),
                 new ReactMode(new StageSettings("你是测试助手", null, null, List.of("echo_tool"), true, ComputePolicy.MEDIUM), 6),
                 List.of("echo_tool")
         );
@@ -636,7 +637,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoReactRetryBlankFinal",
                 AgentRuntimeMode.REACT,
-                new RunSpec(ControlStrategy.REACT_LOOP, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, new Budget(10, 10, 2, 60_000)),
+                new RunSpec(ControlStrategy.REACT_LOOP, OutputPolicy.PLAIN, ToolPolicy.ALLOW, new Budget(10, 10, 2, 60_000)),
                 new ReactMode(new StageSettings("你是测试助手", null, null, List.of(), false, ComputePolicy.MEDIUM), 2),
                 List.of()
         );
@@ -683,11 +684,11 @@ class DefinitionDrivenAgentTest {
     }
 
     @Test
-    void reactForceFinalShouldFallbackToBlockedConclusionWhenModelKeepsAskingForTool() {
+    void reactFinalShouldUseModelOutputWithoutBlockedFallback() {
         AgentDefinition definition = definition(
                 "demoReactForceFinalFallback",
                 AgentRuntimeMode.REACT,
-                new RunSpec(ControlStrategy.REACT_LOOP, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, new Budget(10, 10, 1, 60_000)),
+                new RunSpec(ControlStrategy.REACT_LOOP, OutputPolicy.PLAIN, ToolPolicy.ALLOW, new Budget(10, 10, 1, 60_000)),
                 new ReactMode(new StageSettings("你是测试助手", null, null, List.of("echo_tool"), false, ComputePolicy.MEDIUM), 1),
                 List.of("echo_tool")
         );
@@ -702,7 +703,7 @@ class DefinitionDrivenAgentTest {
                             "tool_calls"
                     ));
                 }
-                if ("agent-react-force-final".equals(stage)) {
+                if ("agent-react-final".equals(stage)) {
                     return Flux.just(new LlmDelta("我需要先检查系统中是否有可执行脚本。", null, "stop"));
                 }
                 return Flux.empty();
@@ -746,11 +747,10 @@ class DefinitionDrivenAgentTest {
                 .filter(value -> value != null && !value.isBlank())
                 .reduce("", String::concat);
         assertThat(mergedContent)
-                .contains("已确认信息")
-                .contains("阻塞点")
-                .contains("最小下一步")
-                .contains("echo_tool")
-                .doesNotContain("我需要先检查");
+                .contains("我需要先检查系统中是否有可执行脚本。")
+                .doesNotContain("已确认信息")
+                .doesNotContain("阻塞点")
+                .doesNotContain("最小下一步");
     }
 
     @Test
@@ -762,7 +762,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoPlan",
                 AgentRuntimeMode.PLAN_EXECUTE,
-                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new PlanExecuteMode(
                         new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_"), false, ComputePolicy.MEDIUM),
                         new StageSettings("执行系统提示", null, null, List.of("_plan_update_task_"), false, ComputePolicy.MEDIUM),
@@ -834,7 +834,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoPlanPublicTurns",
                 AgentRuntimeMode.PLAN_EXECUTE,
-                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new PlanExecuteMode(
                         new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_"), true, ComputePolicy.MEDIUM, true),
                         new StageSettings("执行系统提示", null, null, List.of("_plan_update_task_"), false, ComputePolicy.MEDIUM),
@@ -939,7 +939,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoPromptInject",
                 AgentRuntimeMode.PLAN_EXECUTE,
-                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new PlanExecuteMode(
                         new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_", "prompt_tool"), false, ComputePolicy.MEDIUM),
                         new StageSettings("执行系统提示", null, null, List.of("_plan_update_task_", "prompt_tool"), false, ComputePolicy.MEDIUM),
@@ -989,14 +989,9 @@ class DefinitionDrivenAgentTest {
                 .block(Duration.ofSeconds(3));
 
         assertThat(prompts.stream().anyMatch(text -> text.contains("agent-plan-generate")
-                && text.contains("execute阶段的可用工具说明（供规划任务使用）:")
-                && text.contains("_plan_update_task_: 更新计划中的任务状态")
+                && text.contains("工具说明:")
+                && text.contains("_plan_add_tasks_: 创建计划任务（追加模式）")
                 && text.contains("prompt_tool: prompt helper"))).isTrue();
-        assertThat(prompts.stream().anyMatch(text -> text.contains("agent-plan-generate")
-                && text.contains("本回合仅可调用工具说明:")
-                && text.contains("_plan_add_tasks_: 创建计划任务（追加模式）"))).isTrue();
-        assertThat(prompts.stream().anyMatch(text -> text.contains("agent-plan-generate")
-                && text.contains("\n工具说明:\n"))).isFalse();
         assertThat(prompts.stream().anyMatch(text -> text.contains("agent-plan-generate")
                 && text.contains("工具调用后推荐指令:"))).isFalse();
         assertThat(prompts.stream().anyMatch(text -> text.contains("agent-plan-execute-step-1")
@@ -1021,7 +1016,6 @@ class DefinitionDrivenAgentTest {
                         ControlStrategy.PLAN_EXECUTE,
                         OutputPolicy.REASONING_SUMMARY,
                         ToolPolicy.ALLOW,
-                        VerifyPolicy.NONE,
                         new Budget(20, 10, 6, 180_000)
                 ),
                 new PlanExecuteMode(
@@ -1081,7 +1075,6 @@ class DefinitionDrivenAgentTest {
         assertThat(logs).contains("\"control\" : \"PLAN_EXECUTE\"");
         assertThat(logs).contains("\"output\" : \"REASONING_SUMMARY\"");
         assertThat(logs).contains("\"toolPolicy\" : \"ALLOW\"");
-        assertThat(logs).contains("\"verify\" : \"NONE\"");
         assertThat(logs).contains("\"maxModelCalls\" : 20");
         assertThat(logs).contains("\"maxToolCalls\" : 10");
         assertThat(logs).contains("\"maxSteps\" : 6");
@@ -1107,7 +1100,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoPlanOrder",
                 AgentRuntimeMode.PLAN_EXECUTE,
-                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new PlanExecuteMode(
                         new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_"), false, ComputePolicy.MEDIUM),
                         new StageSettings("执行系统提示", null, null,
@@ -1209,7 +1202,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoPlanToolGate",
                 AgentRuntimeMode.PLAN_EXECUTE,
-                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new PlanExecuteMode(
                         new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_"), false, ComputePolicy.MEDIUM),
                         new StageSettings("执行系统提示", null, null,
@@ -1292,7 +1285,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoPlanMissingPlanAdd",
                 AgentRuntimeMode.PLAN_EXECUTE,
-                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new PlanExecuteMode(
                         new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_"), false, ComputePolicy.MEDIUM),
                         new StageSettings("执行系统提示", null, null, List.of("_plan_update_task_"), false, ComputePolicy.MEDIUM),
@@ -1342,7 +1335,7 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoPlanNoProgress",
                 AgentRuntimeMode.PLAN_EXECUTE,
-                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new PlanExecuteMode(
                         new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_"), false, ComputePolicy.MEDIUM),
                         new StageSettings("执行系统提示", null, null, List.of("_plan_update_task_"), false, ComputePolicy.MEDIUM),
@@ -1394,22 +1387,14 @@ class DefinitionDrivenAgentTest {
     }
 
     @Test
-    void oneshotShouldUseRuntimePromptTemplatesForRepairAndFinalTurn() {
-        AgentConfigFile.RuntimePromptsConfig promptConfig = new AgentConfigFile.RuntimePromptsConfig();
-        AgentConfigFile.OneshotPromptConfig oneshotPromptConfig = new AgentConfigFile.OneshotPromptConfig();
-        oneshotPromptConfig.setRequireToolUserPrompt("ONESHOT_REQUIRE_TOOL_PROMPT");
-        oneshotPromptConfig.setFinalAnswerUserPrompt("ONESHOT_FINAL_USER_PROMPT");
-        promptConfig.setOneshot(oneshotPromptConfig);
-        RuntimePromptTemplates runtimePrompts = RuntimePromptTemplates.fromConfig(promptConfig);
-
+    void oneshotShouldRetryRequireToolWithoutInjectedRepairPrompt() {
         Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
         AgentDefinition definition = definition(
-                "demoOneshotRuntimePrompts",
+                "demoOneshotRequireRetry",
                 AgentRuntimeMode.ONESHOT,
-                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.REQUIRE, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.REQUIRE, Budget.DEFAULT),
                 new OneshotMode(
-                        new StageSettings("你是测试助手", null, null, List.of("echo_tool"), false, ComputePolicy.MEDIUM),
-                        runtimePrompts
+                        new StageSettings("你是测试助手", null, null, List.of("echo_tool"), false, ComputePolicy.MEDIUM)
                 ),
                 List.of("echo_tool")
         );
@@ -1422,6 +1407,9 @@ class DefinitionDrivenAgentTest {
                     return Flux.just(new LlmDelta("先返回文本但不调工具", null, "stop"));
                 }
                 if ("agent-oneshot-tool-first-repair".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta("第二次仍不调用工具", null, "stop"));
+                }
+                if ("agent-oneshot-tool-first-repair-2".equals(spec.stage())) {
                     return Flux.just(new LlmDelta(
                             null,
                             List.of(new ToolCallDelta("call_echo_oneshot", "function", "echo_tool", "{\"text\":\"ok\"}")),
@@ -1467,31 +1455,26 @@ class DefinitionDrivenAgentTest {
                 .block(Duration.ofSeconds(3));
 
         LlmCallSpec repairSpec = stageSpecs.get("agent-oneshot-tool-first-repair");
+        LlmCallSpec repairSpec2 = stageSpecs.get("agent-oneshot-tool-first-repair-2");
         LlmCallSpec finalSpec = stageSpecs.get("agent-oneshot-tool-final");
         assertThat(repairSpec).isNotNull();
+        assertThat(repairSpec2).isNotNull();
         assertThat(repairSpec.messages().stream().map(message -> message.getText()))
-                .contains("ONESHOT_REQUIRE_TOOL_PROMPT");
+                .noneMatch(text -> text != null && text.contains("必须调用至少一个工具"));
         assertThat(finalSpec).isNotNull();
-        assertThat(finalSpec.userPrompt()).isEqualTo("ONESHOT_FINAL_USER_PROMPT");
+        assertThat(finalSpec.userPrompt()).isNull();
     }
 
     @Test
-    void reactShouldUseRuntimePromptTemplateForRepair() {
-        AgentConfigFile.RuntimePromptsConfig promptConfig = new AgentConfigFile.RuntimePromptsConfig();
-        AgentConfigFile.ReactPromptConfig reactPromptConfig = new AgentConfigFile.ReactPromptConfig();
-        reactPromptConfig.setRequireToolUserPrompt("REACT_REQUIRE_TOOL_PROMPT");
-        promptConfig.setReact(reactPromptConfig);
-        RuntimePromptTemplates runtimePrompts = RuntimePromptTemplates.fromConfig(promptConfig);
-
+    void reactShouldRetryWithoutInjectedRepairPrompt() {
         Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
         AgentDefinition definition = definition(
-                "demoReactRuntimePrompts",
+                "demoReactRequireRetry",
                 AgentRuntimeMode.REACT,
-                new RunSpec(ControlStrategy.REACT_LOOP, OutputPolicy.PLAIN, ToolPolicy.REQUIRE, VerifyPolicy.NONE, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.REACT_LOOP, OutputPolicy.PLAIN, ToolPolicy.REQUIRE, new Budget(20, 20, 2, 60_000)),
                 new ReactMode(
                         new StageSettings("你是测试助手", null, null, List.of("echo_tool"), false, ComputePolicy.MEDIUM),
-                        2,
-                        runtimePrompts
+                        2
                 ),
                 List.of("echo_tool")
         );
@@ -1500,7 +1483,17 @@ class DefinitionDrivenAgentTest {
             @Override
             public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
                 stageSpecs.put(spec.stage(), spec);
-                if ("agent-react-force-final".equals(spec.stage())) {
+                if ("agent-react-step-1".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta("第一步不调工具", null, "stop"));
+                }
+                if ("agent-react-step-1-retry-1".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta("call_echo_react", "function", "echo_tool", "{\"text\":\"ok\"}")),
+                            "tool_calls"
+                    ));
+                }
+                if ("agent-react-final".equals(spec.stage())) {
                     return Flux.just(new LlmDelta("forced-final", null, "stop"));
                 }
                 if (spec.stage() != null && spec.stage().startsWith("agent-react-step-")) {
@@ -1541,14 +1534,15 @@ class DefinitionDrivenAgentTest {
                 .collectList()
                 .block(Duration.ofSeconds(3));
 
-        LlmCallSpec secondStep = stageSpecs.get("agent-react-step-2");
-        assertThat(secondStep).isNotNull();
-        assertThat(secondStep.messages().stream().map(message -> message.getText()))
-                .contains("REACT_REQUIRE_TOOL_PROMPT");
+        assertThat(stageSpecs).containsKeys("agent-react-step-1", "agent-react-step-1-retry-1", "agent-react-final");
+        LlmCallSpec retrySpec = stageSpecs.get("agent-react-step-2-retry-1");
+        assertThat(retrySpec).isNotNull();
+        assertThat(retrySpec.messages().stream().map(message -> message.getText()))
+                .noneMatch(text -> text != null && text.contains("必须调用至少一个工具"));
     }
 
     @Test
-    void planExecuteShouldUseRuntimeTemplatesAndVerifyAgainstSummaryPrompt() {
+    void planExecuteShouldUseRuntimeTaskTemplateAndSkipVerifyStage() {
         AgentConfigFile.RuntimePromptsConfig promptConfig = new AgentConfigFile.RuntimePromptsConfig();
         AgentConfigFile.PlanExecutePromptConfig planPromptConfig = new AgentConfigFile.PlanExecutePromptConfig();
         planPromptConfig.setTaskExecutionPromptTemplate("""
@@ -1557,18 +1551,14 @@ class DefinitionDrivenAgentTest {
                 当前任务描述: {{task_description}}
                 """);
         promptConfig.setPlanExecute(planPromptConfig);
-        AgentConfigFile.VerifyPromptConfig verifyPromptConfig = new AgentConfigFile.VerifyPromptConfig();
-        verifyPromptConfig.setSystemPrompt("VERIFY_SYSTEM_PROMPT");
-        verifyPromptConfig.setUserPromptTemplate("VERIFY_USER={{candidate_final_text}}");
-        promptConfig.setVerify(verifyPromptConfig);
         RuntimePromptTemplates runtimePrompts = RuntimePromptTemplates.fromConfig(promptConfig);
 
         Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
-        AtomicReference<LlmCallSpec> verifySpec = new AtomicReference<>();
+        AtomicReference<String> verifyStage = new AtomicReference<>();
         AgentDefinition definition = definition(
                 "demoPlanRuntimePrompts",
                 AgentRuntimeMode.PLAN_EXECUTE,
-                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, VerifyPolicy.SECOND_PASS_FIX, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.PLAN_EXECUTE, OutputPolicy.PLAIN, ToolPolicy.ALLOW, Budget.DEFAULT),
                 new PlanExecuteMode(
                         new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_"), false, ComputePolicy.MEDIUM),
                         new StageSettings("执行系统提示", null, null, List.of("_plan_update_task_"), false, ComputePolicy.MEDIUM),
@@ -1607,10 +1597,7 @@ class DefinitionDrivenAgentTest {
 
             @Override
             public Flux<String> streamContent(LlmCallSpec spec) {
-                if ("agent-verify".equals(spec.stage())) {
-                    verifySpec.set(spec);
-                    return Flux.just("修复后总结");
-                }
+                verifyStage.set(spec.stage());
                 return Flux.empty();
             }
         };
@@ -1633,38 +1620,32 @@ class DefinitionDrivenAgentTest {
         assertThat(executeSpec).isNotNull();
         assertThat(executeSpec.messages().stream().map(message -> message.getText()))
                 .anyMatch(text -> text != null && text.contains("RUNTIME_TASK_PROMPT") && text.contains("当前任务描述: 任务A"));
-
-        LlmCallSpec capturedVerifySpec = verifySpec.get();
-        assertThat(capturedVerifySpec).isNotNull();
-        assertThat(capturedVerifySpec.systemPrompt()).contains("总结系统提示").contains("VERIFY_SYSTEM_PROMPT");
-        assertThat(capturedVerifySpec.systemPrompt()).doesNotContain("执行系统提示");
-        assertThat(capturedVerifySpec.userPrompt()).isEqualTo("VERIFY_USER=候选总结");
+        assertThat(verifyStage.get()).isNull();
     }
 
     @Test
-    void secondPassFixShouldOnlyExposeVerifyStreamOutput() {
+    void oneshotShouldUseSinglePassOutputWithoutVerifyStage() {
         AgentDefinition definition = definition(
-                "demoVerifySecondPass",
+                "demoOneshotSinglePass",
                 AgentRuntimeMode.ONESHOT,
-                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.DISALLOW, VerifyPolicy.SECOND_PASS_FIX, Budget.DEFAULT),
+                new RunSpec(ControlStrategy.ONESHOT, OutputPolicy.PLAIN, ToolPolicy.DISALLOW, Budget.DEFAULT),
                 new OneshotMode(new StageSettings("你是测试助手", null, null, List.of(), false, ComputePolicy.MEDIUM)),
                 List.of()
         );
 
+        AtomicReference<String> streamContentStage = new AtomicReference<>();
         LlmService llmService = new StubLlmService() {
             @Override
             protected Flux<LlmDelta> deltaByStage(String stage) {
                 if ("agent-oneshot".equals(stage)) {
-                    return Flux.just(new LlmDelta("候选答案", null, "stop"));
+                    return Flux.just(new LlmDelta("单轮答案", null, "stop"));
                 }
                 return Flux.empty();
             }
 
             @Override
             protected Flux<String> contentByStage(String stage) {
-                if ("agent-verify".equals(stage)) {
-                    return Flux.just("修", "复");
-                }
+                streamContentStage.set(stage);
                 return Flux.empty();
             }
         };
@@ -1688,7 +1669,8 @@ class DefinitionDrivenAgentTest {
                 .map(AgentDelta::content)
                 .filter(value -> value != null && !value.isBlank())
                 .toList();
-        assertThat(contentDeltas).containsExactly("修", "复");
+        assertThat(contentDeltas).contains("单轮答案");
+        assertThat(streamContentStage.get()).isNull();
     }
 
     private SkillRegistryService createSkillRegistry(String promptText) throws Exception {
@@ -1755,15 +1737,17 @@ class DefinitionDrivenAgentTest {
         if (spec == null || spec.messages() == null || spec.messages().isEmpty()) {
             return "unknown";
         }
-        String text = spec.messages().get(spec.messages().size() - 1).getText();
-        if (text == null || text.isBlank()) {
-            return "unknown";
+        for (int i = spec.messages().size() - 1; i >= 0; i--) {
+            String text = spec.messages().get(i).getText();
+            if (text == null || text.isBlank()) {
+                continue;
+            }
+            Matcher matcher = CURRENT_TASK_ID_PATTERN.matcher(text);
+            if (matcher.find()) {
+                return matcher.group(1).trim();
+            }
         }
-        Matcher matcher = CURRENT_TASK_ID_PATTERN.matcher(text);
-        if (!matcher.find()) {
-            return "unknown";
-        }
-        return matcher.group(1).trim();
+        return "unknown";
     }
 
     private abstract static class StubLlmService extends LlmService {

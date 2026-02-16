@@ -6,14 +6,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.springaiagw.agent.PlannedToolCall;
-import com.linlay.springaiagw.agent.RuntimePromptTemplates;
 import com.linlay.springaiagw.agent.runtime.ExecutionContext;
 import com.linlay.springaiagw.agent.runtime.ToolExecutionService;
-import com.linlay.springaiagw.agent.runtime.VerifyService;
 import com.linlay.springaiagw.agent.runtime.policy.ComputePolicy;
 import com.linlay.springaiagw.agent.runtime.policy.ToolChoice;
 import com.linlay.springaiagw.agent.runtime.policy.ToolPolicy;
-import com.linlay.springaiagw.agent.runtime.policy.VerifyPolicy;
 import com.linlay.springaiagw.model.stream.AgentDelta;
 import com.linlay.springaiagw.service.LlmCallSpec;
 import com.linlay.springaiagw.service.LlmService;
@@ -42,22 +39,18 @@ public class OrchestratorServices {
     private static final Pattern STEP_PREFIX = Pattern.compile(
             "^(?:[-*•]|\\d+[.)]|步骤\\s*\\d+[:：.)]?|[一二三四五六七八九十]+[、.)])\\s*(.+)$"
     );
-    private static final Pattern TOOL_CALL_SNIPPET = Pattern.compile("_[a-z0-9_]+_\\s*\\(");
 
     private final LlmService llmService;
     private final ToolExecutionService toolExecutionService;
-    private final VerifyService verifyService;
     private final ObjectMapper objectMapper;
 
     public OrchestratorServices(
             LlmService llmService,
             ToolExecutionService toolExecutionService,
-            VerifyService verifyService,
             ObjectMapper objectMapper
     ) {
         this.llmService = llmService;
         this.toolExecutionService = toolExecutionService;
-        this.verifyService = verifyService;
         this.objectMapper = objectMapper;
     }
 
@@ -67,10 +60,6 @@ public class OrchestratorServices {
 
     public ToolExecutionService toolExecutionService() {
         return toolExecutionService;
-    }
-
-    public VerifyService verifyService() {
-        return verifyService;
     }
 
     public ObjectMapper objectMapper() {
@@ -136,10 +125,14 @@ public class OrchestratorServices {
         Objects.requireNonNull(stageSettings, "stageSettings must not be null");
         context.incrementModelCalls();
         String stageSystemPrompt = context.stageSystemPrompt(stageSettings.systemPrompt());
-        String deferredSkillPrompt = context.consumeDeferredSkillUserPrompt();
-        String effectiveUserPrompt = mergeUserPrompt(userPrompt, deferredSkillPrompt);
+        String deferredSkillPrompt = context.consumeDeferredSkillSystemPrompt();
+        String mergedSystemPrompt = mergeSystemPrompt(stageSystemPrompt, deferredSkillPrompt);
+        // System prompt merge order is strict:
+        // 1) stage system prompt (agent.json stage-level prompt),
+        // 2) skill catalog/deferred disclosure blocks (system),
+        // 3) backend tool appendix (system).
         String effectiveSystemPrompt = toolExecutionService.applyBackendPrompts(
-                stageSystemPrompt,
+                mergedSystemPrompt,
                 stageTools,
                 context.definition().agentMode().runtimePrompts(),
                 includeAfterCallHints
@@ -158,7 +151,7 @@ public class OrchestratorServices {
                 resolveModel(stageSettings, context),
                 effectiveSystemPrompt,
                 messages,
-                effectiveUserPrompt,
+                userPrompt,
                 tools,
                 toolChoice,
                 null,
@@ -280,86 +273,13 @@ public class OrchestratorServices {
     }
 
     public void emitFinalAnswer(
-            ExecutionContext context,
-            List<Message> messages,
             String candidateFinalText,
             boolean contentAlreadyEmitted,
-            String verificationStageSystemPrompt,
             FluxSink<AgentDelta> sink
     ) {
-        VerifyPolicy verifyPolicy = context.definition().runSpec().verify();
-        boolean secondPass = verifyService.requiresSecondPass(verifyPolicy);
-
-        if (!secondPass) {
-            if (!contentAlreadyEmitted && StringUtils.hasText(candidateFinalText)) {
-                emit(sink, AgentDelta.content(candidateFinalText));
-            }
-            return;
-        }
-
-        if (!StringUtils.hasText(candidateFinalText)) {
-            return;
-        }
-        StringBuilder verifyOutput = new StringBuilder();
-        String verifyBaseSystemPrompt = context.stageSystemPrompt(verificationStageSystemPrompt);
-        for (String chunk : verifyService.streamSecondPass(
-                verifyPolicy,
-                context.definition().providerKey(),
-                context.definition().model(),
-                verifyBaseSystemPrompt,
-                messages,
-                candidateFinalText,
-                "agent-verify",
-                context.definition().agentMode().runtimePrompts()
-        ).toIterable()) {
-            if (!StringUtils.hasText(chunk)) {
-                continue;
-            }
-            verifyOutput.append(chunk);
-            emit(sink, AgentDelta.content(chunk));
-        }
-
-        if (verifyOutput.isEmpty() && !contentAlreadyEmitted) {
+        if (!contentAlreadyEmitted && StringUtils.hasText(candidateFinalText)) {
             emit(sink, AgentDelta.content(candidateFinalText));
         }
-    }
-
-    public String forceFinalAnswer(
-            ExecutionContext context,
-            StageSettings stageSettings,
-            Map<String, BaseTool> stageTools,
-            List<Message> messages,
-            String stage,
-            boolean emitContent,
-            FluxSink<AgentDelta> sink
-    ) {
-        String forcedPrompt = context.definition().agentMode().runtimePrompts().finalAnswer().forceFinalUserPrompt();
-        ModelTurn turn = callModelTurnStreaming(
-                context,
-                stageSettings,
-                messages,
-                forcedPrompt,
-                stageTools,
-                List.of(),
-                ToolChoice.NONE,
-                stage,
-                false,
-                false,
-                false,
-                true,
-                sink
-        );
-
-        String finalText = normalize(turn.finalText());
-        boolean isReactForceFinal = isReactForceFinalStage(stage);
-        String resolved = finalText;
-        if (isReactForceFinal && shouldFallbackToBlockedFinal(finalText)) {
-            resolved = buildBlockedFinalAnswer(context);
-        }
-        if (emitContent && StringUtils.hasText(resolved)) {
-            emit(sink, AgentDelta.content(resolved));
-        }
-        return resolved;
     }
 
     public Map<String, BaseTool> selectTools(Map<String, BaseTool> enabledToolsByName, List<String> configuredTools) {
@@ -495,81 +415,6 @@ public class OrchestratorServices {
         }
     }
 
-    private boolean isReactForceFinalStage(String stage) {
-        String normalized = normalize(stage).toLowerCase(Locale.ROOT);
-        return normalized.contains("react-force-final");
-    }
-
-    private boolean shouldFallbackToBlockedFinal(String text) {
-        if (!StringUtils.hasText(text)) {
-            return true;
-        }
-        String normalized = normalize(text);
-        if (TOOL_CALL_SNIPPET.matcher(normalized).find()) {
-            return true;
-        }
-        String compact = normalized.replaceAll("\\s+", "");
-        return compact.startsWith("我需要先检查")
-                || compact.startsWith("让我先检查")
-                || compact.startsWith("先检查")
-                || compact.contains("先查看可用资源")
-                || compact.contains("我将先检查")
-                || compact.contains("先使用_bash_")
-                || compact.contains("先调用工具")
-                || compact.contains("继续调用工具")
-                || compact.contains("调用工具获取");
-    }
-
-    private String buildBlockedFinalAnswer(ExecutionContext context) {
-        RuntimePromptTemplates templates = context == null || context.definition() == null || context.definition().agentMode() == null
-                ? RuntimePromptTemplates.defaults()
-                : context.definition().agentMode().runtimePrompts();
-        return templates.render(
-                templates.finalAnswer().blockedAnswerTemplate(),
-                Map.of("confirmed_info", summarizeLatestToolRecord(context))
-        );
-    }
-
-    private String summarizeLatestToolRecord(ExecutionContext context) {
-        if (context == null || context.toolRecords().isEmpty()) {
-            return "- 暂无可用工具结果。";
-        }
-        Map<String, Object> latest = context.toolRecords().get(context.toolRecords().size() - 1);
-        String toolName = safeRecordText(latest, "toolName");
-        Object rawResult = latest == null ? null : latest.get("result");
-        String resultSummary = summarizeResult(rawResult);
-        String effectiveToolName = StringUtils.hasText(toolName) ? toolName : "unknown";
-        return "- 最近工具: " + effectiveToolName
-                + "\n- 结果摘要: " + resultSummary;
-    }
-
-    private String safeRecordText(Map<String, Object> record, String key) {
-        if (record == null || !StringUtils.hasText(key)) {
-            return "";
-        }
-        Object raw = record.get(key);
-        if (raw == null) {
-            return "";
-        }
-        return normalize(String.valueOf(raw));
-    }
-
-    private String summarizeResult(Object rawResult) {
-        if (rawResult == null) {
-            return "无";
-        }
-        String rawText;
-        if (rawResult instanceof JsonNode node) {
-            rawText = node.isTextual() ? node.asText() : node.toString();
-        } else {
-            rawText = String.valueOf(rawResult);
-        }
-        String oneLine = normalize(rawText).replaceAll("\\s+", " ");
-        if (oneLine.length() <= 240) {
-            return oneLine;
-        }
-        return oneLine.substring(0, 240) + "...";
-    }
 
     private JsonNode readJson(String raw) {
         if (!StringUtils.hasText(raw)) {
@@ -625,16 +470,16 @@ public class OrchestratorServices {
         return context.definition().model();
     }
 
-    private String mergeUserPrompt(String userPrompt, String deferredSkillPrompt) {
-        boolean hasUserPrompt = StringUtils.hasText(userPrompt);
-        boolean hasDeferred = StringUtils.hasText(deferredSkillPrompt);
-        if (!hasUserPrompt) {
-            return hasDeferred ? deferredSkillPrompt : null;
+    private String mergeSystemPrompt(String base, String appendix) {
+        boolean hasBase = StringUtils.hasText(base);
+        boolean hasAppendix = StringUtils.hasText(appendix);
+        if (!hasBase) {
+            return hasAppendix ? appendix : null;
         }
-        if (!hasDeferred) {
-            return userPrompt;
+        if (!hasAppendix) {
+            return base;
         }
-        return userPrompt + "\n\n" + deferredSkillPrompt;
+        return base + "\n\n" + appendix;
     }
 
     private ComputePolicy resolveEffort(StageSettings stageSettings) {

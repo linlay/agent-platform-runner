@@ -12,13 +12,11 @@ import com.linlay.springaiagw.agent.runtime.policy.OutputPolicy;
 import com.linlay.springaiagw.agent.runtime.policy.RunSpec;
 import com.linlay.springaiagw.agent.runtime.policy.ToolChoice;
 import com.linlay.springaiagw.agent.runtime.policy.ToolPolicy;
-import com.linlay.springaiagw.agent.runtime.policy.VerifyPolicy;
 import com.linlay.springaiagw.model.stream.AgentDelta;
 import com.linlay.springaiagw.tool.BaseTool;
 import org.springframework.ai.chat.messages.UserMessage;
 import reactor.core.publisher.FluxSink;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +85,6 @@ public final class PlanExecuteMode extends AgentMode {
                 ControlStrategy.PLAN_EXECUTE,
                 config != null && config.getOutput() != null ? config.getOutput() : OutputPolicy.PLAIN,
                 config != null && config.getToolPolicy() != null ? config.getToolPolicy() : ToolPolicy.ALLOW,
-                config != null && config.getVerify() != null ? config.getVerify() : VerifyPolicy.SECOND_PASS_FIX,
                 config != null && config.getBudget() != null ? config.getBudget().toBudget() : Budget.HEAVY
         );
     }
@@ -108,18 +105,14 @@ public final class PlanExecuteMode extends AgentMode {
         }
         Map<String, BaseTool> executeTools = services.selectTools(enabledToolsByName, executeStage.tools());
         Map<String, BaseTool> summaryTools = services.selectTools(enabledToolsByName, summary.tools());
-        String planSharedPrompt = buildPlanSharedPrompt(services, executeTools, planCallableTools);
 
         if (planStage.deepThinking()) {
             OrchestratorServices.ModelTurn draftTurn = services.callModelTurnStreaming(
                     context,
-                    withSystemPrompt(
-                            withReasoning(planStage, true),
-                            buildPlanDraftPrompt(planSharedPrompt)
-                    ),
+                    withReasoning(planStage, true),
                     context.planMessages(),
                     null,
-                    Map.of(),
+                    planPromptTools,
                     List.of(),
                     ToolChoice.NONE,
                     "agent-plan-draft",
@@ -135,13 +128,10 @@ public final class PlanExecuteMode extends AgentMode {
 
         OrchestratorServices.ModelTurn planTurn = services.callModelTurnStreaming(
                 context,
-                withSystemPrompt(
-                        withReasoning(planStage, false),
-                        buildPlanGeneratePrompt(planSharedPrompt, planStage.deepThinking())
-                ),
+                withReasoning(planStage, false),
                 context.planMessages(),
                 null,
-                Map.of(),
+                planPromptTools,
                 services.toolExecutionService().enabledFunctionTools(planCallableTools),
                 ToolChoice.REQUIRED,
                 "agent-plan-generate",
@@ -183,15 +173,14 @@ public final class PlanExecuteMode extends AgentMode {
                             "task_description", normalize(step.description(), "无描述")
                     )
             );
-            context.executeMessages().add(new UserMessage(
-                    taskPrompt
-            ));
-            boolean updated = runTaskWorkRounds(context, services, executeTools, stepNo, step, prompts, sink);
+            context.executeMessages().add(new UserMessage(taskPrompt));
+
+            boolean updated = runTaskWorkRounds(context, services, executeTools, stepNo, step, sink);
             if (!updated) {
-                updated = runUpdateRound(context, services, executeTools, stepNo, step, prompts, false, sink);
+                updated = runUpdateRound(context, services, executeTools, stepNo, step, false, sink);
             }
             if (!updated) {
-                updated = runUpdateRound(context, services, executeTools, stepNo, step, prompts, true, sink);
+                updated = runUpdateRound(context, services, executeTools, stepNo, step, true, sink);
             }
             if (!updated) {
                 throw new PlanExecutionStalledException(
@@ -202,20 +191,28 @@ public final class PlanExecuteMode extends AgentMode {
             ensureTaskNotFailed(context, step);
         }
 
-        context.executeMessages().add(new UserMessage(prompts.allStepsCompletedUserPrompt()));
-        boolean secondPass = services.verifyService().requiresSecondPass(context.definition().runSpec().verify());
-
-        String finalText = services.forceFinalAnswer(context, summary, summaryTools, context.executeMessages(), "agent-plan-final",
-                !secondPass, sink);
-        services.appendAssistantMessage(context.executeMessages(), finalText);
-        services.emitFinalAnswer(
+        OrchestratorServices.ModelTurn finalTurn = services.callModelTurnStreaming(
                 context,
+                summary,
                 context.executeMessages(),
-                finalText,
-                !secondPass,
-                summary.systemPrompt(),
+                null,
+                summaryTools,
+                List.of(),
+                ToolChoice.NONE,
+                "agent-plan-final",
+                false,
+                summary.reasoningEnabled(),
+                true,
+                true,
                 sink
         );
+        String finalText = services.normalize(finalTurn.finalText());
+        if (finalText.isBlank()) {
+            services.emit(sink, AgentDelta.content("执行中断：计划执行完成后未生成可用最终总结。"));
+            return;
+        }
+        services.appendAssistantMessage(context.executeMessages(), finalText);
+        services.emitFinalAnswer(finalText, true, sink);
     }
 
     private boolean runTaskWorkRounds(
@@ -224,7 +221,6 @@ public final class PlanExecuteMode extends AgentMode {
             Map<String, BaseTool> executeTools,
             int stepNo,
             AgentDelta.PlanTask step,
-            RuntimePromptTemplates.PlanExecute prompts,
             FluxSink<AgentDelta> sink
     ) {
         for (int round = 1; round <= MAX_WORK_ROUNDS_PER_TASK; round++) {
@@ -253,15 +249,11 @@ public final class PlanExecuteMode extends AgentMode {
 
             if (stepTurn.toolCalls().isEmpty()) {
                 if (services.requiresTool(context)) {
-                    context.executeMessages().add(new UserMessage(prompts.taskRequireToolUserPrompt()));
+                    continue;
                 }
                 return false;
             }
 
-            boolean multipleTools = stepTurn.toolCalls().size() > 1;
-            if (multipleTools) {
-                context.executeMessages().add(new UserMessage(prompts.taskMultipleToolsUserPrompt()));
-            }
             String beforeStatus = statusOfTask(context.planTasks(), step.taskId());
             var first = stepTurn.toolCalls().getFirst();
             services.executeToolsAndEmit(context, executeTools, List.of(first), sink);
@@ -271,14 +263,7 @@ public final class PlanExecuteMode extends AgentMode {
                 if (afterStatus != null && !Objects.equals(beforeStatus, afterStatus)) {
                     return true;
                 }
-                context.executeMessages().add(new UserMessage(
-                        prompts.taskUpdateNoProgressUserPrompt()
-                ));
             }
-            if (multipleTools) {
-                return false;
-            }
-            context.executeMessages().add(new UserMessage(prompts.taskContinueUserPrompt()));
         }
         return false;
     }
@@ -289,18 +274,10 @@ public final class PlanExecuteMode extends AgentMode {
             Map<String, BaseTool> executeTools,
             int stepNo,
             AgentDelta.PlanTask step,
-            RuntimePromptTemplates.PlanExecute prompts,
             boolean repair,
             FluxSink<AgentDelta> sink
     ) {
         String beforeStatus = statusOfTask(context.planTasks(), step.taskId());
-        String updatePrompt = runtimePrompts().render(
-                prompts.updateRoundPromptTemplate(),
-                Map.of("task_id", normalize(step.taskId(), "unknown"))
-        );
-        context.executeMessages().add(new UserMessage(
-                updatePrompt
-        ));
 
         OrchestratorServices.ModelTurn updateTurn = services.callModelTurnStreaming(
                 context,
@@ -322,9 +299,6 @@ public final class PlanExecuteMode extends AgentMode {
 
         if (updateTurn.toolCalls().isEmpty()) {
             return false;
-        }
-        if (updateTurn.toolCalls().size() > 1) {
-            context.executeMessages().add(new UserMessage(prompts.updateRoundMultipleToolsUserPrompt()));
         }
 
         var first = updateTurn.toolCalls().getFirst();
@@ -375,73 +349,6 @@ public final class PlanExecuteMode extends AgentMode {
         Map<String, BaseTool> selected = new LinkedHashMap<>();
         selected.put(PLAN_ADD_TASK_TOOL, addTaskTool);
         return Map.copyOf(selected);
-    }
-
-    private String buildPlanSharedPrompt(
-            OrchestratorServices services,
-            Map<String, BaseTool> executeTools,
-            Map<String, BaseTool> planCallableTools
-    ) {
-        RuntimePromptTemplates.PlanExecute prompts = runtimePrompts().planExecute();
-        List<String> sections = new ArrayList<>();
-        sections.add(services.toolExecutionService().backendToolDescriptionSection(
-                executeTools,
-                prompts.executeToolsTitle()
-        ));
-        sections.add(services.toolExecutionService().backendToolDescriptionSection(
-                planCallableTools,
-                prompts.planCallableToolsTitle()
-        ));
-        return appendPromptSections(planStage.systemPrompt(), sections);
-    }
-
-    private String buildPlanDraftPrompt(String sharedPrompt) {
-        return appendPromptSections(
-                sharedPrompt,
-                List.of(runtimePrompts().planExecute().draftInstructionBlock())
-        );
-    }
-
-    private String buildPlanGeneratePrompt(String sharedPrompt, boolean basedOnDraft) {
-        String instructionBlock = basedOnDraft
-                ? runtimePrompts().planExecute().generateInstructionBlockFromDraft()
-                : runtimePrompts().planExecute().generateInstructionBlockDirect();
-        return appendPromptSections(
-                sharedPrompt,
-                List.of(instructionBlock)
-        );
-    }
-
-    private String appendPromptSections(String base, List<String> sections) {
-        List<String> merged = new ArrayList<>();
-        String normalizedBase = normalize(base, "");
-        if (!normalizedBase.isBlank()) {
-            merged.add(normalizedBase);
-        }
-        if (sections != null) {
-            for (String section : sections) {
-                String normalized = normalize(section, "");
-                if (!normalized.isBlank()) {
-                    merged.add(normalized);
-                }
-            }
-        }
-        return String.join("\n\n", merged);
-    }
-
-    private StageSettings withSystemPrompt(StageSettings stage, String prompt) {
-        if (stage == null) {
-            return null;
-        }
-        return new StageSettings(
-                prompt,
-                stage.providerKey(),
-                stage.model(),
-                stage.tools(),
-                stage.reasoningEnabled(),
-                stage.reasoningEffort(),
-                stage.deepThinking()
-        );
     }
 
     private StageSettings withReasoning(StageSettings stage, boolean reasoningEnabled) {

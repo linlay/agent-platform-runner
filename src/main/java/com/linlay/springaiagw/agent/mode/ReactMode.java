@@ -10,12 +10,11 @@ import com.linlay.springaiagw.agent.runtime.policy.OutputPolicy;
 import com.linlay.springaiagw.agent.runtime.policy.RunSpec;
 import com.linlay.springaiagw.agent.runtime.policy.ToolChoice;
 import com.linlay.springaiagw.agent.runtime.policy.ToolPolicy;
-import com.linlay.springaiagw.agent.runtime.policy.VerifyPolicy;
 import com.linlay.springaiagw.model.stream.AgentDelta;
 import com.linlay.springaiagw.tool.BaseTool;
-import org.springframework.ai.chat.messages.UserMessage;
 import reactor.core.publisher.FluxSink;
 
+import java.util.List;
 import java.util.Map;
 
 public final class ReactMode extends AgentMode {
@@ -56,7 +55,6 @@ public final class ReactMode extends AgentMode {
                 ControlStrategy.REACT_LOOP,
                 config != null && config.getOutput() != null ? config.getOutput() : OutputPolicy.PLAIN,
                 config != null && config.getToolPolicy() != null ? config.getToolPolicy() : ToolPolicy.ALLOW,
-                config != null && config.getVerify() != null ? config.getVerify() : VerifyPolicy.NONE,
                 budget
         );
     }
@@ -76,21 +74,30 @@ public final class ReactMode extends AgentMode {
         boolean emitReasoning = stage.reasoningEnabled();
 
         for (int step = 1; step <= effectiveMaxSteps; step++) {
-            OrchestratorServices.ModelTurn turn = services.callModelTurnStreaming(
-                    context,
-                    stage,
-                    context.conversationMessages(),
-                    null,
-                    stageTools,
-                    services.toolExecutionService().enabledFunctionTools(stageTools),
-                    services.requiresTool(context) ? ToolChoice.REQUIRED : ToolChoice.AUTO,
-                    "agent-react-step-" + step,
-                    false,
-                    emitReasoning,
-                    true,
-                    true,
-                    sink
-            );
+            OrchestratorServices.ModelTurn turn = null;
+            for (int retry = 0; retry <= 1; retry++) {
+                turn = services.callModelTurnStreaming(
+                        context,
+                        stage,
+                        context.conversationMessages(),
+                        null,
+                        stageTools,
+                        services.toolExecutionService().enabledFunctionTools(stageTools),
+                        services.requiresTool(context) ? ToolChoice.REQUIRED : ToolChoice.AUTO,
+                        retry == 0 ? "agent-react-step-" + step : "agent-react-step-" + step + "-retry-" + retry,
+                        false,
+                        emitReasoning,
+                        true,
+                        true,
+                        sink
+                );
+                if (!turn.toolCalls().isEmpty()) {
+                    break;
+                }
+                if (!services.requiresTool(context)) {
+                    break;
+                }
+            }
 
             if (!turn.toolCalls().isEmpty()) {
                 services.executeToolsAndEmit(context, stageTools, turn.toolCalls(), sink);
@@ -98,9 +105,6 @@ public final class ReactMode extends AgentMode {
             }
 
             if (services.requiresTool(context)) {
-                context.conversationMessages().add(new UserMessage(
-                        runtimePrompts().react().requireToolUserPrompt()
-                ));
                 continue;
             }
 
@@ -111,33 +115,37 @@ public final class ReactMode extends AgentMode {
 
             services.appendAssistantMessage(context.conversationMessages(), finalText);
             services.emitFinalAnswer(
-                    context,
-                    context.conversationMessages(),
                     finalText,
                     true,
-                    stage.systemPrompt(),
                     sink
             );
             return;
         }
 
-        boolean secondPass = services.verifyService().requiresSecondPass(context.definition().runSpec().verify());
-        String forced = services.forceFinalAnswer(
+        OrchestratorServices.ModelTurn finalTurn = services.callModelTurnStreaming(
                 context,
                 stage,
-                stageTools,
                 context.conversationMessages(),
-                "agent-react-force-final",
-                !secondPass,
+                null,
+                stageTools,
+                List.of(),
+                ToolChoice.NONE,
+                "agent-react-final",
+                false,
+                emitReasoning,
+                true,
+                true,
                 sink
         );
+        String forced = services.normalize(finalTurn.finalText());
+        if (forced.isBlank()) {
+            services.emit(sink, AgentDelta.content("执行中断：达到最大步骤后仍未生成可用最终答案。"));
+            return;
+        }
         services.appendAssistantMessage(context.conversationMessages(), forced);
         services.emitFinalAnswer(
-                context,
-                context.conversationMessages(),
                 forced,
-                !secondPass,
-                stage.systemPrompt(),
+                true,
                 sink
         );
     }

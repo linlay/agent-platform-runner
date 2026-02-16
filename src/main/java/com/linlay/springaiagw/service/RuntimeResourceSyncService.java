@@ -1,12 +1,12 @@
 package com.linlay.springaiagw.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.springaiagw.agent.AgentCatalogProperties;
-import com.linlay.springaiagw.config.CapabilityCatalogProperties;
-import com.linlay.springaiagw.config.ViewportCatalogProperties;
-import com.linlay.springaiagw.skill.SkillCatalogProperties;
-import jakarta.annotation.PostConstruct;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.Locale;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,12 +15,14 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Locale;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.springaiagw.agent.AgentCatalogProperties;
+import com.linlay.springaiagw.config.CapabilityCatalogProperties;
+import com.linlay.springaiagw.config.ViewportCatalogProperties;
+import com.linlay.springaiagw.skill.SkillCatalogProperties;
+
+import jakarta.annotation.PostConstruct;
 
 @Component
 public class RuntimeResourceSyncService {
@@ -28,8 +30,8 @@ public class RuntimeResourceSyncService {
     private static final Logger log = LoggerFactory.getLogger(RuntimeResourceSyncService.class);
     private static final String LEGACY_BASH_FILE = "bash.backend";
     private static final String CANONICAL_BASH_FILE = "_bash_.backend";
-    private static final String LEGACY_SKILL_SCRIPT_RUN_FILE = "skill_script_run.backend";
-    private static final String LEGACY_SKILL_SCRIPT_RUN_FILE_WITH_UNDERSCORES = "_skill_script_run_.backend";
+    private static final String LEGACY_SKILL_RUN_SCRIPT_FILE = "skill_script_run.backend";
+    private static final String LEGACY_SKILL_RUN_SCRIPT_FILE_WITH_UNDERSCORES = "_skill_run_script_.backend";
     private static final String CANONICAL_SKILL_RUN_SCRIPT_FILE = "_skill_run_script_.backend";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -159,14 +161,14 @@ public class RuntimeResourceSyncService {
         cleanupLegacyToolAlias(
                 targetToolsDir,
                 CANONICAL_SKILL_RUN_SCRIPT_FILE,
-                LEGACY_SKILL_SCRIPT_RUN_FILE,
+                LEGACY_SKILL_RUN_SCRIPT_FILE,
                 "skill_script_run"
         );
         cleanupLegacyToolAlias(
                 targetToolsDir,
                 CANONICAL_SKILL_RUN_SCRIPT_FILE,
-                LEGACY_SKILL_SCRIPT_RUN_FILE_WITH_UNDERSCORES,
-                "_skill_script_run_"
+                LEGACY_SKILL_RUN_SCRIPT_FILE_WITH_UNDERSCORES,
+                "_skill_run_script_"
         );
     }
 
