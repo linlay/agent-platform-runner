@@ -54,7 +54,7 @@ class DefinitionDrivenAgentTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final Pattern CURRENT_TASK_ID_PATTERN =
-            Pattern.compile("(?:当前要执行的 taskId|当前 taskId):\\s*([^\\n]+)");
+            Pattern.compile("(?:当前要执行的 taskId|当前 taskId|Current task ID):\\s*([^\\n]+)");
 
     @Test
     void oneshotToolingShouldEmitToolCallResultAndFinalAnswer() {
@@ -1173,8 +1173,8 @@ class DefinitionDrivenAgentTest {
                 "agent-plan-execute-step-2",
                 "agent-plan-execute-step-2-update"
         );
-        assertThat(executeUserMessages).anyMatch(text -> text.contains("这是任务列表："));
-        assertThat(executeUserMessages).anyMatch(text -> text.contains("当前要执行的 taskId:"));
+        assertThat(executeUserMessages).anyMatch(text -> text.contains("Task list:"));
+        assertThat(executeUserMessages).anyMatch(text -> text.contains("Current task ID:"));
         assertThat(deltas.stream().flatMap(delta -> delta.toolResults().stream())
                 .filter(result -> "call_plan_get_tasks_1".equals(result.toolId()))
                 .map(AgentDelta.ToolResult::result)

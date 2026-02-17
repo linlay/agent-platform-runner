@@ -18,10 +18,10 @@ import com.linlay.springaiagw.tool.BaseTool;
 import org.springframework.ai.chat.messages.UserMessage;
 import reactor.core.publisher.FluxSink;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -30,17 +30,18 @@ public final class PlanExecuteMode extends AgentMode {
     private static final String PLAN_ADD_TASK_TOOL = "_plan_add_tasks_";
     private static final String PLAN_UPDATE_TASK_TOOL = "_plan_update_task_";
     private static final int MAX_WORK_ROUNDS_PER_TASK = 6;
+    private static final int MAX_FORCED_UPDATE_ATTEMPTS = 2;
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{\\s*([a-z0-9_]+)\\s*}}");
 
     private static final String DEFAULT_TASK_EXECUTION_PROMPT_TEMPLATE = """
-            这是任务列表：
+            Task list:
             {{task_list}}
-            当前要执行的 taskId: {{task_id}}
-            当前任务描述: {{task_description}}
-            执行规则:
-            1) 每个执行回合最多调用一个工具；
-            2) 你可按需调用任意可用工具做准备；
-            3) 结束该任务前必须调用 _plan_update_task_ 更新状态。
+            Current task ID: {{task_id}}
+            Current task description: {{task_description}}
+            Execution rules:
+            1) Call at most one tool per round.
+            2) You may call any available tool as needed.
+            3) Before finishing this task, you MUST call _plan_update_task_ to update its status.
             """;
 
     private final StageSettings planStage;
@@ -89,14 +90,10 @@ public final class PlanExecuteMode extends AgentMode {
 
     @Override
     public String primarySystemPrompt() {
-        if (executeStage != null && executeStage.systemPrompt() != null && !executeStage.systemPrompt().isBlank()) {
-            return executeStage.systemPrompt();
-        }
-        if (summaryStage != null && summaryStage.systemPrompt() != null && !summaryStage.systemPrompt().isBlank()) {
-            return summaryStage.systemPrompt();
-        }
-        if (planStage != null && planStage.systemPrompt() != null && !planStage.systemPrompt().isBlank()) {
-            return planStage.systemPrompt();
+        for (StageSettings stage : new StageSettings[]{executeStage, summaryStage, planStage}) {
+            if (stage != null && stage.systemPrompt() != null && !stage.systemPrompt().isBlank()) {
+                return stage.systemPrompt();
+            }
         }
         return "";
     }
@@ -202,25 +199,13 @@ public final class PlanExecuteMode extends AgentMode {
                     taskExecutionPromptTemplate,
                     Map.of(
                             "task_list", formatTaskList(beforeSnapshot.tasks()),
-                            "task_id", normalize(step.taskId(), "unknown"),
-                            "task_description", normalize(step.description(), "无描述")
+                            "task_id", str(step.taskId(), "unknown"),
+                            "task_description", str(step.description(), "no description")
                     )
             );
             context.executeMessages().add(new UserMessage(taskPrompt));
 
-            boolean updated = runTaskWorkRounds(context, services, executeTools, stepNo, step, sink);
-            if (!updated) {
-                updated = runUpdateRound(context, services, executeTools, stepNo, step, false, sink);
-            }
-            if (!updated) {
-                updated = runUpdateRound(context, services, executeTools, stepNo, step, true, sink);
-            }
-            if (!updated) {
-                throw new PlanExecutionStalledException(
-                        "计划任务执行中断：任务 [" + normalize(step.taskId(), "unknown")
-                                + "] 更新任务状态失败 2 次，请调用 _plan_update_task_ 并提供有效状态。"
-                );
-            }
+            executeTaskRounds(context, services, executeTools, stepNo, step, sink);
             ensureTaskNotFailed(context, step);
         }
 
@@ -249,7 +234,11 @@ public final class PlanExecuteMode extends AgentMode {
         services.emitFinalAnswer(finalText, true, sink);
     }
 
-    private boolean runTaskWorkRounds(
+    /**
+     * Execute a single task: work rounds (phase 1) then forced update rounds (phase 2).
+     * Throws PlanExecutionStalledException if both phases fail to update task status.
+     */
+    private void executeTaskRounds(
             ExecutionContext context,
             OrchestratorServices services,
             Map<String, BaseTool> executeTools,
@@ -257,6 +246,7 @@ public final class PlanExecuteMode extends AgentMode {
             AgentDelta.PlanTask step,
             FluxSink<AgentDelta> sink
     ) {
+        // Phase 1: work rounds — model may produce text or call tools freely
         for (int round = 1; round <= MAX_WORK_ROUNDS_PER_TASK; round++) {
             OrchestratorServices.ModelTurn stepTurn = services.callModelTurnStreaming(
                     context,
@@ -282,10 +272,7 @@ public final class PlanExecuteMode extends AgentMode {
             }
 
             if (stepTurn.toolCalls().isEmpty()) {
-                if (services.requiresTool(context)) {
-                    continue;
-                }
-                return false;
+                continue; // allow text-only rounds to continue
             }
 
             String beforeStatus = statusOfTask(context.planTasks(), step.taskId());
@@ -295,94 +282,73 @@ public final class PlanExecuteMode extends AgentMode {
             if (isUpdateToolCall(first, step.taskId())) {
                 String afterStatus = statusOfTask(context.planTasks(), step.taskId());
                 if (afterStatus != null && !Objects.equals(beforeStatus, afterStatus)) {
-                    return true;
+                    return;
                 }
             }
         }
-        return false;
-    }
 
-    private boolean runUpdateRound(
-            ExecutionContext context,
-            OrchestratorServices services,
-            Map<String, BaseTool> executeTools,
-            int stepNo,
-            AgentDelta.PlanTask step,
-            boolean repair,
-            FluxSink<AgentDelta> sink
-    ) {
-        String beforeStatus = statusOfTask(context.planTasks(), step.taskId());
+        // Phase 2: forced update — require _plan_update_task_ call
+        for (int attempt = 1; attempt <= MAX_FORCED_UPDATE_ATTEMPTS; attempt++) {
+            String beforeStatus = statusOfTask(context.planTasks(), step.taskId());
 
-        OrchestratorServices.ModelTurn updateTurn = services.callModelTurnStreaming(
-                context,
-                executeStage,
-                context.executeMessages(),
-                null,
-                executeTools,
-                services.toolExecutionService().enabledFunctionTools(executeTools),
-                ToolChoice.REQUIRED,
-                repair
-                        ? "agent-plan-execute-step-" + stepNo + "-update-repair"
-                        : "agent-plan-execute-step-" + stepNo + "-update",
-                false,
-                executeStage.reasoningEnabled(),
-                true,
-                true,
-                sink
+            OrchestratorServices.ModelTurn updateTurn = services.callModelTurnStreaming(
+                    context,
+                    executeStage,
+                    context.executeMessages(),
+                    null,
+                    executeTools,
+                    services.toolExecutionService().enabledFunctionTools(executeTools),
+                    ToolChoice.REQUIRED,
+                    "agent-plan-execute-step-" + stepNo + (attempt == 1 ? "-update" : "-update-repair"),
+                    false,
+                    executeStage.reasoningEnabled(),
+                    true,
+                    true,
+                    sink
+            );
+
+            if (updateTurn.toolCalls().isEmpty()) {
+                continue;
+            }
+
+            var first = updateTurn.toolCalls().getFirst();
+            services.executeToolsAndEmit(context, executeTools, List.of(first), sink);
+
+            if (isUpdateToolCall(first, step.taskId())) {
+                String afterStatus = statusOfTask(context.planTasks(), step.taskId());
+                if (afterStatus != null && !Objects.equals(beforeStatus, afterStatus)) {
+                    return;
+                }
+            }
+        }
+
+        throw new PlanExecutionStalledException(
+                "计划任务执行中断：任务 [" + str(step.taskId(), "unknown")
+                        + "] 更新任务状态失败 2 次，请调用 _plan_update_task_ 并提供有效状态。"
         );
-
-        if (updateTurn.toolCalls().isEmpty()) {
-            return false;
-        }
-
-        var first = updateTurn.toolCalls().getFirst();
-        services.executeToolsAndEmit(context, executeTools, List.of(first), sink);
-        if (!isUpdateToolCall(first, step.taskId())) {
-            return false;
-        }
-
-        String afterStatus = statusOfTask(context.planTasks(), step.taskId());
-        return afterStatus != null && !Objects.equals(beforeStatus, afterStatus);
     }
 
     private boolean isUpdateToolCall(com.linlay.springaiagw.agent.PlannedToolCall call, String taskId) {
-        if (call == null) {
+        if (call == null || call.arguments() == null || call.arguments().isEmpty()) {
             return false;
         }
-        if (!PLAN_UPDATE_TASK_TOOL.equals(normalize(call.name(), "").toLowerCase())) {
-            return false;
-        }
-        if (call.arguments() == null || call.arguments().isEmpty()) {
+        if (!PLAN_UPDATE_TASK_TOOL.equals(str(call.name(), "").toLowerCase())) {
             return false;
         }
         Object value = call.arguments().get("taskId");
-        if (value == null) {
-            return false;
-        }
-        return normalize(taskId, "").equals(normalize(value.toString(), ""));
+        return value != null && str(taskId, "").equals(str(value.toString(), ""));
     }
 
     private boolean containsPlanAddCall(List<com.linlay.springaiagw.agent.PlannedToolCall> calls) {
         if (calls == null || calls.isEmpty()) {
             return false;
         }
-        return calls.stream()
-                .filter(Objects::nonNull)
-                .map(call -> normalize(call.name(), "").toLowerCase())
-                .anyMatch(name -> PLAN_ADD_TASK_TOOL.equals(name));
+        return calls.stream().anyMatch(c -> c != null && PLAN_ADD_TASK_TOOL.equals(str(c.name(), "").toLowerCase()));
     }
 
     private Map<String, BaseTool> selectPlanCallableTools(Map<String, BaseTool> planTools) {
-        if (planTools == null || planTools.isEmpty()) {
-            return Map.of();
-        }
-        BaseTool addTaskTool = planTools.get(PLAN_ADD_TASK_TOOL);
-        if (addTaskTool == null) {
-            return Map.of();
-        }
-        Map<String, BaseTool> selected = new LinkedHashMap<>();
-        selected.put(PLAN_ADD_TASK_TOOL, addTaskTool);
-        return Map.copyOf(selected);
+        BaseTool addTaskTool = planTools == null ? null : planTools.get(PLAN_ADD_TASK_TOOL);
+        return addTaskTool == null ? Map.of() : Map.of(PLAN_ADD_TASK_TOOL, addTaskTool);
     }
 
     private StageSettings withReasoning(StageSettings stage, boolean reasoningEnabled) {
@@ -401,71 +367,44 @@ public final class PlanExecuteMode extends AgentMode {
     }
 
     private void ensureTaskNotFailed(ExecutionContext context, AgentDelta.PlanTask step) {
-        String status = statusOfTask(context.planTasks(), step.taskId());
-        if ("failed".equals(status)) {
+        if ("failed".equals(statusOfTask(context.planTasks(), step.taskId()))) {
             throw new PlanExecutionStalledException(
-                    "计划任务执行失败：任务 [" + normalize(step.taskId(), "unknown")
-                            + "] 已被标记为 failed，流程已中断。"
+                    "计划任务执行失败：任务 [" + str(step.taskId(), "unknown") + "] 已被标记为 failed，流程已中断。"
             );
         }
     }
 
     private AgentDelta.PlanTask firstUnfinishedTask(List<AgentDelta.PlanTask> tasks) {
-        if (tasks == null || tasks.isEmpty()) {
-            return null;
-        }
-        for (AgentDelta.PlanTask task : tasks) {
-            if (task == null || task.taskId() == null || task.taskId().isBlank()) {
-                continue;
-            }
-            String status = normalizeStatus(task.status());
-            if (!"completed".equals(status) && !"canceled".equals(status) && !"failed".equals(status)) {
-                return task;
-            }
-        }
-        return null;
+        if (tasks == null) return null;
+        return tasks.stream()
+                .filter(t -> t != null && t.taskId() != null && !t.taskId().isBlank())
+                .filter(t -> {
+                    String s = normalizeStatus(t.status());
+                    return !"completed".equals(s) && !"canceled".equals(s) && !"failed".equals(s);
+                })
+                .findFirst().orElse(null);
     }
 
     private String formatTaskList(List<AgentDelta.PlanTask> tasks) {
         if (tasks == null || tasks.isEmpty()) {
-            return "- (空)";
+            return "- (empty)";
         }
-        StringBuilder builder = new StringBuilder();
-        boolean first = true;
+        StringJoiner joiner = new StringJoiner("\n");
         for (AgentDelta.PlanTask task : tasks) {
-            if (task == null) {
-                continue;
-            }
-            if (!first) {
-                builder.append('\n');
-            }
-            first = false;
-            builder.append("- ")
-                    .append(normalize(task.taskId(), "unknown"))
-                    .append(" | ")
-                    .append(normalizeStatus(task.status()))
-                    .append(" | ")
-                    .append(normalize(task.description(), "无描述"));
+            if (task == null) continue;
+            joiner.add("- " + str(task.taskId(), "unknown") + " | "
+                    + normalizeStatus(task.status()) + " | "
+                    + str(task.description(), "no description"));
         }
-        if (builder.isEmpty()) {
-            return "- (空)";
-        }
-        return builder.toString();
+        return joiner.length() == 0 ? "- (empty)" : joiner.toString();
     }
 
     private String statusOfTask(List<AgentDelta.PlanTask> tasks, String taskId) {
-        if (tasks == null || tasks.isEmpty() || taskId == null || taskId.isBlank()) {
-            return null;
-        }
-        for (AgentDelta.PlanTask task : tasks) {
-            if (task == null || task.taskId() == null) {
-                continue;
-            }
-            if (taskId.trim().equals(task.taskId().trim())) {
-                return normalizeStatus(task.status());
-            }
-        }
-        return null;
+        if (tasks == null || taskId == null || taskId.isBlank()) return null;
+        return tasks.stream()
+                .filter(t -> t != null && t.taskId() != null && taskId.trim().equals(t.taskId().trim()))
+                .map(t -> normalizeStatus(t.status()))
+                .findFirst().orElse(null);
     }
 
     private String normalizeStatus(String status) {
@@ -474,13 +413,12 @@ public final class PlanExecuteMode extends AgentMode {
         }
         String normalized = status.trim().toLowerCase();
         return switch (normalized) {
-            case "in_progress" -> "init";
             case "init", "completed", "failed", "canceled" -> normalized;
             default -> "init";
         };
     }
 
-    private String normalize(String value, String fallback) {
+    private String str(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.trim();
     }
 
