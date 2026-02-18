@@ -246,8 +246,13 @@ Agent JSON 已仅支持新结构：`modelConfig/toolConfig/skillConfig`。旧字
 同时已移除顶层 `verify` 字段；保留该字段会导致该 agent 配置被拒绝加载。
 运行策略字段仅保留：
 - `toolChoice`：`NONE` / `AUTO` / `REQUIRED`
-- `budget`：`maxModelCalls` / `maxToolCalls` / `timeoutMs` / `retryCount`
+- `budget`（V2，不兼容旧字段）：
+  - `runTimeoutMs`
+  - `model.maxCalls` / `model.timeoutMs` / `model.retryCount`
+  - `tool.maxCalls` / `tool.timeoutMs` / `tool.retryCount`
 - `react.maxSteps` 与 `planExecute.maxSteps` 负责步骤上限控制
+
+`budget` 旧字段 `maxModelCalls/maxToolCalls/timeoutMs/retryCount` 已移除，配置中出现会直接拒绝加载该 agent。
 
 顶层 skills 配置支持两种写法（会合并去重）：
 
@@ -350,12 +355,21 @@ type=html, key=show_weather_card
 
 ### 前端 tool 提交流程
 
-- 前端工具触发后会发送 `tool.start`（`toolType` 为 `frontend`），并等待 `/api/submit`。
+- 当前端工具触发时，SSE `tool.start` / `tool.snapshot` 会包含：
+  - `toolType`：`html` 或 `qlc`
+  - `toolKey`：对应 viewport key
+  - `toolTimeout`：提交等待超时（毫秒）
 - 默认等待超时 `5 分钟`（可配置）。
-- `POST /api/submit` 成功命中后会释放对应 `runId + toolId` 的等待。
-- 工具返回值提取规则：
-  - 优先返回 `payload.params`
-  - 若无 `params`，返回 `{}`。
+- `POST /api/submit` 请求体（V2）：
+  - `runId` + `toolId` + `params`
+  - 不再接收 `requestId/chatId/viewId/payload`
+- `POST /api/submit` 响应语义：
+  - HTTP 200 + `code=0`
+  - `data.accepted=true/false`
+  - `data.status=accepted/unmatched`
+  - `data.runId` / `data.toolId` / `data.detail`
+- 成功命中后会释放对应 `runId + toolId` 的等待；未命中返回 `accepted=false`，不会释放任何等待。
+- 前端工具返回值提取规则：直接回传 `params`（若为 `null` 则回传 `{}`）。
 - 动作工具触发 `action.start` 后不等待提交，直接返回 `"OK"` 给模型。
 - 动作事件顺序：`action.start` -> `action.args`（可多次）-> `action.end` -> `action.result`。
 
@@ -392,6 +406,7 @@ type=html, key=show_weather_card
 - `demoAction`（`ONESHOT`）：根据用户意图调用 `switch_theme` / `launch_fireworks` / `show_modal`。
 - `demoAgentCreator`（`PLAN_EXECUTE`）：调用 `agent_file_create` 创建/更新 `agents/{agentId}.json`。
 - `demoModePlainSkillMath`（`ONESHOT`）：加载 `math_basic/math_stats/text_utils` skills，并调用 `_skill_run_script_` 完成确定性计算。
+- `demoConfirmDialog`（`REACT`）：确认对话框 human-in-the-loop 示例，LLM 通过 `confirm_dialog` 前端工具向用户提问并等待回复。
 - 使用 `demoAgentCreator` 时建议提供：`key`、`name`、`icon`、`description`、`modelConfig`、`mode`、`toolConfig` 与各 mode 的 prompt 字段。
 - `agent_file_create` 会校验 `key/agentId`（仅允许 `A-Za-z0-9_-`，最长 64）。
 - `providerKey` 不做白名单校验；未提供时默认 `bailian`。
@@ -524,4 +539,56 @@ curl -N -X POST "http://localhost:8080/api/query" \
 curl -N -X POST "http://localhost:8080/api/query" \
   -H "Content-Type: application/json" \
   -d '{"message":"请计算 (2+3)*4，并说明过程","agentKey":"demoModePlainSkillMath"}'
+```
+
+### 确认对话框（Human-in-the-Loop）
+
+confirm_dialog 是前端工具，LLM 调用后 SSE 流会暂停等待用户提交。需要两个终端配合测试。
+
+**终端 1：发起 query（SSE 流会在 LLM 调用 confirm_dialog 时暂停）**
+
+```bash
+curl -N -X POST "http://localhost:8080/api/query" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"帮我规划周六的旅游，给我几个目的地选项让我选","agentKey":"demoConfirmDialog"}'
+```
+
+观察 SSE 输出，当看到 `toolName` 为 `confirm_dialog` 且事件携带 `toolType/toolKey/toolTimeout` 后，
+流会暂停等待。记录事件中的 `runId` 和 `toolId` 值。
+前端工具事件会携带 `toolType=html`、`toolKey=confirm_dialog`、`toolTimeout`。
+
+**终端 2：提交用户选择（用终端 1 中的 runId 和 toolId 替换占位符）**
+
+```bash
+curl -X POST "http://localhost:8080/api/submit" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "runId": "<RUN_ID>",
+    "toolId": "<TOOL_ID>",
+    "params": {
+      "selectedOption": "杭州西湖一日游",
+      "selectedIndex": 1,
+      "freeText": "",
+      "isCustom": false
+    }
+  }'
+```
+
+提交后终端 1 的 SSE 流会恢复，LLM 根据用户选择继续输出。
+若未命中等待中的 `runId + toolId`，接口仍返回 HTTP 200，但 `accepted=false` / `status=unmatched`。
+
+submit 响应示例：
+
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": {
+    "accepted": true,
+    "status": "accepted",
+    "runId": "<RUN_ID>",
+    "toolId": "<TOOL_ID>",
+    "detail": "Frontend submit accepted for runId=<RUN_ID>, toolId=<TOOL_ID>"
+  }
+}
 ```

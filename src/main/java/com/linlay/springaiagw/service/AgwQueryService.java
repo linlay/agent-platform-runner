@@ -4,6 +4,7 @@ import com.aiagent.agw.sdk.model.AgwInput;
 import com.aiagent.agw.sdk.model.AgwRequest;
 import com.aiagent.agw.sdk.service.AgwEventAssembler;
 import com.aiagent.agw.sdk.service.AgwSseStreamer;
+import com.linlay.springaiagw.config.FrontendToolProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -13,6 +14,7 @@ import com.linlay.springaiagw.agent.AgentRegistry;
 import com.linlay.springaiagw.model.api.AgwQueryRequest;
 import com.linlay.springaiagw.model.AgentRequest;
 import com.linlay.springaiagw.model.AgentDelta;
+import com.linlay.springaiagw.tool.CapabilityKind;
 import com.linlay.springaiagw.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,19 +49,25 @@ public class AgwQueryService {
     private final ObjectMapper objectMapper;
     private final ChatRecordStore chatRecordStore;
     private final ToolRegistry toolRegistry;
+    private final ViewportRegistryService viewportRegistryService;
+    private final FrontendToolProperties frontendToolProperties;
 
     public AgwQueryService(
             AgentRegistry agentRegistry,
             AgwSseStreamer agwSseStreamer,
             ObjectMapper objectMapper,
             ChatRecordStore chatRecordStore,
-            ToolRegistry toolRegistry
+            ToolRegistry toolRegistry,
+            ViewportRegistryService viewportRegistryService,
+            FrontendToolProperties frontendToolProperties
     ) {
         this.agentRegistry = agentRegistry;
         this.agwSseStreamer = agwSseStreamer;
         this.objectMapper = objectMapper;
         this.chatRecordStore = chatRecordStore;
         this.toolRegistry = toolRegistry;
+        this.viewportRegistryService = viewportRegistryService;
+        this.frontendToolProperties = frontendToolProperties;
     }
 
     public QuerySession prepare(AgwQueryRequest request) {
@@ -111,7 +119,7 @@ public class AgwQueryService {
         Flux<AgentDelta> deltas = session.agent().stream(session.agentRequest());
         Flux<AgwInput> inputs = new AgentDeltaToAgwInputMapper(session.request().runId(), toolRegistry).map(deltas);
         return agwSseStreamer.stream(session.request(), inputs)
-                .map(this::normalizePlanUpdateEvent)
+                .map(this::normalizeEvent)
                 .doOnNext(event -> {
                     String eventType = extractEventType(event.data());
                     if (!isToolEvent(eventType)) {
@@ -127,7 +135,7 @@ public class AgwQueryService {
                 .doOnNext(event -> chatRecordStore.appendEvent(session.request().chatId(), event.data()));
     }
 
-    private ServerSentEvent<String> normalizePlanUpdateEvent(ServerSentEvent<String> event) {
+    private ServerSentEvent<String> normalizeEvent(ServerSentEvent<String> event) {
         if (event == null || !StringUtils.hasText(event.data())) {
             return event;
         }
@@ -137,30 +145,27 @@ public class AgwQueryService {
         } catch (Exception ignored) {
             return event;
         }
-        if (!"plan.update".equals(root.path("type").asText())) {
+        if (!(root instanceof ObjectNode objectNode)) {
             return event;
         }
-        ObjectNode normalized = objectMapper.createObjectNode();
-        normalized.put("type", "plan.update");
-        putIfPresent(normalized, "planId", root.get("planId"));
-        putIfPresent(normalized, "chatId", root.get("chatId"));
-        putIfPresent(normalized, "plan", root.get("plan"));
-        putIfPresent(normalized, "timestamp", root.get("timestamp"));
-        normalized.putNull("rawEvent");
-        ServerSentEvent.Builder<String> builder = ServerSentEvent.builder(toJson(normalized));
-        if (StringUtils.hasText(event.event())) {
-            builder.event(event.event());
+
+        String type = objectNode.path("type").asText();
+        if ("plan.update".equals(type)) {
+            ObjectNode normalized = objectMapper.createObjectNode();
+            normalized.put("type", "plan.update");
+            putIfPresent(normalized, "planId", objectNode.get("planId"));
+            putIfPresent(normalized, "chatId", objectNode.get("chatId"));
+            putIfPresent(normalized, "plan", objectNode.get("plan"));
+            putIfPresent(normalized, "timestamp", objectNode.get("timestamp"));
+            normalized.putNull("rawEvent");
+            return rebuildEvent(event, normalized);
         }
-        if (StringUtils.hasText(event.id())) {
-            builder.id(event.id());
+
+        if (normalizeFrontendToolEvent(type, objectNode)) {
+            return rebuildEvent(event, objectNode);
         }
-        if (StringUtils.hasText(event.comment())) {
-            builder.comment(event.comment());
-        }
-        if (event.retry() != null) {
-            builder.retry(event.retry());
-        }
-        return builder.build();
+
+        return event;
     }
 
     private void putIfPresent(ObjectNode target, String key, JsonNode value) {
@@ -174,8 +179,59 @@ public class AgwQueryService {
         try {
             return objectMapper.writeValueAsString(node);
         } catch (JsonProcessingException ex) {
-            return "{\"type\":\"plan.update\"}";
+            return "{}";
         }
+    }
+
+    private ServerSentEvent<String> rebuildEvent(ServerSentEvent<String> original, ObjectNode data) {
+        ServerSentEvent.Builder<String> builder = ServerSentEvent.builder(toJson(data));
+        if (StringUtils.hasText(original.event())) {
+            builder.event(original.event());
+        }
+        if (StringUtils.hasText(original.id())) {
+            builder.id(original.id());
+        }
+        if (StringUtils.hasText(original.comment())) {
+            builder.comment(original.comment());
+        }
+        if (original.retry() != null) {
+            builder.retry(original.retry());
+        }
+        return builder.build();
+    }
+
+    private boolean normalizeFrontendToolEvent(String eventType, ObjectNode root) {
+        if (!"tool.start".equals(eventType) && !"tool.snapshot".equals(eventType)) {
+            return false;
+        }
+
+        String toolName = root.path("toolName").asText(null);
+        if (!StringUtils.hasText(toolName)) {
+            return false;
+        }
+
+        return toolRegistry.capability(toolName)
+                .filter(descriptor -> descriptor.kind() == CapabilityKind.FRONTEND)
+                .map(descriptor -> {
+                    String toolKey = StringUtils.hasText(descriptor.viewportKey())
+                            ? descriptor.viewportKey().trim()
+                            : null;
+                    if (!StringUtils.hasText(toolKey)) {
+                        return false;
+                    }
+                    root.put("toolKey", toolKey);
+                    root.put("toolType", resolveFrontendToolType(toolKey));
+                    root.put("toolTimeout", Math.max(1L, frontendToolProperties.getSubmitTimeoutMs()));
+                    return true;
+                })
+                .orElse(false);
+    }
+
+    private String resolveFrontendToolType(String toolKey) {
+        return viewportRegistryService.find(toolKey)
+                .map(viewport -> viewport.viewportType().value())
+                .filter(StringUtils::hasText)
+                .orElse("html");
     }
 
     private Map<String, Object> mergeQueryParams(Map<String, Object> requestParams, boolean created) {

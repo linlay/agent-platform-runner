@@ -38,28 +38,22 @@ public class FrontendSubmitCoordinator {
                 .doFinally(signalType -> pendingByKey.remove(key));
     }
 
-    public boolean submit(String runId, String toolId, Object payload) {
+    public SubmitAck submit(String runId, String toolId, Object params) {
         String key = key(runId, toolId);
         CompletableFuture<Object> pending = pendingByKey.remove(key);
         if (pending == null) {
-            return false;
+            return new SubmitAck(
+                    false,
+                    "unmatched",
+                    "No pending frontend tool found for runId=" + runId + ", toolId=" + toolId
+            );
         }
-        pending.complete(extractSubmitResult(payload));
-        return true;
-    }
-
-    private Object extractSubmitResult(Object payload) {
-        if (!(payload instanceof Map<?, ?> map)) {
-            return Map.of();
-        }
-        if (!map.containsKey("params")) {
-            return Map.of();
-        }
-        Object params = map.get("params");
-        if (params == null) {
-            return Map.of();
-        }
-        return params;
+        pending.complete(params == null ? Map.of() : params);
+        return new SubmitAck(
+                true,
+                "accepted",
+                "Frontend submit accepted for runId=" + runId + ", toolId=" + toolId
+        );
     }
 
     private String key(String runId, String toolId) {
@@ -69,5 +63,12 @@ public class FrontendSubmitCoordinator {
             throw new IllegalArgumentException("runId and toolId are required");
         }
         return normalizedRunId + "#" + normalizedToolId;
+    }
+
+    public record SubmitAck(
+            boolean accepted,
+            String status,
+            String detail
+    ) {
     }
 }

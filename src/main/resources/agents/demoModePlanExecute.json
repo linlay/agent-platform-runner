@@ -23,7 +23,7 @@
       """,
       "modelConfig": {
         "providerKey": "bailian",
-        "model": "qwen3-max",
+        "model": "qwen3.5-plus",
         "reasoning": {
           "enabled": false
         }
@@ -46,7 +46,7 @@
       """,
       "modelConfig": {
         "providerKey": "bailian",
-        "model": "qwen3-max",
+        "model": "qwen3.5-plus",
         "reasoning": {
           "enabled": false
         }
@@ -67,7 +67,7 @@
       """,
       "modelConfig": {
         "providerKey": "bailian",
-        "model": "qwen3-max",
+        "model": "qwen3.5-plus",
         "reasoning": {
           "enabled": true,
           "effort": "LOW"

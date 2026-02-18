@@ -157,6 +157,7 @@ public class OrchestratorServices {
                 resolveEffort(stageSettings),
                 stageSettings.reasoningEnabled(),
                 4096,
+                context.budget().model().timeoutMs(),
                 stage,
                 parallelToolCalls
         )).toIterable()) {
@@ -316,11 +317,19 @@ public class OrchestratorServices {
         return context.definition().runSpec().toolChoice() != ToolChoice.NONE;
     }
 
-    public int retryCount(ExecutionContext context, int fallback) {
+    public int modelRetryCount(ExecutionContext context, int fallback) {
         if (context == null || context.budget() == null) {
             return fallback;
         }
-        int configured = context.budget().retryCount();
+        int configured = context.budget().model().retryCount();
+        return configured > 0 ? configured : fallback;
+    }
+
+    public int toolRetryCount(ExecutionContext context, int fallback) {
+        if (context == null || context.budget() == null) {
+            return fallback;
+        }
+        int configured = context.budget().tool().retryCount();
         return configured > 0 ? configured : fallback;
     }
 

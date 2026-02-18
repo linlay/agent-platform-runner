@@ -307,7 +307,7 @@ public final class PlanExecuteMode extends AgentMode {
         }
 
         // Phase 2: forced update — require _plan_update_task_ call
-        int forcedUpdateAttempts = services.retryCount(context, 2);
+        int forcedUpdateAttempts = services.modelRetryCount(context, 2);
         for (int attempt = 1; attempt <= forcedUpdateAttempts; attempt++) {
             String beforeStatus = statusOfTask(context.planTasks(), step.taskId());
 

@@ -467,10 +467,19 @@ public class DefinitionDrivenAgent implements Agent {
         item.put("toolChoice", runSpec.toolChoice());
         Budget budget = runSpec.budget();
         Map<String, Object> budgetMap = new LinkedHashMap<>();
-        budgetMap.put("maxModelCalls", budget.maxModelCalls());
-        budgetMap.put("maxToolCalls", budget.maxToolCalls());
-        budgetMap.put("timeoutMs", budget.timeoutMs());
-        budgetMap.put("retryCount", budget.retryCount());
+        budgetMap.put("runTimeoutMs", budget.runTimeoutMs());
+
+        Map<String, Object> modelBudget = new LinkedHashMap<>();
+        modelBudget.put("maxCalls", budget.model().maxCalls());
+        modelBudget.put("timeoutMs", budget.model().timeoutMs());
+        modelBudget.put("retryCount", budget.model().retryCount());
+        budgetMap.put("model", modelBudget);
+
+        Map<String, Object> toolBudget = new LinkedHashMap<>();
+        toolBudget.put("maxCalls", budget.tool().maxCalls());
+        toolBudget.put("timeoutMs", budget.tool().timeoutMs());
+        toolBudget.put("retryCount", budget.tool().retryCount());
+        budgetMap.put("tool", toolBudget);
         item.put("budget", budgetMap);
         return item;
     }

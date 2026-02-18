@@ -285,24 +285,48 @@ class AgwControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
-                        "requestId", "req_submit_001",
-                        "chatId", "123e4567-e89b-12d3-a456-426614174000",
                         "runId", runId,
                         "toolId", toolId,
-                        "viewId", "view_abc",
-                        "payload", Map.of("params", Map.of("confirmed", true))
+                        "params", Map.of("confirmed", true)
                 ))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.msg").isEqualTo("success")
-                .jsonPath("$.data.requestId").isEqualTo("req_submit_001")
                 .jsonPath("$.data.accepted").isEqualTo(true)
+                .jsonPath("$.data.status").isEqualTo("accepted")
                 .jsonPath("$.data.runId").isEqualTo(runId)
-                .jsonPath("$.data.toolId").isEqualTo(toolId);
+                .jsonPath("$.data.toolId").isEqualTo(toolId)
+                .jsonPath("$.data.detail").isNotEmpty();
 
         assertThat(pending.block(Duration.ofSeconds(2))).isEqualTo(Map.of("confirmed", true));
+    }
+
+    @Test
+    void submitShouldReturnUnmatchedWhenNoPendingTool() {
+        String runId = "123e4567-e89b-12d3-a456-426614174111";
+        String toolId = "tool_missing";
+
+        webTestClient.post()
+                .uri("/api/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "runId", runId,
+                        "toolId", toolId,
+                        "params", Map.of("confirmed", true)
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.msg").isEqualTo("success")
+                .jsonPath("$.data.accepted").isEqualTo(false)
+                .jsonPath("$.data.status").isEqualTo("unmatched")
+                .jsonPath("$.data.runId").isEqualTo(runId)
+                .jsonPath("$.data.toolId").isEqualTo(toolId)
+                .jsonPath("$.data.detail").isNotEmpty();
     }
 
     @Test

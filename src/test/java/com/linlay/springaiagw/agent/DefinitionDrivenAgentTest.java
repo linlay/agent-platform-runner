@@ -1056,8 +1056,11 @@ class DefinitionDrivenAgentTest {
         assertThat(logs).contains("\"requestId\" : \"req_demo\"");
         assertThat(logs).contains("\"message\" : \"测试快照\"");
         assertThat(logs).contains("\"toolChoice\" : \"AUTO\"");
-        assertThat(logs).contains("\"maxModelCalls\" : 20");
-        assertThat(logs).contains("\"maxToolCalls\" : 10");
+        assertThat(logs).contains("\"runTimeoutMs\" : 180000");
+        assertThat(logs).contains("\"model\" : {");
+        assertThat(logs).contains("\"tool\" : {");
+        assertThat(logs).contains("\"maxCalls\" : 20");
+        assertThat(logs).contains("\"maxCalls\" : 10");
         assertThat(logs).contains("\"timeoutMs\" : 180000");
         assertThat(logs).contains("\"retryCount\" : 2");
         assertThat(logs).contains("\"plan\" : {");

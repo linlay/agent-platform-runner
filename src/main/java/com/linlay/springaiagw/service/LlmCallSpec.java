@@ -18,6 +18,7 @@ public record LlmCallSpec(
         ComputePolicy compute,
         boolean reasoningEnabled,
         Integer maxTokens,
+        Long timeoutMs,
         String stage,
         boolean parallelToolCalls
 ) {
@@ -40,6 +41,9 @@ public record LlmCallSpec(
         }
         if (stage == null || stage.isBlank()) {
             stage = "default";
+        }
+        if (timeoutMs != null && timeoutMs <= 0) {
+            timeoutMs = null;
         }
     }
 }

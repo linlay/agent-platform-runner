@@ -386,12 +386,24 @@ public class AgentFileCreateTool extends AbstractDeterministicTool {
             return;
         }
         ObjectNode budget = OBJECT_MAPPER.createObjectNode();
-        putIntIfPositive(budget, "maxModelCalls", map.get("maxModelCalls"));
-        putIntIfPositive(budget, "maxToolCalls", map.get("maxToolCalls"));
-        putLongIfPositive(budget, "timeoutMs", map.get("timeoutMs"));
-        putIntIfPositive(budget, "retryCount", map.get("retryCount"));
+        putLongIfPositive(budget, "runTimeoutMs", map.get("runTimeoutMs"));
+        putBudgetScopeIfPresent(budget, "model", map.get("model"));
+        putBudgetScopeIfPresent(budget, "tool", map.get("tool"));
         if (!budget.isEmpty()) {
             root.set("budget", budget);
+        }
+    }
+
+    private void putBudgetScopeIfPresent(ObjectNode root, String fieldName, Object value) {
+        if (!(value instanceof Map<?, ?> map)) {
+            return;
+        }
+        ObjectNode scope = OBJECT_MAPPER.createObjectNode();
+        putIntIfPositive(scope, "maxCalls", map.get("maxCalls"));
+        putLongIfPositive(scope, "timeoutMs", map.get("timeoutMs"));
+        putIntIfPositive(scope, "retryCount", map.get("retryCount"));
+        if (!scope.isEmpty()) {
+            root.set(fieldName, scope);
         }
     }
 

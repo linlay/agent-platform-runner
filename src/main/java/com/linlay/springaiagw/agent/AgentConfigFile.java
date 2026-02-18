@@ -1,6 +1,7 @@
 package com.linlay.springaiagw.agent;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
@@ -9,7 +10,10 @@ import com.linlay.springaiagw.agent.runtime.policy.Budget;
 import com.linlay.springaiagw.agent.runtime.policy.ComputePolicy;
 import com.linlay.springaiagw.agent.runtime.policy.ToolChoice;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AgentConfigFile {
@@ -152,52 +156,112 @@ public class AgentConfigFile {
         this.runtimePrompts = runtimePrompts;
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class BudgetConfig {
-        private Integer maxModelCalls;
-        private Integer maxToolCalls;
-        private Long timeoutMs;
-        private Integer retryCount;
+        private static final Set<String> LEGACY_FIELDS = Set.of(
+                "maxModelCalls",
+                "maxToolCalls",
+                "timeoutMs",
+                "retryCount"
+        );
 
-        public Integer getMaxModelCalls() {
-            return maxModelCalls;
+        private Long runTimeoutMs;
+        private ScopeConfig model;
+        private ScopeConfig tool;
+        private final Map<String, Object> unknownFields = new LinkedHashMap<>();
+
+        public Long getRunTimeoutMs() {
+            return runTimeoutMs;
         }
 
-        public void setMaxModelCalls(Integer maxModelCalls) {
-            this.maxModelCalls = maxModelCalls;
+        public void setRunTimeoutMs(Long runTimeoutMs) {
+            this.runTimeoutMs = runTimeoutMs;
         }
 
-        public Integer getMaxToolCalls() {
-            return maxToolCalls;
+        public ScopeConfig getModel() {
+            return model;
         }
 
-        public void setMaxToolCalls(Integer maxToolCalls) {
-            this.maxToolCalls = maxToolCalls;
+        public void setModel(ScopeConfig model) {
+            this.model = model;
         }
 
-        public Long getTimeoutMs() {
-            return timeoutMs;
+        public ScopeConfig getTool() {
+            return tool;
         }
 
-        public void setTimeoutMs(Long timeoutMs) {
-            this.timeoutMs = timeoutMs;
+        public void setTool(ScopeConfig tool) {
+            this.tool = tool;
         }
 
-        public Integer getRetryCount() {
-            return retryCount;
+        @JsonAnySetter
+        public void setUnknownField(String key, Object value) {
+            if (key == null || key.isBlank()) {
+                return;
+            }
+            unknownFields.put(key, value);
         }
 
-        public void setRetryCount(Integer retryCount) {
-            this.retryCount = retryCount;
+        public Map<String, Object> getUnknownFields() {
+            return Map.copyOf(unknownFields);
         }
 
         public Budget toBudget() {
+            if (!unknownFields.isEmpty()) {
+                List<String> names = unknownFields.keySet().stream().sorted().toList();
+                List<String> legacy = names.stream().filter(LEGACY_FIELDS::contains).toList();
+                if (!legacy.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "budget legacy fields are not supported: " + String.join(", ", legacy)
+                    );
+                }
+                throw new IllegalArgumentException(
+                        "budget contains unsupported fields: " + String.join(", ", names)
+                );
+            }
             return new Budget(
-                    maxModelCalls == null ? 0 : maxModelCalls,
-                    maxToolCalls == null ? 0 : maxToolCalls,
-                    timeoutMs == null ? 0L : timeoutMs,
-                    retryCount == null ? 0 : retryCount
+                    runTimeoutMs == null ? 0L : runTimeoutMs,
+                    model == null ? null : model.toScope(),
+                    tool == null ? null : tool.toScope()
             );
+        }
+
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public static class ScopeConfig {
+            private Integer maxCalls;
+            private Long timeoutMs;
+            private Integer retryCount;
+
+            public Integer getMaxCalls() {
+                return maxCalls;
+            }
+
+            public void setMaxCalls(Integer maxCalls) {
+                this.maxCalls = maxCalls;
+            }
+
+            public Long getTimeoutMs() {
+                return timeoutMs;
+            }
+
+            public void setTimeoutMs(Long timeoutMs) {
+                this.timeoutMs = timeoutMs;
+            }
+
+            public Integer getRetryCount() {
+                return retryCount;
+            }
+
+            public void setRetryCount(Integer retryCount) {
+                this.retryCount = retryCount;
+            }
+
+            private Budget.Scope toScope() {
+                return new Budget.Scope(
+                        maxCalls == null ? 0 : maxCalls,
+                        timeoutMs == null ? 0L : timeoutMs,
+                        retryCount == null ? 0 : retryCount
+                );
+            }
         }
     }
 

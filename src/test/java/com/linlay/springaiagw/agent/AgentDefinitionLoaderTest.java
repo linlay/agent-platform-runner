@@ -516,6 +516,69 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldParseBudgetV2Config() throws IOException {
+        Files.writeString(tempDir.resolve("budget_v2.json"), """
+                {
+                  "key": "budget_v2",
+                  "description": "budget v2",
+                  "modelConfig": {
+                    "providerKey": "bailian",
+                    "model": "qwen3-max"
+                  },
+                  "budget": {
+                    "runTimeoutMs": 180000,
+                    "model": {
+                      "maxCalls": 18,
+                      "timeoutMs": 45000,
+                      "retryCount": 2
+                    },
+                    "tool": {
+                      "maxCalls": 36,
+                      "timeoutMs": 90000,
+                      "retryCount": 3
+                    }
+                  },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "budget test" }
+                }
+                """);
+
+        AgentDefinition definition = loadById().get("budget_v2");
+        assertThat(definition).isNotNull();
+        assertThat(definition.runSpec().budget().runTimeoutMs()).isEqualTo(180000);
+        assertThat(definition.runSpec().budget().model().maxCalls()).isEqualTo(18);
+        assertThat(definition.runSpec().budget().model().timeoutMs()).isEqualTo(45000);
+        assertThat(definition.runSpec().budget().model().retryCount()).isEqualTo(2);
+        assertThat(definition.runSpec().budget().tool().maxCalls()).isEqualTo(36);
+        assertThat(definition.runSpec().budget().tool().timeoutMs()).isEqualTo(90000);
+        assertThat(definition.runSpec().budget().tool().retryCount()).isEqualTo(3);
+    }
+
+    @Test
+    void shouldRejectLegacyBudgetFields() throws IOException {
+        Files.writeString(tempDir.resolve("budget_legacy.json"), """
+                {
+                  "key": "budget_legacy",
+                  "description": "budget legacy",
+                  "modelConfig": {
+                    "providerKey": "bailian",
+                    "model": "qwen3-max"
+                  },
+                  "budget": {
+                    "maxModelCalls": 8,
+                    "maxToolCalls": 16,
+                    "timeoutMs": 120000,
+                    "retryCount": 1
+                  },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "budget legacy test" }
+                }
+                """);
+
+        assertThat(loadById()).doesNotContainKey("budget_legacy");
+    }
+
+    @Test
     void shouldLoadBothPlanExecuteVariantsWhenJsonFileAndUniqueKeys() throws IOException {
         Files.writeString(tempDir.resolve("demoModePlanExecute.json"), """
                 {

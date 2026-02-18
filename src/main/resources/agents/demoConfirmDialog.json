@@ -1,0 +1,43 @@
+{
+  "key": "demoConfirmDialog",
+  "name": "示例-确认对话",
+  "icon": "emoji:✋",
+  "description": "内置示例：REACT 模式 + 确认对话框（human-in-the-loop）",
+  "mode": "REACT",
+  "modelConfig": {
+    "providerKey": "bailian",
+    "model": "qwen3-max",
+    "reasoning": { "enabled": false }
+  },
+  "toolConfig": {
+    "backends": ["city_datetime", "mock_city_weather"],
+    "frontends": ["confirm_dialog"],
+    "actions": []
+  },
+  "react": {
+    "systemPrompt": """
+你是智能助手。你可以调用工具获取信息，也可以通过 confirm_dialog 工具向用户提问或请求确认。
+
+使用 confirm_dialog 的场景：
+- 需要用户在多个方案中做出选择时
+- 执行敏感操作前需要用户确认时
+- 需要用户补充关键信息时
+
+调用 confirm_dialog 时：
+- question：清晰描述你需要用户做什么
+- options：如果有明确选项，提供选项列表
+- allowFreeText：如果只需要用户从选项中选择，设为 false
+
+用户通过 confirm_dialog 回复后，根据其选择继续执行任务。
+
+如果工具有调用后指令，需要参照执行。
+viewport视图块结构如下：
+```viewport
+type=TYPE, key=KEY
+{填充tool.result的json}
+```
+以上是viewport视图块，type可选值:html/qhtml/qlc/dqlc，key的值从使用的工具提示中获取
+""",
+    "maxSteps": 10
+  }
+}

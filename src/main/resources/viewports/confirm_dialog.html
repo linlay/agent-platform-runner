@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>confirm_dialog</title>
+  <style>
+    :root {
+      --bg: #f4f7fc;
+      --panel: #ffffff;
+      --panel-soft: #f7f9fd;
+      --line: #d9e2ef;
+      --line-strong: #c6d3e5;
+      --text: #1f2a3a;
+      --sub: #56647a;
+      --muted: #77869d;
+      --accent: #2757d8;
+      --accent-soft: rgba(39, 87, 216, 0.12);
+      --danger: #ca3a3a;
+      --ok: #16805d;
+      --shadow: 0 6px 18px rgba(22, 37, 66, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+    }
+
+    body {
+      font-family: "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 8%, rgba(39, 87, 216, 0.11), transparent 34%),
+        linear-gradient(170deg, var(--bg), #f7f9fd 68%);
+      padding: 12px;
+    }
+
+    .shell {
+      width: min(760px, 100%);
+      margin: 0 auto;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--panel) 92%, var(--panel-soft));
+      box-shadow: var(--shadow);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .question {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.4;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .options {
+      display: grid;
+      gap: 7px;
+    }
+
+    .option {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--panel) 88%, var(--panel-soft));
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      cursor: pointer;
+      transition: border-color 0.18s ease, background-color 0.18s ease;
+    }
+
+    .option:hover {
+      border-color: var(--line-strong);
+      background: color-mix(in srgb, var(--panel) 80%, #ffffff);
+    }
+
+    .option.is-selected {
+      border-color: color-mix(in srgb, var(--accent) 54%, var(--line));
+      background: color-mix(in srgb, var(--accent-soft) 88%, #ffffff);
+    }
+
+    .option input[type='radio'] {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      accent-color: var(--accent);
+      flex: 0 0 14px;
+    }
+
+    .option-label {
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--text);
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+
+    .free-wrap {
+      display: none;
+      gap: 6px;
+    }
+
+    .free-wrap.show {
+      display: grid;
+    }
+
+    .free-label {
+      font-size: 12px;
+      color: var(--sub);
+    }
+
+    .free-input {
+      width: 100%;
+      min-height: 66px;
+      max-height: 160px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #ffffff;
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.45;
+      padding: 8px 10px;
+      font-family: inherit;
+    }
+
+    .free-input:focus {
+      outline: none;
+      border-color: color-mix(in srgb, var(--accent) 54%, var(--line));
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-soft) 70%, transparent);
+    }
+
+    .bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 2px;
+    }
+
+    .status {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .status.ok {
+      color: var(--ok);
+    }
+
+    .status.err {
+      color: var(--danger);
+    }
+
+    .submit {
+      border: 1px solid color-mix(in srgb, var(--accent) 62%, var(--line));
+      border-radius: 9px;
+      background: linear-gradient(140deg, #2f62de, #2552c4);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      padding: 7px 13px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(39, 87, 216, 0.28);
+    }
+
+    .submit[disabled] {
+      cursor: not-allowed;
+      opacity: 0.58;
+      box-shadow: none;
+    }
+
+    @media (max-width: 560px) {
+      body {
+        padding: 8px;
+      }
+
+      .card {
+        border-radius: 12px;
+        padding: 10px;
+      }
+
+      .question {
+        font-size: 14px;
+      }
+
+      .submit {
+        width: 100%;
+      }
+
+      .bar {
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="card" aria-live="polite">
+      <h1 id="question" class="question">请确认下一步操作</h1>
+      <div id="options" class="options"></div>
+      <div id="freeWrap" class="free-wrap">
+        <label class="free-label" for="freeInput">请输入自定义内容</label>
+        <textarea id="freeInput" class="free-input" placeholder="输入你的自定义选项"></textarea>
+      </div>
+      <div class="bar">
+        <span id="status" class="status">等待提交</span>
+        <button id="submit" class="submit" type="button">提交</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const CUSTOM_LABEL = '其他（自定义输入）';
+
+    const state = {
+      question: '请确认下一步操作',
+      options: [],
+      allowFreeText: false,
+      selectedIndex: -1,
+      customIndex: -1
+    };
+
+    const elements = {
+      question: document.getElementById('question'),
+      options: document.getElementById('options'),
+      freeWrap: document.getElementById('freeWrap'),
+      freeInput: document.getElementById('freeInput'),
+      status: document.getElementById('status'),
+      submit: document.getElementById('submit')
+    };
+
+    function setStatus(text, tone) {
+      elements.status.textContent = text;
+      elements.status.classList.toggle('ok', tone === 'ok');
+      elements.status.classList.toggle('err', tone === 'err');
+    }
+
+    function normalizeParams(raw) {
+      const params = raw && typeof raw === 'object' ? raw : {};
+      const options = Array.isArray(params.options)
+        ? params.options
+            .map((item) => String(item ?? '').trim())
+            .filter(Boolean)
+        : [];
+
+      const question = typeof params.question === 'string' && params.question.trim()
+        ? params.question.trim()
+        : '请确认下一步操作';
+
+      return {
+        question,
+        options,
+        allowFreeText: Boolean(params.allowFreeText)
+      };
+    }
+
+    function listWithCustom() {
+      const list = state.options.slice();
+      if (state.allowFreeText) {
+        list.push(CUSTOM_LABEL);
+      }
+      return list;
+    }
+
+    function isCustomSelected() {
+      return state.allowFreeText && state.customIndex >= 0 && state.selectedIndex === state.customIndex;
+    }
+
+    function syncFreeInput() {
+      const customSelected = isCustomSelected();
+      elements.freeWrap.classList.toggle('show', customSelected);
+      if (!customSelected) {
+        elements.freeInput.value = '';
+        return;
+      }
+      window.setTimeout(() => {
+        elements.freeInput.focus();
+      }, 0);
+    }
+
+    function renderOptions() {
+      elements.options.innerHTML = '';
+      state.customIndex = state.allowFreeText ? state.options.length : -1;
+
+      const list = listWithCustom();
+      for (let index = 0; index < list.length; index += 1) {
+        const labelText = list[index];
+        const row = document.createElement('label');
+        row.className = 'option';
+
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'confirm-option';
+        radio.value = String(index);
+        radio.checked = state.selectedIndex === index;
+        radio.addEventListener('change', () => {
+          state.selectedIndex = index;
+          markSelectedOption();
+          syncFreeInput();
+          setStatus('等待提交', 'normal');
+        });
+
+        const label = document.createElement('span');
+        label.className = 'option-label';
+        label.textContent = labelText;
+
+        row.append(radio, label);
+        elements.options.appendChild(row);
+      }
+
+      markSelectedOption();
+      syncFreeInput();
+    }
+
+    function markSelectedOption() {
+      const rows = elements.options.querySelectorAll('.option');
+      rows.forEach((row, idx) => {
+        row.classList.toggle('is-selected', idx === state.selectedIndex);
+      });
+    }
+
+    function applyInitPayload(raw) {
+      const payload = raw && typeof raw === 'object' ? raw : {};
+      const params = payload.params && typeof payload.params === 'object'
+        ? payload.params
+        : payload;
+      const normalized = normalizeParams(params);
+
+      state.question = normalized.question;
+      state.options = normalized.options;
+      state.allowFreeText = normalized.allowFreeText;
+      state.customIndex = state.allowFreeText ? state.options.length : -1;
+
+      if (state.options.length > 0) {
+        state.selectedIndex = 0;
+      } else if (state.allowFreeText) {
+        state.selectedIndex = state.customIndex;
+      } else {
+        state.selectedIndex = -1;
+      }
+
+      elements.question.textContent = state.question;
+      renderOptions();
+
+      elements.submit.disabled = listWithCustom().length === 0;
+      if (elements.submit.disabled) {
+        setStatus('暂无可选项', 'err');
+      } else {
+        setStatus('等待提交', 'normal');
+      }
+    }
+
+    function buildSubmitParams() {
+      const list = listWithCustom();
+      if (list.length === 0 || state.selectedIndex < 0 || state.selectedIndex >= list.length) {
+        throw new Error('请先选择一个选项');
+      }
+
+      const custom = isCustomSelected();
+      const freeText = custom ? elements.freeInput.value.trim() : '';
+      if (custom && !freeText) {
+        throw new Error('已选择自定义，请填写内容');
+      }
+
+      return {
+        selectedOption: custom ? freeText : list[state.selectedIndex],
+        selectedIndex: state.selectedIndex + 1,
+        freeText,
+        isCustom: custom
+      };
+    }
+
+    function submit() {
+      try {
+        const params = buildSubmitParams();
+        window.parent.postMessage(
+          {
+            type: 'agw_frontend_submit',
+            params
+          },
+          '*'
+        );
+        setStatus('已提交，等待处理...', 'ok');
+      } catch (error) {
+        setStatus(error && error.message ? error.message : '提交失败', 'err');
+      }
+    }
+
+    elements.submit.addEventListener('click', submit);
+
+    elements.freeInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        submit();
+      }
+    });
+
+    window.addEventListener('message', (event) => {
+      const message = event.data;
+      if (!message || typeof message !== 'object') {
+        return;
+      }
+      if (message.type !== 'agw_tool_init') {
+        return;
+      }
+      applyInitPayload(message.data || {});
+    });
+
+    applyInitPayload({
+      params: {
+        question: '请确认下一步操作',
+        options: ['继续执行', '改用更保守方案', '停止并返回'],
+        allowFreeText: true
+      }
+    });
+  </script>
+</body>
+</html>

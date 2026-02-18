@@ -90,7 +90,7 @@ public final class OneshotMode extends AgentMode {
         }
 
         ToolChoice toolChoice = context.definition().runSpec().toolChoice();
-        int retries = services.retryCount(context, 2);
+        int retries = services.modelRetryCount(context, 2);
         OrchestratorServices.ModelTurn firstTurn = services.callModelTurnStreaming(
                 context,
                 stageSettings,

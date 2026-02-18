@@ -110,20 +110,24 @@ public class AgwController {
 
     @PostMapping("/submit")
     public ApiResponse<AgwSubmitResponse> submit(@Valid @RequestBody AgwSubmitRequest request) {
-        boolean accepted = frontendSubmitCoordinator.submit(request.runId(), request.toolId(), request.payload());
-        log.info(
-                "Received human-in-the-loop submit requestId={}, runId={}, toolId={}, viewId={}, accepted={}",
-                request.requestId(),
+        FrontendSubmitCoordinator.SubmitAck ack = frontendSubmitCoordinator.submit(
                 request.runId(),
                 request.toolId(),
-                request.viewId(),
-                accepted
+                request.params()
+        );
+        log.info(
+                "Received human-in-the-loop submit runId={}, toolId={}, accepted={}, status={}",
+                request.runId(),
+                request.toolId(),
+                ack.accepted(),
+                ack.status()
         );
         return ApiResponse.success(new AgwSubmitResponse(
-                request.requestId(),
-                accepted,
+                ack.accepted(),
+                ack.status(),
                 request.runId(),
-                request.toolId()
+                request.toolId(),
+                ack.detail()
         ));
     }
 

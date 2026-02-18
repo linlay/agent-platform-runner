@@ -1,9 +1,10 @@
 package com.linlay.springaiagw.model.api;
 
 public record AgwSubmitResponse(
-        String requestId,
         boolean accepted,
+        String status,
         String runId,
-        String toolId
+        String toolId,
+        String detail
 ) {
 }

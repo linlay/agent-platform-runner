@@ -58,7 +58,7 @@ public final class ReactMode extends AgentMode {
         Map<String, BaseTool> configuredTools = services.selectTools(enabledToolsByName, stage.tools());
         Map<String, BaseTool> stageTools = services.allowsTool(context) ? configuredTools : Map.of();
         int effectiveMaxSteps = maxSteps;
-        int retries = services.retryCount(context, 1);
+        int retries = services.modelRetryCount(context, 1);
         boolean emitReasoning = stage.reasoningEnabled();
 
         for (int step = 1; step <= effectiveMaxSteps; step++) {

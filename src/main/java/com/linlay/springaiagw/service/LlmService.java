@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class LlmService {
 
     private static final Logger log = LoggerFactory.getLogger(LlmService.class);
+    private static final long DEFAULT_STREAM_TIMEOUT_MS = 60_000L;
 
     private final ChatClientRegistry chatClientRegistry;
     private final AgentProviderProperties providerProperties;
@@ -176,7 +177,8 @@ public class LlmService {
                 spec.jsonSchema(),
                 spec.compute(),
                 spec.reasoningEnabled(),
-                spec.maxTokens()
+                spec.maxTokens(),
+                spec.timeoutMs()
         );
     }
 
@@ -203,6 +205,7 @@ public class LlmService {
                 null,
                 ComputePolicy.MEDIUM,
                 false,
+                null,
                 null
         );
     }
@@ -220,10 +223,11 @@ public class LlmService {
             String jsonSchema,
             ComputePolicy computePolicy,
             boolean reasoningEnabled,
-            Integer maxTokens
+            Integer maxTokens,
+            Long timeoutMs
     ) {
         return streamDeltasInternal(providerKey, model, systemPrompt, historyMessages, userPrompt, tools, stage,
-                parallelToolCalls, toolChoice, jsonSchema, computePolicy, reasoningEnabled, maxTokens);
+                parallelToolCalls, toolChoice, jsonSchema, computePolicy, reasoningEnabled, maxTokens, timeoutMs);
     }
 
     public Flux<String> streamContentRawSse(
@@ -340,7 +344,7 @@ public class LlmService {
                             callLogger.elapsedMs(startNanos),
                             responseBuffer
                     ))
-                    .timeout(Duration.ofSeconds(60));
+                    .timeout(Duration.ofMillis(resolveTimeoutMs(null)));
         });
     }
 
@@ -357,7 +361,8 @@ public class LlmService {
             String jsonSchema,
             ComputePolicy computePolicy,
             boolean reasoningEnabled,
-            Integer maxTokens
+            Integer maxTokens,
+            Long timeoutMs
     ) {
         return Flux.defer(() -> {
             String traceId = callLogger.generateTraceId();
@@ -502,8 +507,15 @@ public class LlmService {
                             callLogger.elapsedMs(startNanos),
                             responseBuffer
                     ))
-                    .timeout(Duration.ofSeconds(60));
+                    .timeout(Duration.ofMillis(resolveTimeoutMs(timeoutMs)));
         });
+    }
+
+    private long resolveTimeoutMs(Long timeoutMs) {
+        if (timeoutMs == null || timeoutMs <= 0) {
+            return DEFAULT_STREAM_TIMEOUT_MS;
+        }
+        return timeoutMs;
     }
 
     private Mono<String> completeTextInternal(

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.springaiagw.agent.PlannedToolCall;
 import com.linlay.springaiagw.agent.ToolAppend;
 import com.linlay.springaiagw.agent.ToolArgumentResolver;
+import com.linlay.springaiagw.agent.runtime.policy.Budget;
 import com.linlay.springaiagw.model.AgentDelta;
 import com.linlay.springaiagw.service.FrontendSubmitCoordinator;
 import com.linlay.springaiagw.tool.BaseTool;
@@ -21,8 +22,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class ToolExecutionService {
+
+    private static final ExecutorService BACKEND_TOOL_EXECUTOR = Executors.newCachedThreadPool(runnable -> {
+        Thread thread = new Thread(runnable, "agw-backend-tool");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     private final ToolRegistry toolRegistry;
     private final ToolArgumentResolver toolArgumentResolver;
@@ -248,10 +261,62 @@ public class ToolExecutionService {
             }
         }
 
+        return invokeBackendWithPolicy(toolName, args, context);
+    }
+
+    private JsonNode invokeBackendWithPolicy(
+            String toolName,
+            Map<String, Object> args,
+            ExecutionContext context
+    ) {
+        Budget.Scope scope = context == null || context.budget() == null
+                ? Budget.DEFAULT.tool()
+                : context.budget().tool();
+        int retries = Math.max(0, scope.retryCount());
+        long timeoutMs = Math.max(1L, scope.timeoutMs());
+
+        for (int attempt = 0; attempt <= retries; attempt++) {
+            try {
+                return invokeBackendOnce(toolName, args, timeoutMs);
+            } catch (IllegalArgumentException ex) {
+                return errorResult(toolName, ex.getMessage());
+            } catch (TimeoutException ex) {
+                if (attempt >= retries) {
+                    return errorResult(toolName, ex.getMessage());
+                }
+            } catch (RuntimeException ex) {
+                if (attempt >= retries) {
+                    return errorResult(toolName, ex.getMessage());
+                }
+            }
+        }
+
+        return errorResult(toolName, "Tool invocation failed after retries");
+    }
+
+    private JsonNode invokeBackendOnce(
+            String toolName,
+            Map<String, Object> args,
+            long timeoutMs
+    ) throws TimeoutException {
+        Future<JsonNode> future = BACKEND_TOOL_EXECUTOR.submit(() -> toolRegistry.invoke(toolName, args));
         try {
-            return toolRegistry.invoke(toolName, args);
-        } catch (Exception ex) {
-            return errorResult(toolName, ex.getMessage());
+            return future.get(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException ex) {
+            future.cancel(true);
+            throw new TimeoutException("Backend tool timeout: tool=" + toolName + ", timeoutMs=" + timeoutMs);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Backend tool invocation interrupted", ex);
+        } catch (ExecutionException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof IllegalArgumentException illegalArgumentException) {
+                throw illegalArgumentException;
+            }
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new RuntimeException(cause == null ? ex : cause);
         }
     }
 
