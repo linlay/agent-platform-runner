@@ -22,7 +22,7 @@ SDK 依赖: `libs/agw-springai-sdk-0.0.1-SNAPSHOT.jar`（`systemPath` 引用）�
 ## Architecture
 
 ```
-POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.stream()
+POST /api/query → AgentController → AgentQueryService → DefinitionDrivenAgent.stream()
   → LlmService.streamDeltas() → LLM Provider → AgentDelta → SSE response
 ```
 
@@ -36,7 +36,7 @@ POST /api/query → AgwController → AgwQueryService → DefinitionDrivenAgent.
 | `model` | `AgentRequest`、`ProviderProtocol`、`ProviderType`、`ViewportType` |
 | `model.api` | REST 契约：`ApiResponse`、`AgwQueryRequest`、`AgwSubmitRequest`、`AgwChatDetailResponse` 等 |
 | `model.stream` | 流式类型：`AgentDelta` |
-| `service` | `LlmService`（WebClient SSE + ChatClient 双路径）、`AgwQueryService`（流编排）、`ChatRecordStore`、`DirectoryWatchService` |
+| `service` | `LlmService`（WebClient SSE + ChatClient 双路径）、`AgentQueryService`（流编排）、`ChatRecordStore`、`DirectoryWatchService` |
 | `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册、`CapabilityRegistryService`（外部工具），内置 bash/city_datetime/mock_city_weather 等 |
 | `controller` | REST API：`/api/agents`、`/api/agent`、`/api/chats`、`/api/chat`、`/api/query`（SSE）、`/api/submit` |
 | `memory` | 滑动窗口聊天记忆（k=20），文件存储于 `chats/` |

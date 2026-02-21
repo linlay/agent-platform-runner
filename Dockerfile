@@ -41,7 +41,7 @@ ENV JAVA_OPTS="-server -Xms256m -XX:MaxRAMPercentage=60" \
     AGENT_SKILL_EXTERNAL_DIR="/opt/skills" \
     MEMORY_CHAT_DIR="/opt/chats"
 
-COPY --from=building /workspace/target/springai-agw-0.0.1-SNAPSHOT.jar /opt/app.jar
+COPY --from=building /workspace/target/springai-agent-platform-0.0.1-SNAPSHOT.jar /opt/app.jar
 
 EXPOSE 8080
 

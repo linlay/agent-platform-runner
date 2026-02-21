@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: springai-agw
+    name: springai-agent-platform
   config:
     import:
       - optional:file:./application-local.yml
@@ -38,6 +38,24 @@ agent:
     bash:
       working-directory: ${AGENT_BASH_WORKING_DIRECTORY:${user.dir}}
       allowed-paths: ${AGENT_BASH_ALLOWED_PATHS:}
+  auth:
+    enabled: ${AGENT_AUTH_ENABLED:true}
+    jwks-uri: ${AGENT_AUTH_JWKS_URI:}
+    issuer: ${AGENT_AUTH_ISSUER:}
+    jwks-cache-seconds: ${AGENT_AUTH_JWKS_CACHE_SECONDS:}
+    # Example local key in PEM format:
+    # local-public-key: |
+    #   -----BEGIN PUBLIC KEY-----
+    #   MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtesttesttesttesttest
+    #   testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
+    #   testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
+    #   -----END PUBLIC KEY-----
+  chat-event-callback:
+    enabled: ${AGENT_CHAT_EVENT_CALLBACK_ENABLED:true}
+    url: ${AGENT_CHAT_EVENT_CALLBACK_URL:http://127.0.0.1:38080/api/app/internal/chat-events}
+    secret: ${AGENT_CHAT_EVENT_CALLBACK_SECRET:change-me}
+    connect-timeout-ms: ${AGENT_CHAT_EVENT_CALLBACK_CONNECT_TIMEOUT_MS:1000}
+    request-timeout-ms: ${AGENT_CHAT_EVENT_CALLBACK_REQUEST_TIMEOUT_MS:1500}
 
 memory:
   chat:
@@ -46,34 +64,11 @@ memory:
     charset: ${MEMORY_CHAT_CHARSET:UTF-8}
     action-tools: ${MEMORY_CHAT_ACTION_TOOLS:}
 
-agw:
-  auth:
-    enabled: ${AGW_AUTH_ENABLED:true}
-    jwks-uri: ${AGW_AUTH_JWKS_URI:http://127.0.0.1:38080/api/auth/jwks}
-    issuer: ${AGW_AUTH_ISSUER:http://127.0.0.1:38080}
-    jwks-cache-seconds: ${AGW_AUTH_JWKS_CACHE_SECONDS:300}
-    local-public-key-enabled: ${AGW_AUTH_LOCAL_PUBLIC_KEY_ENABLED:false}
-    local-public-key: ${AGW_AUTH_LOCAL_PUBLIC_KEY:}
-    # Example local key in PEM format:
-    # local-public-key-enabled: true
-    # local-public-key: |
-    #   -----BEGIN PUBLIC KEY-----
-    #   MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtesttesttesttesttest
-    #   testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
-    #   testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
-    #   -----END PUBLIC KEY-----
-  chat-event-callback:
-    enabled: ${AGW_CHAT_EVENT_CALLBACK_ENABLED:true}
-    url: ${AGW_CHAT_EVENT_CALLBACK_URL:http://127.0.0.1:38080/api/app/internal/chat-events}
-    secret: ${AGW_CHAT_EVENT_CALLBACK_SECRET:change-me}
-    connect-timeout-ms: ${AGW_CHAT_EVENT_CALLBACK_CONNECT_TIMEOUT_MS:1000}
-    request-timeout-ms: ${AGW_CHAT_EVENT_CALLBACK_REQUEST_TIMEOUT_MS:1500}
-
 logging:
   level:
     root: INFO
-    com.linlay.springaiagw: INFO
-    com.linlay.springaiagw.service.LlmService: DEBUG
-    com.linlay.springaiagw.service.OpenAiCompatibleSseClient: DEBUG
-    com.linlay.springaiagw.service.LlmCallLogger: DEBUG
-    com.linlay.springaiagw.llm.wiretap: DEBUG
+    com.linlay.agentplatform: INFO
+    com.linlay.agentplatform.service.LlmService: DEBUG
+    com.linlay.agentplatform.service.OpenAiCompatibleSseClient: DEBUG
+    com.linlay.agentplatform.service.LlmCallLogger: DEBUG
+    com.linlay.agentplatform.llm.wiretap: DEBUG

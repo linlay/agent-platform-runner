@@ -11,16 +11,16 @@
     </parent>
 
     <groupId>com.aiagent</groupId>
-    <artifactId>springai-agw</artifactId>
+    <artifactId>springai-agent-platform</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>springai-agw</name>
+    <name>springai-agent-platform</name>
     <description>Spring Boot + Spring AI agent gateway demo app</description>
 
     <properties>
         <java.version>21</java.version>
         <spring-ai.version>1.0.0</spring-ai.version>
-        <agw.springai.sdk.version>0.0.1-SNAPSHOT</agw.springai.sdk.version>
-        <agw.springai.sdk.jar>${project.basedir}/libs/agw-springai-sdk-${agw.springai.sdk.version}.jar</agw.springai.sdk.jar>
+        <agent.sdk.version>0.0.1-SNAPSHOT</agent.sdk.version>
+        <agent.sdk.jar>${project.basedir}/libs/agw-springai-sdk-${agent.sdk.version}.jar</agent.sdk.jar>
     </properties>
 
     <dependencies>
@@ -45,9 +45,9 @@
         <dependency>
             <groupId>com.aiagent</groupId>
             <artifactId>agw-springai-sdk</artifactId>
-            <version>${agw.springai.sdk.version}</version>
+            <version>${agent.sdk.version}</version>
             <scope>system</scope>
-            <systemPath>${agw.springai.sdk.jar}</systemPath>
+            <systemPath>${agent.sdk.jar}</systemPath>
         </dependency>
 
         <dependency>

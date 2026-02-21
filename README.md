@@ -1,4 +1,4 @@
-# agw-springai-agent
+# springai-agent-platform
 
 本仓库是可独立构建和部署的 Spring AI Agent 服务，已经改为直接引用仓库内的 SDK jar，不依赖本地 Maven 安装。
 
@@ -10,7 +10,7 @@
 - `GET /api/chat?chatId=...`: 会话详情（默认返回快照事件流）
 - `GET /api/chat?chatId=...&includeRawMessages=true`: 会话详情（附带原始 messages）
 - `GET /api/viewport?viewportKey=...`: 获取工具/动作视图内容
-- `POST /api/query`: 提问接口（默认返回 AGW 标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
+- `POST /api/query`: 提问接口（默认返回 SDK 标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
 - `POST /api/submit`: Human-in-the-loop 提交接口
 
 ## 返回格式约定
@@ -34,7 +34,7 @@
   - 视图详情：`data` 直接是视图内容（`html` 时为 `{ "html": "..." }`，`qlc/dqlc` 时为 schema JSON）
 - `GET /api/chat` 默认始终返回 `events`；仅当 `includeRawMessages=true` 时才返回 `messages`。
 - `includeEvents` 参数已废弃，传入将返回 `400`。
-- 事件协议仅支持 AGW Event Model v2，不兼容旧命名（如 `query.message`、`message.start|delta|end`、`message.snapshot`）。
+- 事件协议仅支持 SDK Event Model v2，不兼容旧命名（如 `query.message`、`message.start|delta|end`、`message.snapshot`）。
 
 `GET /api/chats` 示例（新增 `updatedAt`）：
 
@@ -133,20 +133,18 @@ mvn spring-boot:run
 ## 认证配置（JWT）
 
 - `Authorization` 请求头格式：`Bearer <token>`
-- 当 `agw.auth.enabled=true` 时，`/api/**`（除 `OPTIONS`）都需要 JWT。
+- 当 `agent.auth.enabled=true` 时，`/api/**`（除 `OPTIONS`）都需要 JWT。
 - 验签优先级：
-  - 若 `agw.auth.local-public-key-enabled=true`，先使用本地公钥验签；
-  - 本地验签失败后，再回退到 `agw.auth.jwks-uri` 拉取的 JWKS 验签。
+  - 若 `agent.auth.local-public-key` 已配置，先使用本地公钥验签；
+  - 本地验签失败后，再回退到 `agent.auth.jwks-uri` 拉取的 JWKS 验签。
 - 本地公钥模式为启动期加载，更新密钥后需要重启服务生效。
 
 示例（`application.yml`）：
 
 ```yaml
-agw:
+agent:
   auth:
     enabled: true
-    issuer: https://auth.example.local
-    local-public-key-enabled: true
     local-public-key: |
       -----BEGIN PUBLIC KEY-----
       MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtesttesttesttesttest
@@ -154,12 +152,14 @@ agw:
       testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
       -----END PUBLIC KEY-----
     jwks-uri: https://auth.example.local/api/auth/jwks
+    issuer: https://auth.example.local
     jwks-cache-seconds: 300
 ```
 
 注意：
 
-- 当 `local-public-key-enabled=true` 且 `local-public-key` 为空或格式非法时，服务会在启动时失败（fail-fast）。
+- 当配置了空的 `local-public-key` 或非法 PEM 时，服务会在启动时失败（fail-fast）。
+- `jwks-uri` / `issuer` / `jwks-cache-seconds` 必须三者同时配置；只配部分会启动失败。
 - 当前仅支持 RSA 公钥（与 RS256 验签一致）。
 
 ## 接口测试用例
@@ -167,29 +167,29 @@ agw:
 ### 会话接口测试
 
 ```bash
-curl -N -X GET "http://localhost:8080/api/chats" \
+curl -N -X GET "$BASE_URL/api/chats" \
   -H "Content-Type: application/json"
 ```
 
 ```bash
-curl -N -X GET "http://localhost:8080/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656" \
+curl -N -X GET "$BASE_URL/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656" \
   -H "Content-Type: application/json"
 ```
 
 ```bash
-curl -N -X GET "http://localhost:8080/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656&includeRawMessages=true" \
+curl -N -X GET "$BASE_URL/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656&includeRawMessages=true" \
   -H "Content-Type: application/json"
 ```
 
 ```bash
-curl -N -X GET "http://localhost:8080/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656&includeEvents=true" \
+curl -N -X GET "$BASE_URL/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656&includeEvents=true" \
   -H "Content-Type: application/json"
 ```
 
 ### Query 回归测试
 
 ```bash
-curl -N -X POST "http://localhost:8080/api/query" \
+curl -N -X POST "$BASE_URL/api/query" \
   -H "Content-Type: application/json" \
   -d '{"message":"给我一个微服务网关的落地方案，100字内","agentKey":"demoModePlanExecute"}'
 ```
@@ -327,7 +327,7 @@ Agent JSON 已仅支持新结构：`modelConfig/toolConfig/skillConfig`。旧字
 
 ### 真流式约束（CRITICAL）
 
-- `/api/query` 全链路严格真流式：上游 LLM 每到一个 delta，立即下发对应 AGW 事件，禁止先 `collect/reduce/block` 再输出。
+- `/api/query` 全链路严格真流式：上游 LLM 每到一个 delta，立即下发对应 SDK 事件，禁止先 `collect/reduce/block` 再输出。
 - 禁止将多个 delta 合并后再切片发送；输出粒度以“上游 delta 语义块”为准。
 - 工具调用必须保持事件顺序：`tool.start` -> `tool.args`（可多次）-> `tool.end` -> `tool.result`。
 - 不再进行二次校验回合（无 `agent-verify`）；每次模型回合只输出一次真实流式内容，避免重复答案。
@@ -416,7 +416,7 @@ type=html, key=show_weather_card
 - `_skill_run_script_(skill, script?, pythonCode?, args?, timeoutMs?)`：执行 `skills/<skill>/` 目录下脚本，或执行临时 Python 脚本。
 - `script` 与 `pythonCode` 二选一，不能同时提供。
 - `script` 仅支持 skill 内相对路径，文件类型仅支持 `.py` / `.sh`，不允许越权访问外部目录。
-- `pythonCode` 会临时写入 `/tmp/agw-skill-inline/<skill>/inline_<uuid>.py`，执行后自动清理。
+- `pythonCode` 会临时写入 `/tmp/agent-platform-skill-inline/<skill>/inline_<uuid>.py`，执行后自动清理。
 - 破坏性变更：旧工具名 `skill_script_run` 已移除，agent 配置需改为 `_skill_run_script_`。
 
 ### 内置 skills
@@ -431,7 +431,7 @@ type=html, key=show_weather_card
 - `demoModePlain`（`ONESHOT`）：单次直答。
 - `demoModeThinking`（`ONESHOT`）：开启 reasoning 的单次作答。
 - `demoModePlainTooling`（`ONESHOT`）：单轮按需调用工具。
-- `demoModeThinkingTooling`（`ONESHOT`）：开启 reasoning 的单轮工具模式。
+- `demoModeThinking`（`ONESHOT`）：开启 reasoning 的单轮工具模式。
 - `demoModeReact`（`REACT`）：按需多轮工具调用。
 - `demoModePlanExecute`（`PLAN_EXECUTE`）：先规划后执行，execute 阶段由框架下发任务列表与当前 taskId，模型完成后调用 `_plan_update_task_` 推进 plan（可选调用 `_plan_get_tasks_` 查看快照）。
 - `demoViewport`（`PLAN_EXECUTE`）：调用 `city_datetime`、`mock_city_weather`，最终按 `viewport` 代码块协议输出天气卡片数据。
@@ -499,76 +499,61 @@ AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS=300000
 ```
 
 ```bash
-curl -N -X POST "http://localhost:8080/api/query" \
+BASE_URL="http://localhost:11949"
+ACCESS_TOKEN=""
+```
+
+```bash
+curl -N -X POST "$BASE_URL/api/query" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"元素碳的简介，200字","agentKey":"demoModePlain"}'
-curl -N -X POST "http://localhost:8080/api/query" \
+curl -N -X POST "$BASE_URL/api/query" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"chatId":"","message":"下一个元素的简介","agentKey":"demoModePlain"}'
 ```
 
 ```bash
-curl -N -X POST "http://localhost:8080/api/query" \
+curl -N -X POST "$BASE_URL/api/query" \
   -H "Content-Type: application/json" \
   -d '{"message":"【确认是否有敏感信息】本项目突破传统竖井式系统建设模式，基于1+1+3+N架构（1个企业级数据库、1套OneID客户主数据、3类客群CRM系统整合优化、N个展业数字化应用），打造了覆盖展业全生命周期、贯通公司全客群管理的OneLink分支一体化数智展业服务平台。在数据基础层面，本项目首创企业级数据库及OneID客户主数据运作体系，实现公司全域客户及业务数据物理入湖，并通过事前注册、事中应用管理、事后可分析的机制，实现个人、企业、机构三类客群千万级客户的统一识别与关联。","agentKey":"demoModePlainTooling"}'
 ```
 
 ```bash
-curl -N -X POST "http://localhost:8080/api/query" \
+curl -N -X POST "$BASE_URL/api/query" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"给我一个机房搬迁风险分析摘要，300字左右","agentKey":"demoModeThinking"}'
 ```
 
 ```bash
-curl -N -X POST "http://localhost:8080/api/query" \
-  -H "Content-Type: application/json" \
-  -d '{"message":"请查上海当前时间并评估是否适合安排变更窗口","agentKey":"demoModeThinkingTooling"}'
-```
-
-```bash
-curl -N -X POST "http://localhost:8080/api/query" \
-  -H "Content-Type: application/json" \
-  -d '{"message":"查一下上海今天天气并给出出行建议","agentKey":"demoModePlainTooling"}'
-```
-
-```bash
-curl -N -X POST "http://localhost:8080/api/query" \
+curl -N -X POST "$BASE_URL/api/query" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"我周日要搬迁机房到上海，检查下服务器(mac)的硬盘和CPU，然后决定下搬迁条件","agentKey":"demoModeReact"}'
 ```
 
 ```bash
-curl -N -X POST "http://localhost:8080/api/query" \
+curl -N -X POST "$BASE_URL/api/query" \
   -H "Content-Type: application/json" \
   -d '{"message":"规划上海机房明天搬迁的实施计划，重点关注下天气","agentKey":"demoModePlanExecute"}'
 ```
 
 ```bash
-curl -N -X POST "http://localhost:8080/api/query" \
+curl -N -X POST "$BASE_URL/api/query" \
   -H "Content-Type: application/json" \
   -d '{"message":"查上海明天天气","agentKey":"demoViewport"}'
 ```
 
 ```bash
-curl -N -X POST "http://localhost:8080/api/query" \
+curl -N -X POST "$BASE_URL/api/query" \
   -H "Content-Type: application/json" \
   -d '{"message":"切换到深色主题","agentKey":"demoAction"}'
 ```
 
 ```bash
-curl -N -X POST "http://localhost:8080/api/query" \
-  -H "Content-Type: application/json" \
-  -d '{"message":"放一场 8 秒的烟花","agentKey":"demoAction"}'
-```
-
-```bash
-curl -N -X POST "http://localhost:8080/api/query" \
-  -H "Content-Type: application/json" \
-  -d '{"message":"弹一个模态框，标题是系统通知，内容是发布成功，按钮写关闭","agentKey":"demoAction"}'
-```
-
-```bash
-curl -N -X POST "http://localhost:8080/api/query" \
+curl -N -X POST "$BASE_URL/api/query" \
   -H "Content-Type: application/json" \
   -d '{"message":"请计算 (2+3)*4，并说明过程","agentKey":"demoModePlainSkillMath"}'
 ```
@@ -580,7 +565,7 @@ confirm_dialog 是前端工具，LLM 调用后 SSE 流会暂停等待用户提�
 **终端 1：发起 query（SSE 流会在 LLM 调用 confirm_dialog 时暂停）**
 
 ```bash
-curl -N -X POST "http://localhost:8080/api/query" \
+curl -N -X POST "$BASE_URL/api/query" \
   -H "Content-Type: application/json" \
   -d '{"message":"帮我规划周六的旅游，给我几个目的地选项让我选","agentKey":"demoConfirmDialog"}'
 ```
@@ -592,7 +577,7 @@ curl -N -X POST "http://localhost:8080/api/query" \
 **终端 2：提交用户选择（用终端 1 中的 runId 和 toolId 替换占位符）**
 
 ```bash
-curl -X POST "http://localhost:8080/api/submit" \
+curl -X POST "$BASE_URL/api/submit" \
   -H "Content-Type: application/json" \
   -d '{
     "runId": "<RUN_ID>",

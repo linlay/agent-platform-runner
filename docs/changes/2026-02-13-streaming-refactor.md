@@ -21,15 +21,15 @@
 
 ## 关键文件
 
-- `src/main/java/com/linlay/springaiagw/agent/DefinitionDrivenAgent.java`
-- `src/main/java/com/linlay/springaiagw/agent/runtime/AgentOrchestrator.java`
-- `src/main/java/com/linlay/springaiagw/agent/runtime/VerifyService.java`
-- `src/main/java/com/linlay/springaiagw/agent/runtime/StreamingJsonFieldExtractor.java`
-- `src/test/java/com/linlay/springaiagw/agent/DefinitionDrivenAgentTest.java`
-- `src/test/java/com/linlay/springaiagw/service/AgentDeltaToAgwInputMapperTest.java`
-- `src/test/java/com/linlay/springaiagw/controller/AgwControllerTest.java`
+- `src/main/java/com/linlay/agentplatform/agent/DefinitionDrivenAgent.java`
+- `src/main/java/com/linlay/agentplatform/agent/runtime/AgentOrchestrator.java`
+- `src/main/java/com/linlay/agentplatform/agent/runtime/VerifyService.java`
+- `src/main/java/com/linlay/agentplatform/agent/runtime/StreamingJsonFieldExtractor.java`
+- `src/test/java/com/linlay/agentplatform/agent/DefinitionDrivenAgentTest.java`
+- `src/test/java/com/linlay/agentplatform/service/AgentDeltaToSdkInputMapperTest.java`
+- `src/test/java/com/linlay/agentplatform/controller/AgentControllerTest.java`
 
 ## 验证结果
 
-- `mvn -Dtest=DefinitionDrivenAgentTest,AgwControllerTest,AgentDeltaToAgwInputMapperTest test`：通过
+- `mvn -Dtest=DefinitionDrivenAgentTest,AgentControllerTest,AgentDeltaToSdkInputMapperTest test`：通过
 - `mvn test`：全量通过

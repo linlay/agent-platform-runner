@@ -17,7 +17,7 @@
           },
           "pythonCode": {
             "type": "string",
-            "description": "要临时执行的 Python 脚本内容。工具会写入 /tmp/agw-skill-inline/<skill>/inline_<uuid>.py 后执行并清理。与 script 二选一。"
+            "description": "要临时执行的 Python 脚本内容。工具会写入 /tmp/agent-platform-skill-inline/<skill>/inline_<uuid>.py 后执行并清理。与 script 二选一。"
           },
           "args": {
             "type": "array",
