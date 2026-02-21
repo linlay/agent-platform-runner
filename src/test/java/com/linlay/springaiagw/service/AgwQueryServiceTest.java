@@ -33,6 +33,7 @@ class AgwQueryServiceTest {
         when(viewportRegistryService.find("confirm_dialog")).thenReturn(Optional.of(
                 new ViewportRegistryService.ViewportEntry("confirm_dialog", ViewportType.HTML, "<div>ok</div>")
         ));
+        ChatEventCallbackService chatEventCallbackService = mock(ChatEventCallbackService.class);
 
         AgwQueryService service = new AgwQueryService(
                 null,
@@ -41,7 +42,8 @@ class AgwQueryServiceTest {
                 null,
                 toolRegistry,
                 viewportRegistryService,
-                frontendToolProperties
+                frontendToolProperties,
+                chatEventCallbackService
         );
         ServerSentEvent<String> event = ServerSentEvent.builder("""
                 {"type":"tool.start","toolName":"confirm_dialog","toolId":"call_1","runId":"run_1"}
@@ -67,6 +69,7 @@ class AgwQueryServiceTest {
         when(viewportRegistryService.find("confirm_dialog")).thenReturn(Optional.of(
                 new ViewportRegistryService.ViewportEntry("confirm_dialog", ViewportType.QLC, Map.of("schema", Map.of()))
         ));
+        ChatEventCallbackService chatEventCallbackService = mock(ChatEventCallbackService.class);
 
         AgwQueryService service = new AgwQueryService(
                 null,
@@ -75,7 +78,8 @@ class AgwQueryServiceTest {
                 null,
                 toolRegistry,
                 viewportRegistryService,
-                frontendToolProperties
+                frontendToolProperties,
+                chatEventCallbackService
         );
         ServerSentEvent<String> event = ServerSentEvent.builder("""
                 {"type":"tool.snapshot","toolName":"confirm_dialog","toolId":"call_2","runId":"run_2"}

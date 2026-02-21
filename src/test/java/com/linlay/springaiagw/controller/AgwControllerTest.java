@@ -43,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.providers.siliconflow.base-url=https://example.com/v1",
                 "agent.providers.siliconflow.api-key=test-siliconflow-key",
                 "agent.providers.siliconflow.model=test-siliconflow-model",
+                "agw.auth.enabled=false",
                 "memory.chat.dir=${java.io.tmpdir}/springai-agw-test-chats-${random.uuid}",
                 "agent.viewport.external-dir=${java.io.tmpdir}/springai-agw-test-viewports-${random.uuid}",
                 "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agw-test-tools-${random.uuid}",

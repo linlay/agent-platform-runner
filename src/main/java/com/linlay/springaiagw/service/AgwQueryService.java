@@ -26,6 +26,7 @@ import reactor.core.publisher.Flux;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,6 +52,7 @@ public class AgwQueryService {
     private final ToolRegistry toolRegistry;
     private final ViewportRegistryService viewportRegistryService;
     private final FrontendToolProperties frontendToolProperties;
+    private final ChatEventCallbackService chatEventCallbackService;
 
     public AgwQueryService(
             AgentRegistry agentRegistry,
@@ -59,7 +61,8 @@ public class AgwQueryService {
             ChatRecordStore chatRecordStore,
             ToolRegistry toolRegistry,
             ViewportRegistryService viewportRegistryService,
-            FrontendToolProperties frontendToolProperties
+            FrontendToolProperties frontendToolProperties,
+            ChatEventCallbackService chatEventCallbackService
     ) {
         this.agentRegistry = agentRegistry;
         this.agwSseStreamer = agwSseStreamer;
@@ -68,6 +71,7 @@ public class AgwQueryService {
         this.toolRegistry = toolRegistry;
         this.viewportRegistryService = viewportRegistryService;
         this.frontendToolProperties = frontendToolProperties;
+        this.chatEventCallbackService = chatEventCallbackService;
     }
 
     public QuerySession prepare(AgwQueryRequest request) {
@@ -116,12 +120,20 @@ public class AgwQueryService {
     }
 
     public Flux<ServerSentEvent<String>> stream(QuerySession session) {
+        AtomicBoolean callbackSent = new AtomicBoolean(false);
         Flux<AgentDelta> deltas = session.agent().stream(session.agentRequest());
         Flux<AgwInput> inputs = new AgentDeltaToAgwInputMapper(session.request().runId(), toolRegistry).map(deltas);
         return agwSseStreamer.stream(session.request(), inputs)
                 .map(this::normalizeEvent)
                 .doOnNext(event -> {
                     String eventType = extractEventType(event.data());
+                    if (shouldTriggerChatCallback(eventType) && callbackSent.compareAndSet(false, true)) {
+                        chatEventCallbackService.notifyNewContent(
+                            session.request().chatId(),
+                            session.request().runId(),
+                            session.request().chatName()
+                        );
+                    }
                     if (!isToolEvent(eventType)) {
                         return;
                     }
@@ -133,6 +145,10 @@ public class AgwQueryService {
                     );
                 })
                 .doOnNext(event -> chatRecordStore.appendEvent(session.request().chatId(), event.data()));
+    }
+
+    private boolean shouldTriggerChatCallback(String eventType) {
+        return "content.delta".equals(eventType) || "content.snapshot".equals(eventType);
     }
 
     private ServerSentEvent<String> normalizeEvent(ServerSentEvent<String> event) {

@@ -130,6 +130,38 @@ mvn spring-boot:run
 
 默认端口 `8080`。
 
+## 认证配置（JWT）
+
+- `Authorization` 请求头格式：`Bearer <token>`
+- 当 `agw.auth.enabled=true` 时，`/api/**`（除 `OPTIONS`）都需要 JWT。
+- 验签优先级：
+  - 若 `agw.auth.local-public-key-enabled=true`，先使用本地公钥验签；
+  - 本地验签失败后，再回退到 `agw.auth.jwks-uri` 拉取的 JWKS 验签。
+- 本地公钥模式为启动期加载，更新密钥后需要重启服务生效。
+
+示例（`application.yml`）：
+
+```yaml
+agw:
+  auth:
+    enabled: true
+    issuer: https://auth.example.local
+    local-public-key-enabled: true
+    local-public-key: |
+      -----BEGIN PUBLIC KEY-----
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtesttesttesttesttest
+      testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
+      testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
+      -----END PUBLIC KEY-----
+    jwks-uri: https://auth.example.local/api/auth/jwks
+    jwks-cache-seconds: 300
+```
+
+注意：
+
+- 当 `local-public-key-enabled=true` 且 `local-public-key` 为空或格式非法时，服务会在启动时失败（fail-fast）。
+- 当前仅支持 RSA 公钥（与 RS256 验签一致）。
+
 ## 接口测试用例
 
 ### 会话接口测试
