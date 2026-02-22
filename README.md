@@ -396,21 +396,18 @@ AGENT_BASH_ALLOWED_PATHS=/opt,/data
 
 ```bash
 curl -N -X GET "$BASE_URL/api/chats" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json"
 ```
 
 ```bash
 curl -N -X GET "$BASE_URL/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json"
 ```
 
 ```bash
 curl -N -X GET "$BASE_URL/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656&includeRawMessages=true" \
-  -H "Content-Type: application/json"
-```
-
-```bash
-curl -N -X GET "$BASE_URL/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656&includeEvents=true" \
   -H "Content-Type: application/json"
 ```
 
@@ -457,18 +454,21 @@ curl -N -X POST "$BASE_URL/api/query" \
 
 ```bash
 curl -N -X POST "$BASE_URL/api/query" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"规划上海机房明天搬迁的实施计划，重点关注下天气","agentKey":"demoModePlanExecute"}'
 ```
 
 ```bash
 curl -N -X POST "$BASE_URL/api/query" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"查上海明天天气","agentKey":"demoViewport"}'
 ```
 
 ```bash
 curl -N -X POST "$BASE_URL/api/query" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"切换到深色主题","agentKey":"demoAction"}'
 ```
@@ -481,6 +481,7 @@ curl -N -X POST "$BASE_URL/api/query" \
 
 ```bash
 curl -N -X POST "$BASE_URL/api/query" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"【确认是否有敏感信息】本项目突破传统竖井式系统建设模式，基于1+1+3+N架构（1个企业级数据库、1套OneID客户主数据、3类客群CRM系统整合优化、N个展业数字化应用），打造了覆盖展业全生命周期、贯通公司全客群管理的OneLink分支一体化数智展业服务平台。在数据基础层面，本项目首创企业级数据库及OneID客户主数据运作体系，实现公司全域客户及业务数据物理入湖，并通过事前注册、事中应用管理、事后可分析的机制，实现个人、企业、机构三类客群千万级客户的统一识别与关联。","agentKey":"demoModePlainTooling"}'
 ```
@@ -493,6 +494,7 @@ confirm_dialog 是前端工具，LLM 调用后 SSE 流会暂停等待用户提�
 
 ```bash
 curl -N -X POST "$BASE_URL/api/query" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"帮我规划周六的旅游，给我几个目的地选项让我选","agentKey":"demoConfirmDialog"}'
 ```

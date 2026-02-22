@@ -10,8 +10,10 @@ import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
+import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.SystemPlanGetTasks;
 import com.linlay.agentplatform.tool.ToolRegistry;
@@ -21,9 +23,16 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 class ToolExecutionServiceTest {
 
@@ -115,6 +124,115 @@ class ToolExecutionServiceTest {
 
         assertThat(flakyTool.attempts()).isEqualTo(3);
         assertThat(singleToolResult(batch, "call_retry_1")).isEqualTo("OK");
+    }
+
+    @Test
+    void shouldEmitToolEndsBeforeAnyToolResultWhenEmitToolCallDeltaDisabled() {
+        ConstantTool firstTool = new ConstantTool("first_tool", "FIRST_OK");
+        ConstantTool secondTool = new ConstantTool("second_tool", "SECOND_OK");
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(firstTool, secondTool));
+        ToolExecutionService toolExecutionService = new ToolExecutionService(
+                toolRegistry,
+                new ToolArgumentResolver(objectMapper),
+                objectMapper,
+                null
+        );
+
+        ExecutionContext context = new ExecutionContext(
+                definition(List.of("first_tool", "second_tool"), Budget.DEFAULT),
+                new AgentRequest("test", "chat_end_order_1", null, "run_end_order_1"),
+                List.of()
+        );
+
+        ToolExecutionService.ToolExecutionBatch batch = toolExecutionService.executeToolCalls(
+                List.of(
+                        new PlannedToolCall("first_tool", Map.of(), "call_first"),
+                        new PlannedToolCall("second_tool", Map.of(), "call_second")
+                ),
+                enabledTools(toolRegistry),
+                new ArrayList<>(),
+                "run_end_order_1",
+                context,
+                false
+        );
+
+        List<AgentDelta> deltas = batch.deltas();
+        int firstResultIndex = IntStream.range(0, deltas.size())
+                .filter(index -> !deltas.get(index).toolResults().isEmpty())
+                .findFirst()
+                .orElse(-1);
+
+        assertThat(firstResultIndex).isGreaterThan(0);
+        List<String> toolEndIdsBeforeResult = deltas.subList(0, firstResultIndex).stream()
+                .flatMap(delta -> delta.toolEnds().stream())
+                .toList();
+        assertThat(toolEndIdsBeforeResult).containsExactlyInAnyOrder("call_first", "call_second");
+        assertThat(deltas.subList(0, firstResultIndex)).allSatisfy(delta -> assertThat(delta.toolResults()).isEmpty());
+        assertThat(singleToolResult(batch, "call_first")).isEqualTo("FIRST_OK");
+        assertThat(singleToolResult(batch, "call_second")).isEqualTo("SECOND_OK");
+    }
+
+    @Test
+    void shouldFlushFrontendToolEndBeforeSubmitWaitWhenPreExecutionEmitterProvided() throws Exception {
+        ConstantTool frontendTool = new ConstantTool("confirm_dialog", "IGNORED");
+        ToolRegistry toolRegistry = spy(new ToolRegistry(List.of(frontendTool)));
+        doReturn("frontend").when(toolRegistry).toolCallType("confirm_dialog");
+        doReturn(true).when(toolRegistry).isFrontend("confirm_dialog");
+
+        FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
+        frontendToolProperties.setSubmitTimeoutMs(5_000L);
+        FrontendSubmitCoordinator submitCoordinator = new FrontendSubmitCoordinator(frontendToolProperties);
+
+        ToolExecutionService toolExecutionService = new ToolExecutionService(
+                toolRegistry,
+                new ToolArgumentResolver(objectMapper),
+                objectMapper,
+                submitCoordinator
+        );
+
+        ExecutionContext context = new ExecutionContext(
+                definition(List.of("confirm_dialog"), Budget.DEFAULT),
+                new AgentRequest("test", "chat_frontend_1", null, "run_frontend_1"),
+                List.of()
+        );
+
+        List<AgentDelta> preExecutionDeltas = new ArrayList<>();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<ToolExecutionService.ToolExecutionBatch> future = executor.submit(() ->
+                    toolExecutionService.executeToolCalls(
+                            List.of(new PlannedToolCall("confirm_dialog", Map.of("question", "去哪玩"), "call_frontend_1")),
+                            enabledTools(toolRegistry),
+                            new ArrayList<>(),
+                            "run_frontend_1",
+                            context,
+                            false,
+                            null,
+                            preExecutionDeltas::add
+                    ));
+
+            long deadline = System.currentTimeMillis() + 2_000L;
+            while (preExecutionDeltas.isEmpty() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20L);
+            }
+
+            assertThat(preExecutionDeltas).hasSize(1);
+            assertThat(preExecutionDeltas.getFirst().toolEnds()).containsExactly("call_frontend_1");
+            assertThat(future.isDone()).isFalse();
+
+            FrontendSubmitCoordinator.SubmitAck ack = submitCoordinator.submit(
+                    "run_frontend_1",
+                    "call_frontend_1",
+                    Map.of("choice", "自然风光")
+            );
+            assertThat(ack.accepted()).isTrue();
+
+            ToolExecutionService.ToolExecutionBatch batch = future.get(2, TimeUnit.SECONDS);
+            assertThat(batch.deltas().stream().flatMap(delta -> delta.toolEnds().stream()).toList()).isEmpty();
+            assertThat(singleToolResult(batch, "call_frontend_1")).isEqualTo("{\"choice\":\"自然风光\"}");
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -226,6 +344,26 @@ class ToolExecutionServiceTest {
                 tools,
                 List.of()
         );
+    }
+
+    private static final class ConstantTool implements BaseTool {
+        private final String name;
+        private final String value;
+
+        private ConstantTool(String name, String value) {
+            this.name = name;
+            this.value = value;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public com.fasterxml.jackson.databind.JsonNode invoke(Map<String, Object> args) {
+            return com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.textNode(value);
+        }
     }
 
     private static final class FlakyTool implements BaseTool {

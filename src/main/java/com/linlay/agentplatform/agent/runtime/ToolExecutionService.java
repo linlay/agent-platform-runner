@@ -28,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 public class ToolExecutionService {
 
@@ -62,7 +63,7 @@ public class ToolExecutionService {
             ExecutionContext context,
             boolean emitToolCallDelta
     ) {
-        return executeToolCalls(calls, enabledToolsByName, records, runId, context, emitToolCallDelta, null);
+        return executeToolCalls(calls, enabledToolsByName, records, runId, context, emitToolCallDelta, null, null);
     }
 
     public ToolExecutionBatch executeToolCalls(
@@ -74,12 +75,26 @@ public class ToolExecutionService {
             boolean emitToolCallDelta,
             String taskId
     ) {
+        return executeToolCalls(calls, enabledToolsByName, records, runId, context, emitToolCallDelta, taskId, null);
+    }
+
+    public ToolExecutionBatch executeToolCalls(
+            List<PlannedToolCall> calls,
+            Map<String, BaseTool> enabledToolsByName,
+            List<Map<String, Object>> records,
+            String runId,
+            ExecutionContext context,
+            boolean emitToolCallDelta,
+            String taskId,
+            Consumer<AgentDelta> preExecutionEmitter
+    ) {
         if (calls == null || calls.isEmpty()) {
             return new ToolExecutionBatch(List.of(), List.of());
         }
 
         List<AgentDelta> deltas = new ArrayList<>();
         List<ToolExecutionEvent> events = new ArrayList<>();
+        List<PreparedToolCall> preparedCalls = new ArrayList<>();
 
         int seq = 0;
         for (PlannedToolCall call : calls) {
@@ -96,18 +111,46 @@ public class ToolExecutionService {
             Map<String, Object> plannedArgs = call.arguments() == null ? Map.of() : call.arguments();
             Map<String, Object> resolvedArgs = toolArgumentResolver.resolveToolArguments(toolName, plannedArgs, records);
             String argsJson = toJson(resolvedArgs);
+            preparedCalls.add(new PreparedToolCall(callId, toolName, toolType, resolvedArgs, argsJson));
 
             if (emitToolCallDelta) {
                 deltas.add(AgentDelta.toolCalls(List.of(new ToolCallDelta(callId, toolType, toolName, argsJson)), taskId));
+                if (!isActionType(toolType)) {
+                    deltas.add(AgentDelta.toolEnd(callId));
+                }
             }
+        }
 
-            JsonNode resultNode = invokeByKind(runId, callId, toolName, toolType, resolvedArgs, enabledToolsByName, context);
+        if (!emitToolCallDelta) {
+            List<String> toolEnds = preparedCalls.stream()
+                    .filter(call -> !isActionType(call.toolType()))
+                    .map(PreparedToolCall::callId)
+                    .toList();
+            if (!toolEnds.isEmpty()) {
+                if (preExecutionEmitter != null) {
+                    preExecutionEmitter.accept(AgentDelta.toolEnds(toolEnds));
+                } else {
+                    deltas.add(AgentDelta.toolEnds(toolEnds));
+                }
+            }
+        }
+
+        for (PreparedToolCall call : preparedCalls) {
+            JsonNode resultNode = invokeByKind(
+                    runId,
+                    call.callId(),
+                    call.toolName(),
+                    call.toolType(),
+                    call.resolvedArgs(),
+                    enabledToolsByName,
+                    context
+            );
             String resultText = toResultText(resultNode);
-            deltas.add(AgentDelta.toolResult(callId, resultText));
-            records.add(buildToolRecord(callId, toolName, toolType, resolvedArgs, resultNode));
-            events.add(new ToolExecutionEvent(callId, toolName, toolType, argsJson, resultText));
+            deltas.add(AgentDelta.toolResult(call.callId(), resultText));
+            records.add(buildToolRecord(call.callId(), call.toolName(), call.toolType(), call.resolvedArgs(), resultNode));
+            events.add(new ToolExecutionEvent(call.callId(), call.toolName(), call.toolType(), call.argsJson(), resultText));
 
-            AgentDelta planDelta = planUpdateDelta(context, toolName, resolvedArgs, resultNode);
+            AgentDelta planDelta = planUpdateDelta(context, call.toolName(), call.resolvedArgs(), resultNode);
             if (planDelta != null) {
                 deltas.add(planDelta);
             }
@@ -366,6 +409,10 @@ public class ToolExecutionService {
         return result.toString();
     }
 
+    private boolean isActionType(String toolType) {
+        return "action".equalsIgnoreCase(toolType);
+    }
+
     private JsonNode planGetResult(PlanSnapshot snapshot) {
         return objectMapper.getNodeFactory().textNode(planSnapshotText(snapshot));
     }
@@ -578,6 +625,15 @@ public class ToolExecutionService {
             String toolType,
             String argsJson,
             String resultText
+    ) {
+    }
+
+    private record PreparedToolCall(
+            String callId,
+            String toolName,
+            String toolType,
+            Map<String, Object> resolvedArgs,
+            String argsJson
     ) {
     }
 

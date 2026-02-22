@@ -67,6 +67,32 @@ class AgentDeltaToSdkInputMapperTest {
     }
 
     @Test
+    void shouldNotEmitDuplicateToolEndWhenExplicitToolEndProvided() {
+        AgentDeltaToSdkInputMapper mapper = new AgentDeltaToSdkInputMapper("run_1");
+        List<AgwEvent> events = assembleEvents(mapper, List.of(
+                AgentDelta.toolCalls(List.of(new ToolCallDelta(
+                        "tool_1",
+                        "function",
+                        "bash",
+                        "{\"command\":\"ls\"}"
+                ))),
+                AgentDelta.toolEnd("tool_1"),
+                AgentDelta.toolResult("tool_1", "{\"ok\":true}")
+        ));
+
+        int toolStart = indexOfToolEvent(events, "tool.start", "tool_1");
+        int toolArgs = indexOfToolEvent(events, "tool.args", "tool_1");
+        int toolEnd = indexOfToolEvent(events, "tool.end", "tool_1");
+        int toolResult = indexOfToolEvent(events, "tool.result", "tool_1");
+
+        assertThat(toolStart).isGreaterThanOrEqualTo(0);
+        assertThat(toolArgs).isGreaterThan(toolStart);
+        assertThat(toolEnd).isGreaterThan(toolArgs);
+        assertThat(toolResult).isGreaterThan(toolEnd);
+        assertThat(countToolEvent(events, "tool.end", "tool_1")).isEqualTo(1);
+    }
+
+    @Test
     void shouldPreserveToolArgsChunkOrderWithoutMerging() {
         AgentDeltaToSdkInputMapper mapper = new AgentDeltaToSdkInputMapper("run_1");
         List<AgwEvent> events = assembleEvents(mapper, List.of(

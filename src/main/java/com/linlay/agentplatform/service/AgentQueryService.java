@@ -83,7 +83,12 @@ public class AgentQueryService {
                 : runId;
         String role = StringUtils.hasText(request.role()) ? request.role().trim() : "user";
         Map<String, Object> querySnapshot = buildQuerySnapshot(request, requestId, chatId, role);
-        ChatRecordStore.ChatSummary summary = chatRecordStore.ensureChat(chatId, agent.id(), request.message());
+        ChatRecordStore.ChatSummary summary = chatRecordStore.ensureChat(
+                chatId,
+                agent.id(),
+                agent.name(),
+                request.message()
+        );
         String chatName = summary.chatName();
         Map<String, Object> queryParams = mergeQueryParams(request.params(), summary.created());
         AgwRequest.Query sdkRequest = new AgwRequest.Query(

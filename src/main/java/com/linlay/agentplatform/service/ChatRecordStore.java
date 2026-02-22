@@ -48,13 +48,15 @@ public class ChatRecordStore {
         this.properties = properties;
     }
 
-    public ChatSummary ensureChat(String chatId, String agentKey, String firstMessage) {
+    public ChatSummary ensureChat(String chatId, String firstAgentKey, String firstAgentName, String firstMessage) {
         requireValidChatId(chatId);
         synchronized (lock) {
             LinkedHashMap<String, ChatIndexRecord> recordsByChatId = new LinkedHashMap<>();
             for (ChatIndexRecord record : readIndexRecords()) {
                 recordsByChatId.put(record.chatId, record);
             }
+            String normalizedFirstAgentKey = nullable(firstAgentKey);
+            String normalizedFirstAgentName = resolveFirstAgentName(firstAgentName, normalizedFirstAgentKey);
             long now = System.currentTimeMillis();
             ChatIndexRecord record = recordsByChatId.get(chatId);
             boolean created = false;
@@ -62,7 +64,8 @@ public class ChatRecordStore {
                 record = new ChatIndexRecord();
                 record.chatId = chatId;
                 record.chatName = deriveChatName(firstMessage);
-                record.firstAgentKey = nullable(agentKey);
+                record.firstAgentKey = normalizedFirstAgentKey;
+                record.firstAgentName = normalizedFirstAgentName;
                 record.createdAt = now;
                 record.updatedAt = now;
                 recordsByChatId.put(chatId, record);
@@ -72,7 +75,10 @@ public class ChatRecordStore {
                     record.chatName = deriveChatName(firstMessage);
                 }
                 if (!StringUtils.hasText(record.firstAgentKey)) {
-                    record.firstAgentKey = nullable(agentKey);
+                    record.firstAgentKey = normalizedFirstAgentKey;
+                }
+                if (!StringUtils.hasText(record.firstAgentName)) {
+                    record.firstAgentName = resolveFirstAgentName(normalizedFirstAgentName, record.firstAgentKey);
                 }
                 if (record.createdAt <= 0) {
                     record.createdAt = now;
@@ -104,12 +110,14 @@ public class ChatRecordStore {
         synchronized (lock) {
             return readIndexRecords().stream()
                     .sorted((left, right) -> Long.compare(resolveUpdatedAt(right), resolveUpdatedAt(left)))
-                    .map(record -> new ChatSummaryResponse(
-                            record.chatId,
-                            record.chatName,
-                            record.firstAgentKey,
-                            record.createdAt,
-                            resolveUpdatedAt(record)
+                    .map(this::toChatSummary)
+                    .map(summary -> new ChatSummaryResponse(
+                            summary.chatId(),
+                            summary.chatName(),
+                            summary.firstAgentKey(),
+                            summary.firstAgentName(),
+                            summary.createdAt(),
+                            summary.updatedAt()
                     ))
                     .toList();
         }
@@ -131,7 +139,7 @@ public class ChatRecordStore {
                     .map(this::toChatSummary)
                     .orElseGet(() -> {
                         long createdAt = resolveCreatedAt(historyPath);
-                        return new ChatSummary(chatId, chatId, null, createdAt, createdAt, false);
+                        return new ChatSummary(chatId, chatId, null, null, createdAt, createdAt, false);
                     });
 
             ParsedChatContent content = readChatContent(
@@ -863,7 +871,7 @@ public class ChatRecordStore {
         if (normalized.isEmpty()) {
             return "新对话";
         }
-        int[] codePoints = normalized.codePoints().limit(10).toArray();
+        int[] codePoints = normalized.codePoints().limit(30).toArray();
         return new String(codePoints, 0, codePoints.length);
     }
 
@@ -898,6 +906,7 @@ public class ChatRecordStore {
                 record.chatId,
                 StringUtils.hasText(record.chatName) ? record.chatName : record.chatId,
                 nullable(record.firstAgentKey),
+                resolveFirstAgentName(record.firstAgentName, record.firstAgentKey),
                 createdAt,
                 updatedAt,
                 created
@@ -913,6 +922,14 @@ public class ChatRecordStore {
 
     private String nullable(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String resolveFirstAgentName(String firstAgentName, String firstAgentKey) {
+        String resolvedName = nullable(firstAgentName);
+        if (resolvedName != null) {
+            return resolvedName;
+        }
+        return nullable(firstAgentKey);
     }
 
     private void putIfNonNull(Map<String, Object> node, String key, Object value) {
@@ -932,6 +949,7 @@ public class ChatRecordStore {
             String chatId,
             String chatName,
             String firstAgentKey,
+            String firstAgentName,
             long createdAt,
             long updatedAt,
             boolean created
@@ -963,6 +981,7 @@ public class ChatRecordStore {
         public String chatId;
         public String chatName;
         public String firstAgentKey;
+        public String firstAgentName;
         public long createdAt;
         public long updatedAt;
     }

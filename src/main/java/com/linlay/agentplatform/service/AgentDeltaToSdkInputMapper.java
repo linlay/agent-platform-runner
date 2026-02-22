@@ -126,6 +126,15 @@ public class AgentDeltaToSdkInputMapper {
             }
         }
 
+        if (delta.toolEnds() != null && !delta.toolEnds().isEmpty()) {
+            for (String toolId : delta.toolEnds()) {
+                if (!hasText(toolId) || actionToolIds.contains(toolId)) {
+                    continue;
+                }
+                inputs.add(new AgwInput.ToolEnd(toolId));
+            }
+        }
+
         if (delta.toolResults() != null && !delta.toolResults().isEmpty()) {
             for (AgentDelta.ToolResult toolResult : delta.toolResults()) {
                 if (toolResult == null || !hasText(toolResult.toolId())) {
@@ -175,6 +184,7 @@ public class AgentDeltaToSdkInputMapper {
         }
         return delta.taskLifecycle() != null
                 || (delta.toolCalls() != null && !delta.toolCalls().isEmpty())
+                || (delta.toolEnds() != null && !delta.toolEnds().isEmpty())
                 || (delta.toolResults() != null && !delta.toolResults().isEmpty())
                 || delta.planUpdate() != null
                 || hasText(delta.finishReason());

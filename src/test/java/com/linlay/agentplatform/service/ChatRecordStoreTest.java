@@ -155,6 +155,7 @@ class ChatRecordStoreTest {
                 "chatId", secondChat,
                 "chatName", "active",
                 "firstAgentKey", "demo",
+                "firstAgentName", "Demo Agent",
                 "createdAt", 50L,
                 "updatedAt", 200L
         ));
@@ -164,8 +165,13 @@ class ChatRecordStoreTest {
 
         assertThat(chats).hasSize(2);
         assertThat(chats.getFirst().chatId()).isEqualTo(secondChat);
+        assertThat(chats.getFirst().chatName()).isEqualTo("active");
+        assertThat(chats.getFirst().firstAgentKey()).isEqualTo("demo");
+        assertThat(chats.getFirst().firstAgentName()).isEqualTo("Demo Agent");
         assertThat(chats.getFirst().updatedAt()).isEqualTo(200L);
         assertThat(chats.get(1).chatId()).isEqualTo(firstChat);
+        assertThat(chats.get(1).chatName()).isEqualTo("legacy");
+        assertThat(chats.get(1).firstAgentName()).isEqualTo("demo");
         assertThat(chats.get(1).updatedAt()).isEqualTo(100L);
     }
 
@@ -190,13 +196,15 @@ class ChatRecordStoreTest {
         ));
 
         ChatRecordStore store = newStore();
-        store.ensureChat(chatId, "demoAgent", "后续消息");
+        store.ensureChat(chatId, "demoAgent", "Demo Agent", "后续消息");
 
         List<String> lines = Files.readAllLines(indexPath).stream().filter(line -> !line.isBlank()).toList();
         assertThat(lines).hasSize(1);
         Map<String, Object> record = objectMapper.readValue(lines.getFirst(), new TypeReference<>() {
         });
         assertThat(record.get("chatId")).isEqualTo(chatId);
+        assertThat(record.get("firstAgentKey")).isEqualTo("demo");
+        assertThat(record.get("firstAgentName")).isEqualTo("Demo Agent");
         assertThat(((Number) record.get("createdAt")).longValue()).isEqualTo(1000L);
         assertThat(((Number) record.get("updatedAt")).longValue()).isGreaterThanOrEqualTo(1000L);
     }
@@ -300,6 +308,7 @@ class ChatRecordStoreTest {
                 "chatId", chatId,
                 "chatName", chatName,
                 "firstAgentKey", "demo",
+                "firstAgentName", "Demo Agent",
                 "createdAt", createdAt,
                 "updatedAt", updatedAt
         ));

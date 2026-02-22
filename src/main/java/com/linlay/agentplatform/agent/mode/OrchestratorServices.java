@@ -269,7 +269,8 @@ public class OrchestratorServices {
                 context.request().runId(),
                 context,
                 false,
-                context.activeTaskId()
+                context.activeTaskId(),
+                delta -> emit(sink, delta)
         );
         context.incrementToolCalls(batch.events().size());
         for (AgentDelta delta : batch.deltas()) {

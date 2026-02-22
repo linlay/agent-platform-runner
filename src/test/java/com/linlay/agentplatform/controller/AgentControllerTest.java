@@ -418,8 +418,9 @@ class AgentControllerTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.data[0].chatId").isEqualTo(chatId)
-                .jsonPath("$.data[0].chatName").isEqualTo("0123456789")
+                .jsonPath("$.data[0].chatName").isEqualTo(message)
                 .jsonPath("$.data[0].firstAgentKey").isEqualTo("demoModePlanExecute")
+                .jsonPath("$.data[0].firstAgentName").isEqualTo("示例-先规划后执行")
                 .jsonPath("$.data[0].createdAt").isNumber()
                 .jsonPath("$.data[0].updatedAt").isNumber();
 
@@ -434,7 +435,7 @@ class AgentControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.msg").isEqualTo("success")
                 .jsonPath("$.data.chatId").isEqualTo(chatId)
-                .jsonPath("$.data.chatName").isEqualTo("0123456789")
+                .jsonPath("$.data.chatName").isEqualTo(message)
                 .jsonPath("$.data.rawMessages").doesNotExist()
                 .jsonPath("$.data.events[?(@.type=='request.query')]").exists()
                 .jsonPath("$.data.events[?(@.type=='run.start')]").exists()
