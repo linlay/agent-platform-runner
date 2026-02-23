@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/ap")
 public class DataFileController {
 
     private static final Map<String, String> EXTRA_MIME_TYPES = Map.ofEntries(
@@ -50,15 +49,16 @@ public class DataFileController {
         this.dataDir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
     }
 
-    @GetMapping("/data/{filename}")
+    @GetMapping("/api/ap/data")
     public Mono<ResponseEntity<?>> serveFile(
-            @PathVariable String filename,
+            @RequestParam("file") String file,
             @RequestParam(value = "download", required = false, defaultValue = "false") boolean download
     ) {
-        if (filename.contains("..") || filename.contains("/") || filename.contains("\\")) {
+        String filename = normalizeFileParam(file);
+        if (filename == null) {
             return Mono.just(ResponseEntity.badRequest()
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(ApiResponse.failure(400, "Invalid filename")));
+                    .body(ApiResponse.failure(400, "Invalid file parameter")));
         }
 
         Path filePath = dataDir.resolve(filename).normalize();
@@ -109,5 +109,31 @@ public class DataFileController {
         }
         String guessed = URLConnection.guessContentTypeFromName(filename);
         return guessed != null ? guessed : "application/octet-stream";
+    }
+
+    private String normalizeFileParam(String file) {
+        if (file == null) {
+            return null;
+        }
+        String trimmed = file.trim();
+        if (trimmed.isBlank() || trimmed.contains("\\") || trimmed.contains("..")) {
+            return null;
+        }
+        String normalized = trimmed;
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.isBlank()) {
+            return null;
+        }
+        try {
+            Path relativePath = Path.of(normalized).normalize();
+            if (relativePath.isAbsolute()) {
+                return null;
+            }
+            return relativePath.toString();
+        } catch (Exception ex) {
+            return null;
+        }
     }
 }

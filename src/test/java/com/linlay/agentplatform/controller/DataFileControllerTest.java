@@ -3,7 +3,6 @@ package com.linlay.agentplatform.controller;
 import com.linlay.agentplatform.service.LlmService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -89,24 +89,54 @@ class DataFileControllerTest {
         Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
         // Minimal 1x1 PNG
         byte[] png = createMinimalPng();
-        Files.write(dataDir.resolve("test_image.png"), png);
+        Files.write(dataDir.resolve("aaa.jpg"), png);
 
         webTestClient.get()
-                .uri("/api/ap/data/test_image.png")
+                .uri(dataApiUri("aaa.jpg"))
                 .exchange()
                 .expectStatus().isOk()
-                .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/png")
+                .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/jpeg")
                 .expectHeader().value(HttpHeaders.CONTENT_DISPOSITION, value ->
                         assertThat(value).startsWith("inline"));
     }
 
     @Test
-    void shouldServePdfAsAttachment() throws Exception {
+    void shouldServeImageFromDataPrefixedPath() throws Exception {
         Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
-        Files.writeString(dataDir.resolve("test_report.pdf"), "%PDF-1.4 minimal");
+        byte[] png = createMinimalPng();
+        Files.createDirectories(dataDir.resolve("data"));
+        Files.write(dataDir.resolve("data").resolve("sample_photo.jpg"), png);
 
         webTestClient.get()
-                .uri("/api/ap/data/test_report.pdf")
+                .uri(dataApiUri("/data/sample_photo.jpg"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/jpeg")
+                .expectHeader().value(HttpHeaders.CONTENT_DISPOSITION, value ->
+                        assertThat(value).startsWith("inline"));
+    }
+
+    @Test
+    void shouldServeImageWithEncodedFileParam() throws Exception {
+        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        byte[] png = createMinimalPng();
+        Files.createDirectories(dataDir.resolve("data"));
+        Files.write(dataDir.resolve("data").resolve("encoded_photo.jpg"), png);
+
+        webTestClient.get()
+                .uri(dataApiUri("/data/encoded_photo.jpg"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/jpeg");
+    }
+
+    @Test
+    void shouldServePdfAsAttachment() throws Exception {
+        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Files.writeString(dataDir.resolve("report.pdf"), "%PDF-1.4 minimal");
+
+        webTestClient.get()
+                .uri(dataApiUri("report.pdf"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "application/pdf")
@@ -117,7 +147,7 @@ class DataFileControllerTest {
     @Test
     void shouldReturn404WhenFileNotFound() {
         webTestClient.get()
-                .uri("/api/ap/data/nonexistent.txt")
+                .uri(dataApiUri("nonexistent.txt"))
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectBody()
@@ -128,7 +158,7 @@ class DataFileControllerTest {
     @Test
     void shouldReturn400ForPathTraversal() {
         webTestClient.get()
-                .uri("/api/ap/data/..%2Fapplication.yml")
+                .uri(dataApiUri("../application.yml"))
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -138,7 +168,41 @@ class DataFileControllerTest {
     @Test
     void shouldReturn400ForFilenameThatIsDotDot() {
         webTestClient.get()
-                .uri("/api/ap/data/..")
+                .uri(dataApiUri(".."))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(400);
+    }
+
+    @Test
+    void shouldServeImageFromSubDirectoryPath() throws Exception {
+        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        byte[] png = createMinimalPng();
+        Files.createDirectories(dataDir.resolve("data").resolve("sub"));
+        Files.write(dataDir.resolve("data").resolve("sub").resolve("a.png"), png);
+
+        webTestClient.get()
+                .uri(dataApiUri("/data/sub/a.png"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/png");
+    }
+
+    @Test
+    void shouldReturn400WhenFileParamIsEmpty() {
+        webTestClient.get()
+                .uri(dataApiUri(""))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(400);
+    }
+
+    @Test
+    void shouldReturn400WhenFileParamEscapesWithEncodedTraversal() {
+        webTestClient.get()
+                .uri("/api/ap/data?file=..%2Fa.png")
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -149,11 +213,12 @@ class DataFileControllerTest {
     void shouldForceDownloadWhenParameterIsTrue() throws Exception {
         Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
         byte[] png = createMinimalPng();
-        Files.write(dataDir.resolve("download_image.png"), png);
+        Files.write(dataDir.resolve("sample_photo.jpg"), png);
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/ap/data/download_image.png")
+                        .path("/api/ap/data")
+                        .queryParam("file", "sample_photo.jpg")
                         .queryParam("download", "true")
                         .build())
                 .exchange()
@@ -165,15 +230,47 @@ class DataFileControllerTest {
     @Test
     void shouldServeCsvAsAttachment() throws Exception {
         Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
-        Files.writeString(dataDir.resolve("test_data.csv"), "name,value\nfoo,1\nbar,2\n");
+        Files.writeString(dataDir.resolve("data.csv"), "name,value\nfoo,1\nbar,2\n");
 
         webTestClient.get()
-                .uri("/api/ap/data/test_data.csv")
+                .uri(dataApiUri("data.csv"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "text/csv")
                 .expectHeader().value(HttpHeaders.CONTENT_DISPOSITION, value ->
                         assertThat(value).startsWith("attachment"));
+    }
+
+    @Test
+    void shouldReturn404ForLegacyApiPath() throws Exception {
+        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        byte[] png = createMinimalPng();
+        Files.write(dataDir.resolve("legacy_image.png"), png);
+
+        webTestClient.get()
+                .uri("/api/ap/data/legacy_image.png")
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
+    void shouldReturn404ForDeprecatedDataPath() throws Exception {
+        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        byte[] png = createMinimalPng();
+        Files.write(dataDir.resolve("legacy_path_image.png"), png);
+
+        webTestClient.get()
+                .uri("/data/legacy_path_image.png")
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    private String dataApiUri(String file) {
+        return UriComponentsBuilder.fromPath("/api/ap/data")
+                .queryParam("file", file)
+                .build()
+                .encode()
+                .toUriString();
     }
 
     private byte[] createMinimalPng() {

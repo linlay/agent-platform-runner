@@ -11,7 +11,7 @@
 - `GET /api/ap/chats`: 会话列表
 - `GET /api/ap/chat?chatId=...`: 会话详情（默认返回快照事件流）
 - `GET /api/ap/chat?chatId=...&includeRawMessages=true`: 会话详情（附带原始 messages）
-- `GET /api/ap/data/{filename}`: 静态文件服务（图片 inline / 附件 download）
+- `GET /api/ap/data?file={filename}&download=true|false`: 静态文件服务（图片 inline / 附件 download）
 - `GET /api/ap/viewport?viewportKey=...`: 获取工具/动作视图内容
 - `POST /api/ap/query`: 提问接口（默认返回 SDK 标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
 - `POST /api/ap/submit`: Human-in-the-loop 提交接口
@@ -396,11 +396,16 @@ AGENT_BASH_ALLOWED_PATHS=/opt,/data
 
 ## 静态文件服务（Data）
 
-`data/` 目录用于存放图片、PDF、CSV 等静态文件，通过 `/api/ap/data/{filename}` 端点提供访问。
+`data/` 目录用于存放图片、PDF、CSV 等静态文件，通过 `/api/ap/data?file={filename}` 端点提供访问。
 
-- 目录为扁平结构（不支持子目录），适合容器环境挂载。
+- 支持子目录，适合容器环境挂载。
 - 默认目录 `data/`，可通过 `AGENT_DATA_EXTERNAL_DIR` 环境变量覆盖。
-- 安全防护：拒绝路径穿越（`..`、`/`、`\`）、拒绝符号链接。
+- `file` 参数与 Markdown 路径一对一透传（服务端接收 URL decode 后值），不对 `/data/` 做特殊语义处理。
+- 映射示例：
+  - Markdown `![示例照片](/data/sample_photo.jpg)` → `file=/data/sample_photo.jpg`
+  - Markdown `![图](aaa.jpg)` → `file=aaa.jpg`
+- 调用时请对 `file` 做 URL encode（尤其是 `/`、空格、中文等字符）。
+- 安全防护：拒绝路径穿越（`..`）、反斜杠（`\`）和符号链接。
 
 ### Content-Disposition 规则
 
@@ -413,9 +418,13 @@ AGENT_BASH_ALLOWED_PATHS=/opt,/data
 
 `demoDataViewer` 智能体演示了如何通过 Markdown 语法展示图片和提供附件下载：
 
-- 展示图片：`![描述](/api/ap/data/sample_diagram.png)`
-- 下载附件：`[文件名](/api/ap/data/sample_report.pdf)`
-- 强制下载图片：`[文件名](/api/ap/data/sample_photo.jpg?download=true)`
+- Markdown 路径定义：
+  - 非 `http://` / `https://`：都算相对路径（包括 `sample_diagram.png` 和 `/data/sample_diagram.png`）
+  - `http://` / `https://`：绝对路径
+- 平台本地图片展示示例：
+  - `![描述](sample_diagram.png)`
+  - `![描述](/data/sample_photo.jpg)`
+- 强制下载图片（`file` 需要 encode）：`[文件名](/api/ap/data?file=%2Fdata%2Fsample_photo.jpg&download=true)`
 
 内置示例文件：
 
@@ -580,22 +589,22 @@ submit 响应示例：
 
 ```bash
 # 浏览器直接展示图片
-curl "$BASE_URL/api/ap/data/sample_diagram.png" \
+curl "$BASE_URL/api/ap/data?file=sample_diagram.png" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   --output sample_diagram.png
 
-# 下载 PDF 附件
-curl "$BASE_URL/api/ap/data/sample_report.pdf" \
+# 浏览器直接展示图片（file 使用编码后的 /data 路径）
+curl "$BASE_URL/api/ap/data?file=%2Fdata%2Fsample_photo.jpg" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  --output sample_report.pdf
+  --output sample_photo.jpg
 
 # 强制下载图片（?download=true）
-curl "$BASE_URL/api/ap/data/sample_photo.jpg?download=true" \
+curl "$BASE_URL/api/ap/data?file=%2Fdata%2Fsample_photo.jpg&download=true" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   --output sample_photo.jpg
 
 # 下载 CSV 数据表
-curl "$BASE_URL/api/ap/data/sample_data.csv" \
+curl "$BASE_URL/api/ap/data?file=sample_data.csv" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   --output sample_data.csv
 ```
