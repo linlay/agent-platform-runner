@@ -15,7 +15,7 @@ public class CorsConfig {
 
     @Bean
     public CorsWebFilter corsWebFilter(
-            @Value("${agent.cors.path-pattern:/api/**}") String pathPattern,
+            @Value("${agent.cors.path-pattern:/api/ap/**}") String pathPattern,
             @Value("${agent.cors.allowed-origin-patterns:http://localhost:*}") List<String> allowedOriginPatterns,
             @Value("${agent.cors.allowed-methods:GET,POST,PUT,PATCH,DELETE,OPTIONS}") List<String> allowedMethods,
             @Value("${agent.cors.allowed-headers:*}") List<String> allowedHeaders,

@@ -36,7 +36,7 @@ public class ApiJwtAuthWebFilter implements WebFilter {
         }
 
         String path = exchange.getRequest().getPath().value();
-        if (!StringUtils.hasText(path) || !path.startsWith("/api/")) {
+        if (!StringUtils.hasText(path) || !path.startsWith("/api/ap/")) {
             return chain.filter(exchange);
         }
 

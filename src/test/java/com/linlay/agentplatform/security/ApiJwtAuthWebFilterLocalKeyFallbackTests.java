@@ -70,7 +70,7 @@ class ApiJwtAuthWebFilterLocalKeyFallbackTests {
         String tokenSignedByJwksKey = issueToken(JWKS_RSA_KEY, "app-user", "device-fallback");
 
         webTestClient.get()
-            .uri("/api/agents")
+            .uri("/api/ap/agents")
             .header("Authorization", "Bearer " + tokenSignedByJwksKey)
             .exchange()
             .expectStatus().isOk()
@@ -84,7 +84,7 @@ class ApiJwtAuthWebFilterLocalKeyFallbackTests {
         String tokenSignedByLocalKey = issueToken(LOCAL_RSA_KEY, "app-user", "device-local");
 
         webTestClient.get()
-            .uri("/api/agents")
+            .uri("/api/ap/agents")
             .header("Authorization", "Bearer " + tokenSignedByLocalKey)
             .exchange()
             .expectStatus().isOk();

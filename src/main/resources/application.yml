@@ -19,6 +19,8 @@ agent:
   viewport:
     external-dir: ${AGENT_VIEWPORT_EXTERNAL_DIR:viewports}
     refresh-interval-ms: ${AGENT_VIEWPORT_REFRESH_INTERVAL_MS:30000}
+  data:
+    external-dir: ${AGENT_DATA_EXTERNAL_DIR:data}
   capability:
     tools-external-dir: ${AGENT_TOOLS_EXTERNAL_DIR:tools}
     refresh-interval-ms: ${AGENT_CAPABILITY_REFRESH_INTERVAL_MS:30000}

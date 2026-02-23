@@ -76,7 +76,7 @@ class ApiJwtAuthWebFilterTests {
     @Test
     void shouldRejectApiRequestWithoutToken() {
         webTestClient.get()
-            .uri("/api/agents")
+            .uri("/api/ap/agents")
             .exchange()
             .expectStatus().isUnauthorized();
     }
@@ -86,7 +86,7 @@ class ApiJwtAuthWebFilterTests {
         String token = issueToken("app-user", "device-1");
 
         webTestClient.get()
-            .uri("/api/agents")
+            .uri("/api/ap/agents")
             .header("Authorization", "Bearer " + token)
             .exchange()
             .expectStatus().isOk()

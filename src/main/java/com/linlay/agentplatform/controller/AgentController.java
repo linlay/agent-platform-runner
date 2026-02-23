@@ -38,7 +38,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/ap")
 public class AgentController {
 
     private static final Logger log = LoggerFactory.getLogger(AgentController.class);

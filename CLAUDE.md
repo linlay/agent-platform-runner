@@ -22,7 +22,7 @@ SDK 依赖: `libs/agw-springai-sdk-0.0.1-SNAPSHOT.jar`（`systemPath` 引用）�
 ## Architecture
 
 ```
-POST /api/query → AgentController → AgentQueryService → DefinitionDrivenAgent.stream()
+POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrivenAgent.stream()
   → LlmService.streamDeltas() → LLM Provider → AgentDelta → SSE response
 ```
 
@@ -40,7 +40,7 @@ POST /api/query → AgentController → AgentQueryService → DefinitionDrivenAg
 | `service` | `LlmService`（WebClient SSE + ChatClient 双路径）、`AgentQueryService`（流编排）、`ChatRecordStore`、`DirectoryWatchService` |
 | `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册、`CapabilityRegistryService`（外部工具），内置 bash/city_datetime/mock_city_weather 等 |
 | `skill` | `SkillRegistryService`（技能注册与热刷新）、`SkillDescriptor`、`SkillCatalogProperties` |
-| `controller` | REST API：`/api/agents`、`/api/agent`、`/api/chats`、`/api/chat`、`/api/query`（SSE）、`/api/submit`、`/api/viewport` |
+| `controller` | REST API：`/api/ap/agents`、`/api/ap/agent`、`/api/ap/chats`、`/api/ap/chat`、`/api/ap/query`（SSE）、`/api/ap/submit`、`/api/ap/viewport` |
 | `memory` | 滑动窗口聊天记忆（k=20），文件存储于 `chats/` |
 
 ### 关键设计
@@ -50,7 +50,7 @@ POST /api/query → AgentController → AgentQueryService → DefinitionDrivenAg
 - **工具参数模板** — `{{tool_name.field+Nd}}` 日期运算和链式引用
 - **双路径 LLM** — WebClient 原生 SSE 和 ChatClient，按需选择
 - **响应格式** — 非 SSE 接口统一 `{"code": 0, "msg": "success", "data": {}}`
-- **会话详情格式** — `GET /api/chat` 的 `data` 字段固定为 `chatId/chatName/rawMessages/events/references`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回
+- **会话详情格式** — `GET /api/ap/chat` 的 `data` 字段固定为 `chatId/chatName/rawMessages/events/references`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回
 
 ## Agent JSON 定义
 
@@ -191,8 +191,8 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 | 后缀 | CapabilityKind | 说明 |
 |------|----------------|------|
 | `.backend` | `BACKEND` | 后端工具，模型通过 Function Calling 调用。`description` 用于 OpenAI tool schema，`after_call_hint` 用于注入 system prompt 的"工具调用后推荐指令"章节 |
-| `.action` | `ACTION` | 动作工具，触发前端行为（如主题切换、烟花特效）。不等待 `/api/submit`，直接返回 `"OK"` |
-| `.html` / `.qlc` / `.dqlc` | `FRONTEND` | 前端工具，触发 UI 渲染并等待 `/api/submit` 提交 |
+| `.action` | `ACTION` | 动作工具，触发前端行为（如主题切换、烟花特效）。不等待 `/api/ap/submit`，直接返回 `"OK"` |
+| `.html` / `.qlc` / `.dqlc` | `FRONTEND` | 前端工具，触发 UI 渲染并等待 `/api/ap/submit` 提交 |
 
 文件内容均为 `{"tools":[...]}` 格式的 JSON。工具名冲突策略：冲突项会被跳过，其它项继续生效。
 
@@ -206,7 +206,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 - SSE `tool.start` / `tool.snapshot` 会包含：`toolType`（html/qlc）、`toolKey`（viewport key）、`toolTimeout`（超时毫秒）。
 - 默认等待超时 5 分钟（`agent.tools.frontend.submit-timeout-ms`）。
-- `POST /api/submit` 请求体：`runId` + `toolId` + `params`。
+- `POST /api/ap/submit` 请求体：`runId` + `toolId` + `params`。
 - 前端工具返回值提取规则：直接回传 `params`（若为 `null` 则回传 `{}`）。
 
 ### Action 行为规则
@@ -278,10 +278,10 @@ Agent JSON 中引用 skills：
 
 ## Viewport 系统
 
-### /api/viewport 端点契约
+### /api/ap/viewport 端点契约
 
 ```
-GET /api/viewport?viewportKey=<key>[&chatId=<id>][&runId=<id>]
+GET /api/ap/viewport?viewportKey=<key>[&chatId=<id>][&runId=<id>]
 ```
 
 - `viewportKey` 必填，`chatId`/`runId` 可选。
@@ -371,7 +371,7 @@ type=html, key=show_weather_card
 
 - 无活跃 task 出错时：只发 `run.error`（不补 `task.fail`）
 - plain 模式（当前无 plan）不应出现 `task.*`，叶子事件直接归属 `run`
-- `GET /api/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件，并保留 `tool.result` / `action.result`
+- `GET /api/ap/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件，并保留 `tool.result` / `action.result`
 - 历史里 `run.complete` 每个 run 都保留，`chat.start` 仅首次一次
 
 ## Chat Memory V3（JSONL）
@@ -531,7 +531,7 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 
 | 属性键 | 默认值 | 说明 |
 |--------|-------|------|
-| `agent.cors.path-pattern` | `/api/**` | CORS 匹配路径 |
+| `agent.cors.path-pattern` | `/api/ap/**` | CORS 匹配路径 |
 | `agent.cors.allowed-origin-patterns` | `http://localhost:*` | 允许的源 |
 | `agent.cors.allowed-methods` | `GET,POST,PUT,PATCH,DELETE,OPTIONS` | 允许的方法 |
 | `agent.cors.allowed-headers` | `*` | 允许的请求头 |

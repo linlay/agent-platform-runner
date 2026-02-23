@@ -47,7 +47,8 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "memory.chat.dir=${java.io.tmpdir}/springai-agent-platform-test-chats-${random.uuid}",
                 "agent.viewport.external-dir=${java.io.tmpdir}/springai-agent-platform-test-viewports-${random.uuid}",
                 "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agent-platform-test-tools-${random.uuid}",
-                "agent.skill.external-dir=${java.io.tmpdir}/springai-agent-platform-test-skills-${random.uuid}"
+                "agent.skill.external-dir=${java.io.tmpdir}/springai-agent-platform-test-skills-${random.uuid}",
+                "agent.data.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient
@@ -114,7 +115,7 @@ class AgentControllerTest {
     @Test
     void agentsShouldReturnAvailableAgents() {
         webTestClient.get()
-                .uri("/api/agents")
+                .uri("/api/ap/agents")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -132,13 +133,14 @@ class AgentControllerTest {
                 .jsonPath("$.data[?(@.key=='demoAction')]").exists()
                 .jsonPath("$.data[?(@.key=='demoAgentCreator')]").exists()
                 .jsonPath("$.data[?(@.key=='demoMathSkill')]").exists()
-                .jsonPath("$.data[?(@.key=='demoConfirmDialog')]").exists();
+                .jsonPath("$.data[?(@.key=='demoConfirmDialog')]").exists()
+                .jsonPath("$.data[?(@.key=='demoDataViewer')]").exists();
     }
 
     @Test
     void agentShouldReturnDetailByAgentKey() {
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/agent").queryParam("agentKey", "demoModePlanExecute").build())
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/agent").queryParam("agentKey", "demoModePlanExecute").build())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -158,7 +160,7 @@ class AgentControllerTest {
     @Test
     void agentShouldReturnSkillsForSkillMathDemo() {
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/agent").queryParam("agentKey", "demoMathSkill").build())
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/agent").queryParam("agentKey", "demoMathSkill").build())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -173,7 +175,7 @@ class AgentControllerTest {
     @Test
     void queryShouldStreamByDefaultWithoutAcceptOrStreamParam() {
         FluxExchangeResult<String> result = webTestClient.post()
-                .uri("/api/query")
+                .uri("/api/ap/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
                         "agentKey", "demoModePlanExecute",
@@ -205,7 +207,7 @@ class AgentControllerTest {
     @Test
     void queryShouldEmitContentDeltaPerUpstreamChunkForPlainAgent() {
         FluxExchangeResult<String> result = webTestClient.post()
-                .uri("/api/query")
+                .uri("/api/ap/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
                         "agentKey", "demoModePlain",
@@ -234,7 +236,7 @@ class AgentControllerTest {
     void queryShouldUseUuidChatIdWhenProvided() {
         String chatId = "123e4567-e89b-12d3-a456-426614174000";
         FluxExchangeResult<String> result = webTestClient.post()
-                .uri("/api/query")
+                .uri("/api/ap/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
                         "requestId", "req_001",
@@ -262,7 +264,7 @@ class AgentControllerTest {
     @Test
     void queryShouldRejectInvalidChatId() {
         webTestClient.post()
-                .uri("/api/query")
+                .uri("/api/ap/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
                         "agentKey", "demoModePlanExecute",
@@ -282,7 +284,7 @@ class AgentControllerTest {
         pending.subscribe();
 
         webTestClient.post()
-                .uri("/api/submit")
+                .uri("/api/ap/submit")
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
@@ -310,7 +312,7 @@ class AgentControllerTest {
         String toolId = "tool_missing";
 
         webTestClient.post()
-                .uri("/api/submit")
+                .uri("/api/ap/submit")
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
@@ -339,7 +341,7 @@ class AgentControllerTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/viewport")
+                        .path("/api/ap/viewport")
                         .queryParam("viewportKey", "weather_card")
                         .build())
                 .exchange()
@@ -358,7 +360,7 @@ class AgentControllerTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/viewport")
+                        .path("/api/ap/viewport")
                         .queryParam("viewportKey", "flight_form")
                         .build())
                 .exchange()
@@ -373,7 +375,7 @@ class AgentControllerTest {
     void viewportShouldReturn404WhenMissing() {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/viewport")
+                        .path("/api/ap/viewport")
                         .queryParam("viewportKey", "missing_viewport")
                         .build())
                 .exchange()
@@ -386,7 +388,7 @@ class AgentControllerTest {
     void chatsAndChatApisShouldReturnStoredChatSnapshot() {
         String message = "0123456789ABCDEFGHI";
         FluxExchangeResult<String> result = webTestClient.post()
-                .uri("/api/query")
+                .uri("/api/ap/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
                         "agentKey", "demoModePlanExecute",
@@ -413,7 +415,7 @@ class AgentControllerTest {
         assertThat(chatId).isNotBlank();
 
         webTestClient.get()
-                .uri("/api/chats")
+                .uri("/api/ap/chats")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -426,7 +428,7 @@ class AgentControllerTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/chat")
+                        .path("/api/ap/chat")
                         .queryParam("chatId", chatId)
                         .build())
                 .exchange()
@@ -444,7 +446,7 @@ class AgentControllerTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/chat")
+                        .path("/api/ap/chat")
                         .queryParam("chatId", chatId)
                         .queryParam("includeRawMessages", true)
                 .build())
@@ -459,7 +461,7 @@ class AgentControllerTest {
     void chatShouldRejectInvalidChatId() {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/chat")
+                        .path("/api/ap/chat")
                         .queryParam("chatId", "not-a-uuid")
                         .build())
                 .exchange()
@@ -470,7 +472,7 @@ class AgentControllerTest {
     void chatShouldRejectDeprecatedIncludeEventsParam() {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/chat")
+                        .path("/api/ap/chat")
                         .queryParam("chatId", "123e4567-e89b-12d3-a456-426614174000")
                         .queryParam("includeEvents", true)
                         .build())
@@ -484,7 +486,7 @@ class AgentControllerTest {
     void chatShouldReturnNotFoundWhenChatMissing() {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/chat")
+                        .path("/api/ap/chat")
                         .queryParam("chatId", "123e4567-e89b-12d3-a456-426614174099")
                         .build())
                 .exchange()
@@ -494,7 +496,7 @@ class AgentControllerTest {
     @Test
     void chatDetailShouldContainSingleChatStartAcrossMultipleRuns() {
         FluxExchangeResult<String> firstRun = webTestClient.post()
-                .uri("/api/query")
+                .uri("/api/ap/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
                         "agentKey", "demoModePlanExecute",
@@ -512,7 +514,7 @@ class AgentControllerTest {
         assertThat(chatId).isNotBlank();
 
         FluxExchangeResult<String> secondRun = webTestClient.post()
-                .uri("/api/query")
+                .uri("/api/ap/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
                         "chatId", chatId,
@@ -530,7 +532,7 @@ class AgentControllerTest {
 
         byte[] responseBody = webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/chat")
+                        .path("/api/ap/chat")
                         .queryParam("chatId", chatId)
                         .build())
                 .exchange()
@@ -604,7 +606,7 @@ class AgentControllerTest {
 
         byte[] responseBody = webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/chat")
+                        .path("/api/ap/chat")
                         .queryParam("chatId", chatId)
                         .build())
                 .exchange()
@@ -692,7 +694,7 @@ class AgentControllerTest {
         writeJsonLine(chatDir.resolve(chatId + ".json"), stepLine);
 
         FluxExchangeResult<String> result = webTestClient.post()
-                .uri("/api/query")
+                .uri("/api/ap/query")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
                         "chatId", chatId,

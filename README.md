@@ -6,18 +6,19 @@
 
 ## 提供接口
 
-- `GET /api/agents`: 智能体列表
-- `GET /api/agent?agentKey=...`: 智能体详情
-- `GET /api/chats`: 会话列表
-- `GET /api/chat?chatId=...`: 会话详情（默认返回快照事件流）
-- `GET /api/chat?chatId=...&includeRawMessages=true`: 会话详情（附带原始 messages）
-- `GET /api/viewport?viewportKey=...`: 获取工具/动作视图内容
-- `POST /api/query`: 提问接口（默认返回 SDK 标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
-- `POST /api/submit`: Human-in-the-loop 提交接口
+- `GET /api/ap/agents`: 智能体列表
+- `GET /api/ap/agent?agentKey=...`: 智能体详情
+- `GET /api/ap/chats`: 会话列表
+- `GET /api/ap/chat?chatId=...`: 会话详情（默认返回快照事件流）
+- `GET /api/ap/chat?chatId=...&includeRawMessages=true`: 会话详情（附带原始 messages）
+- `GET /api/ap/data/{filename}`: 静态文件服务（图片 inline / 附件 download）
+- `GET /api/ap/viewport?viewportKey=...`: 获取工具/动作视图内容
+- `POST /api/ap/query`: 提问接口（默认返回 SDK 标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
+- `POST /api/ap/submit`: Human-in-the-loop 提交接口
 
 ## 返回格式约定
 
-- `POST /api/query` 返回 SSE event stream。
+- `POST /api/ap/query` 返回 SSE event stream。
 - 其它 JSON 接口统一返回：
 
 ```json
@@ -34,11 +35,11 @@
   - 智能体详情：`data` 直接是 `agent`
   - 会话详情：`data` 直接是 `chat`
   - 视图详情：`data` 直接是视图内容（`html` 时为 `{ "html": "..." }`，`qlc/dqlc` 时为 schema JSON）
-- `GET /api/chat` 默认始终返回 `events`；仅当 `includeRawMessages=true` 时才返回 `messages`。
+- `GET /api/ap/chat` 默认始终返回 `events`；仅当 `includeRawMessages=true` 时才返回 `messages`。
 - `includeEvents` 参数已废弃，传入将返回 `400`。
 - 事件协议仅支持 SDK Event Model v2，不兼容旧命名（如 `query.message`、`message.start|delta|end`、`message.snapshot`）。
 
-`GET /api/chats` 示例（新增 `updatedAt`）：
+`GET /api/ap/chats` 示例（新增 `updatedAt`）：
 
 ```json
 {
@@ -56,7 +57,7 @@
 }
 ```
 
-`GET /api/chat` 的 `data` 结构如下：
+`GET /api/ap/chat` 的 `data` 结构如下：
 
 ```json
 {
@@ -105,6 +106,7 @@
 │   └── agw-springai-sdk-0.0.1-SNAPSHOT.jar
 ├── src/
 ├── agents/
+├── data/
 ├── skills/
 ├── viewports/
 ├── tools/
@@ -142,7 +144,7 @@ mvn spring-boot:run
 ## 认证配置（JWT）
 
 - `Authorization` 请求头格式：`Bearer <token>`
-- 当 `agent.auth.enabled=true` 时，`/api/**`（除 `OPTIONS`）都需要 JWT。
+- 当 `agent.auth.enabled=true` 时，`/api/ap/**`（除 `OPTIONS`）都需要 JWT。
 - 验签优先级：
   - 若 `agent.auth.local-public-key` 已配置，先使用本地公钥验签；
   - 本地验签失败后，再回退到 `agent.auth.jwks-uri` 拉取的 JWKS 验签。
@@ -294,9 +296,9 @@ agent:
   - `skill-id` 取目录名，`SKILL.md` frontmatter 的 `name/description` 作为元信息。
 - `show_weather_card` 当前仅作为 viewport（`viewports/show_weather_card.html`），不是可调用 tool。
 
-### /api/viewport 约定
+### /api/ap/viewport 约定
 
-- `GET /api/viewport?viewportKey=weather_card`
+- `GET /api/ap/viewport?viewportKey=weather_card`
 - `chatId`、`runId` 为可选参数，不参与必填校验。
 - 返回：
   - `html` 文件：`data = {"html":"<...>"}`
@@ -307,7 +309,7 @@ agent:
 
 - 当前端工具触发时，SSE `tool.start` / `tool.snapshot` 会包含 `toolType`、`toolKey`、`toolTimeout`。
 - 默认等待超时 5 分钟（可配置）。
-- `POST /api/submit` 请求体：`runId` + `toolId` + `params`。
+- `POST /api/ap/submit` 请求体：`runId` + `toolId` + `params`。
 - 成功命中后会释放对应 `runId + toolId` 的等待；未命中返回 `accepted=false`。
 - 动作工具触发 `action.start` 后不等待提交，直接返回 `"OK"` 给模型。
 
@@ -325,6 +327,7 @@ agent:
 - `demoAgentCreator`（`PLAN_EXECUTE`）：调用 `agent_file_create` 创建/更新 agent。
 - `demoModePlainSkillMath`（`ONESHOT`）：加载 skills，调用 `_skill_run_script_` 完成确定性计算。
 - `demoConfirmDialog`（`REACT`）：确认对话框 human-in-the-loop 示例。
+- `demoDataViewer`（`ONESHOT`）：展示图片和可下载附件（Markdown 格式输出）。
 
 ### 内置 Action
 
@@ -382,6 +385,7 @@ AGENT_BASH_ALLOWED_PATHS=/opt,/data
 | `AGENT_VIEWPORT_EXTERNAL_DIR` | `viewports` | Viewport 目录 |
 | `AGENT_TOOLS_EXTERNAL_DIR` | `tools` | 工具目录 |
 | `AGENT_SKILL_EXTERNAL_DIR` | `skills` | 技能目录 |
+| `AGENT_DATA_EXTERNAL_DIR` | `data` | 静态文件目录 |
 | `AGENT_BASH_WORKING_DIRECTORY` | `${user.dir}` | Bash 工作目录 |
 | `AGENT_BASH_ALLOWED_PATHS` | （空） | Bash 允许路径 |
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `300000` | 前端工具提交超时 |
@@ -390,97 +394,131 @@ AGENT_BASH_ALLOWED_PATHS=/opt,/data
 | `MEMORY_CHAT_K` | `20` | 滑动窗口大小 |
 | `AGENT_LLM_INTERACTION_LOG_ENABLED` | `true` | LLM 日志开关 |
 
+## 静态文件服务（Data）
+
+`data/` 目录用于存放图片、PDF、CSV 等静态文件，通过 `/api/ap/data/{filename}` 端点提供访问。
+
+- 目录为扁平结构（不支持子目录），适合容器环境挂载。
+- 默认目录 `data/`，可通过 `AGENT_DATA_EXTERNAL_DIR` 环境变量覆盖。
+- 安全防护：拒绝路径穿越（`..`、`/`、`\`）、拒绝符号链接。
+
+### Content-Disposition 规则
+
+| 类型 | 默认行为 | `?download=true` |
+|------|---------|-----------------|
+| 图片（`image/*`） | `inline`（浏览器直接展示） | `attachment`（强制下载） |
+| 其他文件 | `attachment`（触发下载） | `attachment` |
+
+### 在 Agent 中使用
+
+`demoDataViewer` 智能体演示了如何通过 Markdown 语法展示图片和提供附件下载：
+
+- 展示图片：`![描述](/api/ap/data/sample_diagram.png)`
+- 下载附件：`[文件名](/api/ap/data/sample_report.pdf)`
+- 强制下载图片：`[文件名](/api/ap/data/sample_photo.jpg?download=true)`
+
+内置示例文件：
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `sample_photo.jpg` | 图片 | 示例照片 |
+| `sample_diagram.png` | 图片 | 示例架构图 |
+| `sample_report.pdf` | 文档 | 示例 PDF 报告 |
+| `sample_data.csv` | 数据 | 示例销售数据表 |
+
+可将自定义文件放入 `data/` 目录，并在 Agent 的 `systemPrompt` 中列出文件名即可。
+
 ## curl 测试用例
 
 ### 会话接口测试
 
 ```bash
-curl -N -X GET "$BASE_URL/api/chats" \
+curl -N -X GET "$BASE_URL/api/ap/chats" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json"
 ```
 
 ```bash
-curl -N -X GET "$BASE_URL/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656" \
+curl -N -X GET "$BASE_URL/api/ap/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json"
 ```
 
 ```bash
-curl -N -X GET "$BASE_URL/api/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656&includeRawMessages=true" \
+curl -N -X GET "$BASE_URL/api/ap/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656&includeRawMessages=true" \
   -H "Content-Type: application/json"
 ```
 
 ### Query 回归测试
 
 ```bash
-BASE_URL="http://localhost:11949"
+BASE_URL="http://localhost:8080"
 ACCESS_TOKEN=""
 ```
 
 ```bash
-curl -N -X POST "$BASE_URL/api/query" \
+curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"元素碳的简介，200字","agentKey":"demoModePlain"}'
 ```
 
 ```bash
-curl -N -X POST "$BASE_URL/api/query" \
+curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"chatId":"","message":"下一个元素的简介","agentKey":"demoModePlain"}'
 ```
 
 ```bash
-curl -N -X POST "$BASE_URL/api/query" \
+curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Content-Type: application/json" \
   -d '{"message":"给我一个微服务网关的落地方案，100字内","agentKey":"demoModePlanExecute"}'
 ```
 
 ```bash
-curl -N -X POST "$BASE_URL/api/query" \
+curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"给我一个机房搬迁风险分析摘要，300字左右","agentKey":"demoModeThinking"}'
 ```
 
 ```bash
-curl -N -X POST "$BASE_URL/api/query" \
+curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"我周日要搬迁机房到上海，检查下服务器(mac)的硬盘和CPU，然后决定下搬迁条件","agentKey":"demoModeReact"}'
 ```
 
 ```bash
-curl -N -X POST "$BASE_URL/api/query" \
+curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"规划上海机房明天搬迁的实施计划，重点关注下天气","agentKey":"demoModePlanExecute"}'
 ```
 
 ```bash
-curl -N -X POST "$BASE_URL/api/query" \
+curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"查上海明天天气","agentKey":"demoViewport"}'
 ```
 
 ```bash
-curl -N -X POST "$BASE_URL/api/query" \
+curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"切换到深色主题","agentKey":"demoAction"}'
 ```
 
 ```bash
-curl -N -X POST "$BASE_URL/api/query" \
+curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Content-Type: application/json" \
   -d '{"message":"请计算 (2+3)*4，并说明过程","agentKey":"demoModePlainSkillMath"}'
 ```
 
 ```bash
-curl -N -X POST "$BASE_URL/api/query" \
+curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"【确认是否有敏感信息】本项目突破传统竖井式系统建设模式，基于1+1+3+N架构（1个企业级数据库、1套OneID客户主数据、3类客群CRM系统整合优化、N个展业数字化应用），打造了覆盖展业全生命周期、贯通公司全客群管理的OneLink分支一体化数智展业服务平台。在数据基础层面，本项目首创企业级数据库及OneID客户主数据运作体系，实现公司全域客户及业务数据物理入湖，并通过事前注册、事中应用管理、事后可分析的机制，实现个人、企业、机构三类客群千万级客户的统一识别与关联。","agentKey":"demoModePlainTooling"}'
@@ -493,7 +531,7 @@ confirm_dialog 是前端工具，LLM 调用后 SSE 流会暂停等待用户提�
 **终端 1：发起 query（SSE 流会在 LLM 调用 confirm_dialog 时暂停）**
 
 ```bash
-curl -N -X POST "$BASE_URL/api/query" \
+curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"帮我规划周六的旅游，给我几个目的地选项让我选","agentKey":"demoConfirmDialog"}'
@@ -505,7 +543,7 @@ curl -N -X POST "$BASE_URL/api/query" \
 **终端 2：提交用户选择（用终端 1 中的 runId 和 toolId 替换占位符）**
 
 ```bash
-curl -X POST "$BASE_URL/api/submit" \
+curl -X POST "$BASE_URL/api/ap/submit" \
   -H "Content-Type: application/json" \
   -d '{
     "runId": "<RUN_ID>",
@@ -536,4 +574,36 @@ submit 响应示例：
     "detail": "Frontend submit accepted for runId=<RUN_ID>, toolId=<TOOL_ID>"
   }
 }
+```
+
+### 文件展示（Data Viewer）
+
+```bash
+# 浏览器直接展示图片
+curl "$BASE_URL/api/ap/data/sample_diagram.png" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  --output sample_diagram.png
+
+# 下载 PDF 附件
+curl "$BASE_URL/api/ap/data/sample_report.pdf" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  --output sample_report.pdf
+
+# 强制下载图片（?download=true）
+curl "$BASE_URL/api/ap/data/sample_photo.jpg?download=true" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  --output sample_photo.jpg
+
+# 下载 CSV 数据表
+curl "$BASE_URL/api/ap/data/sample_data.csv" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  --output sample_data.csv
+```
+
+```bash
+# 与文件展示智能体对话
+curl -N -X POST "$BASE_URL/api/ap/query" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"展示所有可用的图片","agentKey":"demoDataViewer"}'
 ```

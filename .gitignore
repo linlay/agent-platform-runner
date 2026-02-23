@@ -1,6 +1,8 @@
 # Build outputs
 target/
 out/
+/release/
+/release-local/
 
 # IDE
 .idea/
