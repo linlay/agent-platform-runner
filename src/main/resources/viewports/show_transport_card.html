@@ -146,63 +146,151 @@
   </section>
 
   <script>
-    const fallback = {
-      travelType: '航班',
-      number: 'MU5137',
-      fromCity: '上海',
-      toCity: '北京',
-      date: '2026-02-14',
-      departureTime: '09:30',
-      arrivalTime: '11:45',
-      status: '值机中',
-      gateOrPlatform: 'T2-25',
-      mockTag: '幂等随机数据'
+    const LOADING_TEXT = '加载中...';
+    const TRAVEL_KEYS = [
+      'travelType',
+      'number',
+      'fromCity',
+      'toCity',
+      'date',
+      'departureTime',
+      'arrivalTime',
+      'status',
+      'gateOrPlatform',
+      'mockTag'
+    ];
+    const LOADING_STATE = {
+      travelType: LOADING_TEXT,
+      number: LOADING_TEXT,
+      fromCity: LOADING_TEXT,
+      toCity: LOADING_TEXT,
+      date: LOADING_TEXT,
+      departureTime: LOADING_TEXT,
+      arrivalTime: LOADING_TEXT,
+      status: LOADING_TEXT,
+      gateOrPlatform: LOADING_TEXT,
+      mockTag: LOADING_TEXT
     };
+    let currentTravel = { ...LOADING_STATE };
 
-    function normalizeData(raw) {
-      if (!raw || typeof raw !== 'object') {
-        return fallback;
+    function toObject(raw) {
+      if (!raw) {
+        return null;
+      }
+      if (typeof raw === 'string') {
+        try {
+          const parsed = JSON.parse(raw);
+          return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (_error) {
+          return null;
+        }
+      }
+      return typeof raw === 'object' ? raw : null;
+    }
+
+    function hasTravelFields(value) {
+      if (!value || typeof value !== 'object') {
+        return false;
+      }
+      return TRAVEL_KEYS.some((key) => Object.prototype.hasOwnProperty.call(value, key));
+    }
+
+    function unwrapMessagePayload(raw) {
+      const root = toObject(raw);
+      if (!root) {
+        return null;
       }
 
-      let payload = raw;
-      if (payload.result && typeof payload.result === 'object') {
-        payload = payload.result;
+      const queue = [root];
+      while (queue.length > 0) {
+        const candidate = queue.shift();
+        if (!candidate || typeof candidate !== 'object') {
+          continue;
+        }
+
+        if (hasTravelFields(candidate)) {
+          return candidate;
+        }
+
+        if (String(candidate.type || '') === 'tool_init' && candidate.data && typeof candidate.data === 'object') {
+          queue.unshift(candidate.data);
+        }
+
+        if (candidate.data && typeof candidate.data === 'object') {
+          queue.unshift(candidate.data);
+        }
+        if (candidate.params && typeof candidate.params === 'object') {
+          queue.unshift(candidate.params);
+        }
+        if (candidate.result && typeof candidate.result === 'object') {
+          queue.unshift(candidate.result);
+        }
+        if (candidate.toolResult && typeof candidate.toolResult === 'object') {
+          queue.unshift(candidate.toolResult);
+        }
       }
-      if (payload.toolResult && typeof payload.toolResult === 'object') {
-        payload = payload.toolResult;
-      }
+
+      return null;
+    }
+
+    function normalizeData(raw, prev) {
+      const payload = raw && typeof raw === 'object' ? raw : {};
+      const base = prev && typeof prev === 'object' ? prev : LOADING_STATE;
 
       return {
-        travelType: payload.travelType ?? fallback.travelType,
-        number: payload.number ?? fallback.number,
-        fromCity: payload.fromCity ?? fallback.fromCity,
-        toCity: payload.toCity ?? fallback.toCity,
-        date: payload.date ?? fallback.date,
-        departureTime: payload.departureTime ?? fallback.departureTime,
-        arrivalTime: payload.arrivalTime ?? fallback.arrivalTime,
-        status: payload.status ?? fallback.status,
-        gateOrPlatform: payload.gateOrPlatform ?? fallback.gateOrPlatform,
-        mockTag: payload.mockTag ?? fallback.mockTag
+        travelType: payload.travelType ?? base.travelType,
+        number: payload.number ?? base.number,
+        fromCity: payload.fromCity ?? base.fromCity,
+        toCity: payload.toCity ?? base.toCity,
+        date: payload.date ?? base.date,
+        departureTime: payload.departureTime ?? base.departureTime,
+        arrivalTime: payload.arrivalTime ?? base.arrivalTime,
+        status: payload.status ?? base.status,
+        gateOrPlatform: payload.gateOrPlatform ?? base.gateOrPlatform,
+        mockTag: payload.mockTag ?? base.mockTag
       };
     }
 
-    function renderCard(data) {
-      const info = normalizeData(data);
-      document.getElementById('travelType').textContent = info.travelType;
-      document.getElementById('number').textContent = info.number;
-      document.getElementById('fromCity').textContent = info.fromCity;
-      document.getElementById('toCity').textContent = info.toCity;
-      document.getElementById('date').textContent = info.date;
-      document.getElementById('departureTime').textContent = info.departureTime;
-      document.getElementById('arrivalTime').textContent = info.arrivalTime;
-      document.getElementById('status').textContent = info.status;
-      document.getElementById('gateOrPlatform').textContent = info.gateOrPlatform;
-      document.getElementById('gateLabel').textContent = info.travelType === '高铁' ? '站台' : '登机口';
-      document.getElementById('mockTag').textContent = `Mock 标识：${info.mockTag}`;
+    function display(value) {
+      if (value === null || value === undefined) {
+        return LOADING_TEXT;
+      }
+      const text = String(value).trim();
+      return text || LOADING_TEXT;
+    }
+
+    function resolveGateLabel(travelType) {
+      if (travelType === '高铁') {
+        return '站台';
+      }
+      if (travelType === LOADING_TEXT) {
+        return '登机口/站台';
+      }
+      return '登机口';
+    }
+
+    function renderCard(info) {
+      const travelType = display(info.travelType);
+      document.getElementById('travelType').textContent = travelType;
+      document.getElementById('number').textContent = display(info.number);
+      document.getElementById('fromCity').textContent = display(info.fromCity);
+      document.getElementById('toCity').textContent = display(info.toCity);
+      document.getElementById('date').textContent = display(info.date);
+      document.getElementById('departureTime').textContent = display(info.departureTime);
+      document.getElementById('arrivalTime').textContent = display(info.arrivalTime);
+      document.getElementById('status').textContent = display(info.status);
+      document.getElementById('gateOrPlatform').textContent = display(info.gateOrPlatform);
+      document.getElementById('gateLabel').textContent = resolveGateLabel(travelType);
+      document.getElementById('mockTag').textContent = `Mock 标识：${display(info.mockTag)}`;
     }
 
     window.addEventListener('message', (event) => {
-      renderCard(event.data);
+      const payload = unwrapMessagePayload(event.data);
+      if (!payload) {
+        return;
+      }
+      currentTravel = normalizeData(payload, currentTravel);
+      renderCard(currentTravel);
     });
 
     function sendMessage(message) {
@@ -215,7 +303,7 @@
       );
     }
 
-    renderCard(fallback);
+    renderCard(currentTravel);
   </script>
 </body>
 </html>

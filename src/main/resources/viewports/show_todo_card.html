@@ -121,35 +121,109 @@
   </section>
 
   <script>
-    const fallback = {
-      owner: '当前用户',
-      total: 3,
-      mockTag: '幂等随机数据',
-      tasks: [
-        { id: 'TASK-101', title: '整理需求文档', priority: '高', status: '待处理', dueDate: '2026-02-14' },
-        { id: 'TASK-102', title: '回复客户邮件', priority: '中', status: '进行中', dueDate: '2026-02-15' },
-        { id: 'TASK-103', title: '代码评审', priority: '低', status: '已完成', dueDate: '2026-02-16' }
-      ]
+    const LOADING_TEXT = '加载中...';
+    const TODO_KEYS = ['owner', 'total', 'tasks', 'mockTag'];
+    const LOADING_STATE = {
+      owner: LOADING_TEXT,
+      total: LOADING_TEXT,
+      mockTag: LOADING_TEXT,
+      tasks: []
     };
+    let currentTodo = { ...LOADING_STATE };
 
-    function normalizeData(raw) {
-      if (!raw || typeof raw !== 'object') {
-        return fallback;
+    function toObject(raw) {
+      if (!raw) {
+        return null;
+      }
+      if (typeof raw === 'string') {
+        try {
+          const parsed = JSON.parse(raw);
+          return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (_error) {
+          return null;
+        }
+      }
+      return typeof raw === 'object' ? raw : null;
+    }
+
+    function hasTodoFields(value) {
+      if (!value || typeof value !== 'object') {
+        return false;
+      }
+      return TODO_KEYS.some((key) => Object.prototype.hasOwnProperty.call(value, key));
+    }
+
+    function unwrapMessagePayload(raw) {
+      const root = toObject(raw);
+      if (!root) {
+        return null;
       }
 
-      let payload = raw;
-      if (payload.result && typeof payload.result === 'object') {
-        payload = payload.result;
+      const queue = [root];
+      while (queue.length > 0) {
+        const candidate = queue.shift();
+        if (!candidate || typeof candidate !== 'object') {
+          continue;
+        }
+
+        if (hasTodoFields(candidate)) {
+          return candidate;
+        }
+
+        if (String(candidate.type || '') === 'tool_init' && candidate.data && typeof candidate.data === 'object') {
+          queue.unshift(candidate.data);
+        }
+
+        if (candidate.data && typeof candidate.data === 'object') {
+          queue.unshift(candidate.data);
+        }
+        if (candidate.params && typeof candidate.params === 'object') {
+          queue.unshift(candidate.params);
+        }
+        if (candidate.result && typeof candidate.result === 'object') {
+          queue.unshift(candidate.result);
+        }
+        if (candidate.toolResult && typeof candidate.toolResult === 'object') {
+          queue.unshift(candidate.toolResult);
+        }
       }
-      if (payload.toolResult && typeof payload.toolResult === 'object') {
-        payload = payload.toolResult;
+
+      return null;
+    }
+
+    function display(value) {
+      if (value === null || value === undefined) {
+        return LOADING_TEXT;
       }
+      const text = String(value).trim();
+      return text || LOADING_TEXT;
+    }
+
+    function normalizeTasks(rawTasks, prevTasks) {
+      if (!Array.isArray(rawTasks)) {
+        return Array.isArray(prevTasks) ? prevTasks : [];
+      }
+      return rawTasks.map((task) => {
+        const item = task && typeof task === 'object' ? task : {};
+        return {
+          id: item.id ?? LOADING_TEXT,
+          title: item.title ?? LOADING_TEXT,
+          priority: item.priority ?? LOADING_TEXT,
+          status: item.status ?? LOADING_TEXT,
+          dueDate: item.dueDate ?? LOADING_TEXT
+        };
+      });
+    }
+
+    function normalizeData(raw, prev) {
+      const payload = raw && typeof raw === 'object' ? raw : {};
+      const base = prev && typeof prev === 'object' ? prev : LOADING_STATE;
 
       return {
-        owner: payload.owner ?? fallback.owner,
-        total: payload.total ?? fallback.total,
-        tasks: Array.isArray(payload.tasks) ? payload.tasks : fallback.tasks,
-        mockTag: payload.mockTag ?? fallback.mockTag
+        owner: payload.owner ?? base.owner,
+        total: payload.total ?? base.total,
+        tasks: normalizeTasks(payload.tasks, base.tasks),
+        mockTag: payload.mockTag ?? base.mockTag
       };
     }
 
@@ -159,31 +233,67 @@
       return 'low';
     }
 
-    function renderCard(data) {
-      const info = normalizeData(data);
-      document.getElementById('owner').textContent = `${info.owner} 的待办任务`;
-      document.getElementById('total').textContent = `共 ${info.total} 项`;
-      document.getElementById('mockTag').textContent = `Mock 标识：${info.mockTag}`;
+    function formatOwner(owner) {
+      const text = display(owner);
+      return text === LOADING_TEXT ? LOADING_TEXT : `${text} 的待办任务`;
+    }
+
+    function formatTotal(total) {
+      if (typeof total === 'number') {
+        return `共 ${total} 项`;
+      }
+      const text = display(total);
+      return text === LOADING_TEXT ? LOADING_TEXT : `共 ${text} 项`;
+    }
+
+    function renderCard(info) {
+      document.getElementById('owner').textContent = formatOwner(info.owner);
+      document.getElementById('total').textContent = formatTotal(info.total);
+      document.getElementById('mockTag').textContent = `Mock 标识：${display(info.mockTag)}`;
 
       const list = document.getElementById('taskList');
       list.innerHTML = '';
 
-      info.tasks.forEach((task) => {
+      if (!Array.isArray(info.tasks) || info.tasks.length === 0) {
         const row = document.createElement('div');
         row.className = 'task';
         row.innerHTML = `
           <div>
-            <div class="title">${task.title ?? '--'}</div>
-            <div class="sub">${task.id ?? '--'} | ${task.status ?? '--'} | 截止 ${task.dueDate ?? '--'}</div>
+            <div class="title">${LOADING_TEXT}</div>
+            <div class="sub">${LOADING_TEXT}</div>
           </div>
-          <span class="badge ${priorityClass(task.priority)}">${task.priority ?? '低'} 优先</span>
+          <span class="badge low">${LOADING_TEXT}</span>
+        `;
+        list.appendChild(row);
+        return;
+      }
+
+      info.tasks.forEach((task) => {
+        const row = document.createElement('div');
+        row.className = 'task';
+        const title = display(task.title);
+        const id = display(task.id);
+        const status = display(task.status);
+        const dueDate = display(task.dueDate);
+        const priority = display(task.priority);
+        row.innerHTML = `
+          <div>
+            <div class="title">${title}</div>
+            <div class="sub">${id} | ${status} | 截止 ${dueDate}</div>
+          </div>
+          <span class="badge ${priorityClass(priority)}">${priority} 优先</span>
         `;
         list.appendChild(row);
       });
     }
 
     window.addEventListener('message', (event) => {
-      renderCard(event.data);
+      const payload = unwrapMessagePayload(event.data);
+      if (!payload) {
+        return;
+      }
+      currentTodo = normalizeData(payload, currentTodo);
+      renderCard(currentTodo);
     });
 
     function sendMessage(message) {
@@ -196,7 +306,7 @@
       );
     }
 
-    renderCard(fallback);
+    renderCard(currentTodo);
   </script>
 </body>
 </html>

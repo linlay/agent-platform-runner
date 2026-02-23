@@ -114,7 +114,7 @@ class ToolRegistryTest {
 
         JsonNode result = cityDateTimeTool.invoke(args);
 
-        assertThat(result.path("timezone").asText()).isEqualTo("Asia/Shanghai");
+        assertThat(result.path("timezone").asText()).isEqualTo("UTC+8");
         assertThat(result.path("source").asText()).isEqualTo("system-clock");
         assertThat(result.path("date").asText()).isNotBlank();
         assertThat(result.path("weekday").asText()).startsWith("星期");
@@ -172,7 +172,7 @@ class ToolRegistryTest {
         assertThat(cityTool.afterCallHint()).isEqualTo("use city datetime prompt");
         assertThat(cityTool.parametersSchema().get("required")).isEqualTo(List.of("city"));
         assertThat(toolRegistry.invoke("city_datetime", Map.of("city", "Shanghai")).path("timezone").asText())
-                .isEqualTo("Asia/Shanghai");
+                .isEqualTo("UTC+8");
     }
 
     @Test

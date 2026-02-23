@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -31,7 +32,7 @@ public class CityDateTimeTool extends AbstractDeterministicTool {
         ObjectNode root = OBJECT_MAPPER.createObjectNode();
         // root.put("tool", name()); // 不需要返回tool name
         root.put("city", city);
-        root.put("timezone", zoneId.getId());
+        root.put("timezone", utcOffsetOf(dateTime.getOffset()));
         root.put("date", date.toString());
         root.put("weekday", weekdayOf(date.getDayOfWeek()));
         root.put("lunarDate", lunarDateOf(date));
@@ -39,6 +40,21 @@ public class CityDateTimeTool extends AbstractDeterministicTool {
         root.put("iso", dateTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
         root.put("source", "system-clock");
         return root;
+    }
+
+    private String utcOffsetOf(ZoneOffset offset) {
+        int totalSeconds = offset.getTotalSeconds();
+        if (totalSeconds == 0) {
+            return "UTC+0";
+        }
+        int absTotalSeconds = Math.abs(totalSeconds);
+        int hours = absTotalSeconds / 3600;
+        int minutes = (absTotalSeconds % 3600) / 60;
+        String sign = totalSeconds >= 0 ? "+" : "-";
+        if (minutes == 0) {
+            return "UTC" + sign + hours;
+        }
+        return "UTC" + sign + String.format(Locale.ROOT, "%d:%02d", hours, minutes);
     }
 
     private String weekdayOf(DayOfWeek dayOfWeek) {

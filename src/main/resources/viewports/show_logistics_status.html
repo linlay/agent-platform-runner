@@ -138,54 +138,120 @@
       OUT_FOR_DELIVERY: '派送中',
       DELIVERED: '已签收'
     };
-
-    const fallback = {
-      trackingNo: 'SF123456789CN',
-      carrier: 'SF Express',
-      status: 'IN_TRANSIT',
-      currentNode: '包裹已到达目的城市',
-      etaDate: '2026-02-14',
-      updatedAt: '2026-02-13 10:36:00',
-      mockTag: 'idempotent-random-json'
+    const LOADING_TEXT = '加载中...';
+    const LOGISTICS_KEYS = ['trackingNo', 'carrier', 'status', 'currentNode', 'etaDate', 'updatedAt', 'mockTag'];
+    const LOADING_STATE = {
+      trackingNo: LOADING_TEXT,
+      carrier: LOADING_TEXT,
+      status: LOADING_TEXT,
+      currentNode: LOADING_TEXT,
+      etaDate: LOADING_TEXT,
+      updatedAt: LOADING_TEXT,
+      mockTag: LOADING_TEXT
     };
+    let currentLogistics = { ...LOADING_STATE };
 
-    function normalizeData(raw) {
-      if (!raw || typeof raw !== 'object') {
-        return fallback;
+    function toObject(raw) {
+      if (!raw) {
+        return null;
+      }
+      if (typeof raw === 'string') {
+        try {
+          const parsed = JSON.parse(raw);
+          return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (_error) {
+          return null;
+        }
+      }
+      return typeof raw === 'object' ? raw : null;
+    }
+
+    function hasLogisticsFields(value) {
+      if (!value || typeof value !== 'object') {
+        return false;
+      }
+      return LOGISTICS_KEYS.some((key) => Object.prototype.hasOwnProperty.call(value, key));
+    }
+
+    function unwrapMessagePayload(raw) {
+      const root = toObject(raw);
+      if (!root) {
+        return null;
       }
 
-      let payload = raw;
-      if (payload.result && typeof payload.result === 'object') {
-        payload = payload.result;
+      const queue = [root];
+      while (queue.length > 0) {
+        const candidate = queue.shift();
+        if (!candidate || typeof candidate !== 'object') {
+          continue;
+        }
+
+        if (hasLogisticsFields(candidate)) {
+          return candidate;
+        }
+
+        if (String(candidate.type || '') === 'tool_init' && candidate.data && typeof candidate.data === 'object') {
+          queue.unshift(candidate.data);
+        }
+
+        if (candidate.data && typeof candidate.data === 'object') {
+          queue.unshift(candidate.data);
+        }
+        if (candidate.params && typeof candidate.params === 'object') {
+          queue.unshift(candidate.params);
+        }
+        if (candidate.result && typeof candidate.result === 'object') {
+          queue.unshift(candidate.result);
+        }
+        if (candidate.toolResult && typeof candidate.toolResult === 'object') {
+          queue.unshift(candidate.toolResult);
+        }
       }
-      if (payload.toolResult && typeof payload.toolResult === 'object') {
-        payload = payload.toolResult;
-      }
+
+      return null;
+    }
+
+    function normalizeData(raw, prev) {
+      const payload = raw && typeof raw === 'object' ? raw : {};
+      const base = prev && typeof prev === 'object' ? prev : LOADING_STATE;
 
       return {
-        trackingNo: payload.trackingNo ?? fallback.trackingNo,
-        carrier: payload.carrier ?? fallback.carrier,
-        status: payload.status ?? fallback.status,
-        currentNode: payload.currentNode ?? fallback.currentNode,
-        etaDate: payload.etaDate ?? fallback.etaDate,
-        updatedAt: payload.updatedAt ?? fallback.updatedAt,
-        mockTag: payload.mockTag ?? fallback.mockTag
+        trackingNo: payload.trackingNo ?? base.trackingNo,
+        carrier: payload.carrier ?? base.carrier,
+        status: payload.status ?? base.status,
+        currentNode: payload.currentNode ?? base.currentNode,
+        etaDate: payload.etaDate ?? base.etaDate,
+        updatedAt: payload.updatedAt ?? base.updatedAt,
+        mockTag: payload.mockTag ?? base.mockTag
       };
     }
 
-    function renderCard(data) {
-      const info = normalizeData(data);
-      document.getElementById('trackingNo').textContent = info.trackingNo;
-      document.getElementById('carrier').textContent = info.carrier;
-      document.getElementById('status').textContent = statusMap[info.status] || info.status;
-      document.getElementById('currentNode').textContent = info.currentNode;
-      document.getElementById('etaDate').textContent = info.etaDate;
-      document.getElementById('updatedAt').textContent = info.updatedAt;
-      document.getElementById('mockTag').textContent = info.mockTag;
+    function display(value) {
+      if (value === null || value === undefined) {
+        return LOADING_TEXT;
+      }
+      const text = String(value).trim();
+      return text || LOADING_TEXT;
+    }
+
+    function renderCard(info) {
+      document.getElementById('trackingNo').textContent = display(info.trackingNo);
+      document.getElementById('carrier').textContent = display(info.carrier);
+      const statusText = display(info.status);
+      document.getElementById('status').textContent = statusMap[statusText] || statusText;
+      document.getElementById('currentNode').textContent = display(info.currentNode);
+      document.getElementById('etaDate').textContent = display(info.etaDate);
+      document.getElementById('updatedAt').textContent = display(info.updatedAt);
+      document.getElementById('mockTag').textContent = display(info.mockTag);
     }
 
     window.addEventListener('message', (event) => {
-      renderCard(event.data);
+      const payload = unwrapMessagePayload(event.data);
+      if (!payload) {
+        return;
+      }
+      currentLogistics = normalizeData(payload, currentLogistics);
+      renderCard(currentLogistics);
     });
 
     function sendMessage(message) {
@@ -198,7 +264,7 @@
       );
     }
 
-    renderCard(fallback);
+    renderCard(currentLogistics);
   </script>
 </body>
 </html>

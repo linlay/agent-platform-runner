@@ -114,53 +114,125 @@
   </section>
 
   <script>
-    const fallback = {
-      city: '上海',
-      date: '2026-02-13',
-      temperatureC: 22,
-      humidity: 61,
-      windLevel: 3,
-      condition: '晴间多云',
-      mockTag: '幂等随机数据'
+    const LOADING_TEXT = '加载中...';
+    const WEATHER_KEYS = ['city', 'date', 'temperatureC', 'humidity', 'windLevel', 'condition', 'mockTag'];
+    const LOADING_STATE = {
+      city: LOADING_TEXT,
+      date: LOADING_TEXT,
+      temperatureC: LOADING_TEXT,
+      humidity: LOADING_TEXT,
+      windLevel: LOADING_TEXT,
+      condition: LOADING_TEXT,
+      mockTag: LOADING_TEXT
     };
+    let currentWeather = { ...LOADING_STATE };
 
-    function normalizeData(raw) {
-      if (!raw || typeof raw !== 'object') {
-        return fallback;
+    function toObject(raw) {
+      if (!raw) {
+        return null;
+      }
+      if (typeof raw === 'string') {
+        try {
+          const parsed = JSON.parse(raw);
+          return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (_error) {
+          return null;
+        }
+      }
+      return typeof raw === 'object' ? raw : null;
+    }
+
+    function hasWeatherFields(value) {
+      if (!value || typeof value !== 'object') {
+        return false;
+      }
+      return WEATHER_KEYS.some((key) => Object.prototype.hasOwnProperty.call(value, key));
+    }
+
+    function unwrapMessagePayload(raw) {
+      const root = toObject(raw);
+      if (!root) {
+        return null;
       }
 
-      let payload = raw;
-      if (payload.result && typeof payload.result === 'object') {
-        payload = payload.result;
+      const queue = [root];
+      while (queue.length > 0) {
+        const candidate = queue.shift();
+        if (!candidate || typeof candidate !== 'object') {
+          continue;
+        }
+
+        if (hasWeatherFields(candidate)) {
+          return candidate;
+        }
+
+        if (String(candidate.type || '') === 'tool_init' && candidate.data && typeof candidate.data === 'object') {
+          queue.unshift(candidate.data);
+        }
+
+        if (candidate.data && typeof candidate.data === 'object') {
+          queue.unshift(candidate.data);
+        }
+        if (candidate.params && typeof candidate.params === 'object') {
+          queue.unshift(candidate.params);
+        }
+        if (candidate.result && typeof candidate.result === 'object') {
+          queue.unshift(candidate.result);
+        }
+        if (candidate.toolResult && typeof candidate.toolResult === 'object') {
+          queue.unshift(candidate.toolResult);
+        }
       }
-      if (payload.toolResult && typeof payload.toolResult === 'object') {
-        payload = payload.toolResult;
-      }
+
+      return null;
+    }
+
+    function normalizeData(raw, prev) {
+      const payload = raw && typeof raw === 'object' ? raw : {};
+      const base = prev && typeof prev === 'object' ? prev : LOADING_STATE;
 
       return {
-        city: payload.city ?? fallback.city,
-        date: payload.date ?? fallback.date,
-        temperatureC: payload.temperatureC ?? fallback.temperatureC,
-        humidity: payload.humidity ?? fallback.humidity,
-        windLevel: payload.windLevel ?? fallback.windLevel,
-        condition: payload.condition ?? fallback.condition,
-        mockTag: payload.mockTag ?? fallback.mockTag
+        city: payload.city ?? base.city,
+        date: payload.date ?? base.date,
+        temperatureC: payload.temperatureC ?? base.temperatureC,
+        humidity: payload.humidity ?? base.humidity,
+        windLevel: payload.windLevel ?? base.windLevel,
+        condition: payload.condition ?? base.condition,
+        mockTag: payload.mockTag ?? base.mockTag
       };
     }
 
-    function renderCard(data) {
-      const weather = normalizeData(data);
-      document.getElementById('city').textContent = weather.city;
-      document.getElementById('date').textContent = weather.date;
-      document.getElementById('condition').textContent = weather.condition;
-      document.getElementById('temp').textContent = `${weather.temperatureC}°C`;
-      document.getElementById('humidity').textContent = `${weather.humidity}%`;
-      document.getElementById('wind').textContent = `${weather.windLevel} 级`;
-      document.getElementById('mockTag').textContent = weather.mockTag;
+    function formatMetric(value, suffix) {
+      if (value === null || value === undefined) {
+        return LOADING_TEXT;
+      }
+      if (typeof value === 'number') {
+        return `${value}${suffix}`;
+      }
+      const text = String(value).trim();
+      if (!text || text === LOADING_TEXT) {
+        return LOADING_TEXT;
+      }
+      return text;
+    }
+
+    function renderCard(weather) {
+      document.getElementById('city').textContent = String(weather.city || LOADING_TEXT);
+      document.getElementById('date').textContent = String(weather.date || LOADING_TEXT);
+      document.getElementById('condition').textContent = String(weather.condition || LOADING_TEXT);
+      document.getElementById('temp').textContent = formatMetric(weather.temperatureC, '°C');
+      document.getElementById('humidity').textContent = formatMetric(weather.humidity, '%');
+      document.getElementById('wind').textContent = formatMetric(weather.windLevel, ' 级');
+      document.getElementById('mockTag').textContent = String(weather.mockTag || LOADING_TEXT);
     }
 
     window.addEventListener('message', (event) => {
-      renderCard(event.data);
+      const payload = unwrapMessagePayload(event.data);
+      if (!payload) {
+        return;
+      }
+      currentWeather = normalizeData(payload, currentWeather);
+      renderCard(currentWeather);
     });
 
     function sendMessage(message) {
@@ -173,7 +245,7 @@
       );
     }
 
-    renderCard(fallback);
+    renderCard(currentWeather);
   </script>
 </body>
 </html>

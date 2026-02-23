@@ -157,7 +157,16 @@ public class AgentQueryService {
     }
 
     private ServerSentEvent<String> normalizeEvent(ServerSentEvent<String> event) {
-        if (event == null || !StringUtils.hasText(event.data())) {
+        if (event == null) {
+            return null;
+        }
+
+        ServerSentEvent<String> heartbeatNormalized = normalizeHeartbeatCommentEvent(event);
+        if (heartbeatNormalized != event) {
+            return heartbeatNormalized;
+        }
+
+        if (!StringUtils.hasText(event.data())) {
             return event;
         }
         JsonNode root;
@@ -187,6 +196,27 @@ public class AgentQueryService {
         }
 
         return event;
+    }
+
+    private ServerSentEvent<String> normalizeHeartbeatCommentEvent(ServerSentEvent<String> event) {
+        if (!StringUtils.hasText(event.comment())
+                || StringUtils.hasText(event.event())
+                || StringUtils.hasText(event.data())) {
+            return event;
+        }
+        if (!"heartbeat".equals(event.comment().trim())) {
+            return event;
+        }
+
+        ServerSentEvent.Builder<String> builder = ServerSentEvent.builder();
+        builder.event("heartbeat");
+        if (StringUtils.hasText(event.id())) {
+            builder.id(event.id());
+        }
+        if (event.retry() != null) {
+            builder.retry(event.retry());
+        }
+        return builder.build();
     }
 
     private void putIfPresent(ObjectNode target, String key, JsonNode value) {

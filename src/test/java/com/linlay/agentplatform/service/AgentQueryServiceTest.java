@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 
@@ -21,6 +22,51 @@ import static org.mockito.Mockito.when;
 class AgentQueryServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void normalizeEventShouldConvertHeartbeatCommentToEventWithoutData() {
+        AgentQueryService service = newService();
+        ServerSentEvent<String> event = ServerSentEvent.<String>builder()
+                .comment("heartbeat")
+                .id("hb_1")
+                .retry(Duration.ofSeconds(3))
+                .build();
+
+        ServerSentEvent<String> normalized = ReflectionTestUtils.invokeMethod(service, "normalizeEvent", event);
+
+        assertThat(normalized.event()).isEqualTo("heartbeat");
+        assertThat(normalized.data()).isNull();
+        assertThat(normalized.comment()).isNull();
+        assertThat(normalized.id()).isEqualTo("hb_1");
+        assertThat(normalized.retry()).isEqualTo(Duration.ofSeconds(3));
+    }
+
+    @Test
+    void normalizeEventShouldKeepNonHeartbeatCommentUnchanged() {
+        AgentQueryService service = newService();
+        ServerSentEvent<String> event = ServerSentEvent.<String>builder()
+                .comment("keepalive")
+                .build();
+
+        ServerSentEvent<String> normalized = ReflectionTestUtils.invokeMethod(service, "normalizeEvent", event);
+
+        assertThat(normalized).isSameAs(event);
+    }
+
+    @Test
+    void normalizeEventShouldKeepNormalDataEventUnchanged() {
+        AgentQueryService service = newService();
+        String payload = "{\"type\":\"content.delta\",\"delta\":\"hello\"}";
+        ServerSentEvent<String> event = ServerSentEvent.builder(payload)
+                .event("message")
+                .build();
+
+        ServerSentEvent<String> normalized = ReflectionTestUtils.invokeMethod(service, "normalizeEvent", event);
+
+        assertThat(normalized).isSameAs(event);
+        assertThat(normalized.data()).isEqualTo(payload);
+        assertThat(normalized.event()).isEqualTo("message");
+    }
 
     @Test
     void normalizeEventShouldInjectFrontendFieldsForToolStart() throws Exception {
@@ -106,6 +152,20 @@ class AgentQueryServiceTest {
                 null,
                 "confirm_dialog",
                 "/tmp/confirm_dialog.frontend"
+        );
+    }
+
+    private AgentQueryService newService() {
+        ChatEventCallbackService chatEventCallbackService = mock(ChatEventCallbackService.class);
+        return new AgentQueryService(
+                null,
+                null,
+                objectMapper,
+                null,
+                mock(ToolRegistry.class),
+                mock(ViewportRegistryService.class),
+                new FrontendToolProperties(),
+                chatEventCallbackService
         );
     }
 }
