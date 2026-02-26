@@ -1,18 +1,34 @@
 # Build outputs
-target/
 out/
 /release/
 /release-local/
+target/
+
+# Runtime external directories (generated/overridden locally)
+/agents/
+/chats/
+/com/
+/data/
+/models/
+/skills/
+/tools/
+/viewports/
+
+# Local configs and secrets
+.env
+.env.*
+/application.yaml
+/application.yml
 
 # IDE
-.idea/
-*.iml
-.vscode/
 .classpath
+.idea/
 .project
 .settings/
+.vscode/
+*.iml
 
-# OS
+# OS / local assistant files
 .DS_Store
 Thumbs.db
 AGENTS.md
@@ -21,32 +37,18 @@ AGENTS.md
 *.log
 logs/
 
-# Local configs and secrets
-/agents/
-/chats/
-/tools/
-/viewports/
-/skills/
-/data/
-/models/
-/com/
-/application.yaml
-/application.yml
-.env
-.env.*
+# JVM crash dumps
+hs_err_pid*
+replay_pid*
 
 # Keep classpath runtime resources tracked
 !/src/main/resources/agents/
 !/src/main/resources/agents/**
+!/src/main/resources/models/
+!/src/main/resources/models/**
+!/src/main/resources/skills/
+!/src/main/resources/skills/**
 !/src/main/resources/tools/
 !/src/main/resources/tools/**
 !/src/main/resources/viewports/
 !/src/main/resources/viewports/**
-!/src/main/resources/skills/
-!/src/main/resources/skills/**
-!/src/main/resources/models/
-!/src/main/resources/models/**
-
-# Java
-hs_err_pid*
-replay_pid*

@@ -19,6 +19,29 @@ mvn test -Dtest=ClassName#methodName    # 运行单个测试方法
 
 SDK 依赖: 已以内置源码方式集成在 `src/main/java/com/aiagent/agw/sdk/**`。
 
+### Release Scripts（跨平台入口）
+
+- macOS / Linux:
+  - `./release-scripts/package-local.sh`
+  - `./release-scripts/package-docker.sh`
+  - `./release-scripts/start-local.sh`
+  - `./release-scripts/stop-local.sh`
+- Windows（非 WSL / Git Bash，PowerShell 原生）:
+  - `.\release-scripts\package-local.ps1`
+  - `.\release-scripts\package-docker.ps1`
+  - `.\release-scripts\start-local.ps1`
+  - `.\release-scripts\stop-local.ps1`
+
+`release-scripts/` 根目录脚本为平台入口，分别转发到 `release-scripts/unix/` 和 `release-scripts/windows/`。
+
+### 发布相关文件放置约定
+
+- `release-scripts/` 只放打包/运行脚本，不放部署配置资产。
+- `Dockerfile` 与 `settings.xml` 保持在项目根目录，以匹配标准 `docker build .` 上下文和当前脚本路径约定。
+- `application.example.yml` 保持在项目根目录，作为本地初始化模板。
+- `nginx.conf` 当前保持在项目根目录，作为反向代理示例；若后续扩展多环境部署资产，可迁移到 `deploy/nginx/`。
+- `.dockerignore` 需要保留，用于缩小构建上下文并避免将本地敏感配置（如 `application.yml`）带入镜像构建上下文。
+
 ## Architecture
 
 ```

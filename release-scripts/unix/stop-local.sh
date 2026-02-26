@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RELEASE_DIR="$ROOT_DIR/release-local"
 
 if [ -x "$RELEASE_DIR/stop-local.sh" ]; then
@@ -13,5 +14,5 @@ if [ -x "$RELEASE_DIR/stop.sh" ]; then
 fi
 
 echo "[stop-local] release-local stop script not found." >&2
-echo "[stop-local] run ./package-local.sh first to generate release-local artifacts." >&2
+echo "[stop-local] run ./release-scripts/package-local.sh first to generate release-local artifacts." >&2
 exit 1
