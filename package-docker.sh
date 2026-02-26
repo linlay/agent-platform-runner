@@ -64,12 +64,6 @@ for dir in agents viewports tools skills; do
   fi
 done
 
-# 复制 SDK jar
-if [ -d "$ROOT_DIR/libs" ]; then
-  cp -R "$ROOT_DIR/libs" "$RELEASE_DIR/libs"
-  log "copied libs/"
-fi
-
 # 生成 docker-compose.yml
 cat >"$RELEASE_DIR/docker-compose.yml" <<'EOF'
 services:
@@ -140,6 +134,6 @@ log "  $RELEASE_DIR/settings.xml"
 log "  $RELEASE_DIR/docker-compose.yml"
 log "  $RELEASE_DIR/.env.example"
 log "  $RELEASE_DIR/DEPLOY.md"
-for dir in agents viewports tools skills libs; do
+for dir in agents viewports tools skills; do
   [ -d "$RELEASE_DIR/$dir" ] && log "  $RELEASE_DIR/$dir/"
 done

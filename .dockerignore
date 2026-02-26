@@ -1,0 +1,8 @@
+.git
+.github
+.idea
+target
+*.iml
+.DS_Store
+application.yml
+application.yaml

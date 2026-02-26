@@ -56,12 +56,6 @@ for dir in agents viewports tools skills data; do
   fi
 done
 
-# 复制 SDK jar
-if [ -d "$ROOT_DIR/libs" ]; then
-  cp -R "$ROOT_DIR/libs" "$RELEASE_DIR/libs"
-  log "copied libs/"
-fi
-
 # ---------- start.sh ----------
 cat >"$RELEASE_DIR/start.sh" <<'STARTEOF'
 #!/usr/bin/env bash
@@ -252,8 +246,7 @@ release-local/
 ├── tools/               # Tool definition files
 ├── skills/              # Skill directories
 ├── data/                # Data files
-├── chats/               # Chat memory (auto-created)
-└── libs/                # SDK JARs
+└── chats/               # Chat memory (auto-created)
 ```
 
 ## JVM Tuning
@@ -274,6 +267,6 @@ log "  $RELEASE_DIR/app.jar"
 log "  $RELEASE_DIR/start.sh"
 log "  $RELEASE_DIR/stop.sh"
 log "  $RELEASE_DIR/DEPLOY.md"
-for dir in agents viewports tools skills data libs; do
+for dir in agents viewports tools skills data; do
   [ -d "$RELEASE_DIR/$dir" ] && log "  $RELEASE_DIR/$dir/"
 done

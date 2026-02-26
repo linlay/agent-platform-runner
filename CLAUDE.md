@@ -17,7 +17,7 @@ mvn test -Dtest=ClassName               # 运行单个测试类
 mvn test -Dtest=ClassName#methodName    # 运行单个测试方法
 ```
 
-SDK 依赖: `libs/agw-springai-sdk-0.0.1-SNAPSHOT.jar`（`systemPath` 引用）。
+SDK 依赖: 已以内置源码方式集成在 `src/main/java/com/aiagent/agw/sdk/**`。
 
 ## Architecture
 

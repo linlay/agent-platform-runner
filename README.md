@@ -102,8 +102,6 @@
 
 ```text
 .
-├── libs/
-│   └── agw-springai-sdk-0.0.1-SNAPSHOT.jar
 ├── src/
 ├── agents/
 ├── data/
@@ -118,15 +116,9 @@
 
 ## 构建与运行
 
-### SDK jar 放置方式
+### SDK 说明
 
-从旁边的 `agw-springai-sdk` 项目构建后，将 jar 放到本仓库 `libs/`：
-
-```bash
-cp ../agw-springai-sdk/target/agw-springai-sdk-0.0.1-SNAPSHOT.jar ./libs/
-```
-
-`pom.xml` 已固定通过 `systemPath` 引用 `libs/agw-springai-sdk-0.0.1-SNAPSHOT.jar`，可以直接提交到 Git。
+`agw-springai-sdk` 已以内置源码方式集成在本仓库（`src/main/java/com/aiagent/agw/sdk/**`），无需额外放置 SDK jar。
 
 ### 本地运行
 
