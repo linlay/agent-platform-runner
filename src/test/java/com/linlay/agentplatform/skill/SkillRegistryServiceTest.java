@@ -32,7 +32,7 @@ class SkillRegistryServiceTest {
 
         SkillCatalogProperties properties = new SkillCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        SkillRegistryService service = new SkillRegistryService(properties, null);
+        SkillRegistryService service = new SkillRegistryService(properties);
 
         SkillDescriptor descriptor = service.find("screenshot").orElseThrow();
         assertThat(descriptor.id()).isEqualTo("screenshot");
@@ -50,7 +50,7 @@ class SkillRegistryServiceTest {
         SkillCatalogProperties properties = new SkillCatalogProperties();
         properties.setExternalDir(tempDir.toString());
         properties.setMaxPromptChars(32);
-        SkillRegistryService service = new SkillRegistryService(properties, null);
+        SkillRegistryService service = new SkillRegistryService(properties);
 
         SkillDescriptor descriptor = service.find("doc").orElseThrow();
         assertThat(descriptor.promptTruncated()).isTrue();
@@ -73,7 +73,7 @@ class SkillRegistryServiceTest {
 
         SkillCatalogProperties properties = new SkillCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        SkillRegistryService service = new SkillRegistryService(properties, null);
+        SkillRegistryService service = new SkillRegistryService(properties);
 
         assertThat(service.list()).hasSize(1);
         assertThat(service.find("math_basic")).isPresent();
@@ -90,7 +90,7 @@ class SkillRegistryServiceTest {
 
         SkillCatalogProperties properties = new SkillCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        SkillRegistryService service = new SkillRegistryService(properties, null);
+        SkillRegistryService service = new SkillRegistryService(properties);
 
         assertThat(service.list())
                 .extracting(SkillDescriptor::id)

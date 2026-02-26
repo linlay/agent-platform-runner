@@ -22,7 +22,7 @@ public class ChatAssetAccessService {
         this.chatRecordStore = chatRecordStore;
     }
 
-    public boolean canRead(String uid, String chatId, String normalizedFilePath) {
+    public boolean canRead(String chatId, String normalizedFilePath) {
         if (!StringUtils.hasText(chatId) || !StringUtils.hasText(normalizedFilePath)) {
             return false;
         }

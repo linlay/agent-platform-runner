@@ -30,50 +30,10 @@ public record Budget(
     public static final Budget LIGHT = new Budget(30_000, LIGHT_MODEL_SCOPE, LIGHT_TOOL_SCOPE);
     public static final Budget HEAVY = new Budget(300_000, HEAVY_MODEL_SCOPE, HEAVY_TOOL_SCOPE);
 
-    /**
-     * Backward-compatible constructor for in-repo test fixtures.
-     * Legacy fields map to:
-     * - runTimeoutMs = timeoutMs
-     * - model = {maxModelCalls, timeoutMs, retryCount}
-     * - tool  = {maxToolCalls, timeoutMs, retryCount}
-     */
-    public Budget(
-            int maxModelCalls,
-            int maxToolCalls,
-            long timeoutMs,
-            int retryCount
-    ) {
-        this(
-                timeoutMs,
-                new Scope(maxModelCalls, timeoutMs, retryCount),
-                new Scope(maxToolCalls, timeoutMs, retryCount)
-        );
-    }
-
     public Budget {
         runTimeoutMs = runTimeoutMs > 0 ? runTimeoutMs : DEFAULT_RUN_TIMEOUT_MS;
         model = normalizeScope(model, DEFAULT_MODEL_SCOPE);
         tool = normalizeScope(tool, DEFAULT_TOOL_SCOPE);
-    }
-
-    @Deprecated(forRemoval = false)
-    public int maxModelCalls() {
-        return model.maxCalls();
-    }
-
-    @Deprecated(forRemoval = false)
-    public int maxToolCalls() {
-        return tool.maxCalls();
-    }
-
-    @Deprecated(forRemoval = false)
-    public long timeoutMs() {
-        return runTimeoutMs;
-    }
-
-    @Deprecated(forRemoval = false)
-    public int retryCount() {
-        return model.retryCount();
     }
 
     private Scope normalizeScope(Scope input, Scope fallback) {

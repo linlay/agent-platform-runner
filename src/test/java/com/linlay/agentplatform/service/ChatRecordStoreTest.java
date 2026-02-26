@@ -276,8 +276,47 @@ class ChatRecordStoreTest {
         assertThat(planUpdate).containsEntry("chatId", chatId);
         assertThat(planUpdate).containsKey("plan");
         assertThat(planUpdate).containsKey("timestamp");
-        assertThat(planUpdate).containsEntry("rawEvent", null);
         assertThat(planUpdate).doesNotContainKey("seq");
+    }
+
+    @Test
+    void appendEventShouldPersistRequestSubmitForHistoryReplay() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174018";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "提交会话", 1707000600000L, 1707000600000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".json");
+        writeJsonLine(historyPath, queryLine(chatId, "run_007", query("run_007", chatId, "第一轮", List.of())));
+        writeJsonLine(historyPath, stepLine(chatId, "run_007", "oneshot", 1, null,
+                1707000600000L,
+                List.of(
+                        userMessage("第一轮", 1707000600000L),
+                        assistantContentMessage("等待确认", 1707000600001L)
+                )));
+
+        ChatRecordStore store = newStore();
+        store.appendEvent(chatId, objectMapper.writeValueAsString(Map.of(
+                "seq", 99,
+                "type", "request.submit",
+                "timestamp", 1707000600002L,
+                "requestId", "req_submit_001",
+                "chatId", chatId,
+                "runId", "run_007",
+                "toolId", "call_frontend_1",
+                "payload", Map.of("confirmed", true)
+        )));
+
+        ChatDetailResponse detail = store.loadChat(chatId, false);
+        Map<String, Object> requestSubmit = detail.events().stream()
+                .filter(event -> "request.submit".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(requestSubmit).containsEntry("requestId", "req_submit_001");
+        assertThat(requestSubmit).containsEntry("chatId", chatId);
+        assertThat(requestSubmit).containsEntry("runId", "run_007");
+        assertThat(requestSubmit).containsEntry("toolId", "call_frontend_1");
+        assertThat(requestSubmit).containsKey("seq");
     }
 
     @Test

@@ -167,6 +167,24 @@ public class AgentDeltaToStreamInputMapper {
             ));
         }
 
+        if (delta.requestSubmit() != null) {
+            AgentDelta.RequestSubmit requestSubmit = delta.requestSubmit();
+            if (hasText(requestSubmit.requestId())
+                    && hasText(requestSubmit.chatId())
+                    && hasText(requestSubmit.runId())
+                    && hasText(requestSubmit.toolId())
+                    && requestSubmit.payload() != null) {
+                inputs.add(new StreamInput.RequestSubmit(
+                        requestSubmit.requestId(),
+                        requestSubmit.chatId(),
+                        requestSubmit.runId(),
+                        requestSubmit.toolId(),
+                        requestSubmit.payload(),
+                        requestSubmit.viewId()
+                ));
+            }
+        }
+
         if (hasText(delta.finishReason())) {
             inputs.add(new StreamInput.RunComplete(delta.finishReason()));
         }
@@ -187,6 +205,7 @@ public class AgentDeltaToStreamInputMapper {
                 || (delta.toolEnds() != null && !delta.toolEnds().isEmpty())
                 || (delta.toolResults() != null && !delta.toolResults().isEmpty())
                 || delta.planUpdate() != null
+                || delta.requestSubmit() != null
                 || hasText(delta.finishReason());
     }
 

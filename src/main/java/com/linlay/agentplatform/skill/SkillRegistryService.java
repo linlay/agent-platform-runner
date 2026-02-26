@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.skill;
 
-import com.linlay.agentplatform.service.RuntimeResourceSyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -19,24 +19,21 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 @Service
+@DependsOn("runtimeResourceSyncService")
 public class SkillRegistryService {
 
     private static final Logger log = LoggerFactory.getLogger(SkillRegistryService.class);
     private static final String SKILL_FILE = "SKILL.md";
 
     private final SkillCatalogProperties properties;
-    @SuppressWarnings("unused")
-    private final RuntimeResourceSyncService runtimeResourceSyncService;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, SkillDescriptor> byId = Map.of();
 
     public SkillRegistryService(
-            SkillCatalogProperties properties,
-            RuntimeResourceSyncService runtimeResourceSyncService
+            SkillCatalogProperties properties
     ) {
         this.properties = properties;
-        this.runtimeResourceSyncService = runtimeResourceSyncService;
         refreshSkills();
     }
 

@@ -469,7 +469,7 @@ class AgentControllerTest {
     }
 
     @Test
-    void chatShouldRejectDeprecatedIncludeEventsParam() {
+    void chatShouldIgnoreDeprecatedIncludeEventsParam() {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/ap/chat")
@@ -477,9 +477,7 @@ class AgentControllerTest {
                         .queryParam("includeEvents", true)
                         .build())
                 .exchange()
-                .expectStatus().isBadRequest()
-                .expectBody()
-                .jsonPath("$.msg").value(message -> assertThat(String.valueOf(message)).contains("includeEvents is deprecated"));
+                .expectStatus().value(status -> assertThat(status).isNotEqualTo(400));
     }
 
     @Test
@@ -633,7 +631,6 @@ class AgentControllerTest {
         assertThat(planUpdate).containsEntry("chatId", chatId);
         assertThat(planUpdate).containsKey("plan");
         assertThat(planUpdate).containsKey("timestamp");
-        assertThat(planUpdate).containsEntry("rawEvent", null);
         assertThat(planUpdate).doesNotContainKey("seq");
     }
 
@@ -714,7 +711,6 @@ class AgentControllerTest {
         assertThat(chunks).isNotNull();
         String joined = String.join("", chunks);
         assertThat(joined).contains("\"type\":\"plan.update\"");
-        assertThat(joined).contains("\"rawEvent\":null");
 
         String planPayload = extractTypedJsonObject(joined, "plan.update");
         assertThat(planPayload).isNotBlank();

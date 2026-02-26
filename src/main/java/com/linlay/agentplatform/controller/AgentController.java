@@ -81,7 +81,6 @@ public class AgentController {
 
     @GetMapping("/agents")
     public ApiResponse<List<AgentListResponse.AgentSummary>> agents(
-            @RequestParam(required = false) Boolean includeHidden,
             @RequestParam(required = false) String tag
     ) {
         List<AgentListResponse.AgentSummary> items = agentRegistry.list().stream()
@@ -106,12 +105,8 @@ public class AgentController {
     public ApiResponse<ChatDetailResponse> chat(
             @RequestParam String chatId,
             @RequestParam(defaultValue = "false") boolean includeRawMessages,
-            @RequestParam(required = false) Boolean includeEvents,
             ServerWebExchange exchange
     ) {
-        if (includeEvents != null) {
-            throw new IllegalArgumentException("includeEvents is deprecated; use includeRawMessages=true to include messages");
-        }
         ChatDetailResponse detail = chatRecordStore.loadChat(chatId, includeRawMessages);
         String chatImageToken = issueChatImageToken(resolvePrincipal(exchange), detail.chatId());
         return ApiResponse.success(new ChatDetailResponse(
@@ -163,11 +158,7 @@ public class AgentController {
     }
 
     @GetMapping("/viewport")
-    public ResponseEntity<ApiResponse<Object>> viewport(
-            @RequestParam String viewportKey,
-            @RequestParam(required = false) String chatId,
-            @RequestParam(required = false) String runId
-    ) {
+    public ResponseEntity<ApiResponse<Object>> viewport(@RequestParam String viewportKey) {
         if (!StringUtils.hasText(viewportKey)) {
             throw new IllegalArgumentException("viewportKey is required");
         }
@@ -204,7 +195,7 @@ public class AgentController {
                 agent.name(),
                 agent.description(),
                 null,
-                buildSummaryMeta(agent)
+                buildMeta(agent)
         );
     }
 
@@ -215,21 +206,11 @@ public class AgentController {
                 agent.description(),
                 agent.systemPrompt(),
                 null,
-                buildDetailMeta(agent)
+                buildMeta(agent)
         );
     }
 
-    private Map<String, Object> buildSummaryMeta(Agent agent) {
-        Map<String, Object> meta = new java.util.LinkedHashMap<>();
-        meta.put("model", agent.model());
-        meta.put("mode", agent.mode().name());
-        meta.put("icon", agent.icon());
-        meta.put("tools", agent.tools());
-        meta.put("skills", agent.skills());
-        return meta;
-    }
-
-    private Map<String, Object> buildDetailMeta(Agent agent) {
+    private Map<String, Object> buildMeta(Agent agent) {
         Map<String, Object> meta = new java.util.LinkedHashMap<>();
         meta.put("model", agent.model());
         meta.put("mode", agent.mode().name());

@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -230,6 +231,12 @@ class ToolExecutionServiceTest {
             ToolExecutionService.ToolExecutionBatch batch = future.get(2, TimeUnit.SECONDS);
             assertThat(batch.deltas().stream().flatMap(delta -> delta.toolEnds().stream()).toList()).isEmpty();
             assertThat(singleToolResult(batch, "call_frontend_1")).isEqualTo("{\"choice\":\"自然风光\"}");
+            assertThat(preExecutionDeltas.stream()
+                    .map(AgentDelta::requestSubmit)
+                    .filter(Objects::nonNull)
+                    .anyMatch(submit -> "run_frontend_1".equals(submit.runId())
+                            && "call_frontend_1".equals(submit.toolId())))
+                    .isTrue();
         } finally {
             executor.shutdownNow();
         }

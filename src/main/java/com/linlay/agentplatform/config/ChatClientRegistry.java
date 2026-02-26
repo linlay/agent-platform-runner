@@ -59,10 +59,15 @@ public class ChatClientRegistry {
 
     public String defaultModel(String providerKey) {
         AgentProviderProperties.ProviderConfig config = properties.getProvider(providerKey);
-        if (config == null || !StringUtils.hasText(config.getModel())) {
-            return SAFE_DEFAULT_MODEL;
+        if (config != null && StringUtils.hasText(config.getModel())) {
+            return config.getModel();
         }
-        return config.getModel();
+        for (AgentProviderProperties.ProviderConfig providerConfig : properties.getProviders().values()) {
+            if (providerConfig != null && StringUtils.hasText(providerConfig.getModel())) {
+                return providerConfig.getModel();
+            }
+        }
+        return SAFE_DEFAULT_MODEL;
     }
 
     private ChatModel buildChatModel(

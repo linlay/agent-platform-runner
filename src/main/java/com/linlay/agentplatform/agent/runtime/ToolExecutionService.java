@@ -138,7 +138,7 @@ public class ToolExecutionService {
         }
 
         for (PreparedToolCall call : preparedCalls) {
-            JsonNode resultNode = invokeByKind(
+            InvokeResult invokeResult = invokeByKind(
                     runId,
                     call.callId(),
                     call.toolName(),
@@ -147,6 +147,10 @@ public class ToolExecutionService {
                     enabledToolsByName,
                     context
             );
+            if (invokeResult.submitDelta() != null) {
+                appendDelta(deltas, preExecutionEmitter, invokeResult.submitDelta());
+            }
+            JsonNode resultNode = invokeResult.resultNode();
             String resultText = toResultText(resultNode);
             deltas.add(AgentDelta.toolResult(call.callId(), resultText));
             records.add(buildToolRecord(call.callId(), call.toolName(), call.toolType(), call.resolvedArgs(), resultNode));
@@ -159,6 +163,17 @@ public class ToolExecutionService {
         }
 
         return new ToolExecutionBatch(List.copyOf(deltas), List.copyOf(events));
+    }
+
+    private void appendDelta(List<AgentDelta> deltas, Consumer<AgentDelta> preExecutionEmitter, AgentDelta delta) {
+        if (delta == null) {
+            return;
+        }
+        if (preExecutionEmitter != null) {
+            preExecutionEmitter.accept(delta);
+            return;
+        }
+        deltas.add(delta);
     }
 
     public List<com.linlay.agentplatform.service.LlmService.LlmFunctionTool> enabledFunctionTools(Map<String, BaseTool> enabledToolsByName) {
@@ -281,7 +296,7 @@ public class ToolExecutionService {
         return title + "\n" + String.join("\n", lines);
     }
 
-    private JsonNode invokeByKind(
+    private InvokeResult invokeByKind(
             String runId,
             String toolId,
             String toolName,
@@ -291,37 +306,67 @@ public class ToolExecutionService {
             ExecutionContext context
     ) {
         if (!enabledToolsByName.containsKey(toolName)) {
-            return errorResult(toolName, "Tool is not enabled for this agent: " + toolName);
+            return new InvokeResult(errorResult(toolName, "Tool is not enabled for this agent: " + toolName), null);
         }
 
         if ("_plan_get_tasks_".equals(toolName)) {
-            return planGetResult(planSnapshot(context));
+            return new InvokeResult(planGetResult(planSnapshot(context)), null);
         }
 
         if ("action".equalsIgnoreCase(toolType)) {
-            return objectMapper.getNodeFactory().textNode("OK");
+            return new InvokeResult(objectMapper.getNodeFactory().textNode("OK"), null);
         }
 
         if (toolRegistry.isFrontend(toolName)) {
             if (frontendSubmitCoordinator == null) {
-                return errorResult(toolName, "Frontend submit coordinator is not configured");
+                return new InvokeResult(errorResult(toolName, "Frontend submit coordinator is not configured"), null);
             }
             if (!StringUtils.hasText(runId)) {
-                return errorResult(toolName, "Missing runId for frontend tool submission");
+                return new InvokeResult(errorResult(toolName, "Missing runId for frontend tool submission"), null);
             }
             try {
                 Object payload = frontendSubmitCoordinator.awaitSubmit(runId.trim(), toolId).block();
                 Object normalized = payload == null ? Map.of() : payload;
-                return objectMapper.valueToTree(normalized);
+                return new InvokeResult(
+                        objectMapper.valueToTree(normalized),
+                        buildSubmitDelta(context, runId, toolId, normalized)
+                );
             } catch (Exception ex) {
                 if (isFrontendSubmitTimeout(ex)) {
-                    return errorResult(toolName, FRONTEND_SUBMIT_TIMEOUT_CODE, resolveErrorMessage(ex));
+                    return new InvokeResult(errorResult(toolName, FRONTEND_SUBMIT_TIMEOUT_CODE, resolveErrorMessage(ex)), null);
                 }
-                return errorResult(toolName, resolveErrorMessage(ex));
+                return new InvokeResult(errorResult(toolName, resolveErrorMessage(ex)), null);
             }
         }
 
-        return invokeBackendWithPolicy(toolName, args, context);
+        return new InvokeResult(invokeBackendWithPolicy(toolName, args, context), null);
+    }
+
+    private AgentDelta buildSubmitDelta(
+            ExecutionContext context,
+            String runId,
+            String toolId,
+            Object payload
+    ) {
+        if (context == null || context.request() == null || !StringUtils.hasText(context.request().chatId())) {
+            return null;
+        }
+        String normalizedRunId = StringUtils.hasText(runId) ? runId.trim() : "";
+        String normalizedToolId = StringUtils.hasText(toolId) ? toolId.trim() : "";
+        if (normalizedRunId.isBlank() || normalizedToolId.isBlank()) {
+            return null;
+        }
+        String requestId = StringUtils.hasText(context.request().requestId())
+                ? context.request().requestId().trim()
+                : normalizedRunId;
+        return AgentDelta.requestSubmit(
+                requestId,
+                context.request().chatId(),
+                normalizedRunId,
+                normalizedToolId,
+                payload == null ? Map.of() : payload,
+                null
+        );
     }
 
     private JsonNode invokeBackendWithPolicy(
@@ -543,18 +588,6 @@ public class ToolExecutionService {
         return tasks.isEmpty() ? List.of() : List.copyOf(tasks);
     }
 
-    private String readString(Map<?, ?> map, String key) {
-        if (map == null || key == null) {
-            return null;
-        }
-        Object value = map.get(key);
-        if (value == null) {
-            return null;
-        }
-        String text = value.toString();
-        return text == null || text.isBlank() ? null : text;
-    }
-
     private String asString(Map<String, Object> args, String key) {
         if (args == null || key == null) {
             return null;
@@ -672,6 +705,12 @@ public class ToolExecutionService {
             String toolType,
             Map<String, Object> resolvedArgs,
             String argsJson
+    ) {
+    }
+
+    private record InvokeResult(
+            JsonNode resultNode,
+            AgentDelta submitDelta
     ) {
     }
 

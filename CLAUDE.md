@@ -228,7 +228,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 |------|----------------|------|
 | `.backend` | `BACKEND` | 后端工具，模型通过 Function Calling 调用。`description` 用于 OpenAI tool schema，`after_call_hint` 用于注入 system prompt 的"工具调用后推荐指令"章节 |
 | `.action` | `ACTION` | 动作工具，触发前端行为（如主题切换、烟花特效）。不等待 `/api/ap/submit`，直接返回 `"OK"` |
-| `.frontend` | `FRONTEND` | 前端工具定义文件，触发 UI 渲染并等待 `/api/ap/submit` 提交；实际渲染内容由 `viewports/` 下 `.html/.qlc/.dqlc/.json_schema/.custom` 文件提供 |
+| `.frontend` | `FRONTEND` | 前端工具定义文件，触发 UI 渲染并等待 `/api/ap/submit` 提交；实际渲染内容由 `viewports/` 下 `.html/.qlc` 文件提供 |
 
 文件内容均为 `{"tools":[...]}` 格式的 JSON。工具名冲突策略：冲突项会被跳过，其它项继续生效。
 
@@ -317,13 +317,13 @@ Agent JSON 中引用 skills：
 ### /api/ap/viewport 端点契约
 
 ```
-GET /api/ap/viewport?viewportKey=<key>[&chatId=<id>][&runId=<id>]
+GET /api/ap/viewport?viewportKey=<key>
 ```
 
-- `viewportKey` 必填，`chatId`/`runId` 可选。
+- `viewportKey` 必填。
 - 返回：
   - `html` 文件：`data = {"html":"<...>"}`
-  - `qlc/dqlc/json_schema/custom`：`data` 直接是文件内 JSON 对象
+  - `qlc` 文件：`data` 直接是文件内 JSON 对象
 - `viewportKey` 不存在时返回 `404`。
 
 ### 支持后缀
@@ -332,9 +332,6 @@ GET /api/ap/viewport?viewportKey=<key>[&chatId=<id>][&runId=<id>]
 |----------|-------------|------|
 | `.html` | `HTML` | 静态 HTML 渲染 |
 | `.qlc` | `QLC` | QLC 表单 schema |
-| `.dqlc` | `QLC` | 动态 QLC 表单 |
-| `.json_schema` | — | JSON Schema 格式 |
-| `.custom` | — | 自定义格式 |
 
 ### Viewport 输出协议
 

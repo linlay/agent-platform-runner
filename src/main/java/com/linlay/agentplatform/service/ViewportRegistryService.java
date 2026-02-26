@@ -5,6 +5,7 @@ import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.model.ViewportType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,29 +23,24 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 @Service
+@DependsOn("runtimeResourceSyncService")
 public class ViewportRegistryService {
 
     private static final Logger log = LoggerFactory.getLogger(ViewportRegistryService.class);
-    private static final Set<String> SUPPORTED_SUFFIXES = Set.of(
-            ".json_schema", ".html", ".qlc", ".dqlc", ".custom"
-    );
+    private static final Set<String> SUPPORTED_SUFFIXES = Set.of(".html", ".qlc");
 
     private final ObjectMapper objectMapper;
     private final ViewportCatalogProperties properties;
-    @SuppressWarnings("unused")
-    private final RuntimeResourceSyncService runtimeResourceSyncService;
 
     private final Object refreshLock = new Object();
     private volatile Map<String, ViewportEntry> byKey = Map.of();
 
     public ViewportRegistryService(
             ObjectMapper objectMapper,
-            ViewportCatalogProperties properties,
-            RuntimeResourceSyncService runtimeResourceSyncService
+            ViewportCatalogProperties properties
     ) {
         this.objectMapper = objectMapper;
         this.properties = properties;
-        this.runtimeResourceSyncService = runtimeResourceSyncService;
         refreshViewports();
     }
 

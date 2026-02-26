@@ -32,7 +32,7 @@
       type=TYPE, key=KEY
       {填充tool.result的json}
       ```
-      以上是viewport视图块，type可选值:html/qhtml/qlc/dqlc，key的值从使用的工具提示中获取
+      以上是viewport视图块，type可选值:html/qlc，key的值从使用的工具提示中获取
     """,
     "maxSteps": 10
   }

@@ -269,6 +269,30 @@ class AgentDeltaToStreamInputMapperTest {
         assertThat(error.get("message")).isEqualTo("boom");
     }
 
+    @Test
+    void shouldMapRequestSubmitEvent() {
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        List<StreamEvent> events = assembleEvents(mapper, List.of(
+                AgentDelta.requestSubmit(
+                        "req_submit_1",
+                        "chat_1",
+                        "run_1",
+                        "call_frontend_1",
+                        Map.of("confirmed", true),
+                        null
+                )
+        ));
+
+        StreamEvent event = events.stream()
+                .filter(item -> "request.submit".equals(item.type()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(event.payload()).containsEntry("requestId", "req_submit_1");
+        assertThat(event.payload()).containsEntry("chatId", "chat_1");
+        assertThat(event.payload()).containsEntry("runId", "run_1");
+        assertThat(event.payload()).containsEntry("toolId", "call_frontend_1");
+    }
+
     private List<StreamEvent> assembleEvents(AgentDeltaToStreamInputMapper mapper, List<AgentDelta> deltas) {
         StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
                 .begin(new StreamRequest.Query(

@@ -15,8 +15,6 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentCatalogProperties;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
@@ -29,11 +27,6 @@ import jakarta.annotation.PostConstruct;
 public class RuntimeResourceSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(RuntimeResourceSyncService.class);
-    private static final String LEGACY_BASH_FILE = "bash.backend";
-    private static final String CANONICAL_BASH_FILE = "_bash_.backend";
-    private static final String LEGACY_SKILL_RUN_SCRIPT_FILE = "skill_script_run.backend";
-    private static final String CANONICAL_SKILL_RUN_SCRIPT_FILE = "_skill_run_script_.backend";
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final ResourcePatternResolver resourceResolver;
     private final Path agentsDir;
@@ -56,22 +49,6 @@ public class RuntimeResourceSyncService {
                 Path.of(viewportCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 Path.of(capabilityCatalogProperties.getToolsExternalDir()).toAbsolutePath().normalize(),
                 Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(modelCatalogProperties.getExternalDir()).toAbsolutePath().normalize()
-        );
-    }
-
-    public RuntimeResourceSyncService(
-            AgentCatalogProperties agentCatalogProperties,
-            ViewportCatalogProperties viewportCatalogProperties,
-            CapabilityCatalogProperties capabilityCatalogProperties,
-            ModelCatalogProperties modelCatalogProperties
-    ) {
-        this(
-                new PathMatchingResourcePatternResolver(),
-                Path.of(agentCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(viewportCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(capabilityCatalogProperties.getToolsExternalDir()).toAbsolutePath().normalize(),
-                Path.of("skills").toAbsolutePath().normalize(),
                 Path.of(modelCatalogProperties.getExternalDir()).toAbsolutePath().normalize()
         );
     }
@@ -99,7 +76,6 @@ public class RuntimeResourceSyncService {
         syncResourceDirectory("tools", toolsDir);
         syncResourceDirectory("skills", skillsDir);
         syncResourceDirectory("models", modelsDir);
-        cleanupLegacyToolAliases(toolsDir);
     }
 
     private void syncResourceDirectory(String resourceDir, Path targetDir) {
@@ -161,67 +137,4 @@ public class RuntimeResourceSyncService {
         }
     }
 
-    private void cleanupLegacyToolAliases(Path targetToolsDir) {
-        if (targetToolsDir == null || !Files.isDirectory(targetToolsDir)) {
-            return;
-        }
-        cleanupLegacyToolAlias(targetToolsDir, CANONICAL_BASH_FILE, LEGACY_BASH_FILE, "_bash_");
-        cleanupLegacyToolAlias(
-                targetToolsDir,
-                CANONICAL_SKILL_RUN_SCRIPT_FILE,
-                LEGACY_SKILL_RUN_SCRIPT_FILE,
-                "skill_script_run"
-        );
-    }
-
-    private void cleanupLegacyToolAlias(
-            Path targetToolsDir,
-            String canonicalFile,
-            String legacyFile,
-            String expectedToolName
-    ) {
-        if (canonicalFile.equals(legacyFile)) {
-            return;
-        }
-        Path canonical = targetToolsDir.resolve(canonicalFile);
-        Path legacy = targetToolsDir.resolve(legacyFile);
-        if (!Files.exists(canonical) || !Files.exists(legacy)) {
-            return;
-        }
-        if (!isLegacyAliasFile(legacy, expectedToolName)) {
-            return;
-        }
-        try {
-            if (Files.deleteIfExists(legacy)) {
-                log.info("Removed legacy tool alias file: {}", legacy);
-            }
-        } catch (IOException ex) {
-            log.warn("Failed to remove legacy tool alias file: {}", legacy, ex);
-        }
-    }
-
-    private boolean isLegacyAliasFile(Path file, String expectedToolName) {
-        JsonNode root;
-        try {
-            root = OBJECT_MAPPER.readTree(Files.readString(file));
-        } catch (Exception ex) {
-            log.warn("Cannot parse legacy alias candidate file: {}", file, ex);
-            return false;
-        }
-        JsonNode tools = root.path("tools");
-        if (!tools.isArray() || tools.isEmpty()) {
-            return false;
-        }
-        for (JsonNode node : tools) {
-            if (!node.isObject()) {
-                continue;
-            }
-            String type = node.path("type").asText("");
-            String name = node.path("name").asText("");
-            if ("function".equals(type) && expectedToolName.equals(name)) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

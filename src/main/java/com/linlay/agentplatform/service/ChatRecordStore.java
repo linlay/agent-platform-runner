@@ -90,20 +90,40 @@ public class ChatRecordStore {
         }
     }
 
-    public void appendRequest(
-            String chatId,
-            String requestId,
-            String runId,
-            String agentKey,
-            String message,
-            List<QueryRequest.Reference> references,
-            QueryRequest.Scene scene
-    ) {
-        // request metadata is persisted in memory run.query
-    }
-
     public void appendEvent(String chatId, String eventData) {
-        // events are emitted over SSE; no event append file in current design.
+        if (!isValidChatId(chatId) || !StringUtils.hasText(eventData)) {
+            return;
+        }
+        JsonNode node = parseLine(eventData);
+        if (node == null || !node.isObject()) {
+            return;
+        }
+
+        String type = textValue(node.get("type"));
+        if (!isPersistedEventType(type)) {
+            return;
+        }
+        String runId = textValue(node.get("runId"));
+        if (!StringUtils.hasText(runId)) {
+            return;
+        }
+
+        long timestamp = node.path("timestamp").asLong(System.currentTimeMillis());
+        Map<String, Object> event = objectMapper.convertValue(
+                node,
+                objectMapper.getTypeFactory().constructMapType(LinkedHashMap.class, String.class, Object.class)
+        );
+
+        Map<String, Object> line = new LinkedHashMap<>();
+        line.put("_type", "event");
+        line.put("chatId", chatId);
+        line.put("runId", runId);
+        line.put("updatedAt", timestamp > 0 ? timestamp : System.currentTimeMillis());
+        line.put("event", event);
+
+        synchronized (lock) {
+            appendJsonLine(resolveHistoryPath(chatId), line);
+        }
     }
 
     public List<ChatSummaryResponse> listChats() {
@@ -201,6 +221,7 @@ public class ChatRecordStore {
             // Intermediate structures to group by runId
             LinkedHashMap<String, Map<String, Object>> queryByRunId = new LinkedHashMap<>();
             LinkedHashMap<String, List<StepEntry>> stepsByRunId = new LinkedHashMap<>();
+            LinkedHashMap<String, List<PersistedEvent>> eventsByRunId = new LinkedHashMap<>();
             int lineIndex = 0;
 
             for (String line : lines) {
@@ -234,6 +255,7 @@ public class ChatRecordStore {
                     collectReferencesFromQuery(query, content);
                     // Ensure run order
                     stepsByRunId.computeIfAbsent(runId, k -> new ArrayList<>());
+                    eventsByRunId.computeIfAbsent(runId, k -> new ArrayList<>());
                 } else if ("step".equals(type)) {
                     long updatedAt = node.path("updatedAt").asLong(0);
                     String stage = node.path("_stage").asText(null);
@@ -267,6 +289,33 @@ public class ChatRecordStore {
 
                     stepsByRunId.computeIfAbsent(runId, k -> new ArrayList<>())
                             .add(new StepEntry(stage, seq, taskId, updatedAt, system, plan, messages, lineIndex));
+                    eventsByRunId.computeIfAbsent(runId, k -> new ArrayList<>());
+                } else if ("event".equals(type)) {
+                    JsonNode eventNode = node.has("event") && node.get("event").isObject()
+                            ? node.get("event")
+                            : node;
+                    String eventType = textValue(eventNode.get("type"));
+                    if (!isPersistedEventType(eventType)) {
+                        lineIndex++;
+                        continue;
+                    }
+                    long eventTs = eventNode.path("timestamp").asLong(node.path("updatedAt").asLong(0));
+                    Map<String, Object> eventPayload = objectMapper.convertValue(
+                            eventNode,
+                            objectMapper.getTypeFactory().constructMapType(LinkedHashMap.class, String.class, Object.class)
+                    );
+                    eventPayload.remove("seq");
+                    eventPayload.remove("type");
+                    eventPayload.remove("timestamp");
+                    if (!eventPayload.containsKey("chatId")) {
+                        String eventChatId = textValue(node.get("chatId"));
+                        if (StringUtils.hasText(eventChatId)) {
+                            eventPayload.put("chatId", eventChatId);
+                        }
+                    }
+                    stepsByRunId.computeIfAbsent(runId, k -> new ArrayList<>());
+                    eventsByRunId.computeIfAbsent(runId, k -> new ArrayList<>())
+                            .add(new PersistedEvent(eventType, eventTs, eventPayload, lineIndex));
                 }
                 lineIndex++;
             }
@@ -276,15 +325,21 @@ public class ChatRecordStore {
             for (Map.Entry<String, List<StepEntry>> entry : stepsByRunId.entrySet()) {
                 String runId = entry.getKey();
                 List<StepEntry> steps = entry.getValue();
-                if (steps.isEmpty()) {
+                List<PersistedEvent> persistedEvents = eventsByRunId.getOrDefault(runId, List.of());
+                if (steps.isEmpty() && persistedEvents.isEmpty()) {
                     runIndex++;
                     continue;
                 }
 
-                steps.sort(Comparator.comparingInt(s -> s.seq));
+                if (!steps.isEmpty()) {
+                    steps.sort(Comparator.comparingInt(s -> s.seq));
+                }
 
                 Map<String, Object> query = queryByRunId.getOrDefault(runId, Map.of());
-                long updatedAt = steps.stream().mapToLong(s -> s.updatedAt).max().orElse(0);
+                long updatedAt = Math.max(
+                        steps.stream().mapToLong(s -> s.updatedAt).max().orElse(0),
+                        persistedEvents.stream().mapToLong(PersistedEvent::timestamp).max().orElse(0)
+                );
 
                 // Flatten all step messages
                 List<ChatWindowMemoryStore.StoredMessage> allMessages = new ArrayList<>();
@@ -300,7 +355,9 @@ public class ChatRecordStore {
                     allMessages.addAll(step.messages);
                 }
 
-                int firstLineIndex = steps.getFirst().lineIndex;
+                int firstLineIndex = !steps.isEmpty()
+                        ? steps.getFirst().lineIndex
+                        : persistedEvents.stream().mapToInt(PersistedEvent::lineIndex).min().orElse(lineIndex);
                 content.runs.add(new RunSnapshot(
                         runId,
                         updatedAt,
@@ -308,6 +365,7 @@ public class ChatRecordStore {
                         firstSystem,
                         latestPlan,
                         List.copyOf(allMessages),
+                        List.copyOf(persistedEvents),
                         firstLineIndex
                 ));
                 runIndex++;
@@ -364,6 +422,11 @@ public class ChatRecordStore {
             int toolIndex = 0;
             int actionIndex = 0;
             Map<String, IdBinding> bindingByCallId = new LinkedHashMap<>();
+            List<PersistedEvent> persistedEvents = run.persistedEvents.stream()
+                    .sorted(Comparator.comparingLong(PersistedEvent::timestamp)
+                            .thenComparingInt(PersistedEvent::lineIndex))
+                    .toList();
+            int persistedIndex = 0;
 
             Map<String, Object> requestQueryPayload = buildRequestQueryPayload(chatId, run);
             events.add(event("request.query", timestampCursor, seq++, requestQueryPayload));
@@ -391,11 +454,26 @@ public class ChatRecordStore {
                 events.add(planUpdate);
             }
 
+            while (persistedIndex < persistedEvents.size()
+                    && persistedEvents.get(persistedIndex).timestamp() <= timestampCursor) {
+                PersistedEvent persisted = persistedEvents.get(persistedIndex++);
+                long persistedTs = normalizeEventTimestamp(persisted.timestamp(), timestampCursor);
+                events.add(event(persisted.type(), persistedTs, seq++, persisted.payload()));
+                timestampCursor = persistedTs;
+            }
+
             for (ChatWindowMemoryStore.StoredMessage message : run.messages) {
                 if (message == null || !StringUtils.hasText(message.role)) {
                     continue;
                 }
                 long messageTs = normalizeEventTimestamp(resolveMessageTimestamp(message, timestampCursor), timestampCursor);
+                while (persistedIndex < persistedEvents.size()
+                        && persistedEvents.get(persistedIndex).timestamp() <= messageTs) {
+                    PersistedEvent persisted = persistedEvents.get(persistedIndex++);
+                    long persistedTs = normalizeEventTimestamp(persisted.timestamp(), timestampCursor);
+                    events.add(event(persisted.type(), persistedTs, seq++, persisted.payload()));
+                    timestampCursor = persistedTs;
+                }
                 String role = message.role.trim().toLowerCase();
 
                 if ("assistant".equals(role)) {
@@ -484,6 +562,13 @@ public class ChatRecordStore {
                 payload.put("result", result);
                 timestampCursor = normalizeEventTimestamp(messageTs, timestampCursor);
                 events.add(event(binding.action ? "action.result" : "tool.result", timestampCursor, seq++, payload));
+            }
+
+            while (persistedIndex < persistedEvents.size()) {
+                PersistedEvent persisted = persistedEvents.get(persistedIndex++);
+                long persistedTs = normalizeEventTimestamp(persisted.timestamp(), timestampCursor);
+                events.add(event(persisted.type(), persistedTs, seq++, persisted.payload()));
+                timestampCursor = persistedTs;
             }
 
             timestampCursor = normalizeEventTimestamp(runEndTs + 1, timestampCursor);
@@ -712,7 +797,6 @@ public class ChatRecordStore {
         data.put("planId", planSnapshot.planId.trim());
         data.put("chatId", StringUtils.hasText(chatId) ? chatId : null);
         data.put("plan", plan);
-        data.put("rawEvent", null);
         data.put("timestamp", normalizeEventTimestamp(previousTimestamp + 1, previousTimestamp));
         return data;
     }
@@ -896,6 +980,38 @@ public class ChatRecordStore {
         }
     }
 
+    private void appendJsonLine(Path path, Object value) {
+        if (path == null || value == null) {
+            return;
+        }
+        try {
+            Files.createDirectories(path.getParent());
+            String line = objectMapper.writeValueAsString(value) + System.lineSeparator();
+            Files.writeString(
+                    path,
+                    line,
+                    resolveCharset(),
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND,
+                    StandardOpenOption.WRITE
+            );
+        } catch (Exception ex) {
+            log.warn("Cannot append chat event line path={}", path, ex);
+        }
+    }
+
+    private boolean isPersistedEventType(String type) {
+        return "request.submit".equals(type);
+    }
+
+    private String textValue(JsonNode node) {
+        if (node == null || node.isNull() || node.isMissingNode() || !node.isTextual()) {
+            return null;
+        }
+        String text = node.asText();
+        return StringUtils.hasText(text) ? text.trim() : null;
+    }
+
     private ChatSummary toChatSummary(ChatIndexRecord record) {
         return toChatSummary(record, false);
     }
@@ -971,6 +1087,15 @@ public class ChatRecordStore {
             ChatWindowMemoryStore.SystemSnapshot system,
             ChatWindowMemoryStore.PlanSnapshot plan,
             List<ChatWindowMemoryStore.StoredMessage> messages,
+            List<PersistedEvent> persistedEvents,
+            int lineIndex
+    ) {
+    }
+
+    private record PersistedEvent(
+            String type,
+            long timestamp,
+            Map<String, Object> payload,
             int lineIndex
     ) {
     }

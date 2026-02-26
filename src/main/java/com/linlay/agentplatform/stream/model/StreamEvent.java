@@ -8,11 +8,10 @@ public record StreamEvent(
         long seq,
         String type,
         long timestamp,
-        Map<String, Object> payload,
-        Object rawEvent
+        Map<String, Object> payload
 ) {
 
-    private static final Set<String> RESERVED_KEYS = Set.of("seq", "type", "timestamp", "rawEvent");
+    private static final Set<String> RESERVED_KEYS = Set.of("seq", "type", "timestamp");
 
     public StreamEvent {
         if (type == null || type.isBlank()) {
@@ -26,19 +25,15 @@ public record StreamEvent(
         }
     }
 
-    public StreamEvent(long seq, String type, long timestamp, Map<String, Object> payload) {
-        this(seq, type, timestamp, payload, null);
-    }
-
     public Map<String, Object> toData() {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("seq", seq);
         data.put("type", type);
         data.put("timestamp", timestamp);
-        if (payload != null && !payload.isEmpty()) {
-            payload.forEach((k, v) -> {
-                if (!RESERVED_KEYS.contains(k)) {
-                    data.put(k, v);
+        if (!payload.isEmpty()) {
+            payload.forEach((key, value) -> {
+                if (!RESERVED_KEYS.contains(key)) {
+                    data.put(key, value);
                 }
             });
         }

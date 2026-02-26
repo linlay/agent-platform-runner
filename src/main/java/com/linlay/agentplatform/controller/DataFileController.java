@@ -97,7 +97,6 @@ public class DataFileController {
 
         if (verifyResult != null) {
             boolean canRead = chatAssetAccessService.canRead(
-                    verifyResult.claims().uid(),
                     verifyResult.claims().chatId(),
                     filename
             );

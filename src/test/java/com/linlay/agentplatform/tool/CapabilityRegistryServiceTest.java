@@ -9,11 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.AgentCatalogProperties;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
-import com.linlay.agentplatform.config.ViewportCatalogProperties;
-import com.linlay.agentplatform.model.ModelCatalogProperties;
-import com.linlay.agentplatform.service.RuntimeResourceSyncService;
 
 class CapabilityRegistryServiceTest {
 
@@ -59,8 +55,7 @@ class CapabilityRegistryServiceTest {
 
         CapabilityRegistryService service = new CapabilityRegistryService(
                 new ObjectMapper(),
-                properties,
-                createRuntimeResourceSyncService(tempDir, toolsDir)
+                properties
         );
 
         CapabilityDescriptor backend = service.find("bash").orElseThrow();
@@ -106,8 +101,7 @@ class CapabilityRegistryServiceTest {
 
         CapabilityRegistryService service = new CapabilityRegistryService(
                 new ObjectMapper(),
-                properties,
-                createRuntimeResourceSyncService(tempDir, toolsDir)
+                properties
         );
 
         assertThat(service.find("dup_name")).isEmpty();
@@ -138,8 +132,7 @@ class CapabilityRegistryServiceTest {
 
         CapabilityRegistryService service = new CapabilityRegistryService(
                 new ObjectMapper(),
-                properties,
-                createRuntimeResourceSyncService(tempDir, toolsDir)
+                properties
         );
 
         CapabilityDescriptor frontend = service.find("show_form_frontend").orElseThrow();
@@ -150,15 +143,4 @@ class CapabilityRegistryServiceTest {
         assertThat(service.find("legacy_html_frontend")).isEmpty();
     }
 
-    private RuntimeResourceSyncService createRuntimeResourceSyncService(Path root, Path toolsDir) {
-        AgentCatalogProperties agentProperties = new AgentCatalogProperties();
-        agentProperties.setExternalDir(root.resolve("agents").toString());
-        ViewportCatalogProperties viewportProperties = new ViewportCatalogProperties();
-        viewportProperties.setExternalDir(root.resolve("viewports").toString());
-        CapabilityCatalogProperties capabilityProperties = new CapabilityCatalogProperties();
-        capabilityProperties.setToolsExternalDir(toolsDir.toString());
-        ModelCatalogProperties modelProperties = new ModelCatalogProperties();
-        modelProperties.setExternalDir(root.resolve("models").toString());
-        return new RuntimeResourceSyncService(agentProperties, viewportProperties, capabilityProperties, modelProperties);
-    }
 }

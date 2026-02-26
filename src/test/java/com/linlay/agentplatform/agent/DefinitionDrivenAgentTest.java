@@ -307,7 +307,7 @@ class DefinitionDrivenAgentTest {
         SkillCatalogProperties skillProperties = new SkillCatalogProperties();
         skillProperties.setExternalDir(skillsRoot.toString());
         skillProperties.setMaxPromptChars(1000);
-        SkillRegistryService skillRegistryService = new SkillRegistryService(skillProperties, null);
+        SkillRegistryService skillRegistryService = new SkillRegistryService(skillProperties);
 
         AgentDefinition definition = new AgentDefinition(
                 "demoWithSkill",
@@ -439,7 +439,11 @@ class DefinitionDrivenAgentTest {
                 "bailian",
                 "qwen3-max",
                 AgentRuntimeMode.REACT,
-                new RunSpec(ToolChoice.AUTO, new Budget(10, 10, 60_000, 0)),
+                new RunSpec(ToolChoice.AUTO, new Budget(
+                        60_000,
+                        new Budget.Scope(10, 60_000, 0),
+                        new Budget.Scope(10, 60_000, 0)
+                )),
                 new ReactMode(new StageSettings("你是测试助手", null, null, List.of("_skill_run_script_"), false, ComputePolicy.MEDIUM), 4, null, null),
                 List.of("_skill_run_script_"),
                 List.of("screenshot")
@@ -636,7 +640,11 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoReact",
                 AgentRuntimeMode.REACT,
-                new RunSpec(ToolChoice.AUTO, new Budget(10, 10, 60_000, 0)),
+                new RunSpec(ToolChoice.AUTO, new Budget(
+                        60_000,
+                        new Budget.Scope(10, 60_000, 0),
+                        new Budget.Scope(10, 60_000, 0)
+                )),
                 new ReactMode(new StageSettings("你是测试助手", null, null, List.of("echo_tool"), true, ComputePolicy.MEDIUM), 6, null, null),
                 List.of("echo_tool")
         );
@@ -708,7 +716,11 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoReactRetryBlankFinal",
                 AgentRuntimeMode.REACT,
-                new RunSpec(ToolChoice.AUTO, new Budget(10, 10, 60_000, 0)),
+                new RunSpec(ToolChoice.AUTO, new Budget(
+                        60_000,
+                        new Budget.Scope(10, 60_000, 0),
+                        new Budget.Scope(10, 60_000, 0)
+                )),
                 new ReactMode(new StageSettings("你是测试助手", null, null, List.of(), false, ComputePolicy.MEDIUM), 2, null, null),
                 List.of()
         );
@@ -758,7 +770,11 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoReactForceFinalFallback",
                 AgentRuntimeMode.REACT,
-                new RunSpec(ToolChoice.AUTO, new Budget(10, 10, 60_000, 0)),
+                new RunSpec(ToolChoice.AUTO, new Budget(
+                        60_000,
+                        new Budget.Scope(10, 60_000, 0),
+                        new Budget.Scope(10, 60_000, 0)
+                )),
                 new ReactMode(new StageSettings("你是测试助手", null, null, List.of("echo_tool"), false, ComputePolicy.MEDIUM), 1, null, null),
                 List.of("echo_tool")
         );
@@ -1102,7 +1118,11 @@ class DefinitionDrivenAgentTest {
                 AgentRuntimeMode.PLAN_EXECUTE,
                 new RunSpec(
                         ToolChoice.AUTO,
-                        new Budget(20, 10, 180_000, 2)
+                        new Budget(
+                                180_000,
+                                new Budget.Scope(20, 180_000, 2),
+                                new Budget.Scope(10, 180_000, 2)
+                        )
                 ),
                 new PlanExecuteMode(
                         new StageSettings("规划系统提示", "bailian", "qwen3-max", List.of("_plan_add_tasks_"), true, ComputePolicy.HIGH),
@@ -1563,7 +1583,11 @@ class DefinitionDrivenAgentTest {
         AgentDefinition definition = definition(
                 "demoReactRequireRetry",
                 AgentRuntimeMode.REACT,
-                new RunSpec(ToolChoice.REQUIRED, new Budget(20, 20, 60_000, 0)),
+                new RunSpec(ToolChoice.REQUIRED, new Budget(
+                        60_000,
+                        new Budget.Scope(20, 60_000, 0),
+                        new Budget.Scope(20, 60_000, 0)
+                )),
                 new ReactMode(
                         new StageSettings("你是测试助手", null, null, List.of("echo_tool"), false, ComputePolicy.MEDIUM),
                         2, null, null
@@ -1774,7 +1798,7 @@ class DefinitionDrivenAgentTest {
         SkillCatalogProperties skillProperties = new SkillCatalogProperties();
         skillProperties.setExternalDir(skillsRoot.toString());
         skillProperties.setMaxPromptChars(1000);
-        return new SkillRegistryService(skillProperties, null);
+        return new SkillRegistryService(skillProperties);
     }
 
     private BaseTool skillScriptRunTool() {

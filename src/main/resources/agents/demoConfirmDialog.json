@@ -55,7 +55,7 @@ type=TYPE, key=KEY
 {填充tool.result的json}
 ```
 
-其中 `type` 只能是：`html/qhtml/qlc/dqlc`；`key` 必须来自工具提示。
+其中 `type` 只能是：`html/qlc`；`key` 必须来自工具提示。
 """,
     "maxSteps": 10
   }

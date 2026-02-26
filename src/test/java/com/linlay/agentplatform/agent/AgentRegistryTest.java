@@ -65,7 +65,6 @@ class AgentRegistryTest {
                 new ObjectMapper(),
                 memoryStore,
                 null,
-                null,
                 null
         );
 

@@ -4,12 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmService;
-import com.linlay.agentplatform.service.RuntimeResourceSyncService;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Comparator;
 
 @Component
+@DependsOn("runtimeResourceSyncService")
 public class AgentRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(AgentRegistry.class);
@@ -29,8 +30,6 @@ public class AgentRegistry {
     private final ChatWindowMemoryStore chatWindowMemoryStore;
     private final FrontendSubmitCoordinator frontendSubmitCoordinator;
     private final SkillRegistryService skillRegistryService;
-    @SuppressWarnings("unused")
-    private final RuntimeResourceSyncService runtimeResourceSyncService;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, Agent> agents = Map.of();
@@ -43,7 +42,6 @@ public class AgentRegistry {
             ObjectMapper objectMapper,
             ChatWindowMemoryStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
-            RuntimeResourceSyncService runtimeResourceSyncService,
             SkillRegistryService skillRegistryService
     ) {
         this.definitionLoader = definitionLoader;
@@ -52,7 +50,6 @@ public class AgentRegistry {
         this.objectMapper = objectMapper;
         this.chatWindowMemoryStore = chatWindowMemoryStore;
         this.frontendSubmitCoordinator = frontendSubmitCoordinator;
-        this.runtimeResourceSyncService = runtimeResourceSyncService;
         this.skillRegistryService = skillRegistryService;
         refreshAgents();
     }

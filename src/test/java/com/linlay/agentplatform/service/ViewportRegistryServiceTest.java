@@ -1,10 +1,7 @@
 package com.linlay.agentplatform.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.AgentCatalogProperties;
-import com.linlay.agentplatform.config.CapabilityCatalogProperties;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
-import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.model.ViewportType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,8 +26,7 @@ class ViewportRegistryServiceTest {
         properties.setExternalDir(tempDir.toString());
         ViewportRegistryService service = new ViewportRegistryService(
                 new ObjectMapper(),
-                properties,
-                createRuntimeResourceSyncService(tempDir)
+                properties
         );
 
         Optional<ViewportRegistryService.ViewportEntry> html = service.find("weather_card");
@@ -53,22 +49,10 @@ class ViewportRegistryServiceTest {
         properties.setExternalDir(tempDir.toString());
         ViewportRegistryService service = new ViewportRegistryService(
                 new ObjectMapper(),
-                properties,
-                createRuntimeResourceSyncService(tempDir)
+                properties
         );
 
         assertThat(service.find("bad")).isEmpty();
     }
 
-    private RuntimeResourceSyncService createRuntimeResourceSyncService(Path root) {
-        AgentCatalogProperties agentProperties = new AgentCatalogProperties();
-        agentProperties.setExternalDir(root.resolve("agents").toString());
-        ViewportCatalogProperties viewportProperties = new ViewportCatalogProperties();
-        viewportProperties.setExternalDir(root.toString());
-        CapabilityCatalogProperties capabilityProperties = new CapabilityCatalogProperties();
-        capabilityProperties.setToolsExternalDir(root.resolve("tools").toString());
-        ModelCatalogProperties modelProperties = new ModelCatalogProperties();
-        modelProperties.setExternalDir(root.resolve("models").toString());
-        return new RuntimeResourceSyncService(agentProperties, viewportProperties, capabilityProperties, modelProperties);
-    }
 }

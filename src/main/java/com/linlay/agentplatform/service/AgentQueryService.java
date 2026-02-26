@@ -108,15 +108,6 @@ public class AgentQueryService {
                 runId,
                 querySnapshot
         );
-        chatRecordStore.appendRequest(
-                chatId,
-                requestId,
-                runId,
-                agent.id(),
-                request.message(),
-                request.references(),
-                request.scene()
-        );
         return new QuerySession(agent, streamRequest, agentRequest);
     }
 
@@ -171,7 +162,6 @@ public class AgentQueryService {
             putIfPresent(normalized, "chatId", objectNode.get("chatId"));
             putIfPresent(normalized, "plan", objectNode.get("plan"));
             putIfPresent(normalized, "timestamp", objectNode.get("timestamp"));
-            normalized.putNull("rawEvent");
             return rebuildEvent(event, normalized);
         }
 

@@ -3,36 +3,21 @@ package com.linlay.agentplatform.stream.model;
 import java.util.Map;
 
 public sealed interface StreamInput permits
-        StreamInput.PlanCreate,
         StreamInput.PlanUpdate,
         StreamInput.TaskStart,
         StreamInput.TaskComplete,
         StreamInput.TaskCancel,
         StreamInput.TaskFail,
         StreamInput.ReasoningDelta,
-        StreamInput.ReasoningSnapshot,
         StreamInput.ContentDelta,
-        StreamInput.ContentSnapshot,
         StreamInput.ToolArgs,
         StreamInput.ToolEnd,
         StreamInput.ToolResult,
-        StreamInput.ToolSnapshot,
         StreamInput.ActionArgs,
         StreamInput.ActionEnd,
-        StreamInput.ActionParam,
         StreamInput.ActionResult,
-        StreamInput.ActionSnapshot,
-        StreamInput.SourceSnapshot,
-        StreamInput.RunComplete,
-        StreamInput.RunCancel {
-
-    record PlanCreate(String planId, String chatId, Object plan) implements StreamInput {
-        public PlanCreate {
-            requireNonBlank(planId, "planId");
-            requireNonBlank(chatId, "chatId");
-            requireNonNull(plan, "plan");
-        }
-    }
+        StreamInput.RequestSubmit,
+        StreamInput.RunComplete {
 
     record PlanUpdate(String planId, Object plan, String chatId) implements StreamInput {
         public PlanUpdate {
@@ -74,24 +59,10 @@ public sealed interface StreamInput permits
         }
     }
 
-    record ReasoningSnapshot(String reasoningId, String text, String taskId) implements StreamInput {
-        public ReasoningSnapshot {
-            requireNonBlank(reasoningId, "reasoningId");
-            requireNonNull(text, "text");
-        }
-    }
-
     record ContentDelta(String contentId, String delta, String taskId) implements StreamInput {
         public ContentDelta {
             requireNonBlank(contentId, "contentId");
             requireNonNull(delta, "delta");
-        }
-    }
-
-    record ContentSnapshot(String contentId, String text, String taskId) implements StreamInput {
-        public ContentSnapshot {
-            requireNonBlank(contentId, "contentId");
-            requireNonNull(text, "text");
         }
     }
 
@@ -125,21 +96,6 @@ public sealed interface StreamInput permits
         }
     }
 
-    record ToolSnapshot(
-            String toolId,
-            String toolName,
-            String taskId,
-            String toolType,
-            String toolApi,
-            Object toolParams,
-            String description,
-            String arguments
-    ) implements StreamInput {
-        public ToolSnapshot {
-            requireNonBlank(toolId, "toolId");
-        }
-    }
-
     record ActionArgs(String actionId, String delta, String taskId, String actionName, String description) implements StreamInput {
         public ActionArgs {
             requireNonBlank(actionId, "actionId");
@@ -153,13 +109,6 @@ public sealed interface StreamInput permits
         }
     }
 
-    record ActionParam(String actionId, Object param) implements StreamInput {
-        public ActionParam {
-            requireNonBlank(actionId, "actionId");
-            requireNonNull(param, "param");
-        }
-    }
-
     record ActionResult(String actionId, Object result) implements StreamInput {
         public ActionResult {
             requireNonBlank(actionId, "actionId");
@@ -167,22 +116,24 @@ public sealed interface StreamInput permits
         }
     }
 
-    record ActionSnapshot(String actionId, String actionName, String taskId, String description, String arguments) implements StreamInput {
-        public ActionSnapshot {
-            requireNonBlank(actionId, "actionId");
-        }
-    }
-
-    record SourceSnapshot(String sourceId, String runId, String taskId, String icon, String title, String url) implements StreamInput {
-        public SourceSnapshot {
-            requireNonBlank(sourceId, "sourceId");
+    record RequestSubmit(
+            String requestId,
+            String chatId,
+            String runId,
+            String toolId,
+            Object payload,
+            String viewId
+    ) implements StreamInput {
+        public RequestSubmit {
+            requireNonBlank(requestId, "requestId");
+            requireNonBlank(chatId, "chatId");
+            requireNonBlank(runId, "runId");
+            requireNonBlank(toolId, "toolId");
+            requireNonNull(payload, "payload");
         }
     }
 
     record RunComplete(String finishReason) implements StreamInput {
-    }
-
-    record RunCancel() implements StreamInput {
     }
 
     private static void requireNonBlank(String value, String fieldName) {

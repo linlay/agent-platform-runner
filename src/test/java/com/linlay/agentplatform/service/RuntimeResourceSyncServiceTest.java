@@ -148,7 +148,7 @@ class RuntimeResourceSyncServiceTest {
     }
 
     @Test
-    void shouldRemoveLegacyBashAliasWhenCanonicalToolExists() throws Exception {
+    void shouldKeepLegacyBashAliasWhenCanonicalToolExists() throws Exception {
         Path agentsDir = tempDir.resolve("agents");
         Path toolsDir = tempDir.resolve("tools");
         Path viewportsDir = tempDir.resolve("viewports");
@@ -180,11 +180,11 @@ class RuntimeResourceSyncServiceTest {
         service.syncRuntimeDirectories();
 
         assertThat(toolsDir.resolve("_bash_.backend")).exists();
-        assertThat(legacyBash).doesNotExist();
+        assertThat(legacyBash).exists();
     }
 
     @Test
-    void shouldRemoveLegacySkillScriptAliasWhenCanonicalToolExists() throws Exception {
+    void shouldKeepLegacySkillScriptAliasWhenCanonicalToolExists() throws Exception {
         Path agentsDir = tempDir.resolve("agents");
         Path toolsDir = tempDir.resolve("tools");
         Path viewportsDir = tempDir.resolve("viewports");
@@ -218,6 +218,6 @@ class RuntimeResourceSyncServiceTest {
         Path canonicalSkillScript = toolsDir.resolve("_skill_run_script_.backend");
         assertThat(canonicalSkillScript).exists();
         assertThat(Files.readString(canonicalSkillScript)).contains("\"name\": \"_skill_run_script_\"");
-        assertThat(legacySkillScript).doesNotExist();
+        assertThat(legacySkillScript).exists();
     }
 }

@@ -22,10 +22,8 @@ import com.linlay.agentplatform.agent.AgentCatalogProperties;
 import com.linlay.agentplatform.config.AgentFileCreateToolProperties;
 import com.linlay.agentplatform.config.AgentProviderProperties;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
-import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
-import com.linlay.agentplatform.service.RuntimeResourceSyncService;
 
 class ToolRegistryTest {
 
@@ -158,8 +156,7 @@ class ToolRegistryTest {
         properties.setToolsExternalDir(toolsDir.toString());
         CapabilityRegistryService capabilityRegistryService = new CapabilityRegistryService(
                 new ObjectMapper(),
-                properties,
-                createRuntimeResourceSyncService(tempDir, toolsDir)
+                properties
         );
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
@@ -349,8 +346,7 @@ class ToolRegistryTest {
         ModelRegistryService modelRegistryService = new ModelRegistryService(
                 objectMapper,
                 modelProperties,
-                providerProperties,
-                createRuntimeResourceSyncService(tempDir, toolsDir)
+                providerProperties
         );
 
         AgentCatalogProperties agentProperties = new AgentCatalogProperties();
@@ -412,15 +408,4 @@ class ToolRegistryTest {
         assertThat(result.path("result").asText()).isEqualTo("没有敏感数据");
     }
 
-    private RuntimeResourceSyncService createRuntimeResourceSyncService(Path root, Path toolsDir) {
-        AgentCatalogProperties agentProperties = new AgentCatalogProperties();
-        agentProperties.setExternalDir(root.resolve("agents").toString());
-        ViewportCatalogProperties viewportProperties = new ViewportCatalogProperties();
-        viewportProperties.setExternalDir(root.resolve("viewports").toString());
-        CapabilityCatalogProperties capabilityProperties = new CapabilityCatalogProperties();
-        capabilityProperties.setToolsExternalDir(toolsDir.toString());
-        ModelCatalogProperties modelProperties = new ModelCatalogProperties();
-        modelProperties.setExternalDir(root.resolve("models").toString());
-        return new RuntimeResourceSyncService(agentProperties, viewportProperties, capabilityProperties, modelProperties);
-    }
 }

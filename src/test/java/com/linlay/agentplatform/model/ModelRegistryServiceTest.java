@@ -1,12 +1,7 @@
 package com.linlay.agentplatform.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.AgentCatalogProperties;
 import com.linlay.agentplatform.config.AgentProviderProperties;
-import com.linlay.agentplatform.config.CapabilityCatalogProperties;
-import com.linlay.agentplatform.config.ViewportCatalogProperties;
-import com.linlay.agentplatform.service.RuntimeResourceSyncService;
-import com.linlay.agentplatform.skill.SkillCatalogProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -56,8 +51,7 @@ class ModelRegistryServiceTest {
         ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider())),
-                runtimeSync(modelsDir)
+                providerProperties(Map.of("bailian", provider()))
         );
 
         ModelDefinition model = service.find("bailian-qwen3-max").orElseThrow();
@@ -86,8 +80,7 @@ class ModelRegistryServiceTest {
         ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider())),
-                runtimeSync(modelsDir)
+                providerProperties(Map.of("bailian", provider()))
         );
 
         assertThat(service.find("unknown-provider")).isEmpty();
@@ -117,8 +110,7 @@ class ModelRegistryServiceTest {
         ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider())),
-                runtimeSync(modelsDir)
+                providerProperties(Map.of("bailian", provider()))
         );
 
         assertThat(service.find("dup-key").orElseThrow().modelId()).isEqualTo("first-model");
@@ -140,8 +132,7 @@ class ModelRegistryServiceTest {
         ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider())),
-                runtimeSync(modelsDir)
+                providerProperties(Map.of("bailian", provider()))
         );
 
         assertThat(service.find("bad-protocol")).isEmpty();
@@ -167,23 +158,4 @@ class ModelRegistryServiceTest {
         return config;
     }
 
-    private RuntimeResourceSyncService runtimeSync(Path modelsDir) {
-        AgentCatalogProperties agentProperties = new AgentCatalogProperties();
-        agentProperties.setExternalDir(tempDir.resolve("agents").toString());
-        ViewportCatalogProperties viewportProperties = new ViewportCatalogProperties();
-        viewportProperties.setExternalDir(tempDir.resolve("viewports").toString());
-        CapabilityCatalogProperties capabilityProperties = new CapabilityCatalogProperties();
-        capabilityProperties.setToolsExternalDir(tempDir.resolve("tools").toString());
-        SkillCatalogProperties skillProperties = new SkillCatalogProperties();
-        skillProperties.setExternalDir(tempDir.resolve("skills").toString());
-        ModelCatalogProperties modelProperties = new ModelCatalogProperties();
-        modelProperties.setExternalDir(modelsDir.toString());
-        return new RuntimeResourceSyncService(
-                agentProperties,
-                viewportProperties,
-                capabilityProperties,
-                skillProperties,
-                modelProperties
-        );
-    }
 }

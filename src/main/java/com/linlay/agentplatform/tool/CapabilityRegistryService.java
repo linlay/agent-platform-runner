@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -23,9 +24,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
-import com.linlay.agentplatform.service.RuntimeResourceSyncService;
 
 @Service
+@DependsOn("runtimeResourceSyncService")
 public class CapabilityRegistryService {
 
     private static final Logger log = LoggerFactory.getLogger(CapabilityRegistryService.class);
@@ -37,20 +38,16 @@ public class CapabilityRegistryService {
 
     private final ObjectMapper objectMapper;
     private final CapabilityCatalogProperties properties;
-    @SuppressWarnings("unused")
-    private final RuntimeResourceSyncService runtimeResourceSyncService;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, CapabilityDescriptor> byName = Map.of();
 
     public CapabilityRegistryService(
             ObjectMapper objectMapper,
-            CapabilityCatalogProperties properties,
-            RuntimeResourceSyncService runtimeResourceSyncService
+            CapabilityCatalogProperties properties
     ) {
         this.objectMapper = objectMapper;
         this.properties = properties;
-        this.runtimeResourceSyncService = runtimeResourceSyncService;
         refreshCapabilities();
     }
 

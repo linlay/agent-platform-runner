@@ -90,35 +90,48 @@ public class OpenAiSseDeltaParser {
         Map<String, Object> usage = new LinkedHashMap<>();
         usageNode.fields().forEachRemaining(entry -> {
             JsonNode valueNode = entry.getValue();
-            if (valueNode.isInt() || valueNode.isLong()) {
-                usage.put(entry.getKey(), valueNode.asLong());
-                return;
-            }
-            if (valueNode.isNumber()) {
-                usage.put(entry.getKey(), valueNode.numberValue());
-                return;
-            }
-            if (valueNode.isTextual()) {
-                usage.put(entry.getKey(), valueNode.asText());
-                return;
-            }
-            if (valueNode.isObject()) {
-                usage.put(
-                        entry.getKey(),
-                        objectMapper.convertValue(valueNode, objectMapper.getTypeFactory()
-                                .constructMapType(LinkedHashMap.class, String.class, Object.class))
-                );
-                return;
-            }
-            if (valueNode.isArray()) {
-                usage.put(entry.getKey(), objectMapper.convertValue(valueNode, List.class));
-                return;
-            }
-            if (!valueNode.isNull() && !valueNode.isMissingNode()) {
-                usage.put(entry.getKey(), valueNode.toString());
+            Object normalized = normalizeUsageValue(valueNode);
+            if (normalized != null) {
+                usage.put(entry.getKey(), normalized);
             }
         });
         return usage.isEmpty() ? null : usage;
+    }
+
+    private Object normalizeUsageValue(JsonNode valueNode) {
+        if (valueNode == null || valueNode.isNull() || valueNode.isMissingNode()) {
+            return null;
+        }
+        if (valueNode.isInt() || valueNode.isLong()) {
+            return valueNode.asLong();
+        }
+        if (valueNode.isFloat() || valueNode.isDouble() || valueNode.isBigDecimal()) {
+            return valueNode.doubleValue();
+        }
+        if (valueNode.isNumber()) {
+            return valueNode.numberValue();
+        }
+        if (valueNode.isTextual()) {
+            return valueNode.asText();
+        }
+        if (valueNode.isBoolean()) {
+            return valueNode.asBoolean();
+        }
+        if (valueNode.isArray()) {
+            List<Object> list = new ArrayList<>();
+            for (JsonNode item : valueNode) {
+                list.add(normalizeUsageValue(item));
+            }
+            return list;
+        }
+        if (valueNode.isObject()) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            valueNode.fields().forEachRemaining(entry ->
+                    map.put(entry.getKey(), normalizeUsageValue(entry.getValue()))
+            );
+            return map;
+        }
+        return valueNode.toString();
     }
 
     private String normalizePayload(String rawChunk) {

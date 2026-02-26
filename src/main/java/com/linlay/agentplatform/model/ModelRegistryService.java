@@ -4,9 +4,9 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.AgentProviderProperties;
-import com.linlay.agentplatform.service.RuntimeResourceSyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 @Service
+@DependsOn("runtimeResourceSyncService")
 public class ModelRegistryService {
 
     private static final Logger log = LoggerFactory.getLogger(ModelRegistryService.class);
@@ -30,8 +31,6 @@ public class ModelRegistryService {
     private final ObjectMapper objectMapper;
     private final ModelCatalogProperties properties;
     private final AgentProviderProperties providerProperties;
-    @SuppressWarnings("unused")
-    private final RuntimeResourceSyncService runtimeResourceSyncService;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, ModelDefinition> byKey = Map.of();
@@ -39,13 +38,11 @@ public class ModelRegistryService {
     public ModelRegistryService(
             ObjectMapper objectMapper,
             ModelCatalogProperties properties,
-            AgentProviderProperties providerProperties,
-            RuntimeResourceSyncService runtimeResourceSyncService
+            AgentProviderProperties providerProperties
     ) {
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.providerProperties = providerProperties;
-        this.runtimeResourceSyncService = runtimeResourceSyncService;
         refreshModels();
     }
 

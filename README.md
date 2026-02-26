@@ -34,9 +34,8 @@
   - 智能体列表：`data` 直接是 `agents[]`
   - 智能体详情：`data` 直接是 `agent`
   - 会话详情：`data` 直接是 `chat`
-  - 视图详情：`data` 直接是视图内容（`html` 时为 `{ "html": "..." }`，`qlc/dqlc` 时为 schema JSON）
+  - 视图详情：`data` 直接是视图内容（`html` 时为 `{ "html": "..." }`，`qlc` 时为 schema JSON）
 - `GET /api/ap/chat` 默认始终返回 `events`；仅当 `includeRawMessages=true` 时才返回 `rawMessages`。
-- `includeEvents` 参数已废弃，传入将返回 `400`。
 - 事件协议仅支持 Event Model v2，不兼容旧命名（如 `query.message`、`message.start|delta|end`、`message.snapshot`）。
 
 `GET /api/ap/chats` 示例（新增 `updatedAt`）：
@@ -323,7 +322,7 @@ agent:
   - `AGENT_TOOLS_EXTERNAL_DIR`
   - `AGENT_SKILL_EXTERNAL_DIR`
 - 同名内置文件会覆盖；外部额外自定义文件会保留，不会被删除。
-- `viewports` 支持后缀：`.html`、`.qlc`、`.dqlc`、`.json_schema`、`.custom`，默认每 30 秒刷新内存快照。
+- `viewports` 支持后缀：`.html`、`.qlc`，默认每 30 秒刷新内存快照。
 - `tools`:
   - 后端工具文件：`*.backend`
   - 前端工具文件：`*.frontend`
@@ -342,10 +341,9 @@ agent:
 ### /api/ap/viewport 约定
 
 - `GET /api/ap/viewport?viewportKey=show_weather_card`
-- `chatId`、`runId` 为可选参数，不参与必填校验。
 - 返回：
   - `html` 文件：`data = {"html":"<...>"}`
-  - `qlc/dqlc/json_schema/custom`：`data` 直接是文件内 JSON 对象
+  - `qlc` 文件：`data` 直接是文件内 JSON 对象
 - `viewportKey` 不存在时返回 `404`。
 
 ### 前端 tool 提交流程
