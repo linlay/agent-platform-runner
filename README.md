@@ -137,6 +137,15 @@ mvn spring-boot:run
 
 默认端口 `8080`。
 
+### release-local 配置说明
+
+通过 hub 仓库 `setup-mac.sh` 的首次安装流程时，会先执行 `./package-local.sh`，再在 `release-local/` 写入运行时配置：
+
+- `application-local.yml`：由根目录 `application.example.yml` 复制生成
+- `.env`：由安装流程按环境生成（若存在 `.env.example` 会优先复制）
+
+`package-local.sh` 只负责构建产物，不负责生成运行时配置。
+
 ### 默认配置基线
 
 - 主配置事实源为 `src/main/resources/application.yml`，本地可通过 `./application.yml` 覆盖。

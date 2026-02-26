@@ -177,57 +177,6 @@ echo "[stop] stopped."
 STOPEOF
 chmod +x "$RELEASE_DIR/stop.sh"
 
-# ---------- .env.example ----------
-cat >"$RELEASE_DIR/.env.example" <<'ENVEOF'
-# ============================================================
-# Environment Configuration for Local Deployment
-# Copy this file to .env and edit as needed.
-# ============================================================
-
-# --- Server ---
-SERVER_PORT=8080
-
-# --- Auth ---
-AGENT_AUTH_ENABLED=false
-# AGENT_AUTH_JWKS_URI=
-# AGENT_AUTH_ISSUER=
-
-# --- LLM Provider Keys ---
-# Configure API keys in application-local.yml
-
-# --- JVM ---
-# JAVA_OPTS=-server -Xms256m -Xmx512m
-
-# --- Bash Tool Security ---
-# The bash tool requires explicit allowlists.
-# If AGENT_BASH_ALLOWED_COMMANDS is empty, all _bash_ calls are rejected.
-# working-directory does NOT imply path permission; set AGENT_BASH_ALLOWED_PATHS explicitly.
-#
-# Read-only monitoring example:
-# AGENT_BASH_ALLOWED_COMMANDS=ls,pwd,cat,head,tail,top,free,df,git
-# AGENT_BASH_PATH_CHECKED_COMMANDS=ls,cat,head,tail,git
-# AGENT_BASH_ALLOWED_PATHS=/data/logs,/data/reports
-# AGENT_BASH_WORKING_DIRECTORY=/data
-#
-# Developer assistant example:
-# AGENT_BASH_ALLOWED_COMMANDS=ls,pwd,cat,head,tail,top,free,df,git,node,npm,npx,python3,mvn,java,curl,wget,jq,grep,find,echo,date
-# AGENT_BASH_PATH_CHECKED_COMMANDS=ls,cat,head,tail,git
-# AGENT_BASH_ALLOWED_PATHS=/home/user/projects
-# AGENT_BASH_WORKING_DIRECTORY=/home/user/workspace
-
-# --- Chat Event Callback ---
-# AGENT_CHAT_EVENT_CALLBACK_ENABLED=true
-# AGENT_CHAT_EVENT_CALLBACK_URL=http://127.0.0.1:38080/api/app/internal/chat-events
-# AGENT_CHAT_EVENT_CALLBACK_SECRET=change-me
-
-# --- Directories (defaults to paths relative to install dir) ---
-# AGENT_EXTERNAL_DIR=./agents
-# AGENT_VIEWPORT_EXTERNAL_DIR=./viewports
-# AGENT_TOOLS_EXTERNAL_DIR=./tools
-# AGENT_SKILL_EXTERNAL_DIR=./skills
-# MEMORY_CHAT_DIR=./chats
-ENVEOF
-
 # ---------- DEPLOY.md ----------
 cat >"$RELEASE_DIR/DEPLOY.md" <<'DEPLOYEOF'
 # Local Deployment Guide
@@ -240,12 +189,11 @@ cat >"$RELEASE_DIR/DEPLOY.md" <<'DEPLOYEOF'
 ## Quick Start
 
 ```bash
-# 1. Copy .env.example and configure
-cp .env.example .env
+# 1. Prepare runtime .env (setup usually creates release-local/.env)
 # Edit .env with your settings
 
-# 2. Create application-local.yml with LLM provider API keys
-touch application-local.yml
+# 2. Ensure application-local.yml exists
+# setup usually creates it from application.example.yml
 # Add provider configuration (see project docs for schema)
 
 # 3. Create chat memory directory
@@ -295,9 +243,8 @@ release-local/
 ├── app.jar              # Application JAR
 ├── start.sh             # Start script (-d for background)
 ├── stop.sh              # Stop script (graceful shutdown)
-├── .env                 # Environment variables (create from .env.example)
-├── .env.example         # Environment template
-├── application-local.yml # Spring config override (create manually)
+├── .env                 # Environment variables (created by setup or manually)
+├── application-local.yml # Spring config override (created by setup or manually)
 ├── app.pid              # PID file (auto-managed)
 ├── app.log              # Log file (background mode)
 ├── agents/              # Agent JSON definitions
@@ -326,7 +273,6 @@ log "release-local package generated:"
 log "  $RELEASE_DIR/app.jar"
 log "  $RELEASE_DIR/start.sh"
 log "  $RELEASE_DIR/stop.sh"
-log "  $RELEASE_DIR/.env.example"
 log "  $RELEASE_DIR/DEPLOY.md"
 for dir in agents viewports tools skills data libs; do
   [ -d "$RELEASE_DIR/$dir" ] && log "  $RELEASE_DIR/$dir/"
