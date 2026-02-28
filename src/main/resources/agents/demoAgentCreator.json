@@ -1,7 +1,10 @@
 {
   "key": "demoAgentCreator",
   "name": "示例-Agent创建",
-  "icon": "emoji:🛠️",
+  "icon": {
+    "name": "terminal",
+    "color": "#0F766E"
+  },
   "description": "内置智能体：根据需求创建 agents 目录下的智能体配置",
   "modelConfig": {
     "modelKey": "bailian-qwen3-max",

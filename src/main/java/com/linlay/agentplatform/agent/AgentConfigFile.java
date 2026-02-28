@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.agent;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -20,7 +21,7 @@ public class AgentConfigFile {
 
     private String key;
     private String name;
-    private String icon;
+    private JsonNode icon;
     private String description;
     private ModelConfig modelConfig;
     private ToolConfig toolConfig;
@@ -52,12 +53,20 @@ public class AgentConfigFile {
         this.name = name;
     }
 
-    public String getIcon() {
+    public JsonNode getIcon() {
         return icon;
     }
 
-    public void setIcon(String icon) {
+    @JsonSetter("icon")
+    public void setIcon(JsonNode icon) {
         this.icon = icon;
+    }
+
+    @JsonSetter("avatar")
+    public void setAvatar(JsonNode avatar) {
+        if ((this.icon == null || this.icon.isNull()) && avatar != null && !avatar.isNull()) {
+            this.icon = avatar;
+        }
     }
 
     public String getDescription() {

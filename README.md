@@ -515,7 +515,7 @@ for f in *.md; do echo "$f"; done
 | `AGENT_AUTH_ENABLED` | `true` | JWT 认证开关 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/ap/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |
 | `MEMORY_CHAT_DIR` | `./chats` | 聊天记忆目录 |
-| `MEMORY_CHAT_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按工作目录解析） |
+| `MEMORY_CHAT_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `MEMORY_CHAT_DIR` 解析） |
 | `MEMORY_CHAT_K` | `20` | 滑动窗口大小 |
 | `AGENT_LLM_INTERACTION_LOG_ENABLED` | `true` | LLM 日志开关 |
 

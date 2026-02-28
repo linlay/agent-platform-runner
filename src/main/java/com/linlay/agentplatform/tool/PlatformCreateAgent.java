@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.agent.AgentCatalogProperties;
@@ -95,13 +96,16 @@ public class PlatformCreateAgent extends AbstractDeterministicTool {
 
         String description = normalizeText(readString(mergedArgs, "description"), DEFAULT_DESCRIPTION);
         String name = normalizeText(readString(mergedArgs, "name"), normalizedKey);
-        String icon = normalizeText(readString(mergedArgs, "icon"), "");
+        JsonNode icon = normalizeIconArg(mergedArgs.get("icon"));
+        if (icon == null) {
+            icon = normalizeIconArg(mergedArgs.get("avatar"));
+        }
 
         ObjectNode root = OBJECT_MAPPER.createObjectNode();
         root.put("key", normalizedKey);
         root.put("name", name);
-        if (!icon.isBlank()) {
-            root.put("icon", icon);
+        if (icon != null) {
+            root.set("icon", icon);
         }
         root.put("description", description);
         root.put("mode", mode.name());
@@ -166,6 +170,36 @@ public class PlatformCreateAgent extends AbstractDeterministicTool {
             }
         }
         return merged;
+    }
+
+    private JsonNode normalizeIconArg(Object iconRaw) {
+        if (iconRaw == null) {
+            return null;
+        }
+        if (iconRaw instanceof String iconText) {
+            String normalized = normalizeText(iconText, "");
+            if (normalized.isBlank()) {
+                return null;
+            }
+            return JsonNodeFactory.instance.textNode(normalized);
+        }
+        JsonNode iconNode = OBJECT_MAPPER.valueToTree(iconRaw);
+        if (!iconNode.isObject()) {
+            return null;
+        }
+        String name = normalizeText(iconNode.path("name").asText(null), "");
+        String color = normalizeText(iconNode.path("color").asText(null), "");
+        if (name.isBlank() && color.isBlank()) {
+            return null;
+        }
+        ObjectNode normalized = OBJECT_MAPPER.createObjectNode();
+        if (!name.isBlank()) {
+            normalized.put("name", name);
+        }
+        if (!color.isBlank()) {
+            normalized.put("color", color);
+        }
+        return normalized;
     }
 
     private ObjectNode buildModeConfig(AgentRuntimeMode mode, Map<String, Object> args) {

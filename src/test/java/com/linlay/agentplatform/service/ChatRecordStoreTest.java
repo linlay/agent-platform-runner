@@ -196,6 +196,19 @@ class ChatRecordStoreTest {
     }
 
     @Test
+    void initializeDatabaseShouldPlaceRelativeSqliteFileUnderChatDir() {
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        Path chatDir = tempDir.resolve("chats");
+        properties.setDir(chatDir.toString());
+        properties.getIndex().setSqliteFile("chats.db");
+
+        ChatRecordStore store = new ChatRecordStore(objectMapper, properties);
+        store.initializeDatabase();
+
+        assertThat(chatDir.resolve("chats.db")).exists();
+    }
+
+    @Test
     void markChatReadShouldUpdateReadStatusAndReadAt() {
         String chatId = "123e4567-e89b-12d3-a456-426614174091";
         ChatRecordStore store = newStore();

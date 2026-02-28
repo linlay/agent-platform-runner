@@ -1048,7 +1048,7 @@ public class ChatRecordStore {
         }
         Path path = Paths.get(configured.trim());
         if (!path.isAbsolute()) {
-            path = Paths.get(System.getProperty("user.dir")).resolve(path).normalize();
+            path = resolveBaseDir().resolve(path).normalize();
         }
         return path.toAbsolutePath().normalize();
     }

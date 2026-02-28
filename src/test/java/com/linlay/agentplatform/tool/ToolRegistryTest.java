@@ -294,6 +294,26 @@ class ToolRegistryTest {
     }
 
     @Test
+    void agentFileCreateToolShouldWriteIconObject(@TempDir Path tempDir) throws IOException {
+        Path agentsDir = tempDir.resolve("agents");
+        PlatformCreateAgent tool = new PlatformCreateAgent(agentsDir);
+
+        JsonNode result = tool.invoke(Map.of(
+                "agentId", "icon_bot",
+                "description", "图标对象测试",
+                "modelKey", "openai-gpt35",
+                "systemPrompt", "你好",
+                "mode", "ONESHOT",
+                "icon", Map.of("name", "rocket", "color", "#3F7BFA")
+        ));
+
+        assertThat(result.path("ok").asBoolean()).isTrue();
+        JsonNode content = objectMapper.readTree(Files.readString(agentsDir.resolve("icon_bot.json")));
+        assertThat(content.path("icon").path("name").asText()).isEqualTo("rocket");
+        assertThat(content.path("icon").path("color").asText()).isEqualTo("#3F7BFA");
+    }
+
+    @Test
     void agentFileCreateToolShouldRejectInvalidAgentId(@TempDir Path tempDir) {
         PlatformCreateAgent tool = new PlatformCreateAgent(tempDir.resolve("agents"));
 

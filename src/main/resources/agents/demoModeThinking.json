@@ -1,7 +1,10 @@
 {
   "key": "demoModeThinking",
   "name": "示例-单次推理",
-  "icon": "emoji:🧠",
+  "icon": {
+    "name": "spark",
+    "color": "#BE123C"
+  },
   "description": "内置示例：ONESHOT 模式先推理后作答",
   "modelConfig": {
     "modelKey": "bailian-qwen3-max",

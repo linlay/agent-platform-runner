@@ -1,7 +1,10 @@
 {
   "key": "demoCreateGif",
   "name": "示例-创建GIF",
-  "icon": "emoji:🎞️",
+  "icon": {
+    "name": "spark",
+    "color": "#EF4444"
+  },
   "description": "内置示例：Slack GIF 制作助手（REACT + skill + 脚本执行）",
   "modelConfig": {
     "modelKey": "bailian-qwen3-max",

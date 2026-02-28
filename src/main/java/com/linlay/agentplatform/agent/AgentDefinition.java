@@ -10,7 +10,7 @@ import java.util.List;
 public record AgentDefinition(
         String id,
         String name,
-        String icon,
+        Object icon,
         String description,
         String modelKey,
         String providerKey,
@@ -25,7 +25,7 @@ public record AgentDefinition(
     public AgentDefinition(
             String id,
             String name,
-            String icon,
+            Object icon,
             String description,
             String providerKey,
             String model,

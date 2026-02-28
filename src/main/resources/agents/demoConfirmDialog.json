@@ -1,7 +1,10 @@
 {
   "key": "demoConfirmDialog",
   "name": "示例-确认对话",
-  "icon": "emoji:✋",
+  "icon": {
+    "name": "shield",
+    "color": "#D97706"
+  },
   "description": "内置示例：REACT 模式 + 确认对话框（human-in-the-loop）",
   "mode": "REACT",
   "modelConfig": {

@@ -1,7 +1,10 @@
 {
   "key": "demoModePlain",
   "name": "示例-单次直答",
-  "icon": "emoji:📝",
+  "icon": {
+    "name": "leaf",
+    "color": "#16A34A"
+  },
   "description": "内置示例：ONESHOT 模式单次直答",
   "modelConfig": {
     "modelKey": "bailian-qwen3-max",

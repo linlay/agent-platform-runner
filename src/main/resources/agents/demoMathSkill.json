@@ -1,7 +1,10 @@
 {
   "key": "demoMathSkill",
   "name": "示例-单轮Skill数学",
-  "icon": "emoji:🧮",
+  "icon": {
+    "name": "bolt",
+    "color": "#F59E0B"
+  },
   "description": "内置示例：ONESHOT 模式结合 skills 与 Python 脚本执行",
   "modelConfig": {
     "modelKey": "bailian-qwen3-max",

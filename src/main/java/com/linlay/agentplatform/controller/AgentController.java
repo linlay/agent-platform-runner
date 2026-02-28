@@ -207,8 +207,8 @@ public class AgentController {
         return new AgentListResponse.AgentSummary(
                 agent.id(),
                 agent.name(),
+                agent.icon(),
                 agent.description(),
-                null,
                 buildMeta(agent)
         );
     }
@@ -217,9 +217,9 @@ public class AgentController {
         return new AgentDetailResponse.AgentDetail(
                 agent.id(),
                 agent.name(),
+                agent.icon(),
                 agent.description(),
                 agent.systemPrompt(),
-                null,
                 buildMeta(agent)
         );
     }
@@ -228,7 +228,6 @@ public class AgentController {
         Map<String, Object> meta = new java.util.LinkedHashMap<>();
         meta.put("model", agent.model());
         meta.put("mode", agent.mode().name());
-        meta.put("icon", agent.icon());
         meta.put("tools", agent.tools());
         meta.put("skills", agent.skills());
         return meta;

@@ -9,8 +9,8 @@ public record AgentListResponse(
     public record AgentSummary(
             String key,
             String name,
+            Object icon,
             String description,
-            List<String> capabilities,
             Map<String, Object> meta
     ) {
     }

@@ -1,7 +1,10 @@
 {
   "key": "demoModePlainTooling",
   "name": "示例-单轮工具",
-  "icon": "emoji:🧰",
+  "icon": {
+    "name": "terminal",
+    "color": "#334155"
+  },
   "description": "内置示例：ONESHOT 模式单轮按需调用工具",
   "modelConfig": {
     "modelKey": "bailian-qwen3-max",

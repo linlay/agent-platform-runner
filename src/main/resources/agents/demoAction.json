@@ -1,7 +1,10 @@
 {
   "key": "demoAction",
   "name": "示例-UI动作",
-  "icon": "emoji:🎬",
+  "icon": {
+    "name": "rocket",
+    "color": "#3F7BFA"
+  },
   "description": "内置示例：UI 动作智能体（主题/烟花/模态框）",
   "modelConfig": {
     "modelKey": "bailian-qwen3-max",

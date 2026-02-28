@@ -1,7 +1,10 @@
 {
   "key": "demoModePlanExecute",
   "name": "示例-先规划后执行",
-  "icon": "emoji:📅",
+  "icon": {
+    "name": "compass",
+    "color": "#7C3AED"
+  },
   "description": "内置示例：PLAN_EXECUTE 模式先规划后执行",
   "mode": "PLAN_EXECUTE",
   "toolConfig": {

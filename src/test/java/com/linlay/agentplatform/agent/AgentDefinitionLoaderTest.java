@@ -68,6 +68,43 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldLoadExternalAgentWithIconObject() throws IOException {
+        Files.writeString(tempDir.resolve("demo_icon_object.json"), """
+                {
+                  "key": "demo_icon_object",
+                  "name": "图标对象",
+                  "icon": {
+                    "name": "rocket",
+                    "color": "#3F7BFA"
+                  },
+                  "description": "对象图标",
+                  "modelConfig": {
+                    "modelKey": "bailian-qwen3-max"
+                  },
+                  "mode": "ONESHOT",
+                  "plain": {
+                    "systemPrompt": "你好"
+                  }
+                }
+                """);
+
+        AgentCatalogProperties properties = new AgentCatalogProperties();
+        properties.setExternalDir(tempDir.toString());
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+
+        Map<String, AgentDefinition> byId = loader.loadAll().stream()
+                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
+
+        assertThat(byId).containsKey("demo_icon_object");
+        AgentDefinition definition = byId.get("demo_icon_object");
+        assertThat(definition.icon()).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> icon = (Map<String, Object>) definition.icon();
+        assertThat(icon).containsEntry("name", "rocket");
+        assertThat(icon).containsEntry("color", "#3F7BFA");
+    }
+
+    @Test
     void shouldRejectLegacyAgentConfig() throws IOException {
         Files.writeString(tempDir.resolve("legacy.json"), """
                 {

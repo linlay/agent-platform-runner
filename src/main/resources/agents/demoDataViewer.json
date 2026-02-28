@@ -1,7 +1,10 @@
 {
   "key": "demoDataViewer",
   "name": "示例-文件展示",
-  "icon": "emoji:🖼️",
+  "icon": {
+    "name": "orbit",
+    "color": "#2563EB"
+  },
   "description": "内置示例：展示图片和可下载附件（Markdown 格式）",
   "modelConfig": {
     "modelKey": "bailian-qwen3-max",

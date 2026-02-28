@@ -15,7 +15,7 @@ public interface Agent {
         return id();
     }
 
-    default String icon() {
+    default Object icon() {
         return null;
     }
 

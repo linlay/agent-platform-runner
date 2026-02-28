@@ -133,7 +133,7 @@ public class AgentDefinitionLoader {
             }
             String key = normalize(config.getKey(), fileBasedId);
             String name = normalize(config.getName(), key);
-            String icon = normalizeIcon(config.getIcon());
+            Object icon = normalizeIcon(config.getIcon());
             String description = normalize(config.getDescription(), "external agent from " + fileName);
             List<String> tools = collectToolNames(config);
             List<String> skills = collectSkillNames(config);
@@ -326,11 +326,33 @@ public class AgentDefinitionLoader {
         return List.copyOf(tools);
     }
 
-    private String normalizeIcon(String icon) {
-        if (icon == null || icon.isBlank()) {
+    private Object normalizeIcon(JsonNode icon) {
+        if (icon == null || icon.isNull()) {
             return null;
         }
-        return icon.trim();
+        if (icon.isTextual()) {
+            String value = icon.asText();
+            if (!StringUtils.hasText(value)) {
+                return null;
+            }
+            return value.trim();
+        }
+        if (!icon.isObject()) {
+            return null;
+        }
+        String name = icon.path("name").asText(null);
+        String color = icon.path("color").asText(null);
+        if (!StringUtils.hasText(name) && !StringUtils.hasText(color)) {
+            return null;
+        }
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        if (StringUtils.hasText(name)) {
+            normalized.put("name", name.trim());
+        }
+        if (StringUtils.hasText(color)) {
+            normalized.put("color", color.trim());
+        }
+        return normalized;
     }
 
     private List<String> normalizeSkillNames(List<String> rawSkills) {

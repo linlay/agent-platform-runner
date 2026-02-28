@@ -1,7 +1,10 @@
 {
   "key": "demoViewport",
   "name": "示例-Viewport",
-  "icon": "emoji:🤖",
+  "icon": {
+    "name": "compass",
+    "color": "#14B8A6"
+  },
   "description": "内置示例：REACT 模式按需多轮工具调用",
   "mode": "REACT",
   "modelConfig": {

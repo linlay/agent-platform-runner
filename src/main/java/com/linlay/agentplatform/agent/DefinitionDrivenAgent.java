@@ -116,7 +116,7 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     @Override
-    public String icon() {
+    public Object icon() {
         return definition.icon();
     }
 
