@@ -1,17 +1,16 @@
 package com.linlay.agentplatform.model.api;
 
-import java.util.List;
 import java.util.Map;
 
-public record AgentListResponse(
-        List<AgentSummary> agents
+public record ToolDetailResponse(
+        ToolDetail tool
 ) {
-    public record AgentSummary(
+    public record ToolDetail(
             String key,
             String name,
-            Object icon,
             String description,
-            String role,
+            String afterCallHint,
+            Map<String, Object> parameters,
             Map<String, Object> meta
     ) {
     }

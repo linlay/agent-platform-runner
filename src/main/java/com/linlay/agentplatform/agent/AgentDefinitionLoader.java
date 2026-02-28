@@ -135,6 +135,7 @@ public class AgentDefinitionLoader {
             String name = normalize(config.getName(), key);
             Object icon = normalizeIcon(config.getIcon());
             String description = normalize(config.getDescription(), "external agent from " + fileName);
+            String role = normalize(config.getRole(), name);
             List<String> tools = collectToolNames(config);
             List<String> skills = collectSkillNames(config);
 
@@ -146,6 +147,7 @@ public class AgentDefinitionLoader {
                     name,
                     icon,
                     description,
+                    role,
                     primaryModel.key(),
                     primaryModel.provider(),
                     primaryModel.modelId(),

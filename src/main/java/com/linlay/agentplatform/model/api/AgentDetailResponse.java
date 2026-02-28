@@ -10,6 +10,7 @@ public record AgentDetailResponse(
             String name,
             Object icon,
             String description,
+            String role,
             String instructions,
             Map<String, Object> meta
     ) {

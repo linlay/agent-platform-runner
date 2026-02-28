@@ -126,6 +126,7 @@ class AgentControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.msg").isEqualTo("success")
                 .jsonPath("$.data[0].key").exists()
+                .jsonPath("$.data[0].role").exists()
                 .jsonPath("$.data[0].icon.name").exists()
                 .jsonPath("$.data[0].icon.color").exists()
                 .jsonPath("$.data[0].meta.providerType").doesNotExist()
@@ -144,6 +145,18 @@ class AgentControllerTest {
     }
 
     @Test
+    void agentsShouldSupportTagFilterByRole() {
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/agents").queryParam("tag", "确认对话").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data[?(@.key=='demoConfirmDialog')]").exists()
+                .jsonPath("$.data[?(@.key=='demoModePlain')]").doesNotExist();
+    }
+
+    @Test
     void agentShouldReturnDetailByAgentKey() {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/ap/agent").queryParam("agentKey", "demoModePlanExecute").build())
@@ -153,6 +166,7 @@ class AgentControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.msg").isEqualTo("success")
                 .jsonPath("$.data.key").isEqualTo("demoModePlanExecute")
+                .jsonPath("$.data.role").isEqualTo("规划执行示例")
                 .jsonPath("$.data.icon.name").exists()
                 .jsonPath("$.data.icon.color").exists()
                 .jsonPath("$.data.meta.providerType").doesNotExist()
@@ -180,6 +194,109 @@ class AgentControllerTest {
                 .jsonPath("$.data.meta.skills[?(@=='math_basic')]").exists()
                 .jsonPath("$.data.meta.skills[?(@=='math_stats')]").exists()
                 .jsonPath("$.data.meta.skills[?(@=='text_utils')]").exists();
+    }
+
+    @Test
+    void skillsShouldReturnListAndSupportTag() {
+        webTestClient.get()
+                .uri("/api/ap/skills")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data[0].key").exists()
+                .jsonPath("$.data[0].meta.promptTruncated").isBoolean()
+                .jsonPath("$.data[?(@.key=='math_basic')]").exists()
+                .jsonPath("$.data[?(@.key=='slack-gif-creator')]").exists();
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/skills").queryParam("tag", "slack-gif").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data[?(@.key=='slack-gif-creator')]").exists()
+                .jsonPath("$.data[?(@.key=='math_basic')]").doesNotExist();
+    }
+
+    @Test
+    void skillShouldReturnDetailAndRejectUnknownSkillId() {
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/skill").queryParam("skillId", "math_basic").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.key").isEqualTo("math_basic")
+                .jsonPath("$.data.instructions").value(value -> {
+                    assertThat(value).isInstanceOf(String.class);
+                    assertThat((String) value).contains("Math Basic Skill");
+                })
+                .jsonPath("$.data.meta.promptTruncated").isBoolean();
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/skill").queryParam("skillId", "missing_skill").build())
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void toolsShouldReturnListAndSupportKindAndTag() {
+        webTestClient.get()
+                .uri("/api/ap/tools")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data[0].key").exists()
+                .jsonPath("$.data[0].meta.kind").exists()
+                .jsonPath("$.data[?(@.key=='city_datetime')]").exists()
+                .jsonPath("$.data[?(@.key=='confirm_dialog')]").exists()
+                .jsonPath("$.data[?(@.key=='switch_theme')]").exists();
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/tools").queryParam("kind", "frontend").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data[?(@.key=='confirm_dialog')]").exists()
+                .jsonPath("$.data[?(@.key=='city_datetime')]").doesNotExist();
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/tools")
+                        .queryParam("kind", "backend")
+                        .queryParam("tag", "weather")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data[?(@.key=='mock_city_weather')]").exists();
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/tools").queryParam("kind", "invalid").build())
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void toolShouldReturnDetailAndRejectUnknownToolName() {
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/tool").queryParam("toolName", "confirm_dialog").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.key").isEqualTo("confirm_dialog")
+                .jsonPath("$.data.meta.kind").isEqualTo("frontend")
+                .jsonPath("$.data.meta.toolType").isEqualTo("frontend")
+                .jsonPath("$.data.parameters.properties.question.type").isEqualTo("string");
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/tool").queryParam("toolName", "missing_tool").build())
+                .exchange()
+                .expectStatus().isBadRequest();
     }
 
     @Test
@@ -648,7 +765,7 @@ class AgentControllerTest {
         String chatId = "123e4567-e89b-12d3-a456-426614174088";
         Path chatDir = Path.of(chatWindowMemoryProperties.getDir());
         Files.createDirectories(chatDir);
-        chatRecordStore.ensureChat(chatId, "demoModePlanExecute", "示例-先规划后执行", "测试计划");
+        chatRecordStore.ensureChat(chatId, "demoModePlanExecute", "星策", "测试计划");
 
         Map<String, Object> queryLine = new LinkedHashMap<>();
         queryLine.put("_type", "query");
@@ -729,7 +846,7 @@ class AgentControllerTest {
         String chatId = "123e4567-e89b-12d3-a456-426614174089";
         Path chatDir = Path.of(chatWindowMemoryProperties.getDir());
         Files.createDirectories(chatDir);
-        chatRecordStore.ensureChat(chatId, "demoModePlanExecute", "示例-先规划后执行", "初始化计划");
+        chatRecordStore.ensureChat(chatId, "demoModePlanExecute", "星策", "初始化计划");
 
         Map<String, Object> queryLine = new LinkedHashMap<>();
         queryLine.put("_type", "query");

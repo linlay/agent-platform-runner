@@ -1,6 +1,7 @@
 {
   "key": "demoAction",
-  "name": "示例-UI动作",
+  "name": "小焰",
+  "role": "UI动作示例",
   "icon": {
     "name": "rocket",
     "color": "#3F7BFA"

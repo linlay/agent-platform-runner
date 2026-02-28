@@ -23,6 +23,7 @@ public class AgentConfigFile {
     private String name;
     private JsonNode icon;
     private String description;
+    private String role;
     private ModelConfig modelConfig;
     private ToolConfig toolConfig;
     private SkillConfig skillConfig;
@@ -75,6 +76,14 @@ public class AgentConfigFile {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 
     public ModelConfig getModelConfig() {

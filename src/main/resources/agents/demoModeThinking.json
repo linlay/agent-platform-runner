@@ -1,6 +1,7 @@
 {
   "key": "demoModeThinking",
-  "name": "示例-单次推理",
+  "name": "Iris",
+  "role": "深度推理示例",
   "icon": {
     "name": "spark",
     "color": "#BE123C"

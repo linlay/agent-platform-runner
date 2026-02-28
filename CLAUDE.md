@@ -63,7 +63,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 | `service` | `LlmService`（WebClient SSE + ChatClient 双路径）、`AgentQueryService`（流编排）、`ChatRecordStore`、`DirectoryWatchService` |
 | `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册、`CapabilityRegistryService`（外部工具），内置 bash/city_datetime/mock_city_weather 等 |
 | `skill` | `SkillRegistryService`（技能注册与热刷新）、`SkillDescriptor`、`SkillCatalogProperties` |
-| `controller` | REST API：`/api/ap/agents`、`/api/ap/agent`、`/api/ap/chats`、`/api/ap/chat`、`/api/ap/query`（SSE）、`/api/ap/submit`、`/api/ap/viewport` |
+| `controller` | REST API：`/api/ap/agents`、`/api/ap/agent`、`/api/ap/skills`、`/api/ap/skill`、`/api/ap/tools`、`/api/ap/tool`、`/api/ap/chats`、`/api/ap/chat`、`/api/ap/query`（SSE）、`/api/ap/submit`、`/api/ap/viewport` |
 | `memory` | 滑动窗口聊天记忆（k=20），文件存储于 `chats/` |
 
 ### 关键设计
@@ -84,6 +84,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 {
   "key": "agent_key",
   "name": "agent_name",
+  "role": "角色标签",
   "icon": "emoji:🤖",
   "description": "描述",
   "modelConfig": {
@@ -140,6 +141,16 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
   }
 }
 ```
+
+### Agent / Skill / Tool REST 契约
+
+- `GET /api/ap/agents`：返回 `AgentSummary[]`，顶层包含 `key/name/icon/description/role/meta`。
+- `GET /api/ap/agent?agentKey=...`：返回 `AgentDetail`，顶层包含 `key/name/icon/description/role/instructions/meta`。
+- `GET /api/ap/skills?tag=...`：返回 `SkillSummary[]`，字段为 `key/name/description/meta.promptTruncated`。
+- `GET /api/ap/skill?skillId=...`：返回 `SkillDetail`，字段为 `key/name/description/instructions/meta.promptTruncated`。
+- `GET /api/ap/tools?tag=...&kind=backend|frontend|action`：返回 `ToolSummary[]`，字段为 `key/name/description/meta(kind/toolType/toolApi/viewportKey/strict)`。
+- `GET /api/ap/tool?toolName=...`：返回 `ToolDetail`，字段为 `key/name/description/afterCallHint/parameters/meta`。
+- `/api/ap/skill` 未命中 `skillId`、`/api/ap/tool` 未命中 `toolName`、`kind` 非法时均返回 HTTP `400`（`ApiResponse.failure`）。
 
 ### 模式配置块
 

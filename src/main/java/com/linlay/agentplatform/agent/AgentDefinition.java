@@ -12,6 +12,7 @@ public record AgentDefinition(
         String name,
         Object icon,
         String description,
+        String role,
         String modelKey,
         String providerKey,
         String model,
@@ -27,6 +28,7 @@ public record AgentDefinition(
             String name,
             Object icon,
             String description,
+            String role,
             String providerKey,
             String model,
             AgentRuntimeMode mode,
@@ -35,10 +37,29 @@ public record AgentDefinition(
             List<String> tools,
             List<String> skills
     ) {
-        this(id, name, icon, description, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills);
+        this(id, name, icon, description, role, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills);
+    }
+
+    public AgentDefinition(
+            String id,
+            String name,
+            Object icon,
+            String description,
+            String providerKey,
+            String model,
+            AgentRuntimeMode mode,
+            RunSpec runSpec,
+            AgentMode agentMode,
+            List<String> tools,
+            List<String> skills
+    ) {
+        this(id, name, icon, description, name, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills);
     }
 
     public AgentDefinition {
+        if (role == null || role.isBlank()) {
+            role = (name == null || name.isBlank()) ? id : name;
+        }
         if (tools == null) {
             tools = List.of();
         } else {

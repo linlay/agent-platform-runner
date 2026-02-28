@@ -1,6 +1,7 @@
 {
   "key": "demoAgentCreator",
-  "name": "示例-Agent创建",
+  "name": "小匠",
+  "role": "Agent创建示例",
   "icon": {
     "name": "terminal",
     "color": "#0F766E"

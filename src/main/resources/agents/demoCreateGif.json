@@ -1,6 +1,7 @@
 {
   "key": "demoCreateGif",
-  "name": "示例-创建GIF",
+  "name": "Milo",
+  "role": "GIF制作示例",
   "icon": {
     "name": "spark",
     "color": "#EF4444"

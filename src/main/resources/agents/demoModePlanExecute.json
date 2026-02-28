@@ -1,6 +1,7 @@
 {
   "key": "demoModePlanExecute",
-  "name": "示例-先规划后执行",
+  "name": "星策",
+  "role": "规划执行示例",
   "icon": {
     "name": "compass",
     "color": "#7C3AED"

@@ -1,6 +1,7 @@
 {
   "key": "demoViewport",
-  "name": "示例-Viewport",
+  "name": "极光",
+  "role": "视图渲染示例",
   "icon": {
     "name": "compass",
     "color": "#14B8A6"

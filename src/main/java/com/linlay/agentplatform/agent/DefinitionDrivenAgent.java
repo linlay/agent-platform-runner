@@ -116,6 +116,11 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     @Override
+    public String role() {
+        return definition.role() == null || definition.role().isBlank() ? name() : definition.role();
+    }
+
+    @Override
     public Object icon() {
         return definition.icon();
     }

@@ -1,6 +1,7 @@
 {
   "key": "demoMathSkill",
-  "name": "示例-单轮Skill数学",
+  "name": "Leo",
+  "role": "数学技能示例",
   "icon": {
     "name": "bolt",
     "color": "#F59E0B"

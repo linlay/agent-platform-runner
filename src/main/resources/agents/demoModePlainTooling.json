@@ -1,6 +1,7 @@
 {
   "key": "demoModePlainTooling",
-  "name": "示例-单轮工具",
+  "name": "Nova",
+  "role": "单轮工具示例",
   "icon": {
     "name": "terminal",
     "color": "#334155"

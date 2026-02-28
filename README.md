@@ -8,6 +8,10 @@
 
 - `GET /api/ap/agents`: 智能体列表
 - `GET /api/ap/agent?agentKey=...`: 智能体详情
+- `GET /api/ap/skills`: 技能列表（支持 `tag` 过滤）
+- `GET /api/ap/skill?skillId=...`: 技能详情
+- `GET /api/ap/tools`: 工具列表（支持 `tag`、`kind=backend|frontend|action` 过滤）
+- `GET /api/ap/tool?toolName=...`: 工具详情
 - `GET /api/ap/chats`: 会话列表（支持 `lastRunId` 增量查询）
 - `POST /api/ap/read`: 标记单个会话已读
 - `GET /api/ap/chat?chatId=...`: 会话详情（默认返回快照事件流）
@@ -40,10 +44,45 @@
 - `data` 直接放业务内容，不再额外包同名字段，例如：
   - 智能体列表：`data` 直接是 `agents[]`
   - 智能体详情：`data` 直接是 `agent`
+  - 技能列表：`data` 直接是 `skills[]`
+  - 工具列表：`data` 直接是 `tools[]`
   - 会话详情：`data` 直接是 `chat`
   - 视图详情：`data` 直接是视图内容（`html` 时为 `{ "html": "..." }`，`qlc` 时为 schema JSON）
 - `GET /api/ap/chat` 默认始终返回 `events`；仅当 `includeRawMessages=true` 时才返回 `rawMessages`。
 - 事件协议仅支持 Event Model v2，不兼容旧命名（如 `query.message`、`message.start|delta|end`、`message.snapshot`）。
+
+`GET /api/ap/agents` 示例（`role` 为顶层字段）：
+
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": [
+    {
+      "key": "demoConfirmDialog",
+      "name": "灵犀",
+      "description": "内置示例：REACT 模式 + 确认对话框（human-in-the-loop）",
+      "role": "确认对话示例",
+      "meta": {
+        "model": "qwen3-max",
+        "mode": "REACT",
+        "tools": ["city_datetime", "mock_city_weather", "confirm_dialog"],
+        "skills": []
+      }
+    }
+  ]
+}
+```
+
+`GET /api/ap/skills` / `GET /api/ap/skill` 返回结构：
+
+- 列表项：`key`, `name`, `description`, `meta.promptTruncated`
+- 详情：`key`, `name`, `description`, `instructions`, `meta.promptTruncated`
+
+`GET /api/ap/tools` / `GET /api/ap/tool` 返回结构：
+
+- 列表项：`key`, `name`, `description`, `meta.kind`, `meta.toolType`, `meta.toolApi`, `meta.viewportKey`, `meta.strict`
+- 详情：`key`, `name`, `description`, `afterCallHint`, `parameters`, `meta.*`
 
 `GET /api/ap/chats` 示例：
 
@@ -405,17 +444,20 @@ agent:
 
 ### 内置智能体
 
-- `demoModePlain`（`ONESHOT`）：单次直答。
-- `demoModeThinking`（`ONESHOT`）：开启 reasoning 的单次作答。
-- `demoModePlainTooling`（`ONESHOT`）：单轮按需调用工具。
-- `demoModeReact`（`REACT`）：按需多轮工具调用。
-- `demoModePlanExecute`（`PLAN_EXECUTE`）：先规划后执行。
-- `demoViewport`（`PLAN_EXECUTE`）：调用天气工具，输出 viewport 天气卡片。
-- `demoAction`（`ONESHOT`）：调用 `switch_theme` / `launch_fireworks` / `show_modal`。
-- `demoAgentCreator`（`PLAN_EXECUTE`）：调用 `agent_file_create` 创建/更新 agent。
-- `demoModePlainSkillMath`（`ONESHOT`）：加载 skills，调用 `_skill_run_script_` 完成确定性计算。
-- `demoConfirmDialog`（`REACT`）：确认对话框 human-in-the-loop 示例。
-- `demoDataViewer`（`ONESHOT`）：展示图片和可下载附件（Markdown 格式输出）。
+- `demoModePlain`（`ONESHOT`）：`Jarvis`，角色为“单次直答示例”。
+- `demoModeThinking`（`ONESHOT`）：`Iris`，角色为“深度推理示例”。
+- `demoModePlainTooling`（`ONESHOT`）：`Nova`，角色为“单轮工具示例”。
+- `demoModeReact`（`REACT`）：`Luna`，角色为“REACT示例”。
+- `demoModePlanExecute`（`PLAN_EXECUTE`）：`星策`，角色为“规划执行示例”。
+- `demoViewport`（`REACT`）：`极光`，角色为“视图渲染示例”。
+- `demoAction`（`ONESHOT`）：`小焰`，角色为“UI动作示例”。
+- `demoAgentCreator`（`PLAN_EXECUTE`）：`小匠`，角色为“Agent创建示例”。
+- `demoMathSkill`（`ONESHOT`）：`Leo`，角色为“数学技能示例”。
+- `demoConfirmDialog`（`REACT`）：`灵犀`，角色为“确认对话示例”。
+- `demoDataViewer`（`ONESHOT`）：`天枢`，角色为“文件展示示例”。
+- `demoCreateGif`（`REACT`）：`Milo`，角色为“GIF制作示例”。
+
+中文命名备选池（文档附录）：`清岚`、`星河`、`云舟`、`小岚`、`小满`、`景行`。
 
 ### 内置 Action
 
@@ -662,7 +704,7 @@ curl -N -X POST "$BASE_URL/api/ap/query" \
 ```bash
 curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Content-Type: application/json" \
-  -d '{"message":"请计算 (2+3)*4，并说明过程","agentKey":"demoModePlainSkillMath"}'
+  -d '{"message":"请计算 (2+3)*4，并说明过程","agentKey":"demoMathSkill"}'
 ```
 
 ```bash

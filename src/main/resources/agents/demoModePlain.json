@@ -1,6 +1,7 @@
 {
   "key": "demoModePlain",
-  "name": "示例-单次直答",
+  "name": "Jarvis",
+  "role": "单次直答示例",
   "icon": {
     "name": "leaf",
     "color": "#16A34A"

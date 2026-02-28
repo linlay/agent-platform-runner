@@ -1,6 +1,7 @@
 {
   "key": "demoConfirmDialog",
-  "name": "示例-确认对话",
+  "name": "灵犀",
+  "role": "确认对话示例",
   "icon": {
     "name": "shield",
     "color": "#D97706"

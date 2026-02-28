@@ -1,6 +1,7 @@
 {
   "key": "demoDataViewer",
-  "name": "示例-文件展示",
+  "name": "天枢",
+  "role": "文件展示示例",
   "icon": {
     "name": "orbit",
     "color": "#2563EB"

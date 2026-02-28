@@ -23,6 +23,10 @@ public interface Agent {
         return id();
     }
 
+    default String role() {
+        return name();
+    }
+
     String providerKey();
 
     String model();

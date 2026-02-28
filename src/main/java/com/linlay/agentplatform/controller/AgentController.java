@@ -14,8 +14,12 @@ import com.linlay.agentplatform.model.api.ChatSummaryResponse;
 import com.linlay.agentplatform.model.api.MarkChatReadRequest;
 import com.linlay.agentplatform.model.api.MarkChatReadResponse;
 import com.linlay.agentplatform.model.api.QueryRequest;
+import com.linlay.agentplatform.model.api.SkillDetailResponse;
+import com.linlay.agentplatform.model.api.SkillListResponse;
 import com.linlay.agentplatform.model.api.SubmitRequest;
 import com.linlay.agentplatform.model.api.SubmitResponse;
+import com.linlay.agentplatform.model.api.ToolDetailResponse;
+import com.linlay.agentplatform.model.api.ToolListResponse;
 import com.linlay.agentplatform.security.ApiJwtAuthWebFilter;
 import com.linlay.agentplatform.security.ChatImageTokenService;
 import com.linlay.agentplatform.security.JwksJwtVerifier.JwtPrincipal;
@@ -24,6 +28,12 @@ import com.linlay.agentplatform.service.AgentQueryService.QuerySession;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.ViewportRegistryService;
+import com.linlay.agentplatform.skill.SkillDescriptor;
+import com.linlay.agentplatform.skill.SkillRegistryService;
+import com.linlay.agentplatform.tool.BaseTool;
+import com.linlay.agentplatform.tool.CapabilityDescriptor;
+import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolRegistry;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +54,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @RestController
@@ -59,6 +70,8 @@ public class AgentController {
     private final ViewportRegistryService viewportRegistryService;
     private final FrontendSubmitCoordinator frontendSubmitCoordinator;
     private final ChatImageTokenService chatImageTokenService;
+    private final SkillRegistryService skillRegistryService;
+    private final ToolRegistry toolRegistry;
     private final ObjectMapper objectMapper;
 
     public AgentController(
@@ -69,6 +82,8 @@ public class AgentController {
             ViewportRegistryService viewportRegistryService,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             ChatImageTokenService chatImageTokenService,
+            SkillRegistryService skillRegistryService,
+            ToolRegistry toolRegistry,
             ObjectMapper objectMapper
     ) {
         this.agentRegistry = agentRegistry;
@@ -78,6 +93,8 @@ public class AgentController {
         this.viewportRegistryService = viewportRegistryService;
         this.frontendSubmitCoordinator = frontendSubmitCoordinator;
         this.chatImageTokenService = chatImageTokenService;
+        this.skillRegistryService = skillRegistryService;
+        this.toolRegistry = toolRegistry;
         this.objectMapper = objectMapper;
     }
 
@@ -96,6 +113,52 @@ public class AgentController {
     public ApiResponse<AgentDetailResponse.AgentDetail> agent(@RequestParam String agentKey) {
         Agent agent = agentRegistry.get(agentKey);
         return ApiResponse.success(toDetail(agent));
+    }
+
+    @GetMapping("/skills")
+    public ApiResponse<List<SkillListResponse.SkillSummary>> skills(
+            @RequestParam(required = false) String tag
+    ) {
+        List<SkillListResponse.SkillSummary> items = skillRegistryService.list().stream()
+                .filter(skill -> matchesSkillTag(skill, tag))
+                .map(this::toSkillSummary)
+                .toList();
+        return ApiResponse.success(items);
+    }
+
+    @GetMapping("/skill")
+    public ApiResponse<SkillDetailResponse.SkillDetail> skill(@RequestParam String skillId) {
+        if (!StringUtils.hasText(skillId)) {
+            throw new IllegalArgumentException("skillId is required");
+        }
+        SkillDescriptor skill = skillRegistryService.find(skillId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown skillId: " + skillId));
+        return ApiResponse.success(toSkillDetail(skill));
+    }
+
+    @GetMapping("/tools")
+    public ApiResponse<List<ToolListResponse.ToolSummary>> tools(
+            @RequestParam(required = false) String tag,
+            @RequestParam(required = false) String kind
+    ) {
+        CapabilityKind kindFilter = parseToolKind(kind);
+        List<ToolListResponse.ToolSummary> items = toolRegistry.list().stream()
+                .map(this::resolveCapability)
+                .filter(descriptor -> matchesToolKind(descriptor, kindFilter))
+                .filter(descriptor -> matchesToolTag(descriptor, tag))
+                .map(this::toToolSummary)
+                .toList();
+        return ApiResponse.success(items);
+    }
+
+    @GetMapping("/tool")
+    public ApiResponse<ToolDetailResponse.ToolDetail> tool(@RequestParam String toolName) {
+        if (!StringUtils.hasText(toolName)) {
+            throw new IllegalArgumentException("toolName is required");
+        }
+        CapabilityDescriptor descriptor = toolRegistry.capability(toolName)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown toolName: " + toolName));
+        return ApiResponse.success(toToolDetail(descriptor));
     }
 
     @GetMapping("/chats")
@@ -199,6 +262,7 @@ public class AgentController {
         String normalized = tag.toLowerCase();
         return agent.id().toLowerCase().contains(normalized)
                 || agent.description().toLowerCase().contains(normalized)
+                || agent.role().toLowerCase().contains(normalized)
                 || agent.tools().stream().anyMatch(tool -> tool.toLowerCase().contains(normalized))
                 || agent.skills().stream().anyMatch(skill -> skill.toLowerCase().contains(normalized));
     }
@@ -209,6 +273,7 @@ public class AgentController {
                 agent.name(),
                 agent.icon(),
                 agent.description(),
+                agent.role(),
                 buildMeta(agent)
         );
     }
@@ -219,9 +284,129 @@ public class AgentController {
                 agent.name(),
                 agent.icon(),
                 agent.description(),
+                agent.role(),
                 agent.systemPrompt(),
                 buildMeta(agent)
         );
+    }
+
+    private boolean matchesSkillTag(SkillDescriptor skill, String tag) {
+        if (!StringUtils.hasText(tag)) {
+            return true;
+        }
+        String normalized = tag.trim().toLowerCase(Locale.ROOT);
+        return skill.id().toLowerCase(Locale.ROOT).contains(normalized)
+                || skill.name().toLowerCase(Locale.ROOT).contains(normalized)
+                || skill.description().toLowerCase(Locale.ROOT).contains(normalized)
+                || skill.prompt().toLowerCase(Locale.ROOT).contains(normalized);
+    }
+
+    private SkillListResponse.SkillSummary toSkillSummary(SkillDescriptor skill) {
+        return new SkillListResponse.SkillSummary(
+                skill.id(),
+                skill.name(),
+                skill.description(),
+                buildSkillMeta(skill)
+        );
+    }
+
+    private SkillDetailResponse.SkillDetail toSkillDetail(SkillDescriptor skill) {
+        return new SkillDetailResponse.SkillDetail(
+                skill.id(),
+                skill.name(),
+                skill.description(),
+                skill.prompt(),
+                buildSkillMeta(skill)
+        );
+    }
+
+    private Map<String, Object> buildSkillMeta(SkillDescriptor skill) {
+        return Map.of("promptTruncated", skill.promptTruncated());
+    }
+
+    private CapabilityDescriptor resolveCapability(BaseTool tool) {
+        return toolRegistry.capability(tool.name()).orElseGet(() -> new CapabilityDescriptor(
+                tool.name(),
+                tool.description(),
+                tool.afterCallHint(),
+                tool.parametersSchema(),
+                false,
+                CapabilityKind.BACKEND,
+                "function",
+                null,
+                null,
+                "java://builtin"
+        ));
+    }
+
+    private CapabilityKind parseToolKind(String kind) {
+        if (!StringUtils.hasText(kind)) {
+            return null;
+        }
+        String normalized = kind.trim().toUpperCase(Locale.ROOT);
+        try {
+            return CapabilityKind.valueOf(normalized);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Invalid kind: " + kind + ". Use backend|frontend|action");
+        }
+    }
+
+    private boolean matchesToolKind(CapabilityDescriptor descriptor, CapabilityKind kindFilter) {
+        if (kindFilter == null) {
+            return true;
+        }
+        return descriptor != null && descriptor.kind() == kindFilter;
+    }
+
+    private boolean matchesToolTag(CapabilityDescriptor descriptor, String tag) {
+        if (!StringUtils.hasText(tag)) {
+            return true;
+        }
+        if (descriptor == null) {
+            return false;
+        }
+        String normalized = tag.trim().toLowerCase(Locale.ROOT);
+        return normalizeText(descriptor.name()).contains(normalized)
+                || normalizeText(descriptor.description()).contains(normalized)
+                || normalizeText(descriptor.afterCallHint()).contains(normalized)
+                || normalizeText(descriptor.toolType()).contains(normalized)
+                || normalizeText(descriptor.toolApi()).contains(normalized)
+                || normalizeText(descriptor.viewportKey()).contains(normalized)
+                || (descriptor.kind() != null && descriptor.kind().name().toLowerCase(Locale.ROOT).contains(normalized));
+    }
+
+    private ToolListResponse.ToolSummary toToolSummary(CapabilityDescriptor descriptor) {
+        return new ToolListResponse.ToolSummary(
+                descriptor.name(),
+                descriptor.name(),
+                descriptor.description(),
+                buildToolMeta(descriptor)
+        );
+    }
+
+    private ToolDetailResponse.ToolDetail toToolDetail(CapabilityDescriptor descriptor) {
+        return new ToolDetailResponse.ToolDetail(
+                descriptor.name(),
+                descriptor.name(),
+                descriptor.description(),
+                descriptor.afterCallHint(),
+                descriptor.parameters(),
+                buildToolMeta(descriptor)
+        );
+    }
+
+    private Map<String, Object> buildToolMeta(CapabilityDescriptor descriptor) {
+        Map<String, Object> meta = new java.util.LinkedHashMap<>();
+        meta.put("kind", descriptor.kind() == null ? "" : descriptor.kind().name().toLowerCase(Locale.ROOT));
+        meta.put("toolType", descriptor.toolType());
+        meta.put("toolApi", descriptor.toolApi());
+        meta.put("viewportKey", descriptor.viewportKey());
+        meta.put("strict", descriptor.strict());
+        return meta;
+    }
+
+    private String normalizeText(String value) {
+        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
     private Map<String, Object> buildMeta(Agent agent) {

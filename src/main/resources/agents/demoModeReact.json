@@ -1,6 +1,7 @@
 {
   "key": "demoModeReact",
-  "name": "示例-REACT",
+  "name": "Luna",
+  "role": "REACT示例",
   "icon": {
     "name": "orbit",
     "color": "#0EA5E9"
