@@ -563,7 +563,14 @@ for f in *.md; do echo "$f"; done
 | `MEMORY_CHAT_DIR` | `./chats` | 聊天记忆目录 |
 | `MEMORY_CHAT_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `MEMORY_CHAT_DIR` 解析） |
 | `MEMORY_CHAT_K` | `20` | 滑动窗口大小 |
-| `AGENT_LLM_INTERACTION_LOG_ENABLED` | `true` | LLM 日志开关 |
+| `LOGGING_AGENT_REQUEST_ENABLED` | `true` | API 请求摘要日志开关（不记录 header） |
+| `LOGGING_AGENT_AUTH_ENABLED` | `true` | 认证失败原因日志开关（401/403） |
+| `LOGGING_AGENT_EXCEPTION_ENABLED` | `true` | 统一异常日志开关 |
+| `LOGGING_AGENT_TOOL_ENABLED` | `true` | tool 调用日志开关 |
+| `LOGGING_AGENT_ACTION_ENABLED` | `true` | action 调用日志开关 |
+| `LOGGING_AGENT_VIEWPORT_ENABLED` | `true` | viewport API 日志开关 |
+| `LOGGING_AGENT_SSE_ENABLED` | `false` | SSE 每条事件日志开关 |
+| `LOGGING_AGENT_LLM_INTERACTION_ENABLED` | `true` | LLM 交互日志开关 |
 
 ## 静态文件服务（Data）
 

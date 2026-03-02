@@ -8,11 +8,15 @@ import com.linlay.agentplatform.agent.PlannedToolCall;
 import com.linlay.agentplatform.agent.ToolAppend;
 import com.linlay.agentplatform.agent.ToolArgumentResolver;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
+import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.service.LoggingSanitizer;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.CapabilityKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
@@ -33,6 +37,7 @@ import java.util.function.Consumer;
 public class ToolExecutionService {
 
     public static final String FRONTEND_SUBMIT_TIMEOUT_CODE = "frontend_submit_timeout";
+    private static final Logger log = LoggerFactory.getLogger(ToolExecutionService.class);
 
     private static final ExecutorService BACKEND_TOOL_EXECUTOR = Executors.newCachedThreadPool(runnable -> {
         Thread thread = new Thread(runnable, "agent-platform-backend-tool");
@@ -44,6 +49,7 @@ public class ToolExecutionService {
     private final ToolArgumentResolver toolArgumentResolver;
     private final ObjectMapper objectMapper;
     private final FrontendSubmitCoordinator frontendSubmitCoordinator;
+    private final LoggingAgentProperties loggingAgentProperties;
 
     public ToolExecutionService(
             ToolRegistry toolRegistry,
@@ -51,10 +57,27 @@ public class ToolExecutionService {
             ObjectMapper objectMapper,
             FrontendSubmitCoordinator frontendSubmitCoordinator
     ) {
+        this(
+                toolRegistry,
+                toolArgumentResolver,
+                objectMapper,
+                frontendSubmitCoordinator,
+                new LoggingAgentProperties()
+        );
+    }
+
+    public ToolExecutionService(
+            ToolRegistry toolRegistry,
+            ToolArgumentResolver toolArgumentResolver,
+            ObjectMapper objectMapper,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            LoggingAgentProperties loggingAgentProperties
+    ) {
         this.toolRegistry = toolRegistry;
         this.toolArgumentResolver = toolArgumentResolver;
         this.objectMapper = objectMapper;
         this.frontendSubmitCoordinator = frontendSubmitCoordinator;
+        this.loggingAgentProperties = loggingAgentProperties;
     }
 
     public ToolExecutionBatch executeToolCalls(
@@ -138,6 +161,8 @@ public class ToolExecutionService {
         }
 
         for (PreparedToolCall call : preparedCalls) {
+            long invokeStartNanos = System.nanoTime();
+            logInvocationStart(runId, taskId, call);
             InvokeResult invokeResult = invokeByKind(
                     runId,
                     call.callId(),
@@ -155,6 +180,7 @@ public class ToolExecutionService {
             deltas.add(AgentDelta.toolResult(call.callId(), resultText));
             records.add(buildToolRecord(call.callId(), call.toolName(), call.toolType(), call.resolvedArgs(), resultNode));
             events.add(new ToolExecutionEvent(call.callId(), call.toolName(), call.toolType(), call.argsJson(), resultText));
+            logInvocationEnd(runId, taskId, call, resultNode, (System.nanoTime() - invokeStartNanos) / 1_000_000L);
 
             AgentDelta planDelta = planUpdateDelta(context, call.toolName(), call.resolvedArgs(), resultNode);
             if (planDelta != null) {
@@ -384,12 +410,15 @@ public class ToolExecutionService {
             try {
                 return invokeBackendOnce(toolName, args, timeoutMs);
             } catch (IllegalArgumentException ex) {
+                logToolExecutionFailure(toolName, attempt, retries, ex);
                 return errorResult(toolName, ex.getMessage());
             } catch (TimeoutException ex) {
+                logToolExecutionFailure(toolName, attempt, retries, ex);
                 if (attempt >= retries) {
                     return errorResult(toolName, ex.getMessage());
                 }
             } catch (RuntimeException ex) {
+                logToolExecutionFailure(toolName, attempt, retries, ex);
                 if (attempt >= retries) {
                     return errorResult(toolName, ex.getMessage());
                 }
@@ -510,6 +539,116 @@ public class ToolExecutionService {
 
     private String normalizeToolName(String raw) {
         return normalize(raw).toLowerCase(Locale.ROOT);
+    }
+
+    private void logInvocationStart(String runId, String taskId, PreparedToolCall call) {
+        LoggingAgentProperties.Tool config = resolveInvocationLoggingConfig(call.toolType());
+        if (config == null || !config.isEnabled()) {
+            return;
+        }
+        String channel = isActionType(call.toolType()) ? "action" : "tool";
+        if (config.isIncludeArgs()) {
+            log.info(
+                    "agent.{}.start runId={}, taskId={}, id={}, name={}, type={}, args={}",
+                    channel,
+                    runId,
+                    taskId,
+                    call.callId(),
+                    call.toolName(),
+                    call.toolType(),
+                    LoggingSanitizer.sanitizeText(call.argsJson())
+            );
+            return;
+        }
+        log.info(
+                "agent.{}.start runId={}, taskId={}, id={}, name={}, type={}",
+                channel,
+                runId,
+                taskId,
+                call.callId(),
+                call.toolName(),
+                call.toolType()
+        );
+    }
+
+    private void logInvocationEnd(String runId, String taskId, PreparedToolCall call, JsonNode resultNode, long elapsedMs) {
+        LoggingAgentProperties.Tool config = resolveInvocationLoggingConfig(call.toolType());
+        if (config == null || !config.isEnabled()) {
+            return;
+        }
+        String channel = isActionType(call.toolType()) ? "action" : "tool";
+        boolean failed = resultNode != null
+                && resultNode.isObject()
+                && resultNode.has("ok")
+                && !resultNode.path("ok").asBoolean(true);
+        if (config.isIncludeResult()) {
+            String resultText = resultNode == null ? "" : LoggingSanitizer.sanitizeText(resultNode.toString());
+            if (failed) {
+                log.warn(
+                        "agent.{}.end runId={}, taskId={}, id={}, name={}, elapsedMs={}, ok=false, result={}",
+                        channel,
+                        runId,
+                        taskId,
+                        call.callId(),
+                        call.toolName(),
+                        elapsedMs,
+                        resultText
+                );
+            } else {
+                log.info(
+                        "agent.{}.end runId={}, taskId={}, id={}, name={}, elapsedMs={}, result={}",
+                        channel,
+                        runId,
+                        taskId,
+                        call.callId(),
+                        call.toolName(),
+                        elapsedMs,
+                        resultText
+                );
+            }
+            return;
+        }
+        if (failed) {
+            log.warn(
+                    "agent.{}.end runId={}, taskId={}, id={}, name={}, elapsedMs={}, ok=false",
+                    channel,
+                    runId,
+                    taskId,
+                    call.callId(),
+                    call.toolName(),
+                    elapsedMs
+            );
+        } else {
+            log.info(
+                    "agent.{}.end runId={}, taskId={}, id={}, name={}, elapsedMs={}",
+                    channel,
+                    runId,
+                    taskId,
+                    call.callId(),
+                    call.toolName(),
+                    elapsedMs
+            );
+        }
+    }
+
+    private void logToolExecutionFailure(String toolName, int attempt, int retries, Exception ex) {
+        if (loggingAgentProperties == null || !loggingAgentProperties.getTool().isEnabled()) {
+            return;
+        }
+        log.warn(
+                "agent.tool.failure toolName={}, attempt={}, retries={}, reason={}",
+                toolName,
+                attempt,
+                retries,
+                LoggingSanitizer.sanitizeText(ex == null ? "" : ex.getMessage())
+        );
+    }
+
+    private LoggingAgentProperties.Tool resolveInvocationLoggingConfig(String toolType) {
+        if (loggingAgentProperties == null) {
+            return null;
+        }
+        return isActionType(toolType) ? loggingAgentProperties.getAction() : loggingAgentProperties.getTool();
     }
 
     private String normalize(String value) {

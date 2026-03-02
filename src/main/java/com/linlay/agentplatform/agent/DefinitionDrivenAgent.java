@@ -14,6 +14,7 @@ import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.mode.OrchestratorServices;
+import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
@@ -70,7 +71,8 @@ public class DefinitionDrivenAgent implements Agent {
                 objectMapper,
                 chatWindowMemoryStore,
                 frontendSubmitCoordinator,
-                null
+                null,
+                new LoggingAgentProperties()
         );
     }
 
@@ -82,6 +84,28 @@ public class DefinitionDrivenAgent implements Agent {
             ChatWindowMemoryStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService
+    ) {
+        this(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                new LoggingAgentProperties()
+        );
+    }
+
+    public DefinitionDrivenAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties
     ) {
         this.definition = definition;
         this.toolRegistry = toolRegistry;
@@ -95,7 +119,8 @@ public class DefinitionDrivenAgent implements Agent {
                 toolRegistry,
                 argumentResolver,
                 objectMapper,
-                frontendSubmitCoordinator
+                frontendSubmitCoordinator,
+                loggingAgentProperties
         );
         this.services = new OrchestratorServices(llmService, toolExecutionService, objectMapper);
     }

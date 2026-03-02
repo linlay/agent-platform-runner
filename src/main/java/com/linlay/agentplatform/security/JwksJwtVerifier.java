@@ -47,33 +47,38 @@ public class JwksJwtVerifier {
     }
 
     public Optional<JwtPrincipal> verify(String token) {
+        VerifyResult result = verifyDetailed(token);
+        return Optional.ofNullable(result.principal());
+    }
+
+    public VerifyResult verifyDetailed(String token) {
         if (!StringUtils.hasText(token)) {
-            return Optional.empty();
+            return VerifyResult.failed("token_missing");
         }
 
         SignedJWT jwt;
         try {
             jwt = SignedJWT.parse(token.trim());
         } catch (Exception ex) {
-            return Optional.empty();
+            return VerifyResult.failed("token_parse_failed");
         }
 
         JWTClaimsSet claims;
         try {
             claims = jwt.getJWTClaimsSet();
         } catch (Exception ex) {
-            return Optional.empty();
+            return VerifyResult.failed("claims_parse_failed");
         }
 
         if (!validateClaims(claims)) {
-            return Optional.empty();
+            return VerifyResult.failed("claim_invalid");
         }
 
         if (verifyWithLocalKey(jwt) || verifyWithJwksKeys(jwt)) {
-            return Optional.of(buildPrincipal(claims));
+            return VerifyResult.success(buildPrincipal(claims));
         }
 
-        return Optional.empty();
+        return VerifyResult.failed("signature_invalid");
     }
 
     private boolean validateClaims(JWTClaimsSet claims) {
@@ -285,11 +290,28 @@ public class JwksJwtVerifier {
     }
 
     public record JwtPrincipal(
-        String subject,
-        String deviceId,
-        String scope,
-        Instant issuedAt,
-        Instant expiresAt
+            String subject,
+            String deviceId,
+            String scope,
+            Instant issuedAt,
+            Instant expiresAt
     ) {
+    }
+
+    public record VerifyResult(
+            JwtPrincipal principal,
+            String reasonCode
+    ) {
+        public boolean valid() {
+            return principal != null;
+        }
+
+        public static VerifyResult success(JwtPrincipal principal) {
+            return new VerifyResult(principal, "ok");
+        }
+
+        public static VerifyResult failed(String reasonCode) {
+            return new VerifyResult(null, reasonCode == null ? "unknown" : reasonCode);
+        }
     }
 }

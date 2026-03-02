@@ -2,9 +2,13 @@ package com.linlay.agentplatform.security;
 
 import java.nio.charset.StandardCharsets;
 
+import com.linlay.agentplatform.config.LoggingAgentProperties;
+import com.linlay.agentplatform.service.LoggingSanitizer;
 import com.linlay.agentplatform.config.AppAuthProperties;
 import com.linlay.agentplatform.config.ChatImageTokenProperties;
 import com.linlay.agentplatform.security.JwksJwtVerifier.JwtPrincipal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -21,18 +25,22 @@ public class ApiJwtAuthWebFilter implements WebFilter {
     public static final String JWT_PRINCIPAL_ATTR = "APP_JWT_PRINCIPAL";
 
     private static final String AUTH_PREFIX = "Bearer ";
+    private static final Logger log = LoggerFactory.getLogger(ApiJwtAuthWebFilter.class);
 
     private final AppAuthProperties authProperties;
     private final ChatImageTokenProperties chatImageTokenProperties;
+    private final LoggingAgentProperties loggingAgentProperties;
     private final JwksJwtVerifier jwtVerifier;
 
     public ApiJwtAuthWebFilter(
             AppAuthProperties authProperties,
             ChatImageTokenProperties chatImageTokenProperties,
+            LoggingAgentProperties loggingAgentProperties,
             JwksJwtVerifier jwtVerifier
     ) {
         this.authProperties = authProperties;
         this.chatImageTokenProperties = chatImageTokenProperties;
+        this.loggingAgentProperties = loggingAgentProperties;
         this.jwtVerifier = jwtVerifier;
     }
 
@@ -54,9 +62,15 @@ public class ApiJwtAuthWebFilter implements WebFilter {
             return chain.filter(exchange);
         }
 
-        String token = resolveBearerToken(exchange);
-        JwtPrincipal principal = jwtVerifier.verify(token).orElse(null);
+        BearerTokenResolution tokenResolution = resolveBearerToken(exchange);
+        if (!StringUtils.hasText(tokenResolution.token())) {
+            logAuthReject(exchange, tokenResolution.reasonCode());
+            return writeUnauthorized(exchange);
+        }
+        JwksJwtVerifier.VerifyResult verifyResult = jwtVerifier.verifyDetailed(tokenResolution.token());
+        JwtPrincipal principal = verifyResult.principal();
         if (principal == null) {
+            logAuthReject(exchange, mapVerifyFailure(verifyResult.reasonCode()));
             return writeUnauthorized(exchange);
         }
 
@@ -64,16 +78,19 @@ public class ApiJwtAuthWebFilter implements WebFilter {
         return chain.filter(exchange);
     }
 
-    private String resolveBearerToken(ServerWebExchange exchange) {
+    private BearerTokenResolution resolveBearerToken(ServerWebExchange exchange) {
         String authorization = exchange.getRequest().getHeaders().getFirst("Authorization");
         if (!StringUtils.hasText(authorization)) {
-            return null;
+            return new BearerTokenResolution(null, "missing_auth_header");
         }
         if (!authorization.startsWith(AUTH_PREFIX)) {
-            return null;
+            return new BearerTokenResolution(null, "bad_bearer_format");
         }
         String token = authorization.substring(AUTH_PREFIX.length()).trim();
-        return StringUtils.hasText(token) ? token : null;
+        if (!StringUtils.hasText(token)) {
+            return new BearerTokenResolution(null, "empty_bearer_token");
+        }
+        return new BearerTokenResolution(token, "ok");
     }
 
     private boolean isDataApiTokenRequest(ServerWebExchange exchange) {
@@ -95,5 +112,29 @@ public class ApiJwtAuthWebFilter implements WebFilter {
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         return exchange.getResponse().writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(body)));
+    }
+
+    private String mapVerifyFailure(String rawReason) {
+        if ("claim_invalid".equals(rawReason)) {
+            return "claim_invalid";
+        }
+        return "jwt_verify_failed";
+    }
+
+    private void logAuthReject(ServerWebExchange exchange, String reasonCode) {
+        if (loggingAgentProperties == null || !loggingAgentProperties.getAuth().isEnabled()) {
+            return;
+        }
+        String method = exchange.getRequest().getMethod() == null ? "UNKNOWN" : exchange.getRequest().getMethod().name();
+        String path = exchange.getRequest().getPath().value();
+        log.warn(
+                "api.auth.reject method={}, path={}, reason={}",
+                method,
+                path,
+                LoggingSanitizer.sanitizeText(reasonCode)
+        );
+    }
+
+    private record BearerTokenResolution(String token, String reasonCode) {
     }
 }

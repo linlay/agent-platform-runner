@@ -5,6 +5,7 @@ import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.service.StreamEventAssembler;
 import com.linlay.agentplatform.stream.service.StreamSseStreamer;
 import com.linlay.agentplatform.config.FrontendToolProperties;
+import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -18,14 +19,17 @@ import com.linlay.agentplatform.tool.CapabilityKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,6 +55,7 @@ public class AgentQueryService {
     private final ToolRegistry toolRegistry;
     private final ViewportRegistryService viewportRegistryService;
     private final FrontendToolProperties frontendToolProperties;
+    private final LoggingAgentProperties loggingAgentProperties;
 
     public AgentQueryService(
             AgentRegistry agentRegistry,
@@ -61,6 +66,29 @@ public class AgentQueryService {
             ViewportRegistryService viewportRegistryService,
             FrontendToolProperties frontendToolProperties
     ) {
+        this(
+                agentRegistry,
+                streamSseStreamer,
+                objectMapper,
+                chatRecordStore,
+                toolRegistry,
+                viewportRegistryService,
+                frontendToolProperties,
+                new LoggingAgentProperties()
+        );
+    }
+
+    @Autowired
+    public AgentQueryService(
+            AgentRegistry agentRegistry,
+            StreamSseStreamer streamSseStreamer,
+            ObjectMapper objectMapper,
+            ChatRecordStore chatRecordStore,
+            ToolRegistry toolRegistry,
+            ViewportRegistryService viewportRegistryService,
+            FrontendToolProperties frontendToolProperties,
+            LoggingAgentProperties loggingAgentProperties
+    ) {
         this.agentRegistry = agentRegistry;
         this.streamSseStreamer = streamSseStreamer;
         this.objectMapper = objectMapper;
@@ -68,6 +96,7 @@ public class AgentQueryService {
         this.toolRegistry = toolRegistry;
         this.viewportRegistryService = viewportRegistryService;
         this.frontendToolProperties = frontendToolProperties;
+        this.loggingAgentProperties = loggingAgentProperties;
     }
 
     public QuerySession prepare(QueryRequest request) {
@@ -118,6 +147,7 @@ public class AgentQueryService {
         Flux<StreamInput> inputs = new AgentDeltaToStreamInputMapper(session.request().runId(), toolRegistry).map(deltas);
         StringBuilder assistantContent = new StringBuilder();
         boolean[] completed = {false};
+        AtomicLong eventSeq = new AtomicLong(0L);
         return streamSseStreamer.stream(session.request(), inputs)
                 .map(this::normalizeEvent)
                 .doOnNext(event -> {
@@ -167,6 +197,7 @@ public class AgentQueryService {
                             session.request().runId()
                     );
                 })
+                .doOnNext(event -> logSseEvent(session, event, eventSeq.incrementAndGet()))
                 .doOnNext(event -> chatRecordStore.appendEvent(session.request().chatId(), event.data()));
     }
 
@@ -320,6 +351,56 @@ public class AgentQueryService {
 
     private boolean isToolEvent(String eventType) {
         return eventType != null && eventType.startsWith("tool.");
+    }
+
+    private void logSseEvent(QuerySession session, ServerSentEvent<String> event, long seq) {
+        if (loggingAgentProperties == null || !loggingAgentProperties.getSse().isEnabled()) {
+            return;
+        }
+        String eventType = extractEventType(event == null ? null : event.data());
+        if (!StringUtils.hasText(eventType)) {
+            eventType = StringUtils.hasText(event == null ? null : event.event()) ? event.event() : "unknown";
+        }
+        if (!allowSseEvent(eventType)) {
+            return;
+        }
+        if (loggingAgentProperties.getSse().isIncludePayload() && event != null && StringUtils.hasText(event.data())) {
+            log.info(
+                    "api.sse.event seq={}, requestId={}, runId={}, eventType={}, payload={}",
+                    seq,
+                    session.request().requestId(),
+                    session.request().runId(),
+                    eventType,
+                    LoggingSanitizer.sanitizeText(event.data())
+            );
+            return;
+        }
+        log.info(
+                "api.sse.event seq={}, requestId={}, runId={}, eventType={}",
+                seq,
+                session.request().requestId(),
+                session.request().runId(),
+                eventType
+        );
+    }
+
+    private boolean allowSseEvent(String eventType) {
+        if (!StringUtils.hasText(eventType)) {
+            return false;
+        }
+        if (loggingAgentProperties == null) {
+            return true;
+        }
+        List<String> whitelist = loggingAgentProperties.getSse().getEventWhitelist().stream()
+                .filter(StringUtils::hasText)
+                .map(item -> item.trim().toLowerCase(Locale.ROOT))
+                .toList();
+        if (whitelist.isEmpty()) {
+            return true;
+        }
+        String normalized = eventType.trim().toLowerCase(Locale.ROOT);
+        return whitelist.stream()
+                .anyMatch(normalized::equals);
     }
 
     private Agent resolveAgent(String agentKey) {

@@ -64,3 +64,53 @@ memory:
     dir: ./chats
     index:
       sqlite-file: chats.db
+
+logging:
+  agent:
+    request:
+      # API 请求摘要日志（/api/ap/**）
+      enabled: true
+      # 是否记录 query 参数（敏感键会自动掩码）
+      include-query: true
+      # 是否记录请求体摘要（不记录 header）
+      include-body: false
+    auth:
+      # 401/403 原因日志（missing header / bad bearer / jwt verify / claim invalid）
+      enabled: true
+    exception:
+      # 统一异常处理日志
+      enabled: true
+    tool:
+      # tool 调用与结果摘要日志
+      enabled: true
+      include-args: false
+      include-result: false
+    action:
+      # action 调用与结果摘要日志
+      enabled: true
+      include-args: false
+      include-result: false
+    viewport:
+      # viewport API 命中/未命中日志
+      enabled: true
+    sse:
+      # 每条 SSE event 日志（默认关闭，排障时临时开启）
+      enabled: false
+      # 开启 SSE 日志后，是否附带 payload
+      include-payload: false
+      # 可选白名单（逗号分隔），空表示不过滤
+      event-whitelist:
+    llm:
+      interaction:
+        # LLM 交互日志总开关
+        enabled: true
+        # 是否脱敏敏感字段（建议保持 true）
+        mask-sensitive: true
+
+  level:
+    root: INFO
+    com.linlay.agentplatform: INFO
+    com.linlay.agentplatform.service.LlmService: DEBUG
+    com.linlay.agentplatform.service.OpenAiCompatibleSseClient: DEBUG
+    com.linlay.agentplatform.service.LlmCallLogger: DEBUG
+    com.linlay.agentplatform.llm.wiretap: DEBUG

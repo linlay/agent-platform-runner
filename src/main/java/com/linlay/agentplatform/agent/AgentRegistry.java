@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmService;
@@ -30,11 +31,11 @@ public class AgentRegistry {
     private final ChatWindowMemoryStore chatWindowMemoryStore;
     private final FrontendSubmitCoordinator frontendSubmitCoordinator;
     private final SkillRegistryService skillRegistryService;
+    private final LoggingAgentProperties loggingAgentProperties;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, Agent> agents = Map.of();
 
-    @Autowired
     public AgentRegistry(
             AgentDefinitionLoader definitionLoader,
             LlmService llmService,
@@ -44,6 +45,29 @@ public class AgentRegistry {
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService
     ) {
+        this(
+                definitionLoader,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                new LoggingAgentProperties()
+        );
+    }
+
+    @Autowired
+    public AgentRegistry(
+            AgentDefinitionLoader definitionLoader,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties
+    ) {
         this.definitionLoader = definitionLoader;
         this.llmService = llmService;
         this.toolRegistry = toolRegistry;
@@ -51,6 +75,7 @@ public class AgentRegistry {
         this.chatWindowMemoryStore = chatWindowMemoryStore;
         this.frontendSubmitCoordinator = frontendSubmitCoordinator;
         this.skillRegistryService = skillRegistryService;
+        this.loggingAgentProperties = loggingAgentProperties;
         refreshAgents();
     }
 
@@ -94,7 +119,8 @@ public class AgentRegistry {
                             objectMapper,
                             chatWindowMemoryStore,
                             frontendSubmitCoordinator,
-                            skillRegistryService
+                            skillRegistryService,
+                            loggingAgentProperties
                     );
                     updated.put(agent.id(), agent);
                 }

@@ -2,7 +2,7 @@ package com.linlay.agentplatform.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "agent.llm.interaction-log")
+@ConfigurationProperties(prefix = "logging.agent.llm.interaction")
 public class LlmInteractionLogProperties {
 
     private boolean enabled = true;

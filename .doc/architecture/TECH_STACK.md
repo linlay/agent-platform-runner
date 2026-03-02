@@ -34,6 +34,9 @@
 - 安全：`security/*`
 
 ## 日志与可观测
-- LLM 交互日志：`agent.llm.interaction-log.enabled=true`（默认）
-- 敏感字段脱敏：`agent.llm.interaction-log.mask-sensitive=true`（默认）
-- 关键日志分类：`LlmService`, `OpenAiCompatibleSseClient`, `LlmCallLogger`
+- API 请求摘要日志：`logging.agent.request.*`
+- 认证与异常日志：`logging.agent.auth.enabled`、`logging.agent.exception.enabled`
+- Tool/Action/Viewport/SSE 日志：`logging.agent.tool.*`、`logging.agent.action.*`、`logging.agent.viewport.enabled`、`logging.agent.sse.*`
+- LLM 交互日志：`logging.agent.llm.interaction.enabled=true`（默认）
+- 敏感字段脱敏：`logging.agent.llm.interaction.mask-sensitive=true`（默认）
+- 关键日志分类：`ApiRequestLoggingWebFilter`, `ApiJwtAuthWebFilter`, `LlmService`, `OpenAiCompatibleSseClient`, `LlmCallLogger`

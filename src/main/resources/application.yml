@@ -34,10 +34,6 @@ agent:
   model:
     external-dir: ${AGENT_MODEL_EXTERNAL_DIR:models}
     refresh-interval-ms: ${AGENT_MODEL_REFRESH_INTERVAL_MS:30000}
-  llm:
-    interaction-log:
-      enabled: ${AGENT_LLM_INTERACTION_LOG_ENABLED:true}
-      mask-sensitive: ${AGENT_LLM_INTERACTION_LOG_MASK_SENSITIVE:true}
   tools:
     frontend:
       submit-timeout-ms: ${AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS:300000}
@@ -109,6 +105,51 @@ memory:
       sqlite-file: ${MEMORY_CHAT_INDEX_SQLITE_FILE:chats.db}
 
 logging:
+  agent:
+    request:
+      # API 请求摘要日志（覆盖 /api/ap/**）
+      # 内容: method/path/status/latency/requestId/runId（可取到时）
+      enabled: ${LOGGING_AGENT_REQUEST_ENABLED:true}
+      # 是否记录 query 参数（会自动掩码 token/apiKey/authorization 等敏感键）
+      include-query: ${LOGGING_AGENT_REQUEST_INCLUDE_QUERY:true}
+      # 是否记录请求体摘要（仅记录控制器提供的摘要字段，不记录 header）
+      include-body: ${LOGGING_AGENT_REQUEST_INCLUDE_BODY:false}
+    auth:
+      # 鉴权日志（401/403 原因码），用于定位 missing header / bad bearer / jwt verify / claim invalid
+      enabled: ${LOGGING_AGENT_AUTH_ENABLED:true}
+    exception:
+      # 统一异常处理日志（4xx/5xx）
+      enabled: ${LOGGING_AGENT_EXCEPTION_ENABLED:true}
+    tool:
+      # backend/frontend tool 调用摘要日志
+      enabled: ${LOGGING_AGENT_TOOL_ENABLED:true}
+      # 是否打印 tool 参数（可能包含业务数据，默认关闭）
+      include-args: ${LOGGING_AGENT_TOOL_INCLUDE_ARGS:false}
+      # 是否打印 tool 结果（可能包含大文本，默认关闭）
+      include-result: ${LOGGING_AGENT_TOOL_INCLUDE_RESULT:false}
+    action:
+      # action 调用摘要日志
+      enabled: ${LOGGING_AGENT_ACTION_ENABLED:true}
+      # 是否打印 action 参数（默认关闭）
+      include-args: ${LOGGING_AGENT_ACTION_INCLUDE_ARGS:false}
+      # 是否打印 action 结果（默认关闭）
+      include-result: ${LOGGING_AGENT_ACTION_INCLUDE_RESULT:false}
+    viewport:
+      # GET /api/ap/viewport 命中/未命中日志
+      enabled: ${LOGGING_AGENT_VIEWPORT_ENABLED:true}
+    sse:
+      # 是否记录每条 SSE 事件（默认关闭，避免日志量过大）
+      enabled: ${LOGGING_AGENT_SSE_ENABLED:false}
+      # 开启后是否附带 payload（默认关闭）
+      include-payload: ${LOGGING_AGENT_SSE_INCLUDE_PAYLOAD:false}
+      # 可选白名单: 逗号分隔事件名；为空表示不过滤（例如 run.start,tool.start,tool.result）
+      event-whitelist: ${LOGGING_AGENT_SSE_EVENT_WHITELIST:}
+    llm:
+      interaction:
+        # LLM 交互日志总开关（请求体/提示词/delta 等）
+        enabled: ${LOGGING_AGENT_LLM_INTERACTION_ENABLED:true}
+        # 是否脱敏敏感字段（建议保持 true）
+        mask-sensitive: ${LOGGING_AGENT_LLM_INTERACTION_MASK_SENSITIVE:true}
   level:
     root: INFO
     com.linlay.agentplatform: INFO

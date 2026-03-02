@@ -541,8 +541,8 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `MEMORY_CHAT_K` | `memory.chat.k` | `20` | 滑动窗口大小（按 run） |
 | `MEMORY_CHAT_CHARSET` | `memory.chat.charset` | `UTF-8` | 记忆文件编码 |
 | `MEMORY_CHAT_ACTION_TOOLS` | `memory.chat.action-tools` | （空） | action 工具白名单 |
-| `AGENT_LLM_INTERACTION_LOG_ENABLED` | `agent.llm.interaction-log.enabled` | `true` | LLM 交互日志开关 |
-| `AGENT_LLM_INTERACTION_LOG_MASK_SENSITIVE` | `agent.llm.interaction-log.mask-sensitive` | `true` | 日志脱敏开关 |
+| `LOGGING_AGENT_LLM_INTERACTION_ENABLED` | `logging.agent.llm.interaction.enabled` | `true` | LLM 交互日志开关 |
+| `LOGGING_AGENT_LLM_INTERACTION_MASK_SENSITIVE` | `logging.agent.llm.interaction.mask-sensitive` | `true` | 日志脱敏开关 |
 
 说明：`agent.auth.local-public-key` 仅支持在 YAML 中配置 PEM 文本，不提供环境变量映射。
 
@@ -581,6 +581,14 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `logging.level.com.linlay.agentplatform.service.OpenAiCompatibleSseClient` | `DEBUG` |
 | `logging.level.com.linlay.agentplatform.service.LlmCallLogger` | `DEBUG` |
 | `logging.level.com.linlay.agentplatform.llm.wiretap` | `DEBUG` |
+| `logging.agent.request.enabled` | `true` |
+| `logging.agent.auth.enabled` | `true` |
+| `logging.agent.exception.enabled` | `true` |
+| `logging.agent.tool.enabled` | `true` |
+| `logging.agent.action.enabled` | `true` |
+| `logging.agent.viewport.enabled` | `true` |
+| `logging.agent.sse.enabled` | `false` |
+| `logging.agent.llm.interaction.enabled` | `true` |
 
 ## 真流式约束（CRITICAL）
 
@@ -606,8 +614,8 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 - 每个 SSE delta（reasoning/content/tool_calls）逐条打印 `log.debug`
 - 工具调用 delta 打印 tool name、arguments 片段、finish_reason
 - `LlmService.appendDeltaLog` 带 traceId/stage 参数，`streamContent`/`streamContentRawSse` 均有逐 chunk debug 日志
-- 日志开关：`agent.llm.interaction-log.enabled`（默认 `true`）
-- 脱敏开关：`agent.llm.interaction-log.mask-sensitive`（默认 `true`），会脱敏 `authorization/apiKey/token/secret/password`
+- 日志开关：`logging.agent.llm.interaction.enabled`（默认 `true`）
+- 脱敏开关：`logging.agent.llm.interaction.mask-sensitive`（默认 `true`），会脱敏 `authorization/apiKey/token/secret/password`
 
 ## 设计原则
 

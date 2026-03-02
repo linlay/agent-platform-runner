@@ -2,11 +2,15 @@ package com.linlay.agentplatform.controller;
 
 import com.linlay.agentplatform.config.ChatImageTokenProperties;
 import com.linlay.agentplatform.config.DataCatalogProperties;
+import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.security.ChatImageTokenService;
 import com.linlay.agentplatform.security.ChatImageTokenService.VerifyResult;
 import com.linlay.agentplatform.service.ChatAssetAccessService;
 import com.linlay.agentplatform.service.DataFilePathNormalizer;
+import com.linlay.agentplatform.service.LoggingSanitizer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -28,6 +32,7 @@ import java.util.Map;
 @RestController
 public class DataFileController {
 
+    private static final Logger log = LoggerFactory.getLogger(DataFileController.class);
     private static final String CACHE_CONTROL_NO_STORE = "private, no-store";
 
     private static final Map<String, String> EXTRA_MIME_TYPES = Map.ofEntries(
@@ -55,17 +60,20 @@ public class DataFileController {
     private final ChatImageTokenService chatImageTokenService;
     private final ChatAssetAccessService chatAssetAccessService;
     private final boolean dataTokenValidationEnabled;
+    private final LoggingAgentProperties loggingAgentProperties;
 
     public DataFileController(
             DataCatalogProperties properties,
             ChatImageTokenProperties chatImageTokenProperties,
             ChatImageTokenService chatImageTokenService,
-            ChatAssetAccessService chatAssetAccessService
+            ChatAssetAccessService chatAssetAccessService,
+            LoggingAgentProperties loggingAgentProperties
     ) {
         this.dataDir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
         this.chatImageTokenService = chatImageTokenService;
         this.chatAssetAccessService = chatAssetAccessService;
         this.dataTokenValidationEnabled = chatImageTokenProperties.isDataTokenValidationEnabled();
+        this.loggingAgentProperties = loggingAgentProperties;
     }
 
     @GetMapping("/api/ap/data")
@@ -88,9 +96,11 @@ public class DataFileController {
         if (dataTokenValidationEnabled && chatImageToken != null) {
             verifyResult = chatImageTokenService.verify(chatImageToken);
             if (!verifyResult.valid()) {
+                logDataForbidden("token_invalid", filename, verifyResult.errorCode());
                 return Mono.just(forbiddenToken(verifyResult.message(), verifyResult.errorCode()));
             }
             if (!verifyResult.hasScope(ChatImageTokenService.DATA_READ_SCOPE)) {
+                logDataForbidden("scope_denied", filename, ChatImageTokenService.ERROR_CODE_INVALID);
                 return Mono.just(forbiddenToken("chat image token invalid", ChatImageTokenService.ERROR_CODE_INVALID));
             }
         }
@@ -105,6 +115,7 @@ public class DataFileController {
                     filename
             );
             if (!canRead) {
+                logDataForbidden("asset_denied", filename, ChatImageTokenService.ERROR_CODE_INVALID);
                 return Mono.just(forbiddenToken("chat image token invalid", ChatImageTokenService.ERROR_CODE_INVALID));
             }
         }
@@ -166,5 +177,17 @@ public class DataFileController {
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.CACHE_CONTROL, CACHE_CONTROL_NO_STORE)
                 .body(body);
+    }
+
+    private void logDataForbidden(String reason, String filename, String errorCode) {
+        if (loggingAgentProperties == null || !loggingAgentProperties.getAuth().isEnabled()) {
+            return;
+        }
+        log.warn(
+                "api.data.forbidden reason={}, file={}, errorCode={}",
+                LoggingSanitizer.sanitizeText(reason),
+                LoggingSanitizer.sanitizeText(filename),
+                LoggingSanitizer.sanitizeText(errorCode)
+        );
     }
 }

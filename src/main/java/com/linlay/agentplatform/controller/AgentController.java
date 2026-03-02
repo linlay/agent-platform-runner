@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.agent.Agent;
 import com.linlay.agentplatform.agent.AgentRegistry;
+import com.linlay.agentplatform.config.ApiRequestLoggingWebFilter;
+import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.model.api.AgentListResponse;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
@@ -25,6 +27,7 @@ import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.AgentQueryService.QuerySession;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.service.LoggingSanitizer;
 import com.linlay.agentplatform.service.ViewportRegistryService;
 import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.skill.SkillRegistryService;
@@ -73,6 +76,7 @@ public class AgentController {
     private final SkillRegistryService skillRegistryService;
     private final TeamRegistryService teamRegistryService;
     private final ToolRegistry toolRegistry;
+    private final LoggingAgentProperties loggingAgentProperties;
     private final ObjectMapper objectMapper;
 
     public AgentController(
@@ -86,6 +90,7 @@ public class AgentController {
             SkillRegistryService skillRegistryService,
             TeamRegistryService teamRegistryService,
             ToolRegistry toolRegistry,
+            LoggingAgentProperties loggingAgentProperties,
             ObjectMapper objectMapper
     ) {
         this.agentRegistry = agentRegistry;
@@ -98,6 +103,7 @@ public class AgentController {
         this.skillRegistryService = skillRegistryService;
         this.teamRegistryService = teamRegistryService;
         this.toolRegistry = toolRegistry;
+        this.loggingAgentProperties = loggingAgentProperties;
         this.objectMapper = objectMapper;
     }
 
@@ -190,6 +196,20 @@ public class AgentController {
             ServerWebExchange exchange
     ) {
         QuerySession session = agentQueryService.prepare(request);
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_REQUEST_ID, session.request().requestId());
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_RUN_ID, session.request().runId());
+        Map<String, Object> bodySummary = new java.util.LinkedHashMap<>();
+        bodySummary.put("chatId", session.request().chatId());
+        if (StringUtils.hasText(session.request().agentKey())) {
+            bodySummary.put("agentKey", session.request().agentKey());
+        }
+        bodySummary.put("requestId", session.request().requestId());
+        bodySummary.put("runId", session.request().runId());
+        if (session.request().stream() != null) {
+            bodySummary.put("stream", session.request().stream());
+        }
+        bodySummary.put("messageChars", session.request().message() == null ? 0 : session.request().message().length());
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_BODY_SUMMARY, bodySummary);
         String chatImageToken = issueChatImageToken(resolvePrincipal(exchange), session.request().chatId());
         Flux<ServerSentEvent<String>> stream = agentQueryService.stream(session);
         if (StringUtils.hasText(chatImageToken)) {
@@ -199,7 +219,14 @@ public class AgentController {
     }
 
     @PostMapping("/submit")
-    public ApiResponse<SubmitResponse> submit(@Valid @RequestBody SubmitRequest request) {
+    public ApiResponse<SubmitResponse> submit(@Valid @RequestBody SubmitRequest request, ServerWebExchange exchange) {
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_REQUEST_ID, request.runId());
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_RUN_ID, request.runId());
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_BODY_SUMMARY, Map.of(
+                "runId", request.runId(),
+                "toolId", request.toolId(),
+                "hasParams", request.params() != null
+        ));
         FrontendSubmitCoordinator.SubmitAck ack = frontendSubmitCoordinator.submit(
                 request.runId(),
                 request.toolId(),
@@ -228,6 +255,7 @@ public class AgentController {
         }
         return viewportRegistryService.find(viewportKey)
                 .<ResponseEntity<ApiResponse<Object>>>map(viewport -> {
+                    logViewport(viewportKey, HttpStatus.OK.value(), true);
                     Object data = viewport.payload();
                     if ("html".equalsIgnoreCase(viewport.viewportType().value())) {
                         data = Map.of("html", String.valueOf(viewport.payload()));
@@ -235,11 +263,28 @@ public class AgentController {
                     return ResponseEntity.ok(ApiResponse.success(data));
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(ApiResponse.failure(
-                                HttpStatus.NOT_FOUND.value(),
-                                "Viewport not found: " + viewportKey,
-                                (Object) Map.of()
-                        )));
+                        .body(notFoundViewport(viewportKey)));
+    }
+
+    private ApiResponse<Object> notFoundViewport(String viewportKey) {
+        logViewport(viewportKey, HttpStatus.NOT_FOUND.value(), false);
+        return ApiResponse.failure(
+                HttpStatus.NOT_FOUND.value(),
+                "Viewport not found: " + viewportKey,
+                (Object) Map.of()
+        );
+    }
+
+    private void logViewport(String viewportKey, int status, boolean hit) {
+        if (loggingAgentProperties == null || !loggingAgentProperties.getViewport().isEnabled()) {
+            return;
+        }
+        log.info(
+                "api.viewport key={}, hit={}, status={}",
+                LoggingSanitizer.sanitizeText(viewportKey),
+                hit,
+                status
+        );
     }
 
     private boolean matchesTag(Agent agent, String tag) {
