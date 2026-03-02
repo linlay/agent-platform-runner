@@ -6,6 +6,7 @@ import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.service.LoggingSanitizer;
 import com.linlay.agentplatform.config.AppAuthProperties;
 import com.linlay.agentplatform.config.ChatImageTokenProperties;
+import com.linlay.agentplatform.config.VoiceWsProperties;
 import com.linlay.agentplatform.security.JwksJwtVerifier.JwtPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,17 +30,20 @@ public class ApiJwtAuthWebFilter implements WebFilter {
 
     private final AppAuthProperties authProperties;
     private final ChatImageTokenProperties chatImageTokenProperties;
+    private final VoiceWsProperties voiceWsProperties;
     private final LoggingAgentProperties loggingAgentProperties;
     private final JwksJwtVerifier jwtVerifier;
 
     public ApiJwtAuthWebFilter(
             AppAuthProperties authProperties,
             ChatImageTokenProperties chatImageTokenProperties,
+            VoiceWsProperties voiceWsProperties,
             LoggingAgentProperties loggingAgentProperties,
             JwksJwtVerifier jwtVerifier
     ) {
         this.authProperties = authProperties;
         this.chatImageTokenProperties = chatImageTokenProperties;
+        this.voiceWsProperties = voiceWsProperties;
         this.loggingAgentProperties = loggingAgentProperties;
         this.jwtVerifier = jwtVerifier;
     }
@@ -56,6 +60,9 @@ public class ApiJwtAuthWebFilter implements WebFilter {
         }
 
         if (HttpMethod.OPTIONS.equals(exchange.getRequest().getMethod())) {
+            return chain.filter(exchange);
+        }
+        if (!voiceWsProperties.isAuthRequired() && isVoiceWsPath(path)) {
             return chain.filter(exchange);
         }
         if (isDataApiTokenRequest(exchange)) {
@@ -105,6 +112,10 @@ public class ApiJwtAuthWebFilter implements WebFilter {
             return false;
         }
         return exchange.getRequest().getQueryParams().containsKey("t");
+    }
+
+    private boolean isVoiceWsPath(String path) {
+        return StringUtils.hasText(path) && voiceWsProperties.normalizedPath().equals(path.trim());
     }
 
     private Mono<Void> writeUnauthorized(ServerWebExchange exchange) {

@@ -134,3 +134,36 @@ flowchart LR
 关键事实：
 - token 分支失败返回 `403`，`data.errorCode` 给出具体 token 错误码。
 - 路径逃逸或非法参数返回 `400`。
+
+## 7. Voice WS 链路（`WS /api/ap/ws/voice`）
+```mermaid
+sequenceDiagram
+    participant UI as Client
+    participant WS as VoiceWebSocketHandler
+    participant AUTH as VoiceWsAuthenticationService
+    participant TTS as SyntheticVoicePcmSynthesizer
+
+    UI->>WS: Handshake(Bearer)
+    WS->>AUTH: verify token
+    AUTH-->>WS: ok / unauthorized
+
+    UI->>WS: tts.start(codec=pcm)
+    WS-->>UI: tts.started
+    loop 每个文本分片(2~5字)
+        UI->>WS: tts.chunk(text)
+        WS->>TTS: synthesizePcmFrames(text)
+        TTS-->>WS: pcm frames
+        WS-->>UI: Binary PCM
+    end
+    UI->>WS: tts.commit
+    WS-->>UI: tts.done
+```
+
+抢占语义（barge-in）：
+- 当 `tts` 进行中收到 `asr.start`：
+  - 先发 `tts.interrupted`
+  - 再发 `asr.not_implemented(code=NOT_IMPLEMENTED)`
+
+关键事实：
+- 当前只实现 `pcm`，`opus` 请求返回 `UNSUPPORTED_CODEC`。
+- ASR 仅定义协议边界，不落地识别实现。

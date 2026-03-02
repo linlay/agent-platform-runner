@@ -16,11 +16,13 @@
 | `skill` | skill 目录解析、prompt 截断、注册刷新 |
 | `memory` | 聊天窗口记忆与 JSONL 存储 |
 | `security` | JWT 校验、JWKS、本地 key、chat image token |
+| `voice.ws` | 语音 WebSocket 协议处理、状态机、PCM 输出与 ASR 占位 |
 | `config` | `@ConfigurationProperties` 与基础装配 |
 
 ## 依赖方向
 - `controller -> service/registry`
 - `service -> agent/tool/model/stream/memory/security`
+- `voice.ws -> config/security`
 - `agent.mode -> agent.runtime -> tool/service`
 - `memory/security/config` 不依赖上层业务模块。
 

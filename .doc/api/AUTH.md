@@ -43,3 +43,20 @@
   - `GET /api/ap/chat` 返回体字段 `chatImageToken`
   - `POST /api/ap/query` 的 `chat.start` 事件会附加 `chatImageToken`
 - 前置条件：请求已通过 JWT，且有 `subject`。
+
+## 5. Voice WS 鉴权（`/api/ap/ws/voice`）
+### 握手规则
+- 当 `agent.auth.enabled=true`：
+  - 握手请求必须携带 `Authorization: Bearer <token>`。
+  - token 校验逻辑与 `/api/ap/**` 一致（`JwksJwtVerifier`）。
+- 当 `agent.auth.enabled=false`：
+  - 允许无鉴权握手（仅建议本地开发/联调）。
+
+### 失败行为
+- 缺失 Bearer 或 Bearer 无效：
+  - 握手阶段返回 `401`（HTTP）；
+  - 若进入 WS 会话后判定失败，返回 `error(code=UNAUTHORIZED)` 并主动关闭连接。
+
+### 备注
+- 默认语音 WS 路径在 `/api/ap` 下，受统一鉴权过滤链管理。
+- 若未来修改到非 `/api/ap/**` 路径，仍需保持同等 Bearer 鉴权策略。

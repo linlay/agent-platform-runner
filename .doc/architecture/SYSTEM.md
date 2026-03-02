@@ -2,16 +2,19 @@
 
 ## 架构模式
 - 形态：模块化单体（Modular Monolith）。
-- 通信：单进程内组件协作 + 对外 HTTP(SSE) 接口。
+- 通信：单进程内组件协作 + 对外 HTTP(SSE) + WebSocket(voice) 接口。
 - 关键运行链：`AgentController -> AgentQueryService -> DefinitionDrivenAgent -> AgentMode -> LlmService/ToolExecutionService`。
 
 ## 架构图（Mermaid）
 ```mermaid
 flowchart LR
     Client[Web/App Client] -->|POST /api/ap/query (SSE)| Controller[AgentController]
+    Client -->|WS /api/ap/ws/voice| VoiceWS[VoiceWebSocketHandler]
     Controller --> QuerySvc[AgentQueryService]
     QuerySvc --> Registry[AgentRegistry]
     QuerySvc --> SSE[StreamSseStreamer + StreamEventAssembler]
+    VoiceWS --> VoiceAuth[VoiceWsAuthenticationService]
+    VoiceWS --> VoiceTTS[SyntheticVoicePcmSynthesizer]
 
     Registry --> AgentDef[AgentDefinitionLoader]
     Registry --> AgentImpl[DefinitionDrivenAgent]
@@ -46,3 +49,4 @@ flowchart LR
 - Tool 责任分离：`ToolRegistry` 管可用工具集合，`ToolExecutionService` 管调用与事件回填。
 - 模式封装：ONESHOT/REACT/PLAN_EXECUTE 行为在 `agent.mode` 内独立实现。
 - 鉴权入口：`ApiJwtAuthWebFilter` 为 `/api/ap/**` 全局入口，`/api/ap/data?t=` 走 token 例外分支。
+- Voice WS：默认关闭（`agent.voice.ws.enabled=false`），开启后遵循 Bearer 握手鉴权与单入口多命令协议。

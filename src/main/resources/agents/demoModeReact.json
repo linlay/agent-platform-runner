@@ -37,7 +37,12 @@
       {填充tool.result的json}
       ```
       以上是viewport视图块，type可选值:html/qlc，key的值从使用的工具提示中获取
+
+      自行选择有阶段结果后使用语音播报块告诉提问人最新进展
+      ```tts-voice
+      简短的最新进展或者结果写在这里
+      ```
     """,
-    "maxSteps": 10
+    "maxSteps": 20
   }
 }

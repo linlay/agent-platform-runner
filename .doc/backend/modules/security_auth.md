@@ -5,6 +5,7 @@
 - `JwksJwtVerifier`
 - `ChatImageTokenService`
 - `ChatAssetAccessService`
+- `VoiceWsAuthenticationService`
 
 ## API JWT 流程
 1. 命中 `/api/ap/**` 且非 OPTIONS。
@@ -25,3 +26,6 @@
 ## 安全边界
 - 所有 `/api/ap/**` 默认受 JWT 保护（除 data token 特例）。
 - token 校验失败不泄露内部细节，仅返回统一错误。
+- `WS /api/ap/ws/voice` 复用 Bearer JWT 语义：
+  - 握手阶段缺失/无效 token -> `401`
+  - 会话内鉴权失败 -> `error(code=UNAUTHORIZED)` + 主动断开

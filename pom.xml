@@ -19,6 +19,7 @@
     <properties>
         <java.version>21</java.version>
         <spring-ai.version>1.0.0</spring-ai.version>
+        <dashscope.version>2.21.16</dashscope.version>
     </properties>
 
     <dependencies>
@@ -44,6 +45,17 @@
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
             <version>3.50.3.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>dashscope-sdk-java</artifactId>
+            <version>${dashscope.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-simple</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

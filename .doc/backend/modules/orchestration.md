@@ -25,3 +25,7 @@
 ## 失败处理
 - frontend submit timeout -> 显式提示并结束。
 - 运行异常 -> 兜底内容 + finish(stop)；SSE 层可进一步转换为 `run.error`。
+
+## 与 Voice WS 的边界
+- `tts-voice` 文本标记由前端消费并转入 `WS /api/ap/ws/voice`，不进入 `AgentDelta`/SSE 协议主链路。
+- 当前版本语音能力仅实现 TTS PCM 回传，ASR 仅保留协议占位（`asr.not_implemented`）。

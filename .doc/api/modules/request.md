@@ -88,3 +88,26 @@
 - `tool.snapshot`
 - `action.snapshot`
 并保留 `tool.result` / `action.result` / `run.complete`。
+
+## 4. tts-voice 与 Voice WS 联动（新增）
+前端在正文检测到：
+
+````text
+```tts-voice
+<要播报的文本>
+```
+````
+
+后，按 2～5 字分片通过 `WS /api/ap/ws/voice` 发送：
+- `tts.start`（一次）
+- `tts.chunk`（多次，低延迟持续发送）
+- `tts.commit`（一次）
+
+后端行为：
+- 每个 `tts.chunk` 到达后立即产出 `audio/pcm` 二进制帧（PCM16LE）。
+- `tts.commit` 后发送 `tts.done` 文本事件。
+
+ASR 边界（本轮仅协议占位，不做识别实现）：
+- 支持 `asr.start|chunk|commit|stop` 命令入参校验与状态机边界。
+- 统一返回 `asr.not_implemented`（`code=NOT_IMPLEMENTED`）。
+- 若前端传 `chatId`，未来 ASR 触发 chat 时复用该 `chatId`；未传则由后端生成新 `chatId`。

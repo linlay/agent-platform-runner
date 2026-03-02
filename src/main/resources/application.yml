@@ -50,6 +50,35 @@ agent:
       shell-executable: ${AGENT_BASH_SHELL_EXECUTABLE:bash}
       shell-timeout-ms: ${AGENT_BASH_SHELL_TIMEOUT_MS:10000}
       max-command-chars: ${AGENT_BASH_MAX_COMMAND_CHARS:16000}
+  voice:
+    ws:
+      enabled: ${AGENT_VOICE_WS_ENABLED:false}
+      path: ${AGENT_VOICE_WS_PATH:/api/ap/ws/voice}
+      auth-required: ${AGENT_VOICE_WS_AUTH_REQUIRED:true}
+      codecs: ${AGENT_VOICE_WS_CODECS:pcm,opus}
+      max-session-seconds: ${AGENT_VOICE_WS_MAX_SESSION_SECONDS:300}
+      default-sample-rate: ${AGENT_VOICE_WS_DEFAULT_SAMPLE_RATE:24000}
+      default-channels: ${AGENT_VOICE_WS_DEFAULT_CHANNELS:1}
+    tts:
+      provider: ${AGENT_VOICE_TTS_PROVIDER:synthetic}
+      aliyun:
+        endpoint: ${AGENT_VOICE_TTS_ALIYUN_ENDPOINT:wss://dashscope.aliyuncs.com/api-ws/v1/realtime}
+        api-key: ${AGENT_VOICE_TTS_ALIYUN_API_KEY:}
+        model: ${AGENT_VOICE_TTS_ALIYUN_MODEL:qwen3-tts-instruct-flash-realtime}
+        voice: ${AGENT_VOICE_TTS_ALIYUN_VOICE:Cherry}
+        language-type: ${AGENT_VOICE_TTS_ALIYUN_LANGUAGE_TYPE:Auto}
+        mode: ${AGENT_VOICE_TTS_ALIYUN_MODE:server_commit}
+        format: ${AGENT_VOICE_TTS_ALIYUN_FORMAT:pcm}
+        sample-rate: ${AGENT_VOICE_TTS_ALIYUN_SAMPLE_RATE:24000}
+        speech-rate: ${AGENT_VOICE_TTS_ALIYUN_SPEECH_RATE:1.0}
+        volume: ${AGENT_VOICE_TTS_ALIYUN_VOLUME:50}
+        pitch-rate: ${AGENT_VOICE_TTS_ALIYUN_PITCH_RATE:1.0}
+        bit-rate: ${AGENT_VOICE_TTS_ALIYUN_BIT_RATE:128}
+        response-format: ${AGENT_VOICE_TTS_ALIYUN_RESPONSE_FORMAT:PCM_24000HZ_MONO_16BIT}
+        instructions: ${AGENT_VOICE_TTS_ALIYUN_INSTRUCTIONS:}
+        optimize-instructions: ${AGENT_VOICE_TTS_ALIYUN_OPTIMIZE_INSTRUCTIONS:false}
+        session-finished-timeout-ms: ${AGENT_VOICE_TTS_ALIYUN_SESSION_FINISHED_TIMEOUT_MS:120000}
+        log-sent-chunk-enabled: ${AGENT_VOICE_TTS_ALIYUN_LOG_SENT_CHUNK_ENABLED:false}
   auth:
     enabled: ${AGENT_AUTH_ENABLED:true}
     jwks-uri: ${AGENT_AUTH_JWKS_URI:}

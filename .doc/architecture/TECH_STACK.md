@@ -5,6 +5,7 @@
 - Spring Boot: `3.3.8`
 - Spring AI: `1.0.0`
 - Web: `Spring WebFlux (Reactor)`
+- Voice 通道: `Spring WebFlux WebSocket`
 - JSON: `Jackson`
 - 构建: `Maven`
 
@@ -32,6 +33,7 @@
 - LLM 网关：`service/LlmService*`
 - 编排：`agent/mode/*`, `agent/runtime/*`
 - 安全：`security/*`
+- Voice WS：`voice/ws/*`
 
 ## 日志与可观测
 - API 请求摘要日志：`logging.agent.request.*`

@@ -75,6 +75,30 @@ SSE 错误表达：
 - 动作流：`action.start|args|end|result`
 - 历史快照：`reasoning.snapshot`、`content.snapshot`、`tool.snapshot`、`action.snapshot`
 
+## Voice WS 协议（`/api/ap/ws/voice`）
+- 开关：`agent.voice.ws.enabled`（默认 `false`）。
+- 路径：`agent.voice.ws.path`（默认 `/api/ap/ws/voice`）。
+- 通道模型：单入口多命令（`tts.*` 与 `asr.*`）。
+
+### 客户端命令（文本帧 JSON）
+- `tts.start`：`requestId?`, `chatId?`, `codec`, `voice?`, `sampleRate?`, `channels?`
+- `tts.chunk`：`requestId?`, `seq?`, `text`
+- `tts.commit`：`requestId?`
+- `tts.stop`：`requestId?`
+- `asr.start|asr.chunk|asr.commit|asr.stop`：本版仅占位，不执行识别
+
+### 服务端事件
+- 文本帧：`tts.started`, `tts.interrupted`, `tts.done`, `asr.not_implemented`, `error`
+- 二进制帧：`audio/pcm`（原始 `PCM16LE` 字节）
+
+### 语义边界
+- 本版仅支持 `pcm` 编码；`opus` 保留但返回 `UNSUPPORTED_CODEC`。
+- TTS 为低延迟持续输出：收到 `tts.chunk` 后立即生成并回传 PCM 分片。
+- 若 TTS 进行中收到 `asr.start`，先发 `tts.interrupted` 再发 `asr.not_implemented`（抢占切换语义）。
+- ASR chatId 规则（文档约束）：
+  - 前端传 `chatId`：后续识别触发 chat 时复用该会话。
+  - 前端不传 `chatId`：后端生成新 chatId。
+
 ## `/submit` 事件命名约束（强制）
 - `POST /api/ap/submit` 的流内回填事件主名为 `request.submit`。
 - 语义：tool 参数回填（tool param backfill）。
@@ -85,3 +109,12 @@ SSE 错误表达：
 1. 先在相关文档标记 `[DOC-GAP]`。
 2. 明确冲突代码位置与现象。
 3. 记录修复结论到 `changelog/`。
+
+## Voice WS 错误码
+| errorCode | 含义 |
+|---|---|
+| `UNAUTHORIZED` | WS 握手鉴权失败（Bearer 缺失/无效） |
+| `BAD_REQUEST` | WS 命令体缺字段、类型不支持或 JSON 非法 |
+| `INVALID_STATE` | 命令顺序非法（如未 start 先 chunk） |
+| `UNSUPPORTED_CODEC` | 当前版本不支持指定编码（如 `opus`） |
+| `NOT_IMPLEMENTED` | 功能占位（当前用于 `asr.*`） |
