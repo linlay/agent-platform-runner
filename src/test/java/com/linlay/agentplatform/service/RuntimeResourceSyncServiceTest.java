@@ -14,6 +14,7 @@ import com.linlay.agentplatform.config.CapabilityCatalogProperties;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
+import com.linlay.agentplatform.team.TeamCatalogProperties;
 
 class RuntimeResourceSyncServiceTest {
 
@@ -26,11 +27,13 @@ class RuntimeResourceSyncServiceTest {
         Path toolsDir = tempDir.resolve("tools");
         Path viewportsDir = tempDir.resolve("viewports");
         Path skillsDir = tempDir.resolve("skills");
+        Path teamsDir = tempDir.resolve("teams");
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(agentsDir);
         Files.createDirectories(toolsDir);
         Files.createDirectories(viewportsDir);
         Files.createDirectories(skillsDir);
+        Files.createDirectories(teamsDir);
         Files.createDirectories(modelsDir);
 
         Path modePlainAgent = agentsDir.resolve("demoModePlain.json");
@@ -44,6 +47,8 @@ class RuntimeResourceSyncServiceTest {
         Path extraModel = modelsDir.resolve("custom-model.json");
         Path screenshotSkillFile = skillsDir.resolve("screenshot").resolve("SKILL.md");
         Path extraSkillFile = skillsDir.resolve("custom_skill").resolve("SKILL.md");
+        Path defaultTeam = teamsDir.resolve("a1b2c3d4e5f6.json");
+        Path extraTeam = teamsDir.resolve("ffeeddccbbaa.json");
 
         Files.writeString(modePlainAgent, "old-agent-content");
         Files.writeString(weatherTool, "old-tool-content");
@@ -57,6 +62,8 @@ class RuntimeResourceSyncServiceTest {
         Files.createDirectories(extraSkillFile.getParent());
         Files.writeString(screenshotSkillFile, "old-skill-content");
         Files.writeString(extraSkillFile, "custom skill content");
+        Files.writeString(defaultTeam, "old-team-content");
+        Files.writeString(extraTeam, "custom team content");
 
         RuntimeResourceSyncService service = new RuntimeResourceSyncService(
                 new PathMatchingResourcePatternResolver(),
@@ -64,6 +71,7 @@ class RuntimeResourceSyncServiceTest {
                 viewportsDir,
                 toolsDir,
                 skillsDir,
+                teamsDir,
                 modelsDir
         );
         service.syncRuntimeDirectories();
@@ -74,6 +82,7 @@ class RuntimeResourceSyncServiceTest {
         String syncedViewport = Files.readString(weatherViewport);
         String syncedAgent = Files.readString(modePlainAgent);
         String syncedSkill = Files.readString(screenshotSkillFile);
+        String syncedTeam = Files.readString(defaultTeam);
         String syncedModel = Files.readString(qwenModel);
 
         assertThat(syncedAgent).contains("\"mode\"").contains("\"ONESHOT\"");
@@ -82,6 +91,7 @@ class RuntimeResourceSyncServiceTest {
         assertThat(syncedSkillScriptTool).contains("\"name\": \"_skill_run_script_\"");
         assertThat(syncedViewport).contains("<title>天气卡片</title>");
         assertThat(syncedSkill).contains("name: \"screenshot\"");
+        assertThat(syncedTeam).contains("\"name\": \"Default Team\"");
         assertThat(syncedModel).contains("\"key\": \"bailian-qwen3-max\"");
         assertThat(skillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
         assertThat(skillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
@@ -90,6 +100,7 @@ class RuntimeResourceSyncServiceTest {
         assertThat(Files.readString(extraTool)).isEqualTo("custom tool content");
         assertThat(Files.readString(extraViewport)).isEqualTo("custom viewport content");
         assertThat(Files.readString(extraSkillFile)).isEqualTo("custom skill content");
+        assertThat(Files.readString(extraTeam)).isEqualTo("custom team content");
         assertThat(Files.readString(extraModel)).isEqualTo("custom model content");
     }
 
@@ -99,6 +110,7 @@ class RuntimeResourceSyncServiceTest {
         Path configuredViewportsDir = tempDir.resolve("configured").resolve("viewports");
         Path configuredToolsDir = tempDir.resolve("configured").resolve("tools");
         Path configuredSkillsDir = tempDir.resolve("configured").resolve("skills");
+        Path configuredTeamsDir = tempDir.resolve("configured").resolve("teams");
         Path configuredModelsDir = tempDir.resolve("configured").resolve("models");
         Path legacyUserDir = tempDir.resolve("legacy-user-dir");
 
@@ -110,6 +122,8 @@ class RuntimeResourceSyncServiceTest {
         capabilityProperties.setToolsExternalDir(configuredToolsDir.toString());
         SkillCatalogProperties skillProperties = new SkillCatalogProperties();
         skillProperties.setExternalDir(configuredSkillsDir.toString());
+        TeamCatalogProperties teamProperties = new TeamCatalogProperties();
+        teamProperties.setExternalDir(configuredTeamsDir.toString());
         ModelCatalogProperties modelProperties = new ModelCatalogProperties();
         modelProperties.setExternalDir(configuredModelsDir.toString());
 
@@ -121,6 +135,7 @@ class RuntimeResourceSyncServiceTest {
                     viewportProperties,
                     capabilityProperties,
                     skillProperties,
+                    teamProperties,
                     modelProperties
             );
             service.syncRuntimeDirectories();
@@ -136,6 +151,7 @@ class RuntimeResourceSyncServiceTest {
         assertThat(configuredViewportsDir.resolve("show_weather_card.html")).exists();
         assertThat(configuredToolsDir.resolve("mock_city_weather.backend")).exists();
         assertThat(configuredSkillsDir.resolve("screenshot").resolve("SKILL.md")).exists();
+        assertThat(configuredTeamsDir.resolve("a1b2c3d4e5f6.json")).exists();
         assertThat(configuredModelsDir.resolve("bailian-qwen3-max.json")).exists();
         assertThat(configuredSkillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
         assertThat(configuredSkillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
@@ -144,6 +160,7 @@ class RuntimeResourceSyncServiceTest {
         assertThat(legacyUserDir.resolve("viewports")).doesNotExist();
         assertThat(legacyUserDir.resolve("tools")).doesNotExist();
         assertThat(legacyUserDir.resolve("skills")).doesNotExist();
+        assertThat(legacyUserDir.resolve("teams")).doesNotExist();
         assertThat(legacyUserDir.resolve("models")).doesNotExist();
     }
 
@@ -175,6 +192,7 @@ class RuntimeResourceSyncServiceTest {
                 viewportsDir,
                 toolsDir,
                 tempDir.resolve("skills"),
+                tempDir.resolve("teams"),
                 tempDir.resolve("models")
         );
         service.syncRuntimeDirectories();
@@ -211,6 +229,7 @@ class RuntimeResourceSyncServiceTest {
                 viewportsDir,
                 toolsDir,
                 tempDir.resolve("skills"),
+                tempDir.resolve("teams"),
                 tempDir.resolve("models")
         );
         service.syncRuntimeDirectories();

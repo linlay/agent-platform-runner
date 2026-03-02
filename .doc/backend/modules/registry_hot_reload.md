@@ -7,6 +7,7 @@
 - `ModelRegistryService`
 - `CapabilityRegistryService`
 - `SkillRegistryService`
+- `TeamRegistryService`
 - `ViewportRegistryService`
 
 ## 启动阶段
@@ -17,7 +18,7 @@
 `DirectoryWatchService` 监听目录变更并去抖（500ms）：
 - agents -> 仅刷新 agent
 - models -> 先刷新 model，再刷新 agent（因 agent 依赖 modelKey）
-- tools/skills/viewports -> 刷新对应 registry
+- tools/skills/teams/viewports -> 刷新对应 registry
 
 ## 一致性约束
 - registry 刷新采用快照替换（volatile map），读线程无锁。

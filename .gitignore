@@ -6,6 +6,7 @@ target/
 
 # Runtime external directories (generated/overridden locally)
 /agents/
+/teams/
 /chats/
 /com/
 /data/

@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.agent.Agent;
 import com.linlay.agentplatform.agent.AgentRegistry;
-import com.linlay.agentplatform.model.api.AgentDetailResponse;
 import com.linlay.agentplatform.model.api.AgentListResponse;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
@@ -14,11 +13,10 @@ import com.linlay.agentplatform.model.api.ChatSummaryResponse;
 import com.linlay.agentplatform.model.api.MarkChatReadRequest;
 import com.linlay.agentplatform.model.api.MarkChatReadResponse;
 import com.linlay.agentplatform.model.api.QueryRequest;
-import com.linlay.agentplatform.model.api.SkillDetailResponse;
 import com.linlay.agentplatform.model.api.SkillListResponse;
 import com.linlay.agentplatform.model.api.SubmitRequest;
 import com.linlay.agentplatform.model.api.SubmitResponse;
-import com.linlay.agentplatform.model.api.ToolDetailResponse;
+import com.linlay.agentplatform.model.api.TeamSummaryResponse;
 import com.linlay.agentplatform.model.api.ToolListResponse;
 import com.linlay.agentplatform.security.ApiJwtAuthWebFilter;
 import com.linlay.agentplatform.security.ChatImageTokenService;
@@ -30,6 +28,8 @@ import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.ViewportRegistryService;
 import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.skill.SkillRegistryService;
+import com.linlay.agentplatform.team.TeamDescriptor;
+import com.linlay.agentplatform.team.TeamRegistryService;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.CapabilityDescriptor;
 import com.linlay.agentplatform.tool.CapabilityKind;
@@ -71,6 +71,7 @@ public class AgentController {
     private final FrontendSubmitCoordinator frontendSubmitCoordinator;
     private final ChatImageTokenService chatImageTokenService;
     private final SkillRegistryService skillRegistryService;
+    private final TeamRegistryService teamRegistryService;
     private final ToolRegistry toolRegistry;
     private final ObjectMapper objectMapper;
 
@@ -83,6 +84,7 @@ public class AgentController {
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             ChatImageTokenService chatImageTokenService,
             SkillRegistryService skillRegistryService,
+            TeamRegistryService teamRegistryService,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper
     ) {
@@ -94,6 +96,7 @@ public class AgentController {
         this.frontendSubmitCoordinator = frontendSubmitCoordinator;
         this.chatImageTokenService = chatImageTokenService;
         this.skillRegistryService = skillRegistryService;
+        this.teamRegistryService = teamRegistryService;
         this.toolRegistry = toolRegistry;
         this.objectMapper = objectMapper;
     }
@@ -109,10 +112,14 @@ public class AgentController {
         return ApiResponse.success(items);
     }
 
-    @GetMapping("/agent")
-    public ApiResponse<AgentDetailResponse.AgentDetail> agent(@RequestParam String agentKey) {
-        Agent agent = agentRegistry.get(agentKey);
-        return ApiResponse.success(toDetail(agent));
+    @GetMapping("/teams")
+    public ApiResponse<List<TeamSummaryResponse>> teams() {
+        Map<String, Agent> agentsById = agentRegistry.list().stream()
+                .collect(java.util.stream.Collectors.toMap(Agent::id, agent -> agent, (left, right) -> left, java.util.LinkedHashMap::new));
+        List<TeamSummaryResponse> items = teamRegistryService.list().stream()
+                .map(team -> toTeamSummary(team, agentsById))
+                .toList();
+        return ApiResponse.success(items);
     }
 
     @GetMapping("/skills")
@@ -124,16 +131,6 @@ public class AgentController {
                 .map(this::toSkillSummary)
                 .toList();
         return ApiResponse.success(items);
-    }
-
-    @GetMapping("/skill")
-    public ApiResponse<SkillDetailResponse.SkillDetail> skill(@RequestParam String skillId) {
-        if (!StringUtils.hasText(skillId)) {
-            throw new IllegalArgumentException("skillId is required");
-        }
-        SkillDescriptor skill = skillRegistryService.find(skillId)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown skillId: " + skillId));
-        return ApiResponse.success(toSkillDetail(skill));
     }
 
     @GetMapping("/tools")
@@ -149,16 +146,6 @@ public class AgentController {
                 .map(this::toToolSummary)
                 .toList();
         return ApiResponse.success(items);
-    }
-
-    @GetMapping("/tool")
-    public ApiResponse<ToolDetailResponse.ToolDetail> tool(@RequestParam String toolName) {
-        if (!StringUtils.hasText(toolName)) {
-            throw new IllegalArgumentException("toolName is required");
-        }
-        CapabilityDescriptor descriptor = toolRegistry.capability(toolName)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown toolName: " + toolName));
-        return ApiResponse.success(toToolDetail(descriptor));
     }
 
     @GetMapping("/chats")
@@ -278,15 +265,26 @@ public class AgentController {
         );
     }
 
-    private AgentDetailResponse.AgentDetail toDetail(Agent agent) {
-        return new AgentDetailResponse.AgentDetail(
-                agent.id(),
-                agent.name(),
-                agent.icon(),
-                agent.description(),
-                agent.role(),
-                agent.systemPrompt(),
-                buildMeta(agent)
+    private TeamSummaryResponse toTeamSummary(TeamDescriptor team, Map<String, Agent> agentsById) {
+        List<String> invalidAgentKeys = new java.util.ArrayList<>();
+        Object icon = null;
+        for (String agentKey : team.agentKeys()) {
+            Agent agent = agentsById.get(agentKey);
+            if (agent == null) {
+                invalidAgentKeys.add(agentKey);
+                continue;
+            }
+            if (icon == null) {
+                icon = agent.icon();
+            }
+        }
+        Map<String, Object> meta = Map.of("invalidAgentKeys", List.copyOf(invalidAgentKeys));
+        return new TeamSummaryResponse(
+                team.id(),
+                team.name(),
+                icon,
+                team.agentKeys(),
+                meta
         );
     }
 
@@ -306,16 +304,6 @@ public class AgentController {
                 skill.id(),
                 skill.name(),
                 skill.description(),
-                buildSkillMeta(skill)
-        );
-    }
-
-    private SkillDetailResponse.SkillDetail toSkillDetail(SkillDescriptor skill) {
-        return new SkillDetailResponse.SkillDetail(
-                skill.id(),
-                skill.name(),
-                skill.description(),
-                skill.prompt(),
                 buildSkillMeta(skill)
         );
     }
@@ -380,17 +368,6 @@ public class AgentController {
                 descriptor.name(),
                 descriptor.name(),
                 descriptor.description(),
-                buildToolMeta(descriptor)
-        );
-    }
-
-    private ToolDetailResponse.ToolDetail toToolDetail(CapabilityDescriptor descriptor) {
-        return new ToolDetailResponse.ToolDetail(
-                descriptor.name(),
-                descriptor.name(),
-                descriptor.description(),
-                descriptor.afterCallHint(),
-                descriptor.parameters(),
                 buildToolMeta(descriptor)
         );
     }

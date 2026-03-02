@@ -28,6 +28,9 @@ agent:
     external-dir: ${AGENT_SKILL_EXTERNAL_DIR:skills}
     refresh-interval-ms: ${AGENT_SKILL_REFRESH_INTERVAL_MS:30000}
     max-prompt-chars: ${AGENT_SKILL_MAX_PROMPT_CHARS:8000}
+  team:
+    external-dir: ${AGENT_TEAM_EXTERNAL_DIR:teams}
+    refresh-interval-ms: ${AGENT_TEAM_REFRESH_INTERVAL_MS:30000}
   model:
     external-dir: ${AGENT_MODEL_EXTERNAL_DIR:models}
     refresh-interval-ms: ${AGENT_MODEL_REFRESH_INTERVAL_MS:30000}

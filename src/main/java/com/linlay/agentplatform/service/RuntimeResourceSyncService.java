@@ -20,6 +20,7 @@ import com.linlay.agentplatform.config.CapabilityCatalogProperties;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
+import com.linlay.agentplatform.team.TeamCatalogProperties;
 
 import jakarta.annotation.PostConstruct;
 
@@ -33,6 +34,7 @@ public class RuntimeResourceSyncService {
     private final Path viewportsDir;
     private final Path toolsDir;
     private final Path skillsDir;
+    private final Path teamsDir;
     private final Path modelsDir;
 
     @Autowired
@@ -41,6 +43,7 @@ public class RuntimeResourceSyncService {
             ViewportCatalogProperties viewportCatalogProperties,
             CapabilityCatalogProperties capabilityCatalogProperties,
             SkillCatalogProperties skillCatalogProperties,
+            TeamCatalogProperties teamCatalogProperties,
             ModelCatalogProperties modelCatalogProperties
     ) {
         this(
@@ -49,6 +52,7 @@ public class RuntimeResourceSyncService {
                 Path.of(viewportCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 Path.of(capabilityCatalogProperties.getToolsExternalDir()).toAbsolutePath().normalize(),
                 Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(teamCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 Path.of(modelCatalogProperties.getExternalDir()).toAbsolutePath().normalize()
         );
     }
@@ -59,6 +63,7 @@ public class RuntimeResourceSyncService {
             Path viewportsDir,
             Path toolsDir,
             Path skillsDir,
+            Path teamsDir,
             Path modelsDir
     ) {
         this.resourceResolver = resourceResolver;
@@ -66,6 +71,7 @@ public class RuntimeResourceSyncService {
         this.viewportsDir = viewportsDir;
         this.toolsDir = toolsDir;
         this.skillsDir = skillsDir;
+        this.teamsDir = teamsDir;
         this.modelsDir = modelsDir;
     }
 
@@ -75,6 +81,7 @@ public class RuntimeResourceSyncService {
         syncResourceDirectory("viewports", viewportsDir);
         syncResourceDirectory("tools", toolsDir);
         syncResourceDirectory("skills", skillsDir);
+        syncResourceDirectory("teams", teamsDir);
         syncResourceDirectory("models", modelsDir);
     }
 

@@ -8,6 +8,8 @@ import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
+import com.linlay.agentplatform.team.TeamCatalogProperties;
+import com.linlay.agentplatform.team.TeamRegistryService;
 import com.linlay.agentplatform.tool.CapabilityRegistryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,11 +47,13 @@ public class DirectoryWatchService implements DisposableBean {
             CapabilityRegistryService capabilityRegistryService,
             ModelRegistryService modelRegistryService,
             SkillRegistryService skillRegistryService,
+            TeamRegistryService teamRegistryService,
             AgentCatalogProperties agentCatalogProperties,
             ViewportCatalogProperties viewportCatalogProperties,
             CapabilityCatalogProperties capabilityCatalogProperties,
             ModelCatalogProperties modelCatalogProperties,
-            SkillCatalogProperties skillCatalogProperties
+            SkillCatalogProperties skillCatalogProperties,
+            TeamCatalogProperties teamCatalogProperties
     ) {
         this.watchedDirs = new LinkedHashMap<>();
         watchedDirs.put(
@@ -67,6 +71,10 @@ public class DirectoryWatchService implements DisposableBean {
         watchedDirs.put(
                 Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 skillRegistryService::refreshSkills
+        );
+        watchedDirs.put(
+                Path.of(teamCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                teamRegistryService::refreshTeams
         );
         watchedDirs.put(
                 Path.of(modelCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),

@@ -12,7 +12,8 @@
 |---|---|---|---|
 | `CHAT_ID_` | TEXT | PK | chat UUID |
 | `CHAT_NAME_` | TEXT | NOT NULL | 会话名 |
-| `AGENT_KEY_` | TEXT | NOT NULL | 绑定 agent |
+| `AGENT_KEY_` | TEXT | NOT NULL | 绑定 agent（与 `TEAM_ID_` 二选一） |
+| `TEAM_ID_` | TEXT | NULL | 绑定 team（与 `AGENT_KEY_` 二选一） |
 | `CREATED_AT_` | INTEGER | NOT NULL | 毫秒时间戳 |
 | `UPDATED_AT_` | INTEGER | NOT NULL | 毫秒时间戳 |
 | `LAST_RUN_ID_` | VARCHAR(12) | NOT NULL | 最新 runId |
@@ -22,6 +23,10 @@
 
 索引：
 - `IDX_CHATS_LAST_RUN_ID_ (LAST_RUN_ID_)`
+
+约束说明：
+- 当前版本使用服务层 one-of 校验：`AGENT_KEY_` 与 `TEAM_ID_` 必须且仅能一个有效值。
+- SQLite 迁移策略为增量加列（`ALTER TABLE ADD COLUMN TEAM_ID_`），不重建历史表。
 
 ## JSONL（`chats/{chatId}.json`）
 一行一个对象，类型由 `_type` 区分：
@@ -55,6 +60,7 @@ erDiagram
         TEXT CHAT_ID_ PK
         TEXT CHAT_NAME_
         TEXT AGENT_KEY_
+        TEXT TEAM_ID_
         INTEGER CREATED_AT_
         INTEGER UPDATED_AT_
         VARCHAR LAST_RUN_ID_

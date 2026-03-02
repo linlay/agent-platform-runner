@@ -4,6 +4,7 @@ public record ChatSummaryResponse(
         String chatId,
         String chatName,
         String agentKey,
+        String teamId,
         long createdAt,
         long updatedAt,
         String lastRunId,

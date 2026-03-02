@@ -8,6 +8,8 @@ import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.service.ViewportRegistryService;
+import com.linlay.agentplatform.team.TeamCatalogProperties;
+import com.linlay.agentplatform.team.TeamRegistryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
@@ -50,6 +52,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.viewport.external-dir=${java.io.tmpdir}/springai-agent-platform-test-viewports-${random.uuid}",
                 "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agent-platform-test-tools-${random.uuid}",
                 "agent.skill.external-dir=${java.io.tmpdir}/springai-agent-platform-test-skills-${random.uuid}",
+                "agent.team.external-dir=${java.io.tmpdir}/springai-agent-platform-test-teams-${random.uuid}",
                 "agent.data.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-${random.uuid}"
         }
 )
@@ -69,6 +72,10 @@ class AgentControllerTest {
     private ChatWindowMemoryProperties chatWindowMemoryProperties;
     @Autowired
     private ChatRecordStore chatRecordStore;
+    @Autowired
+    private TeamCatalogProperties teamCatalogProperties;
+    @Autowired
+    private TeamRegistryService teamRegistryService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -157,43 +164,32 @@ class AgentControllerTest {
     }
 
     @Test
-    void agentShouldReturnDetailByAgentKey() {
+    void teamsShouldReturnListAndSurfaceInvalidAgentKeys() throws Exception {
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/ap/agent").queryParam("agentKey", "demoModePlanExecute").build())
+                .uri("/api/ap/teams")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.msg").isEqualTo("success")
-                .jsonPath("$.data.key").isEqualTo("demoModePlanExecute")
-                .jsonPath("$.data.role").isEqualTo("规划执行示例")
-                .jsonPath("$.data.icon.name").exists()
-                .jsonPath("$.data.icon.color").exists()
-                .jsonPath("$.data.meta.providerType").doesNotExist()
-                .jsonPath("$.data.meta.skills").isArray()
-                .jsonPath("$.data.instructions").value(value -> {
-                    assertThat(value).isInstanceOf(String.class);
-                    assertThat((String) value)
-                            .contains("你是高级执行助手。根据框架给出的任务列表与当前 taskId 执行任务")
-                            .contains("_plan_update_task_ 更新状态");
-                });
-    }
+                .jsonPath("$.data[?(@.teamId=='a1b2c3d4e5f6')]").exists()
+                .jsonPath("$.data[0].meta.invalidAgentKeys").isArray();
 
-    @Test
-    void agentShouldReturnSkillsForSkillMathDemo() {
+        Path teamsDir = Path.of(teamCatalogProperties.getExternalDir()).toAbsolutePath().normalize();
+        Files.createDirectories(teamsDir);
+        Files.writeString(teamsDir.resolve("bbccddeeff00.json"), """
+                {
+                  "name": "Invalid Team",
+                  "agentKeys": ["missing_agent", "demoModePlain"]
+                }
+                """);
+        teamRegistryService.refreshTeams();
+
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/ap/agent").queryParam("agentKey", "demoMathSkill").build())
+                .uri("/api/ap/teams")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data.key").isEqualTo("demoMathSkill")
-                .jsonPath("$.data.icon.name").exists()
-                .jsonPath("$.data.icon.color").exists()
-                .jsonPath("$.data.meta.skills").isArray()
-                .jsonPath("$.data.meta.skills[?(@=='math_basic')]").exists()
-                .jsonPath("$.data.meta.skills[?(@=='math_stats')]").exists()
-                .jsonPath("$.data.meta.skills[?(@=='text_utils')]").exists();
+                .jsonPath("$.data[?(@.teamId=='bbccddeeff00')].meta.invalidAgentKeys[0]").isEqualTo("missing_agent");
     }
 
     @Test
@@ -220,24 +216,21 @@ class AgentControllerTest {
     }
 
     @Test
-    void skillShouldReturnDetailAndRejectUnknownSkillId() {
+    void removedSingleEndpointsShouldReturnNotFound() {
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/agent").queryParam("agentKey", "demoModePlanExecute").build())
+                .exchange()
+                .expectStatus().isNotFound();
+
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/ap/skill").queryParam("skillId", "math_basic").build())
                 .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data.key").isEqualTo("math_basic")
-                .jsonPath("$.data.instructions").value(value -> {
-                    assertThat(value).isInstanceOf(String.class);
-                    assertThat((String) value).contains("Math Basic Skill");
-                })
-                .jsonPath("$.data.meta.promptTruncated").isBoolean();
+                .expectStatus().isNotFound();
 
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/ap/skill").queryParam("skillId", "missing_skill").build())
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/tool").queryParam("toolName", "confirm_dialog").build())
                 .exchange()
-                .expectStatus().isBadRequest();
+                .expectStatus().isNotFound();
     }
 
     @Test
@@ -276,25 +269,6 @@ class AgentControllerTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/ap/tools").queryParam("kind", "invalid").build())
-                .exchange()
-                .expectStatus().isBadRequest();
-    }
-
-    @Test
-    void toolShouldReturnDetailAndRejectUnknownToolName() {
-        webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/ap/tool").queryParam("toolName", "confirm_dialog").build())
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data.key").isEqualTo("confirm_dialog")
-                .jsonPath("$.data.meta.kind").isEqualTo("frontend")
-                .jsonPath("$.data.meta.toolType").isEqualTo("frontend")
-                .jsonPath("$.data.parameters.properties.question.type").isEqualTo("string");
-
-        webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/ap/tool").queryParam("toolName", "missing_tool").build())
                 .exchange()
                 .expectStatus().isBadRequest();
     }
@@ -552,6 +526,7 @@ class AgentControllerTest {
                 .jsonPath("$.data[0].chatId").isEqualTo(chatId)
                 .jsonPath("$.data[0].chatName").isEqualTo(message)
                 .jsonPath("$.data[0].agentKey").isEqualTo("demoModePlanExecute")
+                .jsonPath("$.data[0].teamId").value(value -> assertThat(value).isNull())
                 .jsonPath("$.data[0].createdAt").isNumber()
                 .jsonPath("$.data[0].updatedAt").isNumber()
                 .jsonPath("$.data[0].lastRunId").isEqualTo(runId)
@@ -646,6 +621,7 @@ class AgentControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data[0].chatId").isEqualTo(chatId)
                 .jsonPath("$.data[0].lastRunId").isEqualTo(secondRunId)
+                .jsonPath("$.data[0].teamId").value(value -> assertThat(value).isNull())
                 .jsonPath("$.data[0].readStatus").isEqualTo(0);
 
         webTestClient.post()

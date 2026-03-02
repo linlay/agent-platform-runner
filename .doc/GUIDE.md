@@ -30,6 +30,7 @@
 | Tool (Frontend) | `tool` + `kind=frontend` | 触发渲染并等待 `/submit` 回填的工具 | widget-tool |
 | Tool (Action) | `tool` + `kind=action` | 触发动作，不等待提交 | effect-tool |
 | Skill | `skill` | 目录化提示与脚本能力包 | plugin, prompt-pack |
+| Team | `team` | 由 `teams/*.json` 定义的 agent 成员分组 | group, squad |
 | Viewport | `viewport` | 渲染模板资源（`.html` / `.qlc`） | view-template |
 | Chat Image Token | `chatImageToken` / `t` | `/api/ap/data` 细粒度授权令牌 | data-jwt |
 | PlanSnapshot | `plan` | 聊天记忆中的计划快照（`planId/tasks`） | planState, taskSnapshot |
@@ -55,6 +56,7 @@
 | `_actionId` | `a_` + 8 位短 ID | `ChatWindowMemoryStore.createToolIdentity` |
 | `_msgId` | `m_` + 8 位 hex；同一 LLM 回复内 reasoning/content/tool_calls 共享 | `DefinitionDrivenAgent.StepAccumulator.generateMsgId` |
 | `agentKey` | 来自 agent 定义 `key`（文件名与配置共同约束），会话可绑定并优先复用 | `AgentDefinitionLoader.tryLoadExternal`，`AgentQueryService.prepare` |
+| `teamId` | 12 位 hex（来源：`teams/<teamId>.json` 文件名） | `TeamRegistryService.tryLoad` |
 | `skillId` | 取 `skills/<skill-id>/` 目录名并做小写归一 | `SkillRegistryService.normalizeSkillId` |
 | `toolName` | capability/tool 名字归一为小写用于索引与匹配 | `CapabilityRegistryService.normalizeName`，`ToolExecutionService.normalizeToolName` |
 | `modelKey` | 来自 agent `modelConfig.modelKey`（含 stage 继承），解析时归一并在模型注册中心查找 | `AgentDefinitionLoader.resolvePrimaryModelKey/resolveModelByKey` |
@@ -75,7 +77,7 @@
 | 通用 API 规则与错误规范 | `.doc/api/SPEC.md` |
 | 请求发起与回填（query/submit/upload规划） | `.doc/api/modules/request.md` |
 | 会话与资产（chat/chats/read/data/viewport） | `.doc/api/modules/chat.md` |
-| 元数据接口（agent/skill/tool） | `.doc/api/modules/meta.md` |
+| 元数据接口（agent/team/skill/tool） | `.doc/api/modules/meta.md` |
 | 真流式、多工具、submit 回填、动作边界 | `.doc/architecture/DATA_FLOW.md` |
 | 模式、编排、运行时实现 | `.doc/backend/modules/*.md` |
 

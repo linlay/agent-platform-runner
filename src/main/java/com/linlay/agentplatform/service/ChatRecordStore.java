@@ -52,6 +52,7 @@ public class ChatRecordStore {
               CHAT_ID_ TEXT PRIMARY KEY,
               CHAT_NAME_ TEXT NOT NULL,
               AGENT_KEY_ TEXT NOT NULL,
+              TEAM_ID_ TEXT,
               CREATED_AT_ INTEGER NOT NULL,
               UPDATED_AT_ INTEGER NOT NULL,
               LAST_RUN_ID_ VARCHAR(12) NOT NULL,
@@ -104,6 +105,7 @@ public class ChatRecordStore {
                 statement.execute(CREATE_CHATS_LAST_RUN_ID_INDEX_SQL);
                 ensureColumnExists(connection, TABLE_CHATS, "CHAT_NAME_", "TEXT NOT NULL DEFAULT ''");
                 ensureColumnExists(connection, TABLE_CHATS, "AGENT_KEY_", "TEXT NOT NULL DEFAULT ''");
+                ensureColumnExists(connection, TABLE_CHATS, "TEAM_ID_", "TEXT");
                 ensureColumnExists(connection, TABLE_CHATS, "CREATED_AT_", "INTEGER NOT NULL DEFAULT 0");
                 ensureColumnExists(connection, TABLE_CHATS, "UPDATED_AT_", "INTEGER NOT NULL DEFAULT 0");
                 ensureColumnExists(connection, TABLE_CHATS, "LAST_RUN_ID_", "VARCHAR(12) NOT NULL DEFAULT ''");
@@ -119,9 +121,6 @@ public class ChatRecordStore {
     public ChatSummary ensureChat(String chatId, String firstAgentKey, String firstAgentName, String firstMessage) {
         requireValidChatId(chatId);
         String normalizedAgentKey = nullable(firstAgentKey);
-        if (!StringUtils.hasText(normalizedAgentKey)) {
-            throw new IllegalArgumentException("agentKey must not be blank");
-        }
         String normalizedChatName = deriveChatName(firstMessage);
         long now = System.currentTimeMillis();
         synchronized (lock) {
@@ -134,6 +133,7 @@ public class ChatRecordStore {
                     record.chatId = chatId;
                     record.chatName = normalizedChatName;
                     record.agentKey = normalizedAgentKey;
+                    record.teamId = null;
                     record.createdAt = now;
                     record.updatedAt = now;
                     record.lastRunContent = StringUtils.hasText(firstMessage) ? firstMessage.trim() : "";
@@ -146,6 +146,9 @@ public class ChatRecordStore {
                     }
                     if (!StringUtils.hasText(record.agentKey)) {
                         record.agentKey = normalizedAgentKey;
+                    }
+                    if (StringUtils.hasText(record.agentKey)) {
+                        record.teamId = null;
                     }
                     if (record.createdAt <= 0) {
                         record.createdAt = now;
@@ -213,7 +216,7 @@ public class ChatRecordStore {
         synchronized (lock) {
             try (Connection connection = openConnection()) {
                 ChatIndexRecord record = findChatRecordById(connection, chatId);
-                if (record == null || !StringUtils.hasText(record.agentKey)) {
+                if (record == null || StringUtils.hasText(record.teamId) || !StringUtils.hasText(record.agentKey)) {
                     return Optional.empty();
                 }
                 return Optional.of(record.agentKey);
@@ -268,14 +271,14 @@ public class ChatRecordStore {
         boolean incremental = StringUtils.hasText(lastRunId);
         String sql = incremental
                 ? """
-                SELECT CHAT_ID_, CHAT_NAME_, AGENT_KEY_,
+                SELECT CHAT_ID_, CHAT_NAME_, AGENT_KEY_, TEAM_ID_,
                        CREATED_AT_, UPDATED_AT_, LAST_RUN_ID_, LAST_RUN_CONTENT_, READ_STATUS_, READ_AT_
                 FROM CHATS
                 WHERE LAST_RUN_ID_ > ?
                 ORDER BY LAST_RUN_ID_ ASC
                 """
                 : """
-                SELECT CHAT_ID_, CHAT_NAME_, AGENT_KEY_,
+                SELECT CHAT_ID_, CHAT_NAME_, AGENT_KEY_, TEAM_ID_,
                        CREATED_AT_, UPDATED_AT_, LAST_RUN_ID_, LAST_RUN_CONTENT_, READ_STATUS_, READ_AT_
                 FROM CHATS
                 ORDER BY LAST_RUN_ID_ DESC, UPDATED_AT_ DESC
@@ -295,6 +298,7 @@ public class ChatRecordStore {
                                 summary.chatId(),
                                 summary.chatName(),
                                 summary.agentKey(),
+                                summary.teamId(),
                                 summary.createdAt(),
                                 summary.updatedAt(),
                                 summary.lastRunId(),
@@ -358,7 +362,7 @@ public class ChatRecordStore {
                     .map(this::toChatSummary)
                     .orElseGet(() -> {
                         long createdAt = resolveCreatedAt(historyPath);
-                        return new ChatSummary(chatId, chatId, null, createdAt, createdAt, "", "", 1, createdAt, false);
+                        return new ChatSummary(chatId, chatId, null, null, createdAt, createdAt, "", "", 1, createdAt, false);
                     });
 
             ParsedChatContent content = readChatContent(
@@ -1056,6 +1060,7 @@ public class ChatRecordStore {
     private ChatIndexRecord findChatRecordById(Connection connection, String chatId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT CHAT_ID_, CHAT_NAME_, AGENT_KEY_,
+                       TEAM_ID_,
                        CREATED_AT_, UPDATED_AT_, LAST_RUN_ID_, LAST_RUN_CONTENT_, READ_STATUS_, READ_AT_
                 FROM CHATS
                 WHERE CHAT_ID_ = ?
@@ -1075,6 +1080,7 @@ public class ChatRecordStore {
         record.chatId = nullable(resultSet.getString("CHAT_ID_"));
         record.chatName = nullable(resultSet.getString("CHAT_NAME_"));
         record.agentKey = nullable(resultSet.getString("AGENT_KEY_"));
+        record.teamId = nullable(resultSet.getString("TEAM_ID_"));
         record.createdAt = resultSet.getLong("CREATED_AT_");
         record.updatedAt = resultSet.getLong("UPDATED_AT_");
         record.lastRunId = nullable(resultSet.getString("LAST_RUN_ID_"));
@@ -1085,14 +1091,16 @@ public class ChatRecordStore {
     }
 
     private void upsertChatIndex(Connection connection, ChatIndexRecord record) throws SQLException {
+        validateChatBinding(record.agentKey, record.teamId);
         try (PreparedStatement statement = connection.prepareStatement("""
                 INSERT INTO CHATS(
-                    CHAT_ID_, CHAT_NAME_, AGENT_KEY_,
+                    CHAT_ID_, CHAT_NAME_, AGENT_KEY_, TEAM_ID_,
                     CREATED_AT_, UPDATED_AT_, LAST_RUN_ID_, LAST_RUN_CONTENT_, READ_STATUS_, READ_AT_
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(CHAT_ID_) DO UPDATE SET
                     CHAT_NAME_ = excluded.CHAT_NAME_,
                     AGENT_KEY_ = excluded.AGENT_KEY_,
+                    TEAM_ID_ = excluded.TEAM_ID_,
                     CREATED_AT_ = excluded.CREATED_AT_,
                     UPDATED_AT_ = excluded.UPDATED_AT_,
                     LAST_RUN_ID_ = excluded.LAST_RUN_ID_,
@@ -1103,17 +1111,26 @@ public class ChatRecordStore {
             statement.setString(1, record.chatId);
             statement.setString(2, StringUtils.hasText(record.chatName) ? record.chatName : record.chatId);
             statement.setString(3, StringUtils.hasText(record.agentKey) ? record.agentKey : "");
-            statement.setLong(4, record.createdAt > 0 ? record.createdAt : System.currentTimeMillis());
-            statement.setLong(5, record.updatedAt > 0 ? record.updatedAt : System.currentTimeMillis());
-            statement.setString(6, nullable(record.lastRunId) == null ? "" : record.lastRunId.trim());
-            statement.setString(7, StringUtils.hasText(record.lastRunContent) ? record.lastRunContent : "");
-            statement.setInt(8, record.readStatus == 0 ? 0 : 1);
+            statement.setObject(4, nullable(record.teamId));
+            statement.setLong(5, record.createdAt > 0 ? record.createdAt : System.currentTimeMillis());
+            statement.setLong(6, record.updatedAt > 0 ? record.updatedAt : System.currentTimeMillis());
+            statement.setString(7, nullable(record.lastRunId) == null ? "" : record.lastRunId.trim());
+            statement.setString(8, StringUtils.hasText(record.lastRunContent) ? record.lastRunContent : "");
+            statement.setInt(9, record.readStatus == 0 ? 0 : 1);
             if (record.readAt == null) {
-                statement.setObject(9, null);
+                statement.setObject(10, null);
             } else {
-                statement.setLong(9, record.readAt);
+                statement.setLong(10, record.readAt);
             }
             statement.executeUpdate();
+        }
+    }
+
+    private void validateChatBinding(String agentKey, String teamId) {
+        boolean hasAgentKey = StringUtils.hasText(agentKey);
+        boolean hasTeamId = StringUtils.hasText(teamId);
+        if (hasAgentKey == hasTeamId) {
+            throw new IllegalArgumentException("Exactly one of agentKey or teamId must be provided");
         }
     }
 
@@ -1266,6 +1283,7 @@ public class ChatRecordStore {
                 record.chatId,
                 StringUtils.hasText(record.chatName) ? record.chatName : record.chatId,
                 nullable(record.agentKey),
+                nullable(record.teamId),
                 createdAt,
                 updatedAt,
                 nullable(record.lastRunId) == null ? "" : record.lastRunId.trim(),
@@ -1297,6 +1315,7 @@ public class ChatRecordStore {
             String chatId,
             String chatName,
             String agentKey,
+            String teamId,
             long createdAt,
             long updatedAt,
             String lastRunId,
@@ -1357,6 +1376,7 @@ public class ChatRecordStore {
         public String chatId;
         public String chatName;
         public String agentKey;
+        public String teamId;
         public long createdAt;
         public long updatedAt;
         public String lastRunId;

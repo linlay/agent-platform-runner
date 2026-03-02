@@ -10,10 +10,14 @@
 
 ### 成功响应
 `data` 为 `ChatSummaryResponse[]`：
-- `chatId`, `chatName`, `agentKey`
+- `chatId`, `chatName`, `agentKey`, `teamId`
 - `createdAt`, `updatedAt`
 - `lastRunId`, `lastRunContent`
 - `readStatus`（0 未读 / 1 已读）, `readAt`
+
+说明：
+- 当前 `query` 仍使用 `agentKey`，因此历史与新建会话通常表现为 `agentKey!=null`、`teamId=null`。
+- `agentKey` 与 `teamId` 在存储层遵循二选一（one-of）约束。
 
 ## 2. `POST /api/ap/read`
 标记会话已读。

@@ -91,4 +91,23 @@ class DirectoryWatchServiceTest {
             service.destroy();
         }
     }
+
+    @Test
+    void shouldTriggerTeamRefreshCallbackOnFileChange() throws Exception {
+        Path teamsDir = tempDir.resolve("teams");
+        Files.createDirectories(teamsDir);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        Map<Path, Runnable> dirs = new LinkedHashMap<>();
+        dirs.put(teamsDir, latch::countDown);
+
+        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        try {
+            Files.writeString(teamsDir.resolve("a1b2c3d4e5f6.json"), "{}");
+            boolean triggered = latch.await(10, TimeUnit.SECONDS);
+            assertThat(triggered).isTrue();
+        } finally {
+            service.destroy();
+        }
+    }
 }

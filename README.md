@@ -7,11 +7,9 @@
 ## 提供接口
 
 - `GET /api/ap/agents`: 智能体列表
-- `GET /api/ap/agent?agentKey=...`: 智能体详情
+- `GET /api/ap/teams`: 团队列表（team 元数据，含成员 `agentKeys`）
 - `GET /api/ap/skills`: 技能列表（支持 `tag` 过滤）
-- `GET /api/ap/skill?skillId=...`: 技能详情
 - `GET /api/ap/tools`: 工具列表（支持 `tag`、`kind=backend|frontend|action` 过滤）
-- `GET /api/ap/tool?toolName=...`: 工具详情
 - `GET /api/ap/chats`: 会话列表（支持 `lastRunId` 增量查询）
 - `POST /api/ap/read`: 标记单个会话已读
 - `GET /api/ap/chat?chatId=...`: 会话详情（默认返回快照事件流）
@@ -23,6 +21,7 @@
 
 ## 不兼容升级说明
 
+- 元数据单项接口 `/api/ap/agent`、`/api/ap/skill`、`/api/ap/tool` 已下线，统一使用列表接口全量同步。
 - 会话索引已从 `./chats/_chats.jsonl` 切换到 SQLite（默认文件：`chats.db`）。
 - 服务启动时若检测到 `./chats/_chats.jsonl`，仅输出 warning，不会读取/迁移该文件。
 - 聊天正文与回放仍使用 `./chats/{chatId}.json`，接口行为保持兼容。
@@ -43,7 +42,7 @@
 - `code = 0` 表示成功，`code > 0` 表示失败（整型错误码），`msg` 为错误信息，`data` 为返回数据。
 - `data` 直接放业务内容，不再额外包同名字段，例如：
   - 智能体列表：`data` 直接是 `agents[]`
-  - 智能体详情：`data` 直接是 `agent`
+  - 团队列表：`data` 直接是 `teams[]`
   - 技能列表：`data` 直接是 `skills[]`
   - 工具列表：`data` 直接是 `tools[]`
   - 会话详情：`data` 直接是 `chat`
@@ -74,15 +73,17 @@
 }
 ```
 
-`GET /api/ap/skills` / `GET /api/ap/skill` 返回结构：
+`GET /api/ap/teams` 返回结构：
+
+- 列表项：`teamId`, `name`, `icon`, `agentKeys`, `meta.invalidAgentKeys`
+
+`GET /api/ap/skills` 返回结构：
 
 - 列表项：`key`, `name`, `description`, `meta.promptTruncated`
-- 详情：`key`, `name`, `description`, `instructions`, `meta.promptTruncated`
 
-`GET /api/ap/tools` / `GET /api/ap/tool` 返回结构：
+`GET /api/ap/tools` 返回结构：
 
 - 列表项：`key`, `name`, `description`, `meta.kind`, `meta.toolType`, `meta.toolApi`, `meta.viewportKey`, `meta.strict`
-- 详情：`key`, `name`, `description`, `afterCallHint`, `parameters`, `meta.*`
 
 `GET /api/ap/chats` 示例：
 
@@ -95,6 +96,7 @@
       "chatId": "d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656",
       "chatName": "元素碳的简介，100",
       "agentKey": "demoModePlain",
+      "teamId": null,
       "createdAt": 1770866044047,
       "updatedAt": 1770866412459,
       "lastRunId": "mtoewf3u",
@@ -117,6 +119,7 @@
       "chatId": "d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656",
       "chatName": "元素碳的简介，100",
       "agentKey": "demoModePlain",
+      "teamId": null,
       "createdAt": 1770866044047,
       "updatedAt": 1770867412459,
       "lastRunId": "mtoewfr9",

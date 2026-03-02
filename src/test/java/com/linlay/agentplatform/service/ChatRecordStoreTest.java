@@ -153,12 +153,14 @@ class ChatRecordStoreTest {
         assertThat(chats.getFirst().chatId()).isEqualTo(secondChat);
         assertThat(chats.getFirst().chatName()).isEqualTo("active");
         assertThat(chats.getFirst().agentKey()).isEqualTo("demo");
+        assertThat(chats.getFirst().teamId()).isNull();
         assertThat(chats.getFirst().updatedAt()).isGreaterThan(0L);
         assertThat(chats.getFirst().lastRunId()).isEqualTo("run-2");
         assertThat(chats.getFirst().readStatus()).isEqualTo(0);
         assertThat(chats.get(1).chatId()).isEqualTo(firstChat);
         assertThat(chats.get(1).chatName()).isEqualTo("legacy");
         assertThat(chats.get(1).agentKey()).isEqualTo("demo");
+        assertThat(chats.get(1).teamId()).isNull();
         assertThat(chats.get(1).updatedAt()).isGreaterThan(0L);
         assertThat(chats.get(1).lastRunId()).isEqualTo("run-1");
     }
@@ -206,6 +208,37 @@ class ChatRecordStoreTest {
         store.initializeDatabase();
 
         assertThat(chatDir.resolve("chats.db")).exists();
+    }
+
+    @Test
+    void initializeDatabaseShouldAddTeamIdColumnForLegacyTable() throws Exception {
+        Path chatDir = tempDir.resolve("legacy-chats");
+        Files.createDirectories(chatDir);
+        Path dbPath = chatDir.resolve("chats.db");
+        try (java.sql.Connection connection = java.sql.DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             java.sql.Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS CHATS (
+                      CHAT_ID_ TEXT PRIMARY KEY,
+                      CHAT_NAME_ TEXT NOT NULL,
+                      AGENT_KEY_ TEXT NOT NULL,
+                      CREATED_AT_ INTEGER NOT NULL,
+                      UPDATED_AT_ INTEGER NOT NULL,
+                      LAST_RUN_ID_ VARCHAR(12) NOT NULL,
+                      LAST_RUN_CONTENT_ TEXT NOT NULL DEFAULT '',
+                      READ_STATUS_ INTEGER NOT NULL DEFAULT 1,
+                      READ_AT_ INTEGER
+                    )
+                    """);
+        }
+
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        properties.setDir(chatDir.toString());
+        properties.getIndex().setSqliteFile(dbPath.toString());
+        ChatRecordStore store = new ChatRecordStore(objectMapper, properties);
+        store.initializeDatabase();
+
+        assertThat(listColumns(dbPath, "CHATS")).contains("TEAM_ID_");
     }
 
     @Test
@@ -389,6 +422,7 @@ class ChatRecordStoreTest {
                       CHAT_ID_ TEXT PRIMARY KEY,
                       CHAT_NAME_ TEXT NOT NULL,
                       AGENT_KEY_ TEXT NOT NULL,
+                      TEAM_ID_ TEXT,
                       CREATED_AT_ INTEGER NOT NULL,
                       UPDATED_AT_ INTEGER NOT NULL,
                       LAST_RUN_ID_ VARCHAR(12) NOT NULL,
@@ -399,21 +433,23 @@ class ChatRecordStoreTest {
                     """);
             try (java.sql.PreparedStatement upsert = connection.prepareStatement("""
                     INSERT INTO CHATS(
-                        CHAT_ID_, CHAT_NAME_, AGENT_KEY_,
+                        CHAT_ID_, CHAT_NAME_, AGENT_KEY_, TEAM_ID_,
                         CREATED_AT_, UPDATED_AT_, LAST_RUN_ID_, LAST_RUN_CONTENT_, READ_STATUS_, READ_AT_
-                    ) VALUES (?, ?, ?, ?, ?, '', '', 1, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, '', '', 1, ?)
                     ON CONFLICT(CHAT_ID_) DO UPDATE SET
                         CHAT_NAME_ = excluded.CHAT_NAME_,
                         AGENT_KEY_ = excluded.AGENT_KEY_,
+                        TEAM_ID_ = excluded.TEAM_ID_,
                         CREATED_AT_ = excluded.CREATED_AT_,
                         UPDATED_AT_ = excluded.UPDATED_AT_
                     """)) {
                 upsert.setString(1, chatId);
                 upsert.setString(2, chatName);
                 upsert.setString(3, "demo");
-                upsert.setLong(4, createdAt);
-                upsert.setLong(5, updatedAt);
+                upsert.setObject(4, null);
+                upsert.setLong(5, createdAt);
                 upsert.setLong(6, updatedAt);
+                upsert.setLong(7, updatedAt);
                 upsert.executeUpdate();
             }
         }
@@ -432,6 +468,18 @@ class ChatRecordStoreTest {
                      FROM sqlite_master
                      WHERE type = 'table'
                      """);
+             java.sql.ResultSet resultSet = statement.executeQuery()) {
+            List<String> names = new java.util.ArrayList<>();
+            while (resultSet.next()) {
+                names.add(resultSet.getString("name"));
+            }
+            return names;
+        }
+    }
+
+    private List<String> listColumns(Path dbPath, String tableName) throws Exception {
+        try (java.sql.Connection connection = java.sql.DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             java.sql.PreparedStatement statement = connection.prepareStatement("PRAGMA table_info(" + tableName + ")");
              java.sql.ResultSet resultSet = statement.executeQuery()) {
             List<String> names = new java.util.ArrayList<>();
             while (resultSet.next()) {

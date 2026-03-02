@@ -6,6 +6,8 @@ agent:
   # and replace placeholder values with your own settings.
   catalog:
     external-dir: agents
+  team:
+    external-dir: teams
   auth:
     enabled: true
     # Optional: set either local-public-key or jwks settings.
