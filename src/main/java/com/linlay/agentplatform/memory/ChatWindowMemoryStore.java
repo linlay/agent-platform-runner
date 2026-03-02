@@ -29,6 +29,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
@@ -116,7 +117,9 @@ public class ChatWindowMemoryStore {
 
         long now = System.currentTimeMillis();
         String normalizedRunId = normalizeRunId(runId);
-        List<StoredMessage> storedMessages = convertRunMessages(normalizedRunId, runMessages);
+        SystemSnapshot normalizedSystem = normalizeSystemSnapshot(system);
+        Set<String> runtimeActionTools = extractActionToolNames(normalizedSystem);
+        List<StoredMessage> storedMessages = convertRunMessages(normalizedRunId, runMessages, runtimeActionTools);
         if (storedMessages.isEmpty()) {
             return;
         }
@@ -128,7 +131,7 @@ public class ChatWindowMemoryStore {
         line.seq = seq;
         line.taskId = hasText(taskId) ? taskId.trim() : null;
         line.updatedAt = now;
-        line.system = normalizeSystemSnapshot(system);
+        line.system = normalizedSystem;
         line.plan = normalizePlanSnapshot(plan);
         line.messages = storedMessages;
 
@@ -230,7 +233,7 @@ public class ChatWindowMemoryStore {
 
     // ========= RunMessage -> StoredMessage conversion =========
 
-    private List<StoredMessage> convertRunMessages(String runId, List<RunMessage> runMessages) {
+    private List<StoredMessage> convertRunMessages(String runId, List<RunMessage> runMessages, Set<String> runtimeActionTools) {
         Map<String, ToolIdentity> toolIdentityByCallId = new LinkedHashMap<>();
         List<StoredMessage> storedMessages = new ArrayList<>();
         int reasoningIndex = 0;
@@ -245,8 +248,8 @@ public class ChatWindowMemoryStore {
                 case "user_content" -> toUserStoredMessage(message, ts);
                 case "assistant_reasoning" -> toAssistantReasoningMessage(runId, message, ts, reasoningIndex++);
                 case "assistant_content" -> toAssistantContentMessage(runId, message, ts, contentIndex++);
-                case "assistant_tool_call" -> toAssistantToolCallMessage(message, ts, toolIdentityByCallId);
-                case "tool_result" -> toToolResultMessage(message, ts, toolIdentityByCallId);
+                case "assistant_tool_call" -> toAssistantToolCallMessage(message, ts, toolIdentityByCallId, runtimeActionTools);
+                case "tool_result" -> toToolResultMessage(message, ts, toolIdentityByCallId, runtimeActionTools);
                 default -> null;
             };
             if (converted != null) {
@@ -304,7 +307,8 @@ public class ChatWindowMemoryStore {
     private StoredMessage toAssistantToolCallMessage(
             RunMessage message,
             long ts,
-            Map<String, ToolIdentity> toolIdentityByCallId
+            Map<String, ToolIdentity> toolIdentityByCallId,
+            Set<String> runtimeActionTools
     ) {
         if (!hasText(message.name()) || !hasText(message.toolCallId()) || !hasText(message.toolArgs())) {
             return null;
@@ -314,7 +318,7 @@ public class ChatWindowMemoryStore {
 
         ToolIdentity identity = toolIdentityByCallId.computeIfAbsent(
                 toolCallId,
-                key -> createToolIdentity(toolCallId, toolName, message.toolCallType())
+                key -> createToolIdentity(toolCallId, toolName, message.toolCallType(), runtimeActionTools)
         );
 
         StoredToolCall toolCall = new StoredToolCall();
@@ -343,7 +347,8 @@ public class ChatWindowMemoryStore {
     private StoredMessage toToolResultMessage(
             RunMessage message,
             long ts,
-            Map<String, ToolIdentity> toolIdentityByCallId
+            Map<String, ToolIdentity> toolIdentityByCallId,
+            Set<String> runtimeActionTools
     ) {
         if (!hasText(message.name()) || !hasText(message.toolCallId())) {
             return null;
@@ -353,7 +358,7 @@ public class ChatWindowMemoryStore {
 
         ToolIdentity identity = toolIdentityByCallId.computeIfAbsent(
                 toolCallId,
-                key -> createToolIdentity(toolCallId, toolName, null)
+                key -> createToolIdentity(toolCallId, toolName, null, runtimeActionTools)
         );
 
         StoredMessage stored = new StoredMessage();
@@ -692,19 +697,14 @@ public class ChatWindowMemoryStore {
 
     // ========= Tool Identity =========
 
-    private ToolIdentity createToolIdentity(String toolCallId, String toolName, String toolType) {
-        boolean action = "action".equalsIgnoreCase(normalizeType(toolType)) || isActionTool(toolName);
+    private ToolIdentity createToolIdentity(String toolCallId, String toolName, String toolType, Set<String> runtimeActionTools) {
+        boolean action = "action".equalsIgnoreCase(normalizeType(toolType))
+                || isActionTool(toolName)
+                || isRuntimeActionTool(runtimeActionTools, toolName);
+        String id = hasText(toolCallId) ? toolCallId.trim() : shortId("t", toolCallId);
         if (action) {
-            String id = shortId("a", toolCallId);
             return new ToolIdentity(id, true);
         }
-        String normalizedType = normalizeType(toolType);
-        if ("frontend".equalsIgnoreCase(normalizedType)) {
-            String id = shortId("t", toolCallId);
-            return new ToolIdentity(id, false);
-        }
-        // backend: use the raw LLM tool_call_id directly
-        String id = hasText(toolCallId) ? toolCallId.trim() : shortId("t", toolCallId);
         return new ToolIdentity(id, false);
     }
 
@@ -719,17 +719,45 @@ public class ChatWindowMemoryStore {
         if (!hasText(toolName)) {
             return false;
         }
-        String normalized = toolName.trim().toLowerCase();
+        String normalized = normalizeToolName(toolName);
         List<String> actionTools = properties.getActionTools();
         if (actionTools == null || actionTools.isEmpty()) {
             return false;
         }
         for (String configured : actionTools) {
-            if (hasText(configured) && normalized.equals(configured.trim().toLowerCase())) {
+            if (hasText(configured) && normalized.equals(normalizeToolName(configured))) {
                 return true;
             }
         }
         return false;
+    }
+
+    private Set<String> extractActionToolNames(SystemSnapshot systemSnapshot) {
+        if (systemSnapshot == null || systemSnapshot.tools == null || systemSnapshot.tools.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> names = new HashSet<>();
+        for (SystemToolSnapshot tool : systemSnapshot.tools) {
+            if (tool == null || !hasText(tool.type) || !hasText(tool.name)) {
+                continue;
+            }
+            if (!"action".equalsIgnoreCase(tool.type.trim())) {
+                continue;
+            }
+            names.add(normalizeToolName(tool.name));
+        }
+        return Set.copyOf(names);
+    }
+
+    private boolean isRuntimeActionTool(Set<String> runtimeActionTools, String toolName) {
+        if (runtimeActionTools == null || runtimeActionTools.isEmpty() || !hasText(toolName)) {
+            return false;
+        }
+        return runtimeActionTools.contains(normalizeToolName(toolName));
+    }
+
+    private String normalizeToolName(String toolName) {
+        return toolName.trim().toLowerCase(Locale.ROOT);
     }
 
     // ========= Utility =========

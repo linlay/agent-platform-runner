@@ -19,6 +19,11 @@
 - frontend: `toolType=frontend`（并补充 `toolKey/toolTimeout`）
 - action: `toolType=action`
 
+## 记忆落盘关联
+- `ChatWindowMemoryStore` 在写入 step JSONL 时会按 action/tool 身份写 `_actionId` 或 `_toolId`。
+- action 判定除 `toolCallType` 与 `memory.chat.action-tools` 外，还会参考当前 step 的 `system.tools(type=action)`。
+- `_actionId/_toolId` 均优先复用原始 `tool_call_id`，便于与流式事件和回放事件对齐。
+
 ## Frontend submit 协议
 - 执行时注册 pending key: `runId#toolId`
 - `/submit` 命中后完成 future 并返回 `accepted`

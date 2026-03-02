@@ -52,8 +52,8 @@
 | `reasoningId` | 实时 SSE：`{runId}_r_{seq}`；记忆落盘缺失时降级为 `r_` + 8 位短 ID | `AgentDeltaToStreamInputMapper.openReasoningBlockIfNeeded`，`ChatWindowMemoryStore.toAssistantReasoningMessage` |
 | `contentId` | 实时 SSE：`{runId}_c_{seq}`；记忆落盘缺失时降级为 `c_` + 8 位短 ID | `AgentDeltaToStreamInputMapper.openContentBlockIfNeeded`，`ChatWindowMemoryStore.toAssistantContentMessage` |
 | `toolCallId` | 优先使用模型返回 id；缺失时按上下文生成（如 `call_native_*` / `call_*`） | `OrchestratorServices.callModelTurnStreaming`，`ToolExecutionService.executeToolCalls`，`DefinitionDrivenAgent.generateToolCallId` |
-| `_toolId` | backend 使用原始 `tool_call_id`；frontend 使用 `t_` + 8 位短 ID | `ChatWindowMemoryStore.createToolIdentity` |
-| `_actionId` | `a_` + 8 位短 ID | `ChatWindowMemoryStore.createToolIdentity` |
+| `_toolId` | tool 身份统一使用原始 `tool_call_id`（当未被识别为 action 时写入） | `ChatWindowMemoryStore.createToolIdentity` |
+| `_actionId` | action 身份统一使用原始 `tool_call_id`（assistant/tool 同一 call 共享） | `ChatWindowMemoryStore.createToolIdentity` |
 | `_msgId` | `m_` + 8 位 hex；同一 LLM 回复内 reasoning/content/tool_calls 共享 | `DefinitionDrivenAgent.StepAccumulator.generateMsgId` |
 | `agentKey` | 来自 agent 定义 `key`（文件名与配置共同约束），会话可绑定并优先复用 | `AgentDefinitionLoader.tryLoadExternal`，`AgentQueryService.prepare` |
 | `teamId` | 12 位 hex（来源：`teams/<teamId>.json` 文件名） | `TeamRegistryService.tryLoad` |

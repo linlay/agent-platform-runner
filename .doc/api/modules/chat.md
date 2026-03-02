@@ -48,10 +48,12 @@
 - `chatImageToken`（请求上下文有 JWT subject 时返回）
 - `events`（总是返回）
 - `rawMessages`（仅 `includeRawMessages=true` 返回）
+  - 工具相关原始消息可能包含 `_toolId` 或 `_actionId`，用于标识同一 `tool_call_id` 的身份绑定
 - `references`（query 引用聚合）
 
 ### 回放规则
 - 历史默认用 snapshot 事件（`reasoning/content/tool/action`）。
+- 当 `tool_call.type=function` 但该工具命中 action 判定（配置或 `system.tools(type=action)`）时，历史仍应回放为 `action.snapshot/action.result`。
 - `chat.start` 在同一 chat 历史中只保留一次。
 - 每个 run 保留 `run.complete`。
 

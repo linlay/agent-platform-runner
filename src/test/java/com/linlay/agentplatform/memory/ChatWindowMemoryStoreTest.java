@@ -99,12 +99,12 @@ class ChatWindowMemoryStoreTest {
         JsonNode assistantToolCall = stepLine.path("messages").get(2);
         assertThat(assistantToolCall.path("role").asText()).isEqualTo("assistant");
         assertThat(assistantToolCall.path("tool_calls")).hasSize(1);
-        assertThat(assistantToolCall.path("_actionId").asText()).startsWith("a_");
+        assertThat(assistantToolCall.path("_actionId").asText()).isEqualTo("call_tool_1");
         assertThat(assistantToolCall.has("_toolId")).isFalse();
 
         JsonNode toolResult = stepLine.path("messages").get(3);
         assertThat(toolResult.path("role").asText()).isEqualTo("tool");
-        assertThat(toolResult.path("_actionId").asText()).startsWith("a_");
+        assertThat(toolResult.path("_actionId").asText()).isEqualTo("call_tool_1");
 
         // Load history messages: reasoning excluded, others included
         List<Message> historyMessages = store.loadHistoryMessages(chatId);
@@ -113,6 +113,108 @@ class ChatWindowMemoryStoreTest {
         assertThat(historyMessages.get(1)).isInstanceOf(AssistantMessage.class);
         assertThat(historyMessages.get(2)).isInstanceOf(ToolResponseMessage.class);
         assertThat(historyMessages.get(3)).isInstanceOf(AssistantMessage.class);
+    }
+
+    @Test
+    void shouldPersistActionIdWhenToolCallTypeIsFunctionButSystemDeclaresActionTool() throws Exception {
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        properties.setDir(tempDir.resolve("chats").toString());
+        properties.setK(20);
+
+        ChatWindowMemoryStore store = new ChatWindowMemoryStore(objectMapper, properties);
+
+        String chatId = "123e4567-e89b-12d3-a456-426614174005";
+        String runId = "run_005";
+        String callId = "call_f6bdbca0d6c041b7ae720fd6";
+
+        store.appendQueryLine(chatId, runId, query(runId, chatId, "放烟花"));
+        store.appendStepLine(
+                chatId,
+                runId,
+                "oneshot",
+                1,
+                null,
+                systemSnapshotWithTools("qwen3-max", "你是 UI 动作助手。", true, List.of(
+                        toolSnapshot("action", "launch_fireworks"),
+                        toolSnapshot("action", "show_modal"),
+                        toolSnapshot("action", "switch_theme")
+                )),
+                null,
+                List.of(
+                        ChatWindowMemoryStore.RunMessage.user("放烟花", 1772438369610L),
+                        ChatWindowMemoryStore.RunMessage.assistantToolCall(
+                                "launch_fireworks",
+                                callId,
+                                "function",
+                                "{\"durationMs\":5000}",
+                                1772438367295L,
+                                366L,
+                                null
+                        ),
+                        ChatWindowMemoryStore.RunMessage.toolResult("launch_fireworks", callId, "OK", 1772438367295L, 366L),
+                        ChatWindowMemoryStore.RunMessage.assistantContent("烟花已成功绽放！", 1772438369380L, 230L, Map.of("total_tokens", 529))
+                )
+        );
+
+        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
+        JsonNode stepLine = objectMapper.readTree(lines.get(1));
+
+        JsonNode assistantToolCall = stepLine.path("messages").get(1);
+        assertThat(assistantToolCall.path("_actionId").asText()).isEqualTo(callId);
+        assertThat(assistantToolCall.has("_toolId")).isFalse();
+
+        JsonNode toolResult = stepLine.path("messages").get(2);
+        assertThat(toolResult.path("_actionId").asText()).isEqualTo(callId);
+        assertThat(toolResult.has("_toolId")).isFalse();
+    }
+
+    @Test
+    void shouldPreferExplicitActionTypeOverSystemToolDeclarations() throws Exception {
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        properties.setDir(tempDir.resolve("chats").toString());
+        properties.setK(20);
+
+        ChatWindowMemoryStore store = new ChatWindowMemoryStore(objectMapper, properties);
+        String chatId = "123e4567-e89b-12d3-a456-426614174006";
+        String callId = "call_action_explicit_1";
+
+        store.appendQueryLine(chatId, "run_006", query("run_006", chatId, "执行动作"));
+        store.appendStepLine(
+                chatId,
+                "run_006",
+                "oneshot",
+                1,
+                null,
+                systemSnapshotWithTools("qwen3-max", "sys", true, List.of(
+                        toolSnapshot("function", "launch_fireworks")
+                )),
+                null,
+                List.of(
+                        ChatWindowMemoryStore.RunMessage.user("执行动作", 1000L),
+                        ChatWindowMemoryStore.RunMessage.assistantToolCall(
+                                "launch_fireworks",
+                                callId,
+                                "action",
+                                "{\"durationMs\":3000}",
+                                1001L,
+                                20L,
+                                null
+                        ),
+                        ChatWindowMemoryStore.RunMessage.toolResult("launch_fireworks", callId, "OK", 1002L, 10L)
+                )
+        );
+
+        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
+        JsonNode stepLine = objectMapper.readTree(lines.get(1));
+        JsonNode assistantToolCall = stepLine.path("messages").get(1);
+        JsonNode toolResult = stepLine.path("messages").get(2);
+
+        assertThat(assistantToolCall.path("_actionId").asText()).isEqualTo(callId);
+        assertThat(toolResult.path("_actionId").asText()).isEqualTo(callId);
+        assertThat(assistantToolCall.has("_toolId")).isFalse();
+        assertThat(toolResult.has("_toolId")).isFalse();
     }
 
     @Test
@@ -342,6 +444,17 @@ class ChatWindowMemoryStoreTest {
     }
 
     private ChatWindowMemoryStore.SystemSnapshot systemSnapshot(String model, String prompt, boolean stream) {
+        return systemSnapshotWithTools(model, prompt, stream, List.of(
+                toolSnapshot("function", "mock_sensitive_data_detector")
+        ));
+    }
+
+    private ChatWindowMemoryStore.SystemSnapshot systemSnapshotWithTools(
+            String model,
+            String prompt,
+            boolean stream,
+            List<ChatWindowMemoryStore.SystemToolSnapshot> tools
+    ) {
         ChatWindowMemoryStore.SystemSnapshot snapshot = new ChatWindowMemoryStore.SystemSnapshot();
         snapshot.model = model;
         snapshot.stream = stream;
@@ -350,14 +463,17 @@ class ChatWindowMemoryStoreTest {
         systemMessage.role = "system";
         systemMessage.content = prompt;
         snapshot.messages = List.of(systemMessage);
+        snapshot.tools = tools;
+        return snapshot;
+    }
 
+    private ChatWindowMemoryStore.SystemToolSnapshot toolSnapshot(String type, String name) {
         ChatWindowMemoryStore.SystemToolSnapshot tool = new ChatWindowMemoryStore.SystemToolSnapshot();
-        tool.type = "function";
-        tool.name = "mock_sensitive_data_detector";
+        tool.type = type;
+        tool.name = name;
         tool.description = "检测敏感信息";
         tool.parameters = Map.of("type", "object", "properties", Map.of(), "additionalProperties", true);
-        snapshot.tools = List.of(tool);
-        return snapshot;
+        return tool;
     }
 
     private ChatWindowMemoryStore.PlanSnapshot planSnapshot(
