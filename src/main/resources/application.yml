@@ -67,10 +67,14 @@ agent:
     #   testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
     #   -----END PUBLIC KEY-----
   cors:
+    # master switch: false = disable CORS filter (no Access-Control-* response headers from this service)
     enabled: false
+    # apply CORS rules on matched paths only
     path-pattern: /api/**
+    # controls request header: Origin (matched by pattern); this service does NOT validate Referer
     allowed-origin-patterns:
       - http://localhost:8081
+    # controls preflight request header: Access-Control-Request-Method
     allowed-methods:
       - GET
       - POST
@@ -78,16 +82,21 @@ agent:
       - PATCH
       - DELETE
       - OPTIONS
+    # controls preflight request header: Access-Control-Request-Headers
     allowed-headers:
       - "*"
+    # controls response header: Access-Control-Expose-Headers
     exposed-headers:
       - Content-Type
+    # controls response header: Access-Control-Allow-Credentials
     allow-credentials: false
+    # controls response header: Access-Control-Max-Age
     max-age-seconds: 3600
   chat-image-token:
     secret: ${CHAT_IMAGE_TOKEN_SECRET:}
     previous-secrets: ${CHAT_IMAGE_TOKEN_PREVIOUS_SECRETS:}
     ttl-seconds: ${CHAT_IMAGE_TOKEN_TTL_SECONDS:86400}
+    # when true, GET /api/ap/data?t=... performs token validation and may return 403 if token is invalid/expired
     data-token-validation-enabled: ${CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED:true}
 
 memory:

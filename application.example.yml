@@ -15,9 +15,29 @@ agent:
     #   -----BEGIN PUBLIC KEY-----
     #   REPLACE_WITH_YOUR_RSA_PUBLIC_KEY
     #   -----END PUBLIC KEY-----
+  cors:
+    # master switch: false = disable CORS filter
+    enabled: false
+    path-pattern: /api/**
+    allowed-origin-patterns:
+      - https://example.com
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    allowed-headers:
+      - "*"
+    exposed-headers:
+      - Content-Type
+    allow-credentials: false
+    max-age-seconds: 3600
   chat-image-token:
     secret: replace-with-your-chat-image-token-secret
     ttl-seconds: 86400
+    # when true, GET /api/ap/data?t=... may return 403 for invalid/expired token
     data-token-validation-enabled: true
   providers:
     bailian:

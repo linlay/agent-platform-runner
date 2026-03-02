@@ -261,6 +261,7 @@ mvn spring-boot:run
 - 可先复制根目录示例：`cp application.example.yml application.yml`，再填写本地私有配置（如 API Key）。
 - `spring.config.import` 默认加载：`./application.yml` 和 `/opt/application.yml`（均为 optional）。
 - `agent.cors.enabled` 在主配置中默认是 `false`，即默认不启用 CORS 过滤器。
+- `agent.cors.allowed-origin-patterns` 仅匹配请求头 `Origin`，当前服务不读取/校验 `Referer`。
 - `spring.ai.openai.api-key` 默认 `dummy-openai-key`，仅作 Spring AI 占位；实际模型调用使用 `agent.providers.*`。
 
 ### settings.xml 说明
