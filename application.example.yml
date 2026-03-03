@@ -21,7 +21,7 @@ agent:
       enabled: false
       # 单入口多命令通道
       path: /api/ap/ws/voice
-      # true: 需要 Authorization: Bearer <token>; false: 放开 voice ws（仅开发联调建议）
+      # true: 需要在 WS URL 携带 ?access_token=<token>；false: 放开 voice ws（仅开发联调建议）
       auth-required: true
       # 协议预留 opus，本轮实现仅支持 pcm
       codecs:

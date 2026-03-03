@@ -271,8 +271,9 @@ mvn spring-boot:run
 
 ## 认证配置（JWT）
 
-- `Authorization` 请求头格式：`Bearer <token>`
+- HTTP API 的 `Authorization` 请求头格式：`Bearer <token>`
 - 当 `agent.auth.enabled=true` 时，`/api/ap/**`（除 `OPTIONS`）都需要 JWT。
+- Voice WebSocket（`/api/ap/ws/voice`）在 `agent.voice.ws.auth-required=true` 时仅接受 URL query token：`?access_token=<token>`，不会读取 `Authorization` 头。
 - 验签优先级：
   - 若 `agent.auth.local-public-key` 已配置，先使用本地公钥验签；
   - 本地验签失败后，再回退到 `agent.auth.jwks-uri` 拉取的 JWKS 验签。
@@ -300,6 +301,17 @@ agent:
 - 当配置了空的 `local-public-key` 或非法 PEM 时，服务会在启动时失败（fail-fast）。
 - `jwks-uri` / `issuer` / `jwks-cache-seconds` 必须三者同时配置；只配部分会启动失败。
 - 当前仅支持 RSA 公钥（与 RS256 验签一致）。
+
+### Voice WebSocket 联调（wscat）
+
+```bash
+wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
+```
+
+验证要点：
+
+- 缺少 `access_token` 时，握手会被拒绝（401 或升级失败）。
+- 仅携带 `Authorization` 头、但 URL 无 `access_token` 时，同样会被拒绝。
 
 ## Agent 配置快速上手
 

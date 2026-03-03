@@ -77,7 +77,7 @@ class VoiceWebSocketAuthIntegrationTest {
     }
 
     @Test
-    void wsPathShouldReturnUnauthorizedWhenBearerMissing() {
+    void wsPathShouldReturnUnauthorizedWhenQueryTokenMissing() {
         webTestClient.get()
                 .uri("/api/ap/ws/voice")
                 .exchange()
@@ -86,14 +86,26 @@ class VoiceWebSocketAuthIntegrationTest {
     }
 
     @Test
-    void wsPathShouldNotReturnUnauthorizedWhenBearerPresent() throws Exception {
+    void wsPathShouldNotReturnUnauthorizedWhenQueryTokenPresent() throws Exception {
         String token = issueToken("voice-user", "device-1");
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/ws/voice")
+                        .queryParam("access_token", token)
+                        .build())
+                .exchange()
+                .expectStatus()
+                .value(status -> org.assertj.core.api.Assertions.assertThat(status).isNotEqualTo(401));
+    }
+
+    @Test
+    void wsPathShouldStillReturnUnauthorizedWhenOnlyAuthorizationHeaderProvided() throws Exception {
+        String token = issueToken("voice-user-header-only", "device-header-only");
         webTestClient.get()
                 .uri("/api/ap/ws/voice")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .exchange()
                 .expectStatus()
-                .value(status -> org.assertj.core.api.Assertions.assertThat(status).isNotEqualTo(401));
+                .isUnauthorized();
     }
 
     private String issueToken(String subject, String deviceId) throws JOSEException {

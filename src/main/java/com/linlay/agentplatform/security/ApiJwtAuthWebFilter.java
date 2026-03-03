@@ -26,6 +26,7 @@ public class ApiJwtAuthWebFilter implements WebFilter {
     public static final String JWT_PRINCIPAL_ATTR = "APP_JWT_PRINCIPAL";
 
     private static final String AUTH_PREFIX = "Bearer ";
+    private static final String VOICE_WS_QUERY_TOKEN_PARAM = "access_token";
     private static final Logger log = LoggerFactory.getLogger(ApiJwtAuthWebFilter.class);
 
     private final AppAuthProperties authProperties;
@@ -69,7 +70,12 @@ public class ApiJwtAuthWebFilter implements WebFilter {
             return chain.filter(exchange);
         }
 
-        BearerTokenResolution tokenResolution = resolveBearerToken(exchange);
+        BearerTokenResolution tokenResolution;
+        if (isVoiceWsPath(path) && voiceWsProperties.isAuthRequired()) {
+            tokenResolution = resolveVoiceWsQueryToken(exchange);
+        } else {
+            tokenResolution = resolveBearerToken(exchange);
+        }
         if (!StringUtils.hasText(tokenResolution.token())) {
             logAuthReject(exchange, tokenResolution.reasonCode());
             return writeUnauthorized(exchange);
@@ -98,6 +104,17 @@ public class ApiJwtAuthWebFilter implements WebFilter {
             return new BearerTokenResolution(null, "empty_bearer_token");
         }
         return new BearerTokenResolution(token, "ok");
+    }
+
+    private BearerTokenResolution resolveVoiceWsQueryToken(ServerWebExchange exchange) {
+        if (!exchange.getRequest().getQueryParams().containsKey(VOICE_WS_QUERY_TOKEN_PARAM)) {
+            return new BearerTokenResolution(null, "missing_ws_query_token");
+        }
+        String token = exchange.getRequest().getQueryParams().getFirst(VOICE_WS_QUERY_TOKEN_PARAM);
+        if (!StringUtils.hasText(token)) {
+            return new BearerTokenResolution(null, "empty_ws_query_token");
+        }
+        return new BearerTokenResolution(token.trim(), "ok");
     }
 
     private boolean isDataApiTokenRequest(ServerWebExchange exchange) {

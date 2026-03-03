@@ -77,11 +77,14 @@ class VoiceWebSocketHandlerTest {
     }
 
     @Test
-    void missingBearerShouldReturnUnauthorizedWhenAuthEnabledAndVoiceWsAuthRequired() {
+    void missingQueryTokenShouldReturnUnauthorizedWhenAuthEnabledAndVoiceWsAuthRequired() {
         VoiceWebSocketHandler handler = createHandler(true, true, new TestVoicePcmSynthesizer(false));
-        TestWebSocketSession session = new TestWebSocketSession(List.of(
-                json(Map.of("type", "tts.start", "requestId", "r-auth", "codec", "pcm"))
-        ));
+        TestWebSocketSession session = new TestWebSocketSession(
+                URI.create("ws://localhost/api/ap/ws/voice"),
+                List.of(
+                        json(Map.of("type", "tts.start", "requestId", "r-auth", "codec", "pcm"))
+                )
+        );
 
         handler.handle(session).block(Duration.ofSeconds(5));
 
@@ -223,17 +226,22 @@ class VoiceWebSocketHandlerTest {
 
     private static final class TestWebSocketSession implements WebSocketSession {
         private final DataBufferFactory bufferFactory = new DefaultDataBufferFactory();
-        private final HandshakeInfo handshakeInfo = new HandshakeInfo(
-                URI.create("ws://localhost/api/ap/ws/voice"),
-                new HttpHeaders(),
-                Mono.empty(),
-                null
-        );
+        private final HandshakeInfo handshakeInfo;
         private final Flux<WebSocketMessage> inbound;
         private final List<WebSocketMessage> outbound = new CopyOnWriteArrayList<>();
         private volatile CloseStatus closedStatus;
 
         private TestWebSocketSession(List<String> payloads) {
+            this(URI.create("ws://localhost/api/ap/ws/voice"), payloads);
+        }
+
+        private TestWebSocketSession(URI handshakeUri, List<String> payloads) {
+            this.handshakeInfo = new HandshakeInfo(
+                    handshakeUri,
+                    new HttpHeaders(),
+                    Mono.empty(),
+                    null
+            );
             this.inbound = Flux.fromIterable(payloads).map(this::textMessage);
         }
 

@@ -4,15 +4,15 @@ import com.linlay.agentplatform.config.AppAuthProperties;
 import com.linlay.agentplatform.config.VoiceWsProperties;
 import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.security.JwksJwtVerifier.JwtPrincipal;
-import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.socket.WebSocketSession;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
 public class VoiceWsAuthenticationService {
 
-    private static final String AUTH_PREFIX = "Bearer ";
+    private static final String VOICE_WS_QUERY_TOKEN_PARAM = "access_token";
 
     private final AppAuthProperties authProperties;
     private final VoiceWsProperties voiceWsProperties;
@@ -36,17 +36,16 @@ public class VoiceWsAuthenticationService {
             return AuthResult.success(null);
         }
 
-        String authorization = session.getHandshakeInfo().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        if (!StringUtils.hasText(authorization) || !authorization.startsWith(AUTH_PREFIX)) {
-            return AuthResult.failed("UNAUTHORIZED", "missing or invalid Authorization header");
-        }
-
-        String token = authorization.substring(AUTH_PREFIX.length()).trim();
+        String token = UriComponentsBuilder
+                .fromUri(session.getHandshakeInfo().getUri())
+                .build()
+                .getQueryParams()
+                .getFirst(VOICE_WS_QUERY_TOKEN_PARAM);
         if (!StringUtils.hasText(token)) {
-            return AuthResult.failed("UNAUTHORIZED", "missing bearer token");
+            return AuthResult.failed("UNAUTHORIZED", "missing access_token query parameter");
         }
 
-        JwksJwtVerifier.VerifyResult verifyResult = jwksJwtVerifier.verifyDetailed(token);
+        JwksJwtVerifier.VerifyResult verifyResult = jwksJwtVerifier.verifyDetailed(token.trim());
         if (!verifyResult.valid()) {
             return AuthResult.failed("UNAUTHORIZED", "jwt verification failed");
         }
