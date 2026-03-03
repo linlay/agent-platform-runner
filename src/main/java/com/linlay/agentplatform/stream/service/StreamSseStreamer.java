@@ -49,6 +49,7 @@ public class StreamSseStreamer {
                 null,
                 null,
                 null,
+                null,
                 Boolean.TRUE,
                 "default"
         );

@@ -103,9 +103,11 @@ public class ChatRecordStore {
                 }
                 statement.execute(CREATE_CHATS_SQL);
                 statement.execute(CREATE_CHATS_LAST_RUN_ID_INDEX_SQL);
+                if (chatsExists) {
+                    requireColumnExists(connection, TABLE_CHATS, "TEAM_ID_");
+                }
                 ensureColumnExists(connection, TABLE_CHATS, "CHAT_NAME_", "TEXT NOT NULL DEFAULT ''");
                 ensureColumnExists(connection, TABLE_CHATS, "AGENT_KEY_", "TEXT NOT NULL DEFAULT ''");
-                ensureColumnExists(connection, TABLE_CHATS, "TEAM_ID_", "TEXT");
                 ensureColumnExists(connection, TABLE_CHATS, "CREATED_AT_", "INTEGER NOT NULL DEFAULT 0");
                 ensureColumnExists(connection, TABLE_CHATS, "UPDATED_AT_", "INTEGER NOT NULL DEFAULT 0");
                 ensureColumnExists(connection, TABLE_CHATS, "LAST_RUN_ID_", "VARCHAR(12) NOT NULL DEFAULT ''");
@@ -119,8 +121,14 @@ public class ChatRecordStore {
     }
 
     public ChatSummary ensureChat(String chatId, String firstAgentKey, String firstAgentName, String firstMessage) {
+        return ensureChat(chatId, firstAgentKey, firstAgentName, null, firstMessage);
+    }
+
+    public ChatSummary ensureChat(String chatId, String firstAgentKey, String firstAgentName, String firstTeamId, String firstMessage) {
         requireValidChatId(chatId);
         String normalizedAgentKey = nullable(firstAgentKey);
+        String normalizedTeamId = nullable(firstTeamId);
+        validateChatBinding(normalizedAgentKey, normalizedTeamId);
         String normalizedChatName = deriveChatName(firstMessage);
         long now = System.currentTimeMillis();
         synchronized (lock) {
@@ -133,7 +141,7 @@ public class ChatRecordStore {
                     record.chatId = chatId;
                     record.chatName = normalizedChatName;
                     record.agentKey = normalizedAgentKey;
-                    record.teamId = null;
+                    record.teamId = normalizedTeamId;
                     record.createdAt = now;
                     record.updatedAt = now;
                     record.lastRunContent = StringUtils.hasText(firstMessage) ? firstMessage.trim() : "";
@@ -141,14 +149,17 @@ public class ChatRecordStore {
                     record.readStatus = 1;
                     record.readAt = now;
                 } else {
+                    validateBindingDrift(record, normalizedAgentKey, normalizedTeamId);
                     if (!StringUtils.hasText(record.chatName)) {
                         record.chatName = normalizedChatName;
                     }
-                    if (!StringUtils.hasText(record.agentKey)) {
+                    if (!StringUtils.hasText(record.agentKey) && !StringUtils.hasText(record.teamId)) {
                         record.agentKey = normalizedAgentKey;
-                    }
-                    if (StringUtils.hasText(record.agentKey)) {
+                        record.teamId = normalizedTeamId;
+                    } else if (StringUtils.hasText(record.agentKey)) {
                         record.teamId = null;
+                    } else if (StringUtils.hasText(record.teamId)) {
+                        record.agentKey = null;
                     }
                     if (record.createdAt <= 0) {
                         record.createdAt = now;
@@ -222,6 +233,24 @@ public class ChatRecordStore {
                 return Optional.of(record.agentKey);
             } catch (SQLException ex) {
                 log.warn("Cannot query bound agent for chatId={}", chatId, ex);
+                return Optional.empty();
+            }
+        }
+    }
+
+    public Optional<String> findBoundTeamId(String chatId) {
+        if (!isValidChatId(chatId)) {
+            return Optional.empty();
+        }
+        synchronized (lock) {
+            try (Connection connection = openConnection()) {
+                ChatIndexRecord record = findChatRecordById(connection, chatId);
+                if (record == null || StringUtils.hasText(record.agentKey) || !StringUtils.hasText(record.teamId)) {
+                    return Optional.empty();
+                }
+                return Optional.of(record.teamId);
+            } catch (SQLException ex) {
+                log.warn("Cannot query bound team for chatId={}", chatId, ex);
                 return Optional.empty();
             }
         }
@@ -794,6 +823,7 @@ public class ChatRecordStore {
         payload.put("role", textOrFallback(query.get("role"), "user"));
         payload.put("message", textOrFallback(query.get("message"), firstUserText(run.messages)));
         putIfNonNull(payload, "agentKey", query.get("agentKey"));
+        putIfNonNull(payload, "teamId", query.get("teamId"));
         putIfNonNull(payload, "references", query.get("references"));
         putIfNonNull(payload, "params", query.get("params"));
         putIfNonNull(payload, "scene", query.get("scene"));
@@ -1134,6 +1164,29 @@ public class ChatRecordStore {
         }
     }
 
+    private void validateBindingDrift(ChatIndexRecord record, String incomingAgentKey, String incomingTeamId) {
+        String existingAgentKey = nullable(record.agentKey);
+        String existingTeamId = nullable(record.teamId);
+        if (!StringUtils.hasText(existingAgentKey) && !StringUtils.hasText(existingTeamId)) {
+            return;
+        }
+        if (StringUtils.hasText(existingAgentKey)) {
+            if (StringUtils.hasText(incomingTeamId)) {
+                throw new IllegalArgumentException("chat binding mismatch: chat is already bound to agentKey");
+            }
+            if (StringUtils.hasText(incomingAgentKey) && !existingAgentKey.equals(incomingAgentKey)) {
+                throw new IllegalArgumentException("chat binding mismatch: agentKey does not match existing binding");
+            }
+            return;
+        }
+        if (StringUtils.hasText(incomingAgentKey)) {
+            throw new IllegalArgumentException("chat binding mismatch: chat is already bound to teamId");
+        }
+        if (StringUtils.hasText(incomingTeamId) && !existingTeamId.equals(incomingTeamId)) {
+            throw new IllegalArgumentException("chat binding mismatch: teamId does not match existing binding");
+        }
+    }
+
     private boolean tableExists(Connection connection, String tableName) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT 1
@@ -1154,21 +1207,35 @@ public class ChatRecordStore {
             String columnName,
             String columnDefinition
     ) throws SQLException {
-        boolean exists = false;
-        try (PreparedStatement statement = connection.prepareStatement("PRAGMA table_info(" + tableName + ")");
-             ResultSet resultSet = statement.executeQuery()) {
-            while (resultSet.next()) {
-                if (columnName.equalsIgnoreCase(resultSet.getString("name"))) {
-                    exists = true;
-                    break;
-                }
-            }
-        }
+        boolean exists = columnExists(connection, tableName, columnName);
         if (exists) {
             return;
         }
         try (Statement statement = connection.createStatement()) {
             statement.execute("ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + columnDefinition);
+        }
+    }
+
+    private void requireColumnExists(Connection connection, String tableName, String columnName) throws SQLException {
+        if (columnExists(connection, tableName, columnName)) {
+            return;
+        }
+        throw new IllegalStateException(
+                "Incompatible CHATS schema: missing required column '" + columnName
+                        + "'. Automatic migration is disabled; migrate or rebuild sqlite chat index at "
+                        + resolveSqlitePath()
+        );
+    }
+
+    private boolean columnExists(Connection connection, String tableName, String columnName) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("PRAGMA table_info(" + tableName + ")");
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                if (columnName.equalsIgnoreCase(resultSet.getString("name"))) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 

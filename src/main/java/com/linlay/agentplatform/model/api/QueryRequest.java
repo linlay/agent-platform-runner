@@ -9,6 +9,7 @@ public record QueryRequest(
         String requestId,
         String chatId,
         String agentKey,
+        String teamId,
         String role,
         @NotBlank
         String message,

@@ -166,16 +166,59 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void ensureChatShouldRefreshUpdatedAtAndRewriteDuplicateRecords() throws Exception {
+    void ensureChatShouldRefreshUpdatedAtForSameBinding() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174015";
         ChatRecordStore store = newStore();
         ChatRecordStore.ChatSummary first = store.ensureChat(chatId, "demo", "Demo Agent", "dup-1");
-        ChatRecordStore.ChatSummary second = store.ensureChat(chatId, "other", "Other Agent", "dup-2");
+        ChatRecordStore.ChatSummary second = store.ensureChat(chatId, "demo", "Demo Agent", "dup-2");
 
         assertThat(first.created()).isTrue();
         assertThat(second.created()).isFalse();
         assertThat(second.agentKey()).isEqualTo("demo");
         assertThat(second.updatedAt()).isGreaterThanOrEqualTo(first.updatedAt());
+    }
+
+    @Test
+    void ensureChatShouldRejectBindingDrift() {
+        String chatId = "123e4567-e89b-12d3-a456-426614174022";
+        ChatRecordStore store = newStore();
+        store.ensureChat(chatId, "demo", "Demo Agent", "seed");
+
+        assertThatThrownBy(() -> store.ensureChat(chatId, "other", "Other Agent", "drift"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("binding mismatch");
+    }
+
+    @Test
+    void ensureChatShouldPersistTeamBindingAndReplayQueryTeamId() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174021";
+        String teamId = "a1b2c3d4e5f6";
+        ChatRecordStore store = newStore();
+
+        ChatRecordStore.ChatSummary summary = store.ensureChat(chatId, null, null, teamId, "team chat");
+        assertThat(summary.teamId()).isEqualTo(teamId);
+        assertThat(summary.agentKey()).isNull();
+
+        Path historyPath = tempDir.resolve("chats").resolve(chatId + ".json");
+        writeJsonLine(historyPath, queryLine(chatId, "run_team_1", query("run_team_1", chatId, "team hello", List.of(), teamId)));
+        writeJsonLine(historyPath, stepLine(chatId, "run_team_1", "oneshot", 1, null,
+                1707000700000L,
+                List.of(
+                        userMessage("team hello", 1707000700000L),
+                        assistantContentMessage("team reply", 1707000700001L)
+                )));
+
+        ChatDetailResponse detail = store.loadChat(chatId, false);
+        Map<String, Object> requestQuery = detail.events().stream()
+                .filter(event -> "request.query".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(requestQuery).containsEntry("teamId", teamId);
+
+        List<ChatSummaryResponse> chats = store.listChats();
+        assertThat(chats).hasSize(1);
+        assertThat(chats.getFirst().teamId()).isEqualTo(teamId);
+        assertThat(chats.getFirst().agentKey()).isNull();
     }
 
     @Test
@@ -211,7 +254,7 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void initializeDatabaseShouldAddTeamIdColumnForLegacyTable() throws Exception {
+    void initializeDatabaseShouldFailWhenLegacyTableMissesTeamIdColumn() throws Exception {
         Path chatDir = tempDir.resolve("legacy-chats");
         Files.createDirectories(chatDir);
         Path dbPath = chatDir.resolve("chats.db");
@@ -236,9 +279,10 @@ class ChatRecordStoreTest {
         properties.setDir(chatDir.toString());
         properties.getIndex().setSqliteFile(dbPath.toString());
         ChatRecordStore store = new ChatRecordStore(objectMapper, properties);
-        store.initializeDatabase();
-
-        assertThat(listColumns(dbPath, "CHATS")).contains("TEAM_ID_");
+        assertThatThrownBy(store::initializeDatabase)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("missing required column 'TEAM_ID_'")
+                .hasMessageContaining("Automatic migration is disabled");
     }
 
     @Test
@@ -544,10 +588,23 @@ class ChatRecordStoreTest {
             String message,
             List<Map<String, Object>> references
     ) {
+        return query(requestId, chatId, message, references, null);
+    }
+
+    private Map<String, Object> query(
+            String requestId,
+            String chatId,
+            String message,
+            List<Map<String, Object>> references,
+            String teamId
+    ) {
         Map<String, Object> query = new LinkedHashMap<>();
         query.put("requestId", requestId);
         query.put("chatId", chatId);
         query.put("agentKey", "demo");
+        if (teamId != null) {
+            query.put("teamId", teamId);
+        }
         query.put("role", "user");
         query.put("message", message);
         query.put("references", references);

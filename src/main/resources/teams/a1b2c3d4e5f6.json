@@ -1,7 +1,8 @@
 {
   "name": "Default Team",
   "agentKeys": [
-    "demoModePlain",
-    "demoModeReact"
+    "demoModeReact",
+    "demoViewport",
+    "demoMathSkill"
   ]
 }

@@ -8,6 +8,7 @@ target/
 /agents/
 /teams/
 /chats/
+/chats.db
 /com/
 /data/
 /models/

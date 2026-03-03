@@ -13,6 +13,7 @@ public sealed interface StreamRequest permits StreamRequest.Query, StreamRequest
             String role,
             String message,
             String agentKey,
+            String teamId,
             List<Object> references,
             Map<String, Object> params,
             String scene,
@@ -34,13 +35,14 @@ public sealed interface StreamRequest permits StreamRequest.Query, StreamRequest
                 String role,
                 String message,
                 String agentKey,
+                String teamId,
                 List<Object> references,
                 Map<String, Object> params,
                 String scene,
                 Boolean stream,
                 String chatName
         ) {
-            this(requestId, chatId, role, message, agentKey, references, params, scene, stream, chatName, null);
+            this(requestId, chatId, role, message, agentKey, teamId, references, params, scene, stream, chatName, null);
         }
     }
 

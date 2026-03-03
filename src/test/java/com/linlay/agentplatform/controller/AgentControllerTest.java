@@ -364,6 +364,116 @@ class AgentControllerTest {
     }
 
     @Test
+    void queryShouldPropagateTeamIdToSseAndChatRecords() throws Exception {
+        String teamId = "a1b2c3d4e5f6";
+        FluxExchangeResult<String> result = webTestClient.post()
+                .uri("/api/ap/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "agentKey", "demoModeReact",
+                        "teamId", teamId,
+                        "message", "team hello"
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
+                .returnResult(String.class);
+
+        List<String> chunks = result.getResponseBody()
+                .take(1600)
+                .collectList()
+                .block(Duration.ofSeconds(8));
+
+        assertThat(chunks).isNotNull();
+        String joined = String.join("", chunks);
+        assertThat(joined).contains("\"type\":\"request.query\"");
+        assertThat(joined).contains("\"teamId\":\"" + teamId + "\"");
+
+        String chatId = extractFirstValue(joined, "chatId");
+        assertThat(chatId).isNotBlank();
+
+        byte[] chatsBody = webTestClient.get()
+                .uri("/api/ap/chats")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+        assertThat(chatsBody).isNotNull();
+        Map<String, Object> chatsRoot = objectMapper.readValue(chatsBody, new TypeReference<>() {
+        });
+        List<Map<String, Object>> chats = objectMapper.convertValue(chatsRoot.get("data"), new TypeReference<>() {
+        });
+        Map<String, Object> chat = chats.stream()
+                .filter(item -> chatId.equals(String.valueOf(item.get("chatId"))))
+                .findFirst()
+                .orElseThrow();
+        assertThat(chat.get("teamId")).isEqualTo(teamId);
+        assertThat(chat.get("agentKey")).isNull();
+
+        byte[] detailBody = webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/chat").queryParam("chatId", chatId).build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+        assertThat(detailBody).isNotNull();
+        Map<String, Object> detailRoot = objectMapper.readValue(detailBody, new TypeReference<>() {
+        });
+        Map<String, Object> data = objectMapper.convertValue(detailRoot.get("data"), new TypeReference<>() {
+        });
+        List<Map<String, Object>> events = objectMapper.convertValue(data.get("events"), new TypeReference<>() {
+        });
+        Map<String, Object> requestQuery = events.stream()
+                .filter(event -> "request.query".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(requestQuery).containsEntry("teamId", teamId);
+    }
+
+    @Test
+    void queryShouldRejectTeamIdWithoutAgentKey() {
+        webTestClient.post()
+                .uri("/api/ap/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "teamId", "a1b2c3d4e5f6",
+                        "message", "missing agent"
+                ))
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void queryShouldRejectUnknownTeamId() {
+        webTestClient.post()
+                .uri("/api/ap/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "teamId", "deadbeefcafe",
+                        "agentKey", "demoModeReact",
+                        "message", "unknown team"
+                ))
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void queryShouldRejectAgentOutsideTeam() {
+        webTestClient.post()
+                .uri("/api/ap/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "teamId", "a1b2c3d4e5f6",
+                        "agentKey", "demoModePlanExecute",
+                        "message", "outside team"
+                ))
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
     void queryShouldRejectInvalidChatId() {
         webTestClient.post()
                 .uri("/api/ap/query")

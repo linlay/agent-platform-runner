@@ -133,6 +133,7 @@ public class StreamEventAssembler {
                 requestPayload.put("role", query.role());
                 requestPayload.put("message", query.message());
                 putIfNonNull(requestPayload, "agentKey", query.agentKey());
+                putIfNonNull(requestPayload, "teamId", query.teamId());
                 putIfNonNull(requestPayload, "references", query.references());
                 putIfNonNull(requestPayload, "params", visibleParams);
                 putIfNonNull(requestPayload, "scene", query.scene());

@@ -203,6 +203,9 @@ public class AgentController {
         if (StringUtils.hasText(session.request().agentKey())) {
             bodySummary.put("agentKey", session.request().agentKey());
         }
+        if (StringUtils.hasText(session.request().teamId())) {
+            bodySummary.put("teamId", session.request().teamId());
+        }
         bodySummary.put("requestId", session.request().requestId());
         bodySummary.put("runId", session.request().runId());
         if (session.request().stream() != null) {

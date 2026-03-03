@@ -10,6 +10,7 @@ import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.model.ViewportType;
+import com.linlay.agentplatform.team.TeamRegistryService;
 import com.linlay.agentplatform.tool.CapabilityDescriptor;
 import com.linlay.agentplatform.tool.CapabilityKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
@@ -98,7 +99,8 @@ class AgentQueryServiceTest {
                 null,
                 toolRegistry,
                 viewportRegistryService,
-                frontendToolProperties
+                frontendToolProperties,
+                mock(TeamRegistryService.class)
         );
         ServerSentEvent<String> event = ServerSentEvent.builder("""
                 {"type":"tool.start","toolName":"confirm_dialog","toolId":"call_1","runId":"run_1"}
@@ -132,7 +134,8 @@ class AgentQueryServiceTest {
                 null,
                 toolRegistry,
                 viewportRegistryService,
-                frontendToolProperties
+                frontendToolProperties,
+                mock(TeamRegistryService.class)
         );
         ServerSentEvent<String> event = ServerSentEvent.builder("""
                 {"type":"tool.snapshot","toolName":"confirm_dialog","toolId":"call_2","runId":"run_2"}
@@ -158,7 +161,8 @@ class AgentQueryServiceTest {
         ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
         String chatId = UUID.randomUUID().toString();
         when(chatRecordStore.findBoundAgentKey(chatId)).thenReturn(Optional.of("bound-agent"));
-        when(chatRecordStore.ensureChat(chatId, "bound-agent", "Bound Agent", "hello"))
+        when(chatRecordStore.findBoundTeamId(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.ensureChat(chatId, "bound-agent", "Bound Agent", null, "hello"))
                 .thenReturn(new ChatRecordStore.ChatSummary(chatId, "hello", "bound-agent", null, 1L, 2L, "", "", 1, 2L, false));
 
         AgentQueryService service = new AgentQueryService(
@@ -168,10 +172,11 @@ class AgentQueryServiceTest {
                 chatRecordStore,
                 mock(ToolRegistry.class),
                 mock(ViewportRegistryService.class),
-                new FrontendToolProperties()
+                new FrontendToolProperties(),
+                mock(TeamRegistryService.class)
         );
 
-        QueryRequest request = new QueryRequest("req-1", chatId, "request-agent", "user", "hello", null, null, null, true);
+        QueryRequest request = new QueryRequest("req-1", chatId, "request-agent", null, "user", "hello", null, null, null, true);
         AgentQueryService.QuerySession session = service.prepare(request);
 
         assertThat(session.agent().id()).isEqualTo("bound-agent");
@@ -198,12 +203,13 @@ class AgentQueryServiceTest {
                 chatRecordStore,
                 mock(ToolRegistry.class),
                 mock(ViewportRegistryService.class),
-                new FrontendToolProperties()
+                new FrontendToolProperties(),
+                mock(TeamRegistryService.class)
         );
 
         AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
                 agent,
-                new StreamRequest.Query("req-1", UUID.randomUUID().toString(), "user", "fallback", "demo", null, null, null, true, "chat", "run-1"),
+                new StreamRequest.Query("req-1", UUID.randomUUID().toString(), "user", "fallback", "demo", null, null, null, null, true, "chat", "run-1"),
                 new AgentRequest("fallback", UUID.randomUUID().toString(), "req-1", "run-1", Map.of())
         );
 
@@ -235,7 +241,8 @@ class AgentQueryServiceTest {
                 null,
                 mock(ToolRegistry.class),
                 mock(ViewportRegistryService.class),
-                new FrontendToolProperties()
+                new FrontendToolProperties(),
+                mock(TeamRegistryService.class)
         );
     }
 }

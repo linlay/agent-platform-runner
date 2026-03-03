@@ -15,6 +15,8 @@ import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.team.TeamDescriptor;
+import com.linlay.agentplatform.team.TeamRegistryService;
 import com.linlay.agentplatform.tool.CapabilityKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.slf4j.Logger;
@@ -29,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
@@ -56,6 +59,7 @@ public class AgentQueryService {
     private final ToolRegistry toolRegistry;
     private final ViewportRegistryService viewportRegistryService;
     private final FrontendToolProperties frontendToolProperties;
+    private final TeamRegistryService teamRegistryService;
     private final LoggingAgentProperties loggingAgentProperties;
 
     public AgentQueryService(
@@ -65,7 +69,8 @@ public class AgentQueryService {
             ChatRecordStore chatRecordStore,
             ToolRegistry toolRegistry,
             ViewportRegistryService viewportRegistryService,
-            FrontendToolProperties frontendToolProperties
+            FrontendToolProperties frontendToolProperties,
+            TeamRegistryService teamRegistryService
     ) {
         this(
                 agentRegistry,
@@ -75,6 +80,7 @@ public class AgentQueryService {
                 toolRegistry,
                 viewportRegistryService,
                 frontendToolProperties,
+                teamRegistryService,
                 new LoggingAgentProperties()
         );
     }
@@ -88,6 +94,7 @@ public class AgentQueryService {
             ToolRegistry toolRegistry,
             ViewportRegistryService viewportRegistryService,
             FrontendToolProperties frontendToolProperties,
+            TeamRegistryService teamRegistryService,
             LoggingAgentProperties loggingAgentProperties
     ) {
         this.agentRegistry = agentRegistry;
@@ -97,24 +104,32 @@ public class AgentQueryService {
         this.toolRegistry = toolRegistry;
         this.viewportRegistryService = viewportRegistryService;
         this.frontendToolProperties = frontendToolProperties;
+        this.teamRegistryService = teamRegistryService;
         this.loggingAgentProperties = loggingAgentProperties;
     }
 
     public QuerySession prepare(QueryRequest request) {
         String chatId = parseOrGenerateUuid(request.chatId(), "chatId");
-        String boundAgentKey = chatRecordStore.findBoundAgentKey(chatId).orElse(null);
-        Agent agent = resolveAgent(StringUtils.hasText(boundAgentKey) ? boundAgentKey : request.agentKey());
+        String boundTeamId = Optional.ofNullable(chatRecordStore.findBoundTeamId(chatId))
+                .orElse(Optional.empty())
+                .orElse(null);
+        String boundAgentKey = Optional.ofNullable(chatRecordStore.findBoundAgentKey(chatId))
+                .orElse(Optional.empty())
+                .orElse(null);
+        String effectiveTeamId = resolveEffectiveTeamId(request.teamId(), boundTeamId, boundAgentKey);
+        Agent agent = resolveAgent(resolveEffectiveAgentKey(request, boundAgentKey, effectiveTeamId));
         String runId = RunIdGenerator.nextRunId();
         String requestId = StringUtils.hasText(request.requestId())
                 ? request.requestId().trim()
                 : runId;
         String role = StringUtils.hasText(request.role()) ? request.role().trim() : "user";
         String effectiveAgentKey = agent.id();
-        Map<String, Object> querySnapshot = buildQuerySnapshot(request, requestId, chatId, role, effectiveAgentKey);
+        Map<String, Object> querySnapshot = buildQuerySnapshot(request, requestId, chatId, role, effectiveAgentKey, effectiveTeamId);
         ChatRecordStore.ChatSummary summary = chatRecordStore.ensureChat(
                 chatId,
-                agent.id(),
+                StringUtils.hasText(effectiveTeamId) ? null : agent.id(),
                 agent.name(),
+                effectiveTeamId,
                 request.message()
         );
         String chatName = summary.chatName();
@@ -125,6 +140,7 @@ public class AgentQueryService {
                 role,
                 request.message(),
                 effectiveAgentKey,
+                effectiveTeamId,
                 request.references() == null ? null : request.references().stream().map(value -> (Object) value).toList(),
                 queryParams,
                 serializeScene(request.scene()),
@@ -443,12 +459,14 @@ public class AgentQueryService {
             String requestId,
             String chatId,
             String role,
-            String effectiveAgentKey
+            String effectiveAgentKey,
+            String teamId
     ) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("requestId", requestId);
         snapshot.put("chatId", chatId);
         snapshot.put("agentKey", effectiveAgentKey);
+        snapshot.put("teamId", teamId);
         snapshot.put("role", role);
         snapshot.put("message", request.message());
         snapshot.put("references", request.references());
@@ -456,6 +474,40 @@ public class AgentQueryService {
         snapshot.put("scene", request.scene());
         snapshot.put("stream", request.stream());
         return snapshot;
+    }
+
+    private String resolveEffectiveTeamId(String requestTeamId, String boundTeamId, String boundAgentKey) {
+        String requested = normalizeNullable(requestTeamId);
+        String bound = normalizeNullable(boundTeamId);
+        if (StringUtils.hasText(requested) && StringUtils.hasText(boundAgentKey)) {
+            throw new IllegalArgumentException("teamId cannot be provided for an agent-bound chat");
+        }
+        if (StringUtils.hasText(bound) && StringUtils.hasText(requested) && !bound.equalsIgnoreCase(requested)) {
+            throw new IllegalArgumentException("teamId does not match chat binding");
+        }
+        return StringUtils.hasText(bound) ? bound : requested;
+    }
+
+    private String resolveEffectiveAgentKey(QueryRequest request, String boundAgentKey, String effectiveTeamId) {
+        if (!StringUtils.hasText(effectiveTeamId)) {
+            return StringUtils.hasText(boundAgentKey) ? boundAgentKey : request.agentKey();
+        }
+        if (!StringUtils.hasText(request.agentKey())) {
+            throw new IllegalArgumentException("agentKey is required when teamId is provided");
+        }
+        TeamDescriptor team = teamRegistryService.find(effectiveTeamId)
+                .orElseThrow(() -> new IllegalArgumentException("teamId not found: " + effectiveTeamId));
+        String requestedAgentKey = request.agentKey().trim();
+        boolean belongsToTeam = team.agentKeys().stream()
+                .anyMatch(agentKey -> requestedAgentKey.equals(agentKey));
+        if (!belongsToTeam) {
+            throw new IllegalArgumentException("agentKey '" + requestedAgentKey + "' is not in team '" + team.id() + "'");
+        }
+        return requestedAgentKey;
+    }
+
+    private String normalizeNullable(String raw) {
+        return StringUtils.hasText(raw) ? raw.trim() : null;
     }
 
     public record QuerySession(

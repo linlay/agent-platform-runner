@@ -293,6 +293,31 @@ class AgentDeltaToStreamInputMapperTest {
         assertThat(event.payload()).containsEntry("toolId", "call_frontend_1");
     }
 
+    @Test
+    void shouldIncludeTeamIdInRequestQueryBootstrapEvent() {
+        StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
+                .begin(new StreamRequest.Query(
+                        "req_team_1",
+                        "chat_team_1",
+                        "user",
+                        "team test",
+                        "demoModeReact",
+                        "a1b2c3d4e5f6",
+                        null,
+                        null,
+                        null,
+                        true,
+                        "team-chat",
+                        "run_team_1"
+                ));
+
+        StreamEvent requestQuery = state.bootstrapEvents().stream()
+                .filter(event -> "request.query".equals(event.type()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(requestQuery.payload()).containsEntry("teamId", "a1b2c3d4e5f6");
+    }
+
     private List<StreamEvent> assembleEvents(AgentDeltaToStreamInputMapper mapper, List<AgentDelta> deltas) {
         StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
                 .begin(new StreamRequest.Query(
@@ -300,6 +325,7 @@ class AgentDeltaToStreamInputMapperTest {
                         "chat_1",
                         "user",
                         "test",
+                        null,
                         null,
                         null,
                         null,
