@@ -114,6 +114,7 @@ memory:
     dir: ./chats
     index:
       sqlite-file: chats.db
+      auto-rebuild-on-incompatible-schema: true
 
 logging:
   agent:

@@ -387,11 +387,8 @@ public class SystemBash extends AbstractDeterministicTool {
             return null;
         }
 
-        for (int i = 1; i < tokens.size(); i++) {
-            String token = tokens.get(i);
-            if (token.startsWith("-")) {
-                continue;
-            }
+        List<String> pathArguments = PathCheckedArgumentResolver.collectPathArguments(baseCommand, tokens.subList(1, tokens.size()));
+        for (String token : pathArguments) {
             Path resolved = resolvePath(token);
             if (resolved == null) {
                 return "Illegal path argument: " + token;

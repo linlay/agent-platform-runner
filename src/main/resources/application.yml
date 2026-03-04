@@ -142,6 +142,7 @@ memory:
     action-tools: ${MEMORY_CHAT_ACTION_TOOLS:}
     index:
       sqlite-file: ${MEMORY_CHAT_INDEX_SQLITE_FILE:chats.db}
+      auto-rebuild-on-incompatible-schema: ${MEMORY_CHAT_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA:true}
 
 logging:
   agent:

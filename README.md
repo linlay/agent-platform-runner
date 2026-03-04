@@ -573,6 +573,7 @@ for f in *.md; do echo "$f"; done
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/ap/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |
 | `MEMORY_CHAT_DIR` | `./chats` | 聊天记忆目录 |
 | `MEMORY_CHAT_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `MEMORY_CHAT_DIR` 解析） |
+| `MEMORY_CHAT_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `true` | sqlite 索引 schema 不兼容时是否自动备份并重建 |
 | `MEMORY_CHAT_K` | `20` | 滑动窗口大小 |
 | `LOGGING_AGENT_REQUEST_ENABLED` | `true` | API 请求摘要日志开关（不记录 header） |
 | `LOGGING_AGENT_AUTH_ENABLED` | `true` | 认证失败原因日志开关（401/403） |

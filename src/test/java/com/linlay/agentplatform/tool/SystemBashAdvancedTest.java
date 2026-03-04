@@ -159,4 +159,67 @@ class SystemBashAdvancedTest {
         assertThat(result.asText()).contains("No such file or directory");
         assertThat(result.asText()).contains("mode: strict");
     }
+
+    @Test
+    void shouldAllowGitSubcommandAfterPathOptionInStrictMode(@TempDir Path tempDir) throws IOException {
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+        SystemBash bash = new SystemBash(
+                tempDir,
+                List.of(repo),
+                Set.of("git"),
+                Set.of("git"),
+                false,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "git -C repo status"));
+
+        assertThat(result.asText()).contains("mode: strict");
+        assertThat(result.asText()).doesNotContain("Path not allowed outside authorized directories: status");
+    }
+
+    @Test
+    void shouldAllowGitSubcommandAfterPathOptionInShellMode(@TempDir Path tempDir) throws IOException {
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+        SystemBash bash = new SystemBash(
+                tempDir,
+                List.of(repo),
+                Set.of("git", "echo"),
+                Set.of("git"),
+                true,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "git -C repo status || echo fallback"));
+
+        assertThat(result.asText()).contains("mode: shell");
+        assertThat(result.asText()).doesNotContain("Path not allowed outside authorized directories: status");
+    }
+
+    @Test
+    void shouldRejectGitPathOptionOutsideAllowedRoots(@TempDir Path tempDir) throws IOException {
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+        SystemBash bash = new SystemBash(
+                tempDir,
+                List.of(repo),
+                Set.of("git"),
+                Set.of("git"),
+                false,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "git -C ../outside status"));
+
+        assertThat(result.asText()).contains("mode: strict");
+        assertThat(result.asText()).contains("Path not allowed outside authorized directories: ../outside");
+    }
 }

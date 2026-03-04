@@ -53,6 +53,7 @@ public class ChatWindowMemoryProperties {
 
     public static class IndexProperties {
         private String sqliteFile = "chats.db";
+        private boolean autoRebuildOnIncompatibleSchema = true;
 
         public String getSqliteFile() {
             return sqliteFile;
@@ -60,6 +61,14 @@ public class ChatWindowMemoryProperties {
 
         public void setSqliteFile(String sqliteFile) {
             this.sqliteFile = sqliteFile;
+        }
+
+        public boolean isAutoRebuildOnIncompatibleSchema() {
+            return autoRebuildOnIncompatibleSchema;
+        }
+
+        public void setAutoRebuildOnIncompatibleSchema(boolean autoRebuildOnIncompatibleSchema) {
+            this.autoRebuildOnIncompatibleSchema = autoRebuildOnIncompatibleSchema;
         }
     }
 }

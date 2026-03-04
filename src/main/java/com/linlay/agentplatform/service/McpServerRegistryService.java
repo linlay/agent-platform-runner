@@ -36,6 +36,7 @@ public class McpServerRegistryService {
     private final McpProperties properties;
     private final Object reloadLock = new Object();
     private volatile Map<String, RegisteredServer> byKey = Map.of();
+    private volatile long registryVersion = 0L;
 
     public McpServerRegistryService(
             ObjectMapper objectMapper,
@@ -60,8 +61,13 @@ public class McpServerRegistryService {
             }
 
             byKey = Map.copyOf(merged);
+            registryVersion++;
             log.debug("Refreshed MCP server registry, size={}", byKey.size());
         }
+    }
+
+    public long currentVersion() {
+        return registryVersion;
     }
 
     public List<RegisteredServer> list() {

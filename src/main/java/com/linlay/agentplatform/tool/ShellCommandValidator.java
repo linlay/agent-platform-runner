@@ -698,10 +698,8 @@ final class ShellCommandValidator {
     }
 
     private String validatePathCheckedCommand(CommandSpec command) {
-        for (String arg : command.args) {
-            if (arg == null || arg.isBlank() || arg.startsWith("-")) {
-                continue;
-            }
+        List<String> pathArguments = PathCheckedArgumentResolver.collectPathArguments(command.commandName, command.args);
+        for (String arg : pathArguments) {
             String error = validatePathToken(arg);
             if (error != null) {
                 return error;

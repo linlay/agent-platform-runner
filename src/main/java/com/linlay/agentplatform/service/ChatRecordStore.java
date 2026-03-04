@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -100,15 +101,78 @@ public class ChatRecordStore {
                 throw new IllegalStateException("Cannot create sqlite directory for " + dbPath, ex);
             }
 
-            try (Connection connection = openConnection();
-                 Statement statement = connection.createStatement()) {
-                statement.execute(CREATE_CHATS_SQL);
-                statement.execute(CREATE_CHATS_LAST_RUN_ID_INDEX_SQL);
-                validateChatsSchema(connection);
-            } catch (SQLException ex) {
-                throw new IllegalStateException("Cannot initialize sqlite chat index", ex);
+            try {
+                initializeOrValidateSchema();
+            } catch (IncompatibleChatsSchemaException ex) {
+                if (!isAutoRebuildOnIncompatibleSchema()) {
+                    throw ex;
+                }
+                rebuildIncompatibleSchema(dbPath, ex);
             }
         }
+    }
+
+    private void initializeOrValidateSchema() {
+        try (Connection connection = openConnection();
+             Statement statement = connection.createStatement()) {
+            statement.execute(CREATE_CHATS_SQL);
+            statement.execute(CREATE_CHATS_LAST_RUN_ID_INDEX_SQL);
+            validateChatsSchema(connection);
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Cannot initialize sqlite chat index", ex);
+        }
+    }
+
+    private void rebuildIncompatibleSchema(Path dbPath, IncompatibleChatsSchemaException cause) {
+        Path backupPath = backupIncompatibleDb(dbPath);
+        try (Connection connection = openConnection();
+             Statement statement = connection.createStatement()) {
+            statement.execute("DROP TABLE IF EXISTS CHATS");
+            statement.execute(CREATE_CHATS_SQL);
+            statement.execute(CREATE_CHATS_LAST_RUN_ID_INDEX_SQL);
+            validateChatsSchema(connection);
+            log.warn(
+                    "Detected incompatible CHATS schema ({}), rebuilt sqlite chat index. dbPath={}, backupPath={}",
+                    cause.getMessage(),
+                    dbPath,
+                    backupPath
+            );
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Cannot rebuild sqlite chat index at " + dbPath, ex);
+        }
+    }
+
+    private Path backupIncompatibleDb(Path dbPath) {
+        Path backupPath = resolveBackupPath(dbPath);
+        try {
+            Files.copy(dbPath, backupPath, StandardCopyOption.COPY_ATTRIBUTES);
+            return backupPath;
+        } catch (IOException ex) {
+            throw new IllegalStateException(
+                    "Cannot backup incompatible sqlite chat index from " + dbPath + " to " + backupPath,
+                    ex
+            );
+        }
+    }
+
+    private Path resolveBackupPath(Path dbPath) {
+        String baseName = dbPath.getFileName().toString() + ".bak." + System.currentTimeMillis();
+        Path parent = dbPath.getParent();
+        Path candidate = parent == null ? Path.of(baseName) : parent.resolve(baseName);
+        int suffix = 1;
+        while (Files.exists(candidate)) {
+            Path next = parent == null
+                    ? Path.of(baseName + "." + suffix)
+                    : parent.resolve(baseName + "." + suffix);
+            candidate = next;
+            suffix++;
+        }
+        return candidate;
+    }
+
+    private boolean isAutoRebuildOnIncompatibleSchema() {
+        ChatWindowMemoryProperties.IndexProperties index = properties.getIndex();
+        return index == null || index.isAutoRebuildOnIncompatibleSchema();
     }
 
     public ChatSummary ensureChat(String chatId, String firstAgentKey, String firstAgentName, String firstMessage) {
@@ -1211,8 +1275,8 @@ public class ChatRecordStore {
         }
     }
 
-    private IllegalStateException incompatibleSchema(String details) {
-        return new IllegalStateException(
+    private IncompatibleChatsSchemaException incompatibleSchema(String details) {
+        return new IncompatibleChatsSchemaException(
                 "Incompatible CHATS schema: " + details + ". Rebuild sqlite chat index at " + resolveSqlitePath()
         );
     }
@@ -1482,5 +1546,11 @@ public class ChatRecordStore {
         public String lastRunContent;
         public int readStatus;
         public Long readAt;
+    }
+
+    private static final class IncompatibleChatsSchemaException extends IllegalStateException {
+        private IncompatibleChatsSchemaException(String message) {
+            super(message);
+        }
     }
 }

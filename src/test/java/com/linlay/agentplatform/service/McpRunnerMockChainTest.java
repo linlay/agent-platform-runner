@@ -60,10 +60,12 @@ class McpRunnerMockChainTest {
                 objectMapper,
                 WebClient.builder().exchangeFunction(exchangeFunction)
         );
+        McpServerAvailabilityGate availabilityGate = new McpServerAvailabilityGate();
 
         McpCapabilitySyncService capabilitySyncService = new McpCapabilitySyncService(
                 properties,
                 serverRegistryService,
+                availabilityGate,
                 streamableHttpClient,
                 objectMapper
         );
@@ -92,6 +94,7 @@ class McpRunnerMockChainTest {
                 toolRegistry,
                 properties,
                 serverRegistryService,
+                availabilityGate,
                 streamableHttpClient,
                 objectMapper
         );

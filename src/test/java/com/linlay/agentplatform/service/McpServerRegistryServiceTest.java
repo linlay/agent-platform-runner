@@ -97,4 +97,29 @@ class McpServerRegistryServiceTest {
         McpServerRegistryService.RegisteredServer server = service.find("mock").orElseThrow();
         assertThat(server.readTimeoutMs()).isEqualTo(15000);
     }
+
+    @Test
+    void shouldIncreaseRegistryVersionAfterRefresh() throws Exception {
+        Path registryDir = tempDir.resolve("mcp-servers");
+        Files.createDirectories(registryDir);
+        Files.writeString(registryDir.resolve("mock.json"), """
+                {
+                  "serverKey": "mock",
+                  "baseUrl": "http://localhost:18080"
+                }
+                """);
+
+        McpProperties properties = new McpProperties();
+        properties.getRegistry().setExternalDir(registryDir.toString());
+        McpServerRegistryService service = new McpServerRegistryService(new ObjectMapper(), properties);
+
+        long firstVersion = service.currentVersion();
+        service.refreshServers();
+        long secondVersion = service.currentVersion();
+        service.refreshServers();
+        long thirdVersion = service.currentVersion();
+
+        assertThat(secondVersion).isGreaterThan(firstVersion);
+        assertThat(thirdVersion).isGreaterThan(secondVersion);
+    }
 }

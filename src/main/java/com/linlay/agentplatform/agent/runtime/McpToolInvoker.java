@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.service.McpServerAvailabilityGate;
 import com.linlay.agentplatform.service.McpServerRegistryService;
 import com.linlay.agentplatform.service.McpStreamableHttpClient;
 import com.linlay.agentplatform.tool.CapabilityDescriptor;
@@ -20,6 +21,7 @@ public class McpToolInvoker implements ToolInvoker {
     private final ToolRegistry toolRegistry;
     private final McpProperties properties;
     private final McpServerRegistryService serverRegistryService;
+    private final McpServerAvailabilityGate availabilityGate;
     private final McpStreamableHttpClient streamableHttpClient;
     private final ObjectMapper objectMapper;
 
@@ -27,12 +29,14 @@ public class McpToolInvoker implements ToolInvoker {
             ToolRegistry toolRegistry,
             McpProperties properties,
             McpServerRegistryService serverRegistryService,
+            McpServerAvailabilityGate availabilityGate,
             McpStreamableHttpClient streamableHttpClient,
             ObjectMapper objectMapper
     ) {
         this.toolRegistry = toolRegistry;
         this.properties = properties;
         this.serverRegistryService = serverRegistryService;
+        this.availabilityGate = availabilityGate;
         this.streamableHttpClient = streamableHttpClient;
         this.objectMapper = objectMapper;
     }
@@ -57,16 +61,31 @@ public class McpToolInvoker implements ToolInvoker {
         if (serverOptional.isEmpty()) {
             return error(toolName, "mcp_server_not_found", "MCP server is not registered: " + capability.sourceKey());
         }
+        McpServerRegistryService.RegisteredServer server = serverOptional.get();
+        long registryVersion = serverRegistryService.currentVersion();
+        if (availabilityGate.isBlocked(server.serverKey(), registryVersion)) {
+            return error(
+                    toolName,
+                    "mcp_server_unavailable",
+                    "MCP server is unavailable, waiting for mcp-servers refresh: " + server.serverKey()
+            );
+        }
 
         try {
             JsonNode result = streamableHttpClient.callTool(
-                    serverOptional.get(),
+                    server,
                     capability.name(),
                     args == null ? Map.of() : args
             );
+            availabilityGate.markSuccess(server.serverKey());
             return normalizeCallResult(toolName, result);
         } catch (Exception ex) {
-            return error(toolName, "mcp_call_failed", resolveErrorMessage(ex));
+            availabilityGate.markFailure(server.serverKey(), registryVersion);
+            String message = resolveErrorMessage(ex);
+            if (StringUtils.hasText(message)) {
+                return error(toolName, "mcp_server_unavailable", message);
+            }
+            return error(toolName, "mcp_server_unavailable", "MCP server is unavailable: " + server.serverKey());
         }
     }
 

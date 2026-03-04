@@ -235,7 +235,7 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void initializeDatabaseShouldFailWhenChatsSchemaIsIncompatible() throws Exception {
+    void initializeDatabaseShouldBackupAndRebuildWhenChatsSchemaIsIncompatible() throws Exception {
         Path chatDir = tempDir.resolve("legacy-chats");
         Files.createDirectories(chatDir);
         Path dbPath = chatDir.resolve("chats.db");
@@ -259,6 +259,45 @@ class ChatRecordStoreTest {
         ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
         properties.setDir(chatDir.toString());
         properties.getIndex().setSqliteFile(dbPath.toString());
+        ChatRecordStore store = new ChatRecordStore(objectMapper, properties);
+        store.initializeDatabase();
+
+        assertThat(dbPath).exists();
+        try (java.util.stream.Stream<Path> stream = Files.list(chatDir)) {
+            List<Path> backups = stream
+                    .filter(path -> path.getFileName().toString().startsWith("chats.db.bak."))
+                    .toList();
+            assertThat(backups).hasSize(1);
+        }
+    }
+
+    @Test
+    void initializeDatabaseShouldFailWhenAutoRebuildIsDisabled() throws Exception {
+        Path chatDir = tempDir.resolve("legacy-chats-disabled");
+        Files.createDirectories(chatDir);
+        Path dbPath = chatDir.resolve("chats.db");
+        try (java.sql.Connection connection = java.sql.DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+             java.sql.Statement statement = connection.createStatement()) {
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS CHATS (
+                      CHAT_ID_ TEXT PRIMARY KEY,
+                      CHAT_NAME_ TEXT NOT NULL,
+                      AGENT_KEY_ TEXT NOT NULL,
+                      CREATED_AT_ INTEGER NOT NULL,
+                      UPDATED_AT_ INTEGER NOT NULL,
+                      LAST_RUN_ID_ VARCHAR(12) NOT NULL,
+                      LAST_RUN_CONTENT_ TEXT NOT NULL DEFAULT '',
+                      READ_STATUS_ INTEGER NOT NULL DEFAULT 1,
+                      READ_AT_ INTEGER
+                    )
+                    """);
+        }
+
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        properties.setDir(chatDir.toString());
+        properties.getIndex().setSqliteFile(dbPath.toString());
+        properties.getIndex().setAutoRebuildOnIncompatibleSchema(false);
+
         ChatRecordStore store = new ChatRecordStore(objectMapper, properties);
         assertThatThrownBy(store::initializeDatabase)
                 .isInstanceOf(IllegalStateException.class)
