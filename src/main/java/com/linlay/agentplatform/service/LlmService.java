@@ -681,9 +681,7 @@ public class LlmService {
             String stage
     ) {
         if (protocol == ModelProtocol.ANTHROPIC) {
-            return Mono.error(new UnsupportedOperationException(
-                    "Anthropic protocol is not implemented yet for provider: " + providerKey
-            ));
+            return Mono.error(anthropicSseClient.notImplemented(providerKey));
         }
         if (protocol == ModelProtocol.NEWAPI_OPENAI_COMPATIBLE) {
             return streamContentRawSse(
@@ -901,4 +899,5 @@ public class LlmService {
             return callLogger.sanitizeText(String.valueOf(value));
         }
     }
+
 }

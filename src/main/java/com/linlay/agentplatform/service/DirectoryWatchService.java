@@ -24,9 +24,11 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -148,7 +150,7 @@ public class DirectoryWatchService implements DisposableBean {
     }
 
     private void pollLoop(Map<WatchKey, Runnable> keyActions) {
-        Map<Runnable, Long> lastTrigger = new LinkedHashMap<>();
+        Map<WatchKey, Long> lastTrigger = new LinkedHashMap<>();
 
         while (!Thread.currentThread().isInterrupted()) {
             WatchKey key;
@@ -161,14 +163,14 @@ public class DirectoryWatchService implements DisposableBean {
                 continue;
             }
 
-            boolean valid = key.reset();
             Runnable action = keyActions.get(key);
+            boolean hasRelevantEvent = hasRelevantEvents(key.pollEvents());
 
-            if (action != null) {
+            if (action != null && hasRelevantEvent) {
                 long now = System.currentTimeMillis();
-                Long last = lastTrigger.get(action);
+                Long last = lastTrigger.get(key);
                 if (last == null || now - last >= DEBOUNCE_MS) {
-                    lastTrigger.put(action, now);
+                    lastTrigger.put(key, now);
                     try {
                         action.run();
                     } catch (Exception ex) {
@@ -177,13 +179,34 @@ public class DirectoryWatchService implements DisposableBean {
                 }
             }
 
+            boolean valid = key.reset();
             if (!valid) {
                 keyActions.remove(key);
+                lastTrigger.remove(key);
                 if (keyActions.isEmpty()) {
                     break;
                 }
             }
         }
+    }
+
+    private boolean hasRelevantEvents(List<WatchEvent<?>> events) {
+        if (events == null || events.isEmpty()) {
+            return false;
+        }
+        for (WatchEvent<?> event : events) {
+            if (event == null) {
+                continue;
+            }
+            WatchEvent.Kind<?> kind = event.kind();
+            if (kind == StandardWatchEventKinds.ENTRY_CREATE
+                    || kind == StandardWatchEventKinds.ENTRY_MODIFY
+                    || kind == StandardWatchEventKinds.ENTRY_DELETE
+                    || kind == StandardWatchEventKinds.OVERFLOW) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void closeWatchService() {

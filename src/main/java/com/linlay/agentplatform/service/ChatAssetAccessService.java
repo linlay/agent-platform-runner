@@ -89,20 +89,10 @@ public class ChatAssetAccessService {
 
     private String normalizeMarkdownTarget(String target) {
         String normalized = target.trim();
-        int whitespace = indexOfWhitespace(normalized);
-        if (whitespace > 0) {
-            normalized = normalized.substring(0, whitespace);
+        if (normalized.isEmpty()) {
+            return normalized;
         }
-        return normalized;
-    }
-
-    private int indexOfWhitespace(String value) {
-        for (int i = 0; i < value.length(); i++) {
-            if (Character.isWhitespace(value.charAt(i))) {
-                return i;
-            }
-        }
-        return -1;
+        return normalized.split("\\s+", 2)[0];
     }
 
     private void addNormalized(Set<String> assets, String rawPath) {

@@ -541,10 +541,6 @@ class OpenAiCompatibleSseClient {
         return rawTools;
     }
 
-    private String normalizePrompt(String prompt) {
-        return prompt == null ? "" : prompt;
-    }
-
     private boolean isBailianProvider(String providerKey) {
         return providerKey != null && "bailian".equalsIgnoreCase(providerKey.trim());
     }

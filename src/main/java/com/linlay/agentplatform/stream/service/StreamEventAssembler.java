@@ -3,7 +3,6 @@ package com.linlay.agentplatform.stream.service;
 import com.linlay.agentplatform.stream.model.StreamEvent;
 import com.linlay.agentplatform.stream.model.StreamInput;
 import com.linlay.agentplatform.stream.model.StreamRequest;
-import com.linlay.agentplatform.service.RunIdGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -559,10 +557,6 @@ public class StreamEventAssembler {
             return runId != null;
         }
 
-        private String nextId(String prefix) {
-            return generateIdInternal(prefix);
-        }
-
         private Map<String, Object> errorPayload(Throwable ex) {
             Map<String, Object> error = new LinkedHashMap<>();
             error.put("code", "RUN_ERROR");
@@ -601,7 +595,7 @@ public class StreamEventAssembler {
                 if (query.runId() != null && !query.runId().isBlank()) {
                     return query.runId();
                 }
-                return RunIdGenerator.nextRunId();
+                return toBase36Now();
             }
             if (request instanceof StreamRequest.Submit submit) {
                 return submit.runId();
@@ -610,13 +604,8 @@ public class StreamEventAssembler {
         }
     }
 
-    public String generateId(String prefix) {
-        return generateIdInternal(prefix);
-    }
-
-    private static String generateIdInternal(String prefix) {
-        String actualPrefix = prefix == null || prefix.isBlank() ? "id" : prefix;
-        return actualPrefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+    private static String toBase36Now() {
+        return Long.toString(System.currentTimeMillis(), 36);
     }
 
     private static boolean resolveEmitChatStart(Map<String, Object> params) {

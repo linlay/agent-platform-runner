@@ -297,7 +297,6 @@ public class ExecutionContext {
                 usedIds.add(task.taskId().trim());
             }
         }
-        int nextIndex = usedIds.size();
         for (AgentDelta.PlanTask task : tasks) {
             if (task == null || !StringUtils.hasText(task.description())) {
                 continue;
@@ -309,7 +308,6 @@ public class ExecutionContext {
                     taskId = shortId();
                 }
             }
-            nextIndex++;
             usedIds.add(taskId);
             planTasks.add(new AgentDelta.PlanTask(
                     taskId,
@@ -372,15 +370,7 @@ public class ExecutionContext {
     }
 
     private String normalizeStatus(String raw) {
-        if (!StringUtils.hasText(raw)) {
-            return "init";
-        }
-        String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "in_progress" -> "init";
-            case "init", "completed", "failed", "canceled" -> normalized;
-            default -> "init";
-        };
+        return AgentDelta.normalizePlanTaskStatus(raw);
     }
 
     private String shortId() {

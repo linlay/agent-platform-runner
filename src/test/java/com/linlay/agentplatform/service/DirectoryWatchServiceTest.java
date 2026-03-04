@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -31,6 +32,56 @@ class DirectoryWatchServiceTest {
             Files.writeString(watchedDir.resolve("test.json"), "{}");
             boolean triggered = latch.await(10, TimeUnit.SECONDS);
             assertThat(triggered).isTrue();
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldNotKeepTriggeringForSingleWrite() throws Exception {
+        Path watchedDir = tempDir.resolve("watched-single");
+        Files.createDirectories(watchedDir);
+
+        AtomicInteger counter = new AtomicInteger();
+        Map<Path, Runnable> dirs = new LinkedHashMap<>();
+        dirs.put(watchedDir, counter::incrementAndGet);
+
+        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        try {
+            Files.writeString(watchedDir.resolve("once.json"), "{}");
+
+            boolean firstTriggered = waitForCountAtLeast(counter, 1, 10_000);
+            assertThat(firstTriggered).isTrue();
+
+            int snapshot = counter.get();
+            TimeUnit.MILLISECONDS.sleep(1_200);
+            assertThat(counter.get()).isEqualTo(snapshot);
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldTriggerAgainAfterDebounceWindow() throws Exception {
+        Path watchedDir = tempDir.resolve("watched-debounce");
+        Files.createDirectories(watchedDir);
+
+        AtomicInteger counter = new AtomicInteger();
+        Path file = watchedDir.resolve("twice.json");
+        Map<Path, Runnable> dirs = new LinkedHashMap<>();
+        dirs.put(watchedDir, counter::incrementAndGet);
+
+        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        try {
+            Files.writeString(file, "{\"v\":1}");
+            boolean firstTriggered = waitForCountAtLeast(counter, 1, 10_000);
+            assertThat(firstTriggered).isTrue();
+
+            TimeUnit.MILLISECONDS.sleep(650);
+            Files.writeString(file, "{\"v\":2}");
+
+            boolean secondTriggered = waitForCountAtLeast(counter, 2, 10_000);
+            assertThat(secondTriggered).isTrue();
         } finally {
             service.destroy();
         }
@@ -109,5 +160,16 @@ class DirectoryWatchServiceTest {
         } finally {
             service.destroy();
         }
+    }
+
+    private boolean waitForCountAtLeast(AtomicInteger counter, int expected, long timeoutMs) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        while (System.nanoTime() < deadline) {
+            if (counter.get() >= expected) {
+                return true;
+            }
+            TimeUnit.MILLISECONDS.sleep(20);
+        }
+        return counter.get() >= expected;
     }
 }

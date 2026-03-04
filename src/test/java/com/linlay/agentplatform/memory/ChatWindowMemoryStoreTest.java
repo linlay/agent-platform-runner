@@ -94,7 +94,7 @@ class ChatWindowMemoryStoreTest {
         assertThat(assistantReasoning.path("role").asText()).isEqualTo("assistant");
         assertThat(assistantReasoning.has("reasoning_content")).isTrue();
         assertThat(assistantReasoning.has("content")).isFalse();
-        assertThat(assistantReasoning.path("_reasoningId").asText()).startsWith("r_");
+        assertThat(assistantReasoning.path("_reasoningId").asText()).startsWith(runId + "_r_");
 
         JsonNode assistantToolCall = stepLine.path("messages").get(2);
         assertThat(assistantToolCall.path("role").asText()).isEqualTo("assistant");

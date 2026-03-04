@@ -10,6 +10,7 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
 
@@ -37,22 +38,6 @@ public class StreamSseStreamer {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper cannot be null");
         this.streamTimeout = streamTimeout != null ? streamTimeout : DEFAULT_STREAM_TIMEOUT;
         this.heartbeatInterval = heartbeatInterval != null ? heartbeatInterval : DEFAULT_HEARTBEAT_INTERVAL;
-    }
-
-    public StreamRequest.Query createQueryRequest(String message) {
-        return new StreamRequest.Query(
-                generateId("req"),
-                generateId("chat"),
-                "user",
-                normalizeMessage(message),
-                null,
-                null,
-                null,
-                null,
-                null,
-                Boolean.TRUE,
-                "default"
-        );
     }
 
     public Flux<ServerSentEvent<String>> stream(StreamRequest request, Flux<StreamInput> inputs) {
@@ -100,16 +85,18 @@ public class StreamSseStreamer {
                                 : ex;
                         return Flux.fromIterable(state.fail(cause)).map(this::toSse);
                     } catch (Exception fallbackEx) {
+                        StreamEvent fallback = new StreamEvent(
+                                0L,
+                                "run.error",
+                                System.currentTimeMillis(),
+                                Map.of("error", Map.of("message", "Internal serialization failure"))
+                        );
                         return Flux.just(ServerSentEvent.<String>builder()
                                 .event(SSE_EVENT_MESSAGE)
-                                .data("{\"type\":\"run.error\",\"error\":{\"message\":\"Internal serialization failure\"}}")
+                                .data(toJson(fallback.toData()))
                                 .build());
                     }
                 });
-    }
-
-    public String generateId(String prefix) {
-        return eventAssembler.generateId(prefix);
     }
 
     private ServerSentEvent<String> toSse(StreamEvent event) {
@@ -117,10 +104,6 @@ public class StreamSseStreamer {
                 .event(SSE_EVENT_MESSAGE)
                 .data(toJson(event.toData()))
                 .build();
-    }
-
-    private String normalizeMessage(String message) {
-        return message == null ? "" : message;
     }
 
     private String toJson(Object value) {

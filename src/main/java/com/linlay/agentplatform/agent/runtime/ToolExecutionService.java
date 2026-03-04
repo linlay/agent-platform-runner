@@ -756,15 +756,7 @@ public class ToolExecutionService {
     }
 
     private String normalizeStatus(String raw) {
-        if (!StringUtils.hasText(raw)) {
-            return "init";
-        }
-        String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "in_progress" -> "init";
-            case "init", "completed", "failed", "canceled" -> normalized;
-            default -> "init";
-        };
+        return AgentDelta.normalizePlanTaskStatus(raw);
     }
 
     private String parseLineStatus(String raw) {

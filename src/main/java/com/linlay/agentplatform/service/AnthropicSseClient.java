@@ -1,17 +1,14 @@
 package com.linlay.agentplatform.service;
 
-import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
+import com.linlay.agentplatform.stream.model.LlmDelta;
 import org.springframework.ai.chat.messages.Message;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
 
 class AnthropicSseClient {
-
-    AnthropicSseClient() {
-    }
 
     Flux<LlmDelta> streamDeltasRawSse(
             String providerKey,
@@ -43,7 +40,7 @@ class AnthropicSseClient {
         return Flux.error(notImplemented(providerKey));
     }
 
-    private RuntimeException notImplemented(String providerKey) {
+    RuntimeException notImplemented(String providerKey) {
         return new UnsupportedOperationException(
                 "Anthropic protocol is not implemented yet for provider: " + providerKey
         );

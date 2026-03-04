@@ -166,6 +166,18 @@ public record AgentDelta(
         return normalized == null || normalized.isBlank() ? null : normalized;
     }
 
+    public static String normalizePlanTaskStatus(String raw) {
+        String normalized = normalizeText(raw);
+        if (normalized == null) {
+            return "init";
+        }
+        return switch (normalized.toLowerCase()) {
+            case "in_progress" -> "init";
+            case "init", "completed", "failed", "canceled" -> normalized.toLowerCase();
+            default -> "init";
+        };
+    }
+
     private static String normalizeText(String text) {
         if (text == null) {
             return null;

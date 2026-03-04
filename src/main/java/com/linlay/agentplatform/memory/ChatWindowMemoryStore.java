@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.service.RunIdGenerator;
+import com.linlay.agentplatform.model.AgentDelta;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -280,7 +280,7 @@ public class ChatWindowMemoryStore {
         stored.ts = ts;
         stored.reasoningId = hasText(message.reasoningId())
                 ? message.reasoningId().trim()
-                : shortId("r", runId + "_" + ts + "_" + index);
+                : autoReasoningId(runId, index);
         stored.msgId = hasText(message.msgId()) ? message.msgId().trim() : null;
         stored.timing = positiveOrNull(message.timing());
         stored.usage = usageOrNull(message.usage());
@@ -297,7 +297,7 @@ public class ChatWindowMemoryStore {
         stored.ts = ts;
         stored.contentId = hasText(message.contentId())
                 ? message.contentId().trim()
-                : shortId("c", runId + "_" + ts + "_" + index);
+                : autoContentId(runId, index);
         stored.msgId = hasText(message.msgId()) ? message.msgId().trim() : null;
         stored.timing = positiveOrNull(message.timing());
         stored.usage = usageOrNull(message.usage());
@@ -793,7 +793,21 @@ public class ChatWindowMemoryStore {
         if (hasText(runId)) {
             return runId.trim();
         }
-        return RunIdGenerator.nextRunId();
+        return toBase36Now();
+    }
+
+    private String autoReasoningId(String runId, int index) {
+        String normalizedRunId = hasText(runId) ? runId.trim() : toBase36Now();
+        return normalizedRunId + "_r_" + Math.max(1, index + 1);
+    }
+
+    private String autoContentId(String runId, int index) {
+        String normalizedRunId = hasText(runId) ? runId.trim() : toBase36Now();
+        return normalizedRunId + "_c_" + Math.max(1, index + 1);
+    }
+
+    private String toBase36Now() {
+        return Long.toString(System.currentTimeMillis(), 36);
     }
 
     private String nullable(String value) {
@@ -805,15 +819,7 @@ public class ChatWindowMemoryStore {
     }
 
     private String normalizeStatus(String raw) {
-        if (!hasText(raw)) {
-            return "init";
-        }
-        String normalized = raw.trim().toLowerCase();
-        return switch (normalized) {
-            case "in_progress" -> "init";
-            case "init", "completed", "failed", "canceled" -> normalized;
-            default -> "init";
-        };
+        return AgentDelta.normalizePlanTaskStatus(raw);
     }
 
     private int normalizedWindowSize() {
