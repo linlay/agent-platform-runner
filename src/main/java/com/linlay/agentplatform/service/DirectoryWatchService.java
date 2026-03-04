@@ -3,6 +3,7 @@ package com.linlay.agentplatform.service;
 import com.linlay.agentplatform.agent.AgentCatalogProperties;
 import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
@@ -48,9 +49,12 @@ public class DirectoryWatchService implements DisposableBean {
             ModelRegistryService modelRegistryService,
             SkillRegistryService skillRegistryService,
             TeamRegistryService teamRegistryService,
+            McpServerRegistryService mcpServerRegistryService,
+            McpCapabilitySyncService mcpCapabilitySyncService,
             AgentCatalogProperties agentCatalogProperties,
             ViewportCatalogProperties viewportCatalogProperties,
             CapabilityCatalogProperties capabilityCatalogProperties,
+            McpProperties mcpProperties,
             ModelCatalogProperties modelCatalogProperties,
             SkillCatalogProperties skillCatalogProperties,
             TeamCatalogProperties teamCatalogProperties
@@ -81,6 +85,13 @@ public class DirectoryWatchService implements DisposableBean {
                 () -> {
                     modelRegistryService.refreshModels();
                     agentRegistry.refreshAgents();
+                }
+        );
+        watchedDirs.put(
+                Path.of(mcpProperties.getRegistry().getExternalDir()).toAbsolutePath().normalize(),
+                () -> {
+                    mcpServerRegistryService.refreshServers();
+                    mcpCapabilitySyncService.refreshCapabilities();
                 }
         );
 

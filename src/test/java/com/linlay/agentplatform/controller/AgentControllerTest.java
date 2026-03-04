@@ -3,6 +3,7 @@ package com.linlay.agentplatform.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.service.McpCapabilitySyncService;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
@@ -10,6 +11,8 @@ import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.service.ViewportRegistryService;
 import com.linlay.agentplatform.team.TeamCatalogProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
+import com.linlay.agentplatform.tool.CapabilityDescriptor;
+import com.linlay.agentplatform.tool.CapabilityKind;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
@@ -32,10 +35,13 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
@@ -51,6 +57,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "memory.chat.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-test-chats-db-${random.uuid}/chats.db",
                 "agent.viewport.external-dir=${java.io.tmpdir}/springai-agent-platform-test-viewports-${random.uuid}",
                 "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agent-platform-test-tools-${random.uuid}",
+                "agent.mcp.enabled=true",
                 "agent.skill.external-dir=${java.io.tmpdir}/springai-agent-platform-test-skills-${random.uuid}",
                 "agent.team.external-dir=${java.io.tmpdir}/springai-agent-platform-test-teams-${random.uuid}",
                 "agent.data.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-${random.uuid}"
@@ -120,6 +127,36 @@ class AgentControllerTest {
                     return completeText(providerKey, model, systemPrompt, userPrompt);
                 }
             };
+        }
+
+        @Bean
+        @Primary
+        McpCapabilitySyncService mcpCapabilitySyncService() {
+            McpCapabilitySyncService service = mock(McpCapabilitySyncService.class);
+            CapabilityDescriptor descriptor = new CapabilityDescriptor(
+                    "mock.weather.query",
+                    "[MOCK] query weather",
+                    "",
+                    Map.of(
+                            "type", "object",
+                            "properties", Map.of(
+                                    "city", Map.of("type", "string"),
+                                    "date", Map.of("type", "string")
+                            ),
+                            "additionalProperties", true
+                    ),
+                    false,
+                    CapabilityKind.BACKEND,
+                    "function",
+                    "mcp://mock/mock.weather.query",
+                    "mcp",
+                    "mock",
+                    null,
+                    "mcp://mock"
+            );
+            when(service.list()).thenReturn(List.of(descriptor));
+            when(service.find("mock.weather.query")).thenReturn(Optional.of(descriptor));
+            return service;
         }
     }
 
@@ -243,6 +280,7 @@ class AgentControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data[0].key").exists()
                 .jsonPath("$.data[0].meta.kind").exists()
+                .jsonPath("$.data[0].meta.sourceType").exists()
                 .jsonPath("$.data[?(@.key=='city_datetime')]").exists()
                 .jsonPath("$.data[?(@.key=='confirm_dialog')]").exists()
                 .jsonPath("$.data[?(@.key=='switch_theme')]").exists();
@@ -265,12 +303,42 @@ class AgentControllerTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data[?(@.key=='mock_city_weather')]").exists();
+                .jsonPath("$.data[?(@.key=='mock.weather.query')]").exists();
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/ap/tools").queryParam("kind", "invalid").build())
                 .exchange()
                 .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void toolsShouldExposeMcpSourceMetaWhenMcpCapabilityExists() throws Exception {
+        String body = webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/tools")
+                        .queryParam("kind", "backend")
+                        .queryParam("tag", "mock.weather.query")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
+
+        Map<String, Object> payload = objectMapper.readValue(body, new TypeReference<>() {
+        });
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> data = (List<Map<String, Object>>) payload.get("data");
+        assertThat(data).isNotNull();
+
+        Map<String, Object> mcpTool = data.stream()
+                .filter(item -> "mock.weather.query".equals(item.get("key")))
+                .findFirst()
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) mcpTool.get("meta");
+        assertThat(meta.get("sourceType")).isEqualTo("mcp");
+        assertThat(meta.get("sourceKey")).isEqualTo("mock");
+        assertThat(meta.get("toolApi")).isEqualTo("mcp://mock/mock.weather.query");
     }
 
     @Test

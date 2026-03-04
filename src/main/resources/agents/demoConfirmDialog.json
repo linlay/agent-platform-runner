@@ -13,7 +13,7 @@
     "reasoning": { "enabled": false }
   },
   "toolConfig": {
-    "backends": ["city_datetime", "mock_city_weather"],
+    "backends": ["city_datetime", "mock.weather.query"],
     "frontends": ["confirm_dialog"],
     "actions": []
   },

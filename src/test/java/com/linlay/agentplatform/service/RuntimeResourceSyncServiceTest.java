@@ -11,6 +11,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 import com.linlay.agentplatform.agent.AgentCatalogProperties;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
@@ -29,15 +30,17 @@ class RuntimeResourceSyncServiceTest {
         Path skillsDir = tempDir.resolve("skills");
         Path teamsDir = tempDir.resolve("teams");
         Path modelsDir = tempDir.resolve("models");
+        Path mcpServersDir = tempDir.resolve("mcp-servers");
         Files.createDirectories(agentsDir);
         Files.createDirectories(toolsDir);
         Files.createDirectories(viewportsDir);
         Files.createDirectories(skillsDir);
         Files.createDirectories(teamsDir);
         Files.createDirectories(modelsDir);
+        Files.createDirectories(mcpServersDir);
 
         Path modePlainAgent = agentsDir.resolve("demoModePlain.json");
-        Path weatherTool = toolsDir.resolve("mock_city_weather.backend");
+        Path weatherTool = toolsDir.resolve("city_datetime.backend");
         Path skillScriptTool = toolsDir.resolve("_skill_run_script_.backend");
         Path weatherViewport = viewportsDir.resolve("show_weather_card.html");
         Path extraAgent = agentsDir.resolve("custom_agent.json");
@@ -49,6 +52,7 @@ class RuntimeResourceSyncServiceTest {
         Path extraSkillFile = skillsDir.resolve("custom_skill").resolve("SKILL.md");
         Path defaultTeam = teamsDir.resolve("a1b2c3d4e5f6.json");
         Path extraTeam = teamsDir.resolve("ffeeddccbbaa.json");
+        Path mockMcpServer = mcpServersDir.resolve("mock.json");
 
         Files.writeString(modePlainAgent, "old-agent-content");
         Files.writeString(weatherTool, "old-tool-content");
@@ -72,7 +76,8 @@ class RuntimeResourceSyncServiceTest {
                 toolsDir,
                 skillsDir,
                 teamsDir,
-                modelsDir
+                modelsDir,
+                mcpServersDir
         );
         service.syncRuntimeDirectories();
         service.syncRuntimeDirectories();
@@ -86,13 +91,15 @@ class RuntimeResourceSyncServiceTest {
         String syncedModel = Files.readString(qwenModel);
 
         assertThat(syncedAgent).contains("\"mode\"").contains("\"ONESHOT\"");
-        assertThat(syncedTool).contains("\"name\": \"mock_city_weather\"");
-        assertThat(syncedTool).contains("\"afterCallHint\"");
+        assertThat(syncedTool).contains("\"name\": \"city_datetime\"");
         assertThat(syncedSkillScriptTool).contains("\"name\": \"_skill_run_script_\"");
         assertThat(syncedViewport).contains("<title>天气卡片</title>");
         assertThat(syncedSkill).contains("name: \"screenshot\"");
         assertThat(syncedTeam).contains("\"name\": \"Default Team\"");
         assertThat(syncedModel).contains("\"key\": \"bailian-qwen3-max\"");
+        assertThat(mockMcpServer).exists();
+        assertThat(Files.readString(mockMcpServer)).contains("\"serverKey\": \"mock\"");
+        assertThat(Files.readString(mockMcpServer)).contains("\"readTimeoutMs\": 15000");
         assertThat(skillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
         assertThat(skillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
         assertThat(skillsDir.resolve("text_utils").resolve("SKILL.md")).exists();
@@ -112,6 +119,7 @@ class RuntimeResourceSyncServiceTest {
         Path configuredSkillsDir = tempDir.resolve("configured").resolve("skills");
         Path configuredTeamsDir = tempDir.resolve("configured").resolve("teams");
         Path configuredModelsDir = tempDir.resolve("configured").resolve("models");
+        Path configuredMcpServersDir = tempDir.resolve("configured").resolve("mcp-servers");
         Path legacyUserDir = tempDir.resolve("legacy-user-dir");
 
         AgentCatalogProperties agentProperties = new AgentCatalogProperties();
@@ -126,6 +134,8 @@ class RuntimeResourceSyncServiceTest {
         teamProperties.setExternalDir(configuredTeamsDir.toString());
         ModelCatalogProperties modelProperties = new ModelCatalogProperties();
         modelProperties.setExternalDir(configuredModelsDir.toString());
+        McpProperties mcpProperties = new McpProperties();
+        mcpProperties.getRegistry().setExternalDir(configuredMcpServersDir.toString());
 
         String originalUserDir = System.getProperty("user.dir");
         try {
@@ -134,6 +144,7 @@ class RuntimeResourceSyncServiceTest {
                     agentProperties,
                     viewportProperties,
                     capabilityProperties,
+                    mcpProperties,
                     skillProperties,
                     teamProperties,
                     modelProperties
@@ -149,10 +160,12 @@ class RuntimeResourceSyncServiceTest {
 
         assertThat(configuredAgentsDir.resolve("demoModePlain.json")).exists();
         assertThat(configuredViewportsDir.resolve("show_weather_card.html")).exists();
-        assertThat(configuredToolsDir.resolve("mock_city_weather.backend")).exists();
+        assertThat(configuredToolsDir.resolve("city_datetime.backend")).exists();
         assertThat(configuredSkillsDir.resolve("screenshot").resolve("SKILL.md")).exists();
         assertThat(configuredTeamsDir.resolve("a1b2c3d4e5f6.json")).exists();
         assertThat(configuredModelsDir.resolve("bailian-qwen3-max.json")).exists();
+        assertThat(configuredMcpServersDir).exists();
+        assertThat(configuredMcpServersDir.resolve("mock.json")).exists();
         assertThat(configuredSkillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
         assertThat(configuredSkillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
         assertThat(configuredSkillsDir.resolve("text_utils").resolve("SKILL.md")).exists();
@@ -162,6 +175,7 @@ class RuntimeResourceSyncServiceTest {
         assertThat(legacyUserDir.resolve("skills")).doesNotExist();
         assertThat(legacyUserDir.resolve("teams")).doesNotExist();
         assertThat(legacyUserDir.resolve("models")).doesNotExist();
+        assertThat(legacyUserDir.resolve("mcp-servers")).doesNotExist();
     }
 
     @Test
@@ -193,7 +207,8 @@ class RuntimeResourceSyncServiceTest {
                 toolsDir,
                 tempDir.resolve("skills"),
                 tempDir.resolve("teams"),
-                tempDir.resolve("models")
+                tempDir.resolve("models"),
+                tempDir.resolve("mcp-servers")
         );
         service.syncRuntimeDirectories();
 
@@ -230,7 +245,8 @@ class RuntimeResourceSyncServiceTest {
                 toolsDir,
                 tempDir.resolve("skills"),
                 tempDir.resolve("teams"),
-                tempDir.resolve("models")
+                tempDir.resolve("models"),
+                tempDir.resolve("mcp-servers")
         );
         service.syncRuntimeDirectories();
 

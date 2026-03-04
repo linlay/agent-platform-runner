@@ -31,6 +31,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,8 +45,19 @@ import java.util.UUID;
 public class ChatRecordStore {
 
     private static final Logger log = LoggerFactory.getLogger(ChatRecordStore.class);
-    private static final String CHAT_INDEX_FILE_LEGACY = "_chats.jsonl";
     private static final String TABLE_CHATS = "CHATS";
+    private static final List<ColumnSchema> CHATS_SCHEMA = List.of(
+            new ColumnSchema("CHAT_ID_", "TEXT", 0, null, 1),
+            new ColumnSchema("CHAT_NAME_", "TEXT", 1, null, 0),
+            new ColumnSchema("AGENT_KEY_", "TEXT", 1, null, 0),
+            new ColumnSchema("TEAM_ID_", "TEXT", 0, null, 0),
+            new ColumnSchema("CREATED_AT_", "INTEGER", 1, null, 0),
+            new ColumnSchema("UPDATED_AT_", "INTEGER", 1, null, 0),
+            new ColumnSchema("LAST_RUN_ID_", "VARCHAR(12)", 1, null, 0),
+            new ColumnSchema("LAST_RUN_CONTENT_", "TEXT", 1, "''", 0),
+            new ColumnSchema("READ_STATUS_", "INTEGER", 1, "1", 0),
+            new ColumnSchema("READ_AT_", "INTEGER", 0, null, 0)
+    );
 
     private static final String CREATE_CHATS_SQL = """
             CREATE TABLE IF NOT EXISTS CHATS (
@@ -88,32 +100,11 @@ public class ChatRecordStore {
                 throw new IllegalStateException("Cannot create sqlite directory for " + dbPath, ex);
             }
 
-            Path legacyIndex = resolveBaseDir().resolve(CHAT_INDEX_FILE_LEGACY);
-            if (Files.exists(legacyIndex)) {
-                log.warn("Legacy chat index detected and ignored: {}", legacyIndex.toAbsolutePath().normalize());
-            }
-
             try (Connection connection = openConnection();
                  Statement statement = connection.createStatement()) {
-                boolean chatsExists = tableExists(connection, TABLE_CHATS);
-                if (!chatsExists) {
-                    statement.execute("DROP TABLE IF EXISTS AGENT_DIALOG_INDEX_");
-                    statement.execute("DROP TABLE IF EXISTS CHAT_NOTIFY_QUEUE_");
-                    statement.execute("DROP TABLE IF EXISTS CHAT_INDEX_");
-                }
                 statement.execute(CREATE_CHATS_SQL);
                 statement.execute(CREATE_CHATS_LAST_RUN_ID_INDEX_SQL);
-                if (chatsExists) {
-                    requireColumnExists(connection, TABLE_CHATS, "TEAM_ID_");
-                }
-                ensureColumnExists(connection, TABLE_CHATS, "CHAT_NAME_", "TEXT NOT NULL DEFAULT ''");
-                ensureColumnExists(connection, TABLE_CHATS, "AGENT_KEY_", "TEXT NOT NULL DEFAULT ''");
-                ensureColumnExists(connection, TABLE_CHATS, "CREATED_AT_", "INTEGER NOT NULL DEFAULT 0");
-                ensureColumnExists(connection, TABLE_CHATS, "UPDATED_AT_", "INTEGER NOT NULL DEFAULT 0");
-                ensureColumnExists(connection, TABLE_CHATS, "LAST_RUN_ID_", "VARCHAR(12) NOT NULL DEFAULT ''");
-                ensureColumnExists(connection, TABLE_CHATS, "LAST_RUN_CONTENT_", "TEXT NOT NULL DEFAULT ''");
-                ensureColumnExists(connection, TABLE_CHATS, "READ_STATUS_", "INTEGER NOT NULL DEFAULT 1");
-                ensureColumnExists(connection, TABLE_CHATS, "READ_AT_", "INTEGER");
+                validateChatsSchema(connection);
             } catch (SQLException ex) {
                 throw new IllegalStateException("Cannot initialize sqlite chat index", ex);
             }
@@ -1187,56 +1178,43 @@ public class ChatRecordStore {
         }
     }
 
-    private boolean tableExists(Connection connection, String tableName) throws SQLException {
-        try (PreparedStatement statement = connection.prepareStatement("""
-                SELECT 1
-                FROM sqlite_master
-                WHERE type = 'table' AND name = ?
-                LIMIT 1
-                """)) {
-            statement.setString(1, tableName);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                return resultSet.next();
+    private void validateChatsSchema(Connection connection) throws SQLException {
+        List<ColumnSchema> actualSchema = readTableSchema(connection, TABLE_CHATS);
+        if (actualSchema.size() != CHATS_SCHEMA.size()) {
+            throw incompatibleSchema("expected " + CHATS_SCHEMA.size() + " columns but found " + actualSchema.size());
+        }
+        for (int i = 0; i < CHATS_SCHEMA.size(); i++) {
+            ColumnSchema expected = CHATS_SCHEMA.get(i);
+            ColumnSchema actual = actualSchema.get(i);
+            if (!expected.matches(actual)) {
+                throw incompatibleSchema(
+                        "column[" + i + "] expected " + expected.describe() + " but found " + actual.describe()
+                );
             }
         }
     }
 
-    private void ensureColumnExists(
-            Connection connection,
-            String tableName,
-            String columnName,
-            String columnDefinition
-    ) throws SQLException {
-        boolean exists = columnExists(connection, tableName, columnName);
-        if (exists) {
-            return;
-        }
-        try (Statement statement = connection.createStatement()) {
-            statement.execute("ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + columnDefinition);
-        }
-    }
-
-    private void requireColumnExists(Connection connection, String tableName, String columnName) throws SQLException {
-        if (columnExists(connection, tableName, columnName)) {
-            return;
-        }
-        throw new IllegalStateException(
-                "Incompatible CHATS schema: missing required column '" + columnName
-                        + "'. Automatic migration is disabled; migrate or rebuild sqlite chat index at "
-                        + resolveSqlitePath()
-        );
-    }
-
-    private boolean columnExists(Connection connection, String tableName, String columnName) throws SQLException {
+    private List<ColumnSchema> readTableSchema(Connection connection, String tableName) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("PRAGMA table_info(" + tableName + ")");
              ResultSet resultSet = statement.executeQuery()) {
+            List<ColumnSchema> columns = new ArrayList<>();
             while (resultSet.next()) {
-                if (columnName.equalsIgnoreCase(resultSet.getString("name"))) {
-                    return true;
-                }
+                columns.add(ColumnSchema.fromPragmaRow(
+                        resultSet.getString("name"),
+                        resultSet.getString("type"),
+                        resultSet.getInt("notnull"),
+                        resultSet.getString("dflt_value"),
+                        resultSet.getInt("pk")
+                ));
             }
-            return false;
+            return columns;
         }
+    }
+
+    private IllegalStateException incompatibleSchema(String details) {
+        return new IllegalStateException(
+                "Incompatible CHATS schema: " + details + ". Rebuild sqlite chat index at " + resolveSqlitePath()
+        );
     }
 
     private Charset resolveCharset() {
@@ -1437,6 +1415,60 @@ public class ChatRecordStore {
     }
 
     private record IdBinding(String id, boolean action) {
+    }
+
+    private record ColumnSchema(String name, String type, int notNull, String defaultValue, int pk) {
+        private static ColumnSchema fromPragmaRow(String name, String type, int notNull, String defaultValue, int pk) {
+            return new ColumnSchema(
+                    normalizeName(name),
+                    normalizeType(type),
+                    notNull,
+                    normalizeDefault(defaultValue),
+                    pk
+            );
+        }
+
+        private boolean matches(ColumnSchema other) {
+            return name.equals(other.name)
+                    && type.equals(other.type)
+                    && notNull == other.notNull
+                    && pk == other.pk
+                    && Objects.equals(nullable(defaultValue), nullable(other.defaultValue));
+        }
+
+        private String describe() {
+            return name + " " + type + " notNull=" + notNull + " default="
+                    + (defaultValue == null ? "null" : defaultValue) + " pk=" + pk;
+        }
+
+        private static String normalizeName(String raw) {
+            return raw == null ? "" : raw.trim().toUpperCase();
+        }
+
+        private static String normalizeType(String raw) {
+            if (!StringUtils.hasText(raw)) {
+                return "";
+            }
+            return raw.trim().replaceAll("\\s+", "").toUpperCase();
+        }
+
+        private static String normalizeDefault(String raw) {
+            if (raw == null) {
+                return null;
+            }
+            String normalized = raw.trim();
+            while (normalized.startsWith("(") && normalized.endsWith(")") && normalized.length() > 1) {
+                normalized = normalized.substring(1, normalized.length() - 1).trim();
+            }
+            if (normalized.isEmpty() || "NULL".equalsIgnoreCase(normalized)) {
+                return null;
+            }
+            return normalized;
+        }
+
+        private static String nullable(String value) {
+            return value == null ? null : value.trim();
+        }
     }
 
     private static final class ChatIndexRecord {

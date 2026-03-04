@@ -18,11 +18,11 @@
   "toolConfig": {
     "backends": [
       "city_datetime",
-      "mock_city_weather",
-      "mock_logistics_status",
-      "mock_sensitive_data_detector",
-      "mock_todo_tasks",
-      "mock_transport_schedule"
+      "mock.weather.query",
+      "mock.logistics.status",
+      "mock.sensitive-data.detect",
+      "mock.todo.tasks.list",
+      "mock.transport.schedule.query"
     ],
     "frontends": [],
     "actions": []

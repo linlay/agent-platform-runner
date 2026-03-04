@@ -11,6 +11,7 @@ import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
+import com.linlay.agentplatform.agent.runtime.ToolInvoker;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.mode.OrchestratorServices;
@@ -72,7 +73,8 @@ public class DefinitionDrivenAgent implements Agent {
                 chatWindowMemoryStore,
                 frontendSubmitCoordinator,
                 null,
-                new LoggingAgentProperties()
+                new LoggingAgentProperties(),
+                null
         );
     }
 
@@ -93,7 +95,8 @@ public class DefinitionDrivenAgent implements Agent {
                 chatWindowMemoryStore,
                 frontendSubmitCoordinator,
                 skillRegistryService,
-                new LoggingAgentProperties()
+                new LoggingAgentProperties(),
+                null
         );
     }
 
@@ -106,6 +109,30 @@ public class DefinitionDrivenAgent implements Agent {
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties
+    ) {
+        this(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                loggingAgentProperties,
+                null
+        );
+    }
+
+    public DefinitionDrivenAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            ToolInvoker toolInvoker
     ) {
         this.definition = definition;
         this.toolRegistry = toolRegistry;
@@ -120,7 +147,8 @@ public class DefinitionDrivenAgent implements Agent {
                 argumentResolver,
                 objectMapper,
                 frontendSubmitCoordinator,
-                loggingAgentProperties
+                loggingAgentProperties,
+                toolInvoker
         );
         this.services = new OrchestratorServices(llmService, toolExecutionService, objectMapper);
     }

@@ -1,6 +1,9 @@
 package com.linlay.agentplatform.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.agent.runtime.LocalToolInvoker;
+import com.linlay.agentplatform.agent.runtime.McpToolInvoker;
+import com.linlay.agentplatform.agent.runtime.ToolInvokerRouter;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.service.LlmService;
@@ -9,6 +12,7 @@ import com.linlay.agentplatform.tool.SystemBash;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -57,6 +61,12 @@ class AgentRegistryTest {
         ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
         memoryProperties.setDir(tempDir.resolve("chats").toString());
         ChatWindowMemoryStore memoryStore = new ChatWindowMemoryStore(new ObjectMapper(), memoryProperties);
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        ToolInvokerRouter toolInvokerRouter = new ToolInvokerRouter(
+                toolRegistry,
+                new LocalToolInvoker(toolRegistry),
+                beanFactory.getBeanProvider(McpToolInvoker.class)
+        );
 
         AgentRegistry registry = new AgentRegistry(
                 loader,
@@ -65,7 +75,8 @@ class AgentRegistryTest {
                 new ObjectMapper(),
                 memoryStore,
                 null,
-                null
+                null,
+                toolInvokerRouter
         );
 
         assertThat(registry.listIds()).contains("demo_one");

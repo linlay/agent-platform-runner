@@ -50,6 +50,7 @@ public class ToolExecutionService {
     private final ObjectMapper objectMapper;
     private final FrontendSubmitCoordinator frontendSubmitCoordinator;
     private final LoggingAgentProperties loggingAgentProperties;
+    private final ToolInvoker toolInvoker;
 
     public ToolExecutionService(
             ToolRegistry toolRegistry,
@@ -73,11 +74,25 @@ public class ToolExecutionService {
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             LoggingAgentProperties loggingAgentProperties
     ) {
+        this(toolRegistry, toolArgumentResolver, objectMapper, frontendSubmitCoordinator, loggingAgentProperties, null);
+    }
+
+    public ToolExecutionService(
+            ToolRegistry toolRegistry,
+            ToolArgumentResolver toolArgumentResolver,
+            ObjectMapper objectMapper,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            LoggingAgentProperties loggingAgentProperties,
+            ToolInvoker toolInvoker
+    ) {
         this.toolRegistry = toolRegistry;
         this.toolArgumentResolver = toolArgumentResolver;
         this.objectMapper = objectMapper;
         this.frontendSubmitCoordinator = frontendSubmitCoordinator;
         this.loggingAgentProperties = loggingAgentProperties;
+        this.toolInvoker = toolInvoker == null
+                ? (name, args, context) -> this.toolRegistry.invoke(name, args)
+                : toolInvoker;
     }
 
     public ToolExecutionBatch executeToolCalls(
@@ -408,7 +423,7 @@ public class ToolExecutionService {
 
         for (int attempt = 0; attempt <= retries; attempt++) {
             try {
-                return invokeBackendOnce(toolName, args, timeoutMs);
+                return invokeBackendOnce(toolName, args, timeoutMs, context);
             } catch (IllegalArgumentException ex) {
                 logToolExecutionFailure(toolName, attempt, retries, ex);
                 return errorResult(toolName, ex.getMessage());
@@ -431,9 +446,10 @@ public class ToolExecutionService {
     private JsonNode invokeBackendOnce(
             String toolName,
             Map<String, Object> args,
-            long timeoutMs
+            long timeoutMs,
+            ExecutionContext context
     ) throws TimeoutException {
-        Future<JsonNode> future = BACKEND_TOOL_EXECUTOR.submit(() -> toolRegistry.invoke(toolName, args));
+        Future<JsonNode> future = BACKEND_TOOL_EXECUTOR.submit(() -> toolInvoker.invoke(toolName, args, context));
         try {
             return future.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {

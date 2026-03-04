@@ -1,0 +1,179 @@
+package com.linlay.agentplatform.config;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+@ConfigurationProperties(prefix = "agent.mcp")
+public class McpProperties {
+
+    private boolean enabled = false;
+    private String protocolVersion = "2025-06";
+    private int connectTimeoutMs = 3_000;
+    private int retry = 1;
+    /**
+     * @deprecated Runtime registration is now registry-only (agent.mcp.registry.external-dir).
+     * This field is kept for backward-compatible configuration binding only.
+     */
+    @Deprecated
+    private List<Server> servers = new ArrayList<>();
+    private Registry registry = new Registry();
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public String getProtocolVersion() {
+        return protocolVersion;
+    }
+
+    public void setProtocolVersion(String protocolVersion) {
+        this.protocolVersion = protocolVersion;
+    }
+
+    public int getConnectTimeoutMs() {
+        return connectTimeoutMs;
+    }
+
+    public void setConnectTimeoutMs(int connectTimeoutMs) {
+        this.connectTimeoutMs = connectTimeoutMs;
+    }
+
+    public int getRetry() {
+        return retry;
+    }
+
+    public void setRetry(int retry) {
+        this.retry = retry;
+    }
+
+    @Deprecated
+    public List<Server> getServers() {
+        return servers;
+    }
+
+    @Deprecated
+    public void setServers(List<Server> servers) {
+        this.servers = servers == null ? new ArrayList<>() : new ArrayList<>(servers);
+    }
+
+    public Registry getRegistry() {
+        return registry;
+    }
+
+    public void setRegistry(Registry registry) {
+        this.registry = registry == null ? new Registry() : registry;
+    }
+
+    public static class Registry {
+        private String externalDir = "mcp-servers";
+
+        public String getExternalDir() {
+            return externalDir;
+        }
+
+        public void setExternalDir(String externalDir) {
+            this.externalDir = externalDir;
+        }
+    }
+
+    public static class Server {
+        private String serverKey;
+        private String baseUrl;
+        private String endpointPath = "/mcp";
+        private boolean enabled = true;
+        private String toolPrefix;
+        private Integer connectTimeoutMs;
+        private Integer readTimeoutMs;
+        private Integer retry;
+        private Map<String, String> headers = new LinkedHashMap<>();
+        private Map<String, String> aliasMap = new LinkedHashMap<>();
+
+        public String getServerKey() {
+            return serverKey;
+        }
+
+        public void setServerKey(String serverKey) {
+            this.serverKey = serverKey;
+        }
+
+        public String getBaseUrl() {
+            return baseUrl;
+        }
+
+        public void setBaseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+        }
+
+        public String getEndpointPath() {
+            return endpointPath;
+        }
+
+        public void setEndpointPath(String endpointPath) {
+            this.endpointPath = endpointPath;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getToolPrefix() {
+            return toolPrefix;
+        }
+
+        public void setToolPrefix(String toolPrefix) {
+            this.toolPrefix = toolPrefix;
+        }
+
+        public Integer getConnectTimeoutMs() {
+            return connectTimeoutMs;
+        }
+
+        public void setConnectTimeoutMs(Integer connectTimeoutMs) {
+            this.connectTimeoutMs = connectTimeoutMs;
+        }
+
+        public Integer getReadTimeoutMs() {
+            return readTimeoutMs;
+        }
+
+        public void setReadTimeoutMs(Integer readTimeoutMs) {
+            this.readTimeoutMs = readTimeoutMs;
+        }
+
+        public Integer getRetry() {
+            return retry;
+        }
+
+        public void setRetry(Integer retry) {
+            this.retry = retry;
+        }
+
+        public Map<String, String> getHeaders() {
+            return headers;
+        }
+
+        public void setHeaders(Map<String, String> headers) {
+            this.headers = headers == null ? new LinkedHashMap<>() : new LinkedHashMap<>(headers);
+        }
+
+        public Map<String, String> getAliasMap() {
+            return aliasMap;
+        }
+
+        public void setAliasMap(Map<String, String> aliasMap) {
+            this.aliasMap = aliasMap == null ? new LinkedHashMap<>() : new LinkedHashMap<>(aliasMap);
+        }
+    }
+}

@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.linlay.agentplatform.service.McpCapabilitySyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -25,17 +26,34 @@ public class ToolRegistry {
 
     private final Map<String, BaseTool> nativeToolsByName;
     private final CapabilityRegistryService capabilityRegistryService;
+    private final McpCapabilitySyncService mcpCapabilitySyncService;
     private final Set<String> missingBackendWarnings = ConcurrentHashMap.newKeySet();
+    private final Set<String> localPriorityConflictWarnings = ConcurrentHashMap.newKeySet();
 
     public ToolRegistry(List<BaseTool> tools) {
         this.nativeToolsByName = buildNativeToolsByName(tools);
         this.capabilityRegistryService = null;
+        this.mcpCapabilitySyncService = null;
     }
 
     @Autowired
-    public ToolRegistry(List<BaseTool> tools, ObjectProvider<CapabilityRegistryService> capabilityRegistryServiceProvider) {
+    public ToolRegistry(
+            List<BaseTool> tools,
+            ObjectProvider<CapabilityRegistryService> capabilityRegistryServiceProvider,
+            ObjectProvider<McpCapabilitySyncService> mcpCapabilitySyncServiceProvider
+    ) {
         this.nativeToolsByName = buildNativeToolsByName(tools);
         this.capabilityRegistryService = capabilityRegistryServiceProvider.getIfAvailable();
+        this.mcpCapabilitySyncService = mcpCapabilitySyncServiceProvider.getIfAvailable();
+    }
+
+    public ToolRegistry(
+            List<BaseTool> tools,
+            ObjectProvider<CapabilityRegistryService> capabilityRegistryServiceProvider
+    ) {
+        this.nativeToolsByName = buildNativeToolsByName(tools);
+        this.capabilityRegistryService = capabilityRegistryServiceProvider.getIfAvailable();
+        this.mcpCapabilitySyncService = null;
     }
 
     public JsonNode invoke(String toolName, Map<String, Object> args) {
@@ -52,25 +70,38 @@ public class ToolRegistry {
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> merged.put(entry.getKey(), entry.getValue()));
 
-        if (capabilityRegistryService == null) {
-            return List.copyOf(merged.values());
-        }
-
-        for (CapabilityDescriptor descriptor : capabilityRegistryService.list()) {
-            String name = normalizeName(descriptor.name());
-            if (descriptor.kind() == CapabilityKind.BACKEND) {
-                BaseTool nativeTool = nativeToolsByName.get(name);
-                if (nativeTool == null && missingBackendWarnings.add(name)) {
-                    log.warn("Skip backend capability '{}' because no Java tool implementation is found", name);
+        if (capabilityRegistryService != null) {
+            for (CapabilityDescriptor descriptor : capabilityRegistryService.list()) {
+                String name = normalizeName(descriptor.name());
+                if (descriptor.kind() == CapabilityKind.BACKEND) {
+                    BaseTool nativeTool = nativeToolsByName.get(name);
+                    if (nativeTool == null) {
+                        if (missingBackendWarnings.add(name)) {
+                            log.warn("Skip backend capability '{}' because no Java tool implementation is found", name);
+                        }
+                        continue;
+                    }
+                    merged.put(name, new BackendMetadataTool(nativeTool, descriptor));
                     continue;
                 }
-                merged.put(name, new BackendMetadataTool(nativeTool, descriptor));
-                continue;
+                if (merged.containsKey(name)) {
+                    continue;
+                }
+                merged.put(name, new VirtualTool(descriptor));
             }
-            if (merged.containsKey(name)) {
-                continue;
+        }
+
+        if (mcpCapabilitySyncService != null) {
+            for (CapabilityDescriptor descriptor : mcpCapabilitySyncService.list()) {
+                String name = normalizeName(descriptor.name());
+                if (merged.containsKey(name)) {
+                    if (localPriorityConflictWarnings.add(name)) {
+                        log.warn("MCP capability '{}' conflicts with local tool/capability, local one keeps effective", name);
+                    }
+                    continue;
+                }
+                merged.put(name, new VirtualTool(descriptor));
             }
-            merged.put(name, new VirtualTool(descriptor));
         }
         return List.copyOf(merged.values());
     }
@@ -100,7 +131,10 @@ public class ToolRegistry {
         }
         BaseTool nativeTool = nativeToolsByName.get(normalizedName);
         if (nativeTool == null) {
-            return Optional.empty();
+            if (mcpCapabilitySyncService == null) {
+                return Optional.empty();
+            }
+            return mcpCapabilitySyncService.find(normalizedName);
         }
         return Optional.of(new CapabilityDescriptor(
                 normalizedName,
@@ -110,6 +144,8 @@ public class ToolRegistry {
                 false,
                 CapabilityKind.BACKEND,
                 "function",
+                null,
+                "local",
                 null,
                 null,
                 "java://builtin"

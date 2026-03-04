@@ -445,7 +445,7 @@ class ChatWindowMemoryStoreTest {
 
     private ChatWindowMemoryStore.SystemSnapshot systemSnapshot(String model, String prompt, boolean stream) {
         return systemSnapshotWithTools(model, prompt, stream, List.of(
-                toolSnapshot("function", "mock_sensitive_data_detector")
+                toolSnapshot("function", "mock.sensitive-data.detect")
         ));
     }
 

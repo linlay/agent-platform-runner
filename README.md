@@ -22,8 +22,7 @@
 ## 不兼容升级说明
 
 - 元数据单项接口 `/api/ap/agent`、`/api/ap/skill`、`/api/ap/tool` 已下线，统一使用列表接口全量同步。
-- 会话索引已从 `./chats/_chats.jsonl` 切换到 SQLite（默认文件：`chats.db`）。
-- 服务启动时若检测到 `./chats/_chats.jsonl`，仅输出 warning，不会读取/迁移该文件。
+- 会话索引使用 SQLite（默认文件：`chats.db`）。
 - 聊天正文与回放仍使用 `./chats/{chatId}.json`，接口行为保持兼容。
 
 ## 返回格式约定

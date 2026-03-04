@@ -19,98 +19,20 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentCatalogProperties;
+import com.linlay.agentplatform.service.McpCapabilitySyncService;
 import com.linlay.agentplatform.config.AgentFileCreateToolProperties;
 import com.linlay.agentplatform.config.AgentProviderProperties;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ToolRegistryTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final CityDateTime cityDateTimeTool = new CityDateTime();
-    private final MockCityWeatherTool cityWeatherTool = new MockCityWeatherTool();
-    private final MockLogisticsStatusTool logisticsStatusTool = new MockLogisticsStatusTool();
-    private final MockTransportScheduleTool transportScheduleTool = new MockTransportScheduleTool();
-    private final MockTodoTasksTool todoTasksTool = new MockTodoTasksTool();
-    private final MockSensitiveDataDetectorTool sensitiveDataDetectorTool = new MockSensitiveDataDetectorTool();
     private final SystemBash bashTool = new SystemBash();
-
-    @Test
-    void sameArgsShouldReturnSameWeatherJson() {
-        Map<String, Object> args = Map.of("city", "Shanghai", "date", "2026-02-09");
-
-        JsonNode first = cityWeatherTool.invoke(args);
-        JsonNode second = cityWeatherTool.invoke(args);
-
-        assertThat(first).isEqualTo(second);
-    }
-
-    @Test
-    void sameArgsShouldReturnSameLogisticsJson() {
-        Map<String, Object> args = Map.of("trackingNo", "SF123456789CN", "carrier", "SF Express");
-
-        JsonNode first = logisticsStatusTool.invoke(args);
-        JsonNode second = logisticsStatusTool.invoke(args);
-
-        assertThat(first).isEqualTo(second);
-    }
-
-    @Test
-    void sameArgsShouldReturnSameTransportScheduleJson() {
-        Map<String, Object> args = Map.of("type", "flight", "fromCity", "Shanghai", "toCity", "Beijing", "date", "2026-02-14");
-
-        JsonNode first = transportScheduleTool.invoke(args);
-        JsonNode second = transportScheduleTool.invoke(args);
-
-        assertThat(first).isEqualTo(second);
-    }
-
-    @Test
-    void logisticsToolShouldReturnStructuredPayload() {
-        JsonNode result = logisticsStatusTool.invoke(Map.of("trackingNo", "YT1234567890"));
-
-        assertThat(result.path("trackingNo").asText()).isEqualTo("YT1234567890");
-        assertThat(result.path("carrier").asText()).isNotBlank();
-        assertThat(result.path("status").asText()).isNotBlank();
-        assertThat(result.path("currentNode").asText()).isNotBlank();
-        assertThat(result.path("etaDate").asText()).isNotBlank();
-        assertThat(result.path("updatedAt").asText()).isNotBlank();
-        assertThat(result.path("mockTag").asText()).isEqualTo("idempotent-random-json");
-    }
-
-    @Test
-    void transportToolShouldReturnStructuredPayload() {
-        JsonNode result = transportScheduleTool.invoke(Map.of(
-                "type", "train",
-                "fromCity", "Shanghai",
-                "toCity", "Nanjing",
-                "date", "2026-02-15"
-        ));
-
-        assertThat(result.path("travelType").asText()).isEqualTo("高铁");
-        assertThat(result.path("fromCity").asText()).isEqualTo("上海");
-        assertThat(result.path("toCity").asText()).isEqualTo("南京");
-        assertThat(result.path("number").asText()).isNotBlank();
-        assertThat(result.path("departureTime").asText()).matches("\\d{2}:\\d{2}");
-        assertThat(result.path("arrivalTime").asText()).matches("\\d{2}:\\d{2}");
-        assertThat(result.path("status").asText()).isNotBlank();
-        assertThat(result.path("gateOrPlatform").asText()).isNotBlank();
-    }
-
-    @Test
-    void todoTasksToolShouldReturnTaskArray() {
-        JsonNode result = todoTasksTool.invoke(Map.of("owner", "张三"));
-
-        assertThat(result.path("owner").asText()).isEqualTo("张三");
-        assertThat(result.path("total").asInt()).isGreaterThanOrEqualTo(3);
-        assertThat(result.path("tasks").isArray()).isTrue();
-        assertThat(result.path("tasks")).isNotEmpty();
-        assertThat(result.path("tasks").get(0).path("title").asText()).isNotBlank();
-        assertThat(result.path("tasks").get(0).path("priority").asText()).isNotBlank();
-        assertThat(result.path("tasks").get(0).path("status").asText()).isNotBlank();
-        assertThat(result.path("tasks").get(0).path("dueDate").asText()).isNotBlank();
-    }
 
     @Test
     void cityDateTimeShouldReturnRealtimeTimeWithTimezone() {
@@ -174,6 +96,85 @@ class ToolRegistryTest {
         assertThat(cityTool.description()).isEqualTo("city datetime from backend");
         assertThat(cityTool.afterCallHint()).isEqualTo("use city datetime prompt");
         assertThat(cityTool.parametersSchema().get("required")).isEqualTo(List.of("city"));
+        assertThat(toolRegistry.invoke("city_datetime", Map.of("city", "Shanghai")).path("timezone").asText())
+                .isEqualTo("UTC+8");
+    }
+
+    @Test
+    void mcpCapabilityShouldAppearAsVirtualTool() {
+        CapabilityDescriptor mcpDescriptor = new CapabilityDescriptor(
+                "mock.weather.query",
+                "mock weather",
+                "use weather viewport card",
+                Map.of("type", "object"),
+                false,
+                CapabilityKind.BACKEND,
+                "function",
+                "mcp://mock/mock.weather.query",
+                "mcp",
+                "mock",
+                null,
+                "mcp://mock"
+        );
+        McpCapabilitySyncService mcpCapabilitySyncService = mock(McpCapabilitySyncService.class);
+        when(mcpCapabilitySyncService.list()).thenReturn(List.of(mcpDescriptor));
+        when(mcpCapabilitySyncService.find("mock.weather.query")).thenReturn(java.util.Optional.of(mcpDescriptor));
+
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("mcpCapabilitySyncService", mcpCapabilitySyncService);
+        ToolRegistry toolRegistry = new ToolRegistry(
+                List.of(new CityDateTime()),
+                beanFactory.getBeanProvider(CapabilityRegistryService.class),
+                beanFactory.getBeanProvider(McpCapabilitySyncService.class)
+        );
+
+        assertThat(toolRegistry.list().stream().map(BaseTool::name))
+                .contains("mock.weather.query");
+        BaseTool mcpTool = toolRegistry.list().stream()
+                .filter(tool -> "mock.weather.query".equals(tool.name()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(mcpTool.afterCallHint()).isEqualTo("use weather viewport card");
+        assertThat(toolRegistry.capability("mock.weather.query"))
+                .isPresent()
+                .get()
+                .extracting(CapabilityDescriptor::sourceType)
+                .isEqualTo("mcp");
+    }
+
+    @Test
+    void localToolShouldWinWhenMcpToolNameConflicts() {
+        CapabilityDescriptor conflictDescriptor = new CapabilityDescriptor(
+                "city_datetime",
+                "remote city time",
+                "",
+                Map.of("type", "object"),
+                false,
+                CapabilityKind.BACKEND,
+                "function",
+                "mcp://mock/city_datetime",
+                "mcp",
+                "mock",
+                null,
+                "mcp://mock"
+        );
+        McpCapabilitySyncService mcpCapabilitySyncService = mock(McpCapabilitySyncService.class);
+        when(mcpCapabilitySyncService.list()).thenReturn(List.of(conflictDescriptor));
+        when(mcpCapabilitySyncService.find("city_datetime")).thenReturn(java.util.Optional.of(conflictDescriptor));
+
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("mcpCapabilitySyncService", mcpCapabilitySyncService);
+        ToolRegistry toolRegistry = new ToolRegistry(
+                List.of(new CityDateTime()),
+                beanFactory.getBeanProvider(CapabilityRegistryService.class),
+                beanFactory.getBeanProvider(McpCapabilitySyncService.class)
+        );
+
+        assertThat(toolRegistry.capability("city_datetime"))
+                .isPresent()
+                .get()
+                .extracting(CapabilityDescriptor::sourceType)
+                .isEqualTo("local");
         assertThat(toolRegistry.invoke("city_datetime", Map.of("city", "Shanghai")).path("timezone").asText())
                 .isEqualTo("UTC+8");
     }
@@ -406,26 +407,6 @@ class ToolRegistryTest {
         assertThat(result.path("ok").asBoolean()).isTrue();
         JsonNode content = objectMapper.readTree(Files.readString(agentsDir.resolve("default_prompt_bot.json")));
         assertThat(content.path("plain").path("systemPrompt").asText()).isEqualTo("这是配置的默认提示词");
-    }
-
-    @Test
-    void sensitiveDataDetectorShouldReturnPositiveForLongSensitiveText() {
-        String longText = "这是一大段业务文本，用于模拟超长入参。".repeat(120)
-                + "联系人邮箱是 test.user@example.com ，请尽快处理。";
-
-        JsonNode result = sensitiveDataDetectorTool.invoke(Map.of("text", longText));
-
-        assertThat(result.path("hasSensitiveData").asBoolean()).isTrue();
-        assertThat(result.path("result").asText()).isEqualTo("有敏感数据");
-        assertThat(result.path("description").asText()).contains("检测到疑似");
-    }
-
-    @Test
-    void sensitiveDataDetectorShouldReturnNegativeForSafeText() {
-        JsonNode result = sensitiveDataDetectorTool.invoke(Map.of("text", "今天上海天气晴朗，适合散步。"));
-
-        assertThat(result.path("hasSensitiveData").asBoolean()).isFalse();
-        assertThat(result.path("result").asText()).isEqualTo("没有敏感数据");
     }
 
 }

@@ -222,25 +222,6 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void initializeDatabaseShouldIgnoreLegacyJsonlIndex() throws Exception {
-        Path chatDir = tempDir.resolve("chats");
-        Files.createDirectories(chatDir);
-        Files.writeString(chatDir.resolve("_chats.jsonl"), """
-                {"chatId":"123e4567-e89b-12d3-a456-426614174019","chatName":"legacy-index"}
-                """);
-
-        ChatRecordStore store = newStore();
-        List<String> tables = listTables(chatDir.resolve("chats.db"));
-        assertThat(tables).contains("CHATS");
-        assertThat(tables).doesNotContain("CHAT_INDEX_", "CHAT_NOTIFY_QUEUE_", "AGENT_DIALOG_INDEX_");
-        assertThat(store.listChats()).isEmpty();
-
-        store.ensureChat("123e4567-e89b-12d3-a456-426614174020", "demo", "Demo Agent", "fresh");
-        assertThat(store.listChats()).hasSize(1);
-        assertThat(store.listChats().getFirst().chatId()).isEqualTo("123e4567-e89b-12d3-a456-426614174020");
-    }
-
-    @Test
     void initializeDatabaseShouldPlaceRelativeSqliteFileUnderChatDir() {
         ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
         Path chatDir = tempDir.resolve("chats");
@@ -254,7 +235,7 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void initializeDatabaseShouldFailWhenLegacyTableMissesTeamIdColumn() throws Exception {
+    void initializeDatabaseShouldFailWhenChatsSchemaIsIncompatible() throws Exception {
         Path chatDir = tempDir.resolve("legacy-chats");
         Files.createDirectories(chatDir);
         Path dbPath = chatDir.resolve("chats.db");
@@ -281,8 +262,8 @@ class ChatRecordStoreTest {
         ChatRecordStore store = new ChatRecordStore(objectMapper, properties);
         assertThatThrownBy(store::initializeDatabase)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("missing required column 'TEAM_ID_'")
-                .hasMessageContaining("Automatic migration is disabled");
+                .hasMessageContaining("Incompatible CHATS schema")
+                .hasMessageContaining("Rebuild sqlite chat index");
     }
 
     @Test
@@ -503,34 +484,6 @@ class ChatRecordStoreTest {
         Files.createDirectories(path.getParent());
         String line = objectMapper.writeValueAsString(value) + System.lineSeparator();
         Files.writeString(path, line, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
-    }
-
-    private List<String> listTables(Path dbPath) throws Exception {
-        try (java.sql.Connection connection = java.sql.DriverManager.getConnection("jdbc:sqlite:" + dbPath);
-             java.sql.PreparedStatement statement = connection.prepareStatement("""
-                     SELECT name
-                     FROM sqlite_master
-                     WHERE type = 'table'
-                     """);
-             java.sql.ResultSet resultSet = statement.executeQuery()) {
-            List<String> names = new java.util.ArrayList<>();
-            while (resultSet.next()) {
-                names.add(resultSet.getString("name"));
-            }
-            return names;
-        }
-    }
-
-    private List<String> listColumns(Path dbPath, String tableName) throws Exception {
-        try (java.sql.Connection connection = java.sql.DriverManager.getConnection("jdbc:sqlite:" + dbPath);
-             java.sql.PreparedStatement statement = connection.prepareStatement("PRAGMA table_info(" + tableName + ")");
-             java.sql.ResultSet resultSet = statement.executeQuery()) {
-            List<String> names = new java.util.ArrayList<>();
-            while (resultSet.next()) {
-                names.add(resultSet.getString("name"));
-            }
-            return names;
-        }
     }
 
     private Map<String, Object> queryLine(String chatId, String runId, Map<String, Object> query) {

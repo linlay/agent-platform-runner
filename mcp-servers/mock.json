@@ -1,0 +1,8 @@
+{
+  "serverKey": "mock",
+  "baseUrl": "http://localhost:19080",
+  "endpointPath": "/mcp",
+  "enabled": true,
+  "toolPrefix": "mock",
+  "readTimeoutMs": 15000
+}

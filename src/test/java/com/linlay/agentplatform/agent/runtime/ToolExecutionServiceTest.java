@@ -11,6 +11,7 @@ import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.FrontendToolProperties;
+import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
@@ -354,6 +355,102 @@ class ToolExecutionServiceTest {
         String result = singleToolResult(batch, "call_retry_3");
         assertThat(result).contains("Backend tool timeout");
         assertThat(result).contains("\"ok\":false");
+    }
+
+    @Test
+    void backendShouldUseInjectedToolInvoker() {
+        ConstantTool localTool = new ConstantTool("mock.weather.query", "LOCAL_RESULT");
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(localTool));
+        AtomicInteger invocations = new AtomicInteger();
+        ToolInvoker toolInvoker = (toolName, args, context) -> {
+            invocations.incrementAndGet();
+            return objectMapper.createObjectNode()
+                    .put("tool", toolName)
+                    .put("from", "router")
+                    .put("ok", true);
+        };
+
+        ToolExecutionService toolExecutionService = new ToolExecutionService(
+                toolRegistry,
+                new ToolArgumentResolver(objectMapper),
+                objectMapper,
+                null,
+                new LoggingAgentProperties(),
+                toolInvoker
+        );
+
+        ToolExecutionService.ToolExecutionBatch batch = toolExecutionService.executeToolCalls(
+                List.of(new PlannedToolCall("mock.weather.query", Map.of("city", "shanghai"), "call_mcp_router_1")),
+                enabledTools(toolRegistry),
+                new ArrayList<>(),
+                "run_mcp_router_1",
+                new ExecutionContext(
+                        definition(List.of("mock.weather.query"), Budget.DEFAULT),
+                        new AgentRequest("test", "chat_mcp_router_1", null, "run_mcp_router_1"),
+                        List.of()
+                ),
+                false
+        );
+
+        assertThat(invocations.get()).isEqualTo(1);
+        String result = singleToolResult(batch, "call_mcp_router_1");
+        assertThat(result).contains("\"from\":\"router\"");
+        assertThat(result).contains("\"ok\":true");
+    }
+
+    @Test
+    void backendStructuredErrorShouldNotInterruptFollowingCalls() {
+        ConstantTool toolA = new ConstantTool("mock.weather.query", "LOCAL_A");
+        ConstantTool toolB = new ConstantTool("mock.todo.tasks.list", "LOCAL_B");
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(toolA, toolB));
+        AtomicInteger invocations = new AtomicInteger();
+        ToolInvoker toolInvoker = (toolName, args, context) -> {
+            int index = invocations.incrementAndGet();
+            if (index == 1) {
+                return objectMapper.createObjectNode()
+                        .put("tool", toolName)
+                        .put("ok", false)
+                        .put("code", "mcp_call_failed")
+                        .put("error", "mock failure");
+            }
+            return objectMapper.createObjectNode()
+                    .put("tool", toolName)
+                    .put("ok", true)
+                    .put("result", "done");
+        };
+
+        ToolExecutionService toolExecutionService = new ToolExecutionService(
+                toolRegistry,
+                new ToolArgumentResolver(objectMapper),
+                objectMapper,
+                null,
+                new LoggingAgentProperties(),
+                toolInvoker
+        );
+
+        ToolExecutionService.ToolExecutionBatch batch = toolExecutionService.executeToolCalls(
+                List.of(
+                        new PlannedToolCall("mock.weather.query", Map.of(), "call_mcp_error_1"),
+                        new PlannedToolCall("mock.todo.tasks.list", Map.of(), "call_mcp_error_2")
+                ),
+                enabledTools(toolRegistry),
+                new ArrayList<>(),
+                "run_mcp_error_1",
+                new ExecutionContext(
+                        definition(List.of("mock.weather.query", "mock.todo.tasks.list"), Budget.DEFAULT),
+                        new AgentRequest("test", "chat_mcp_error_1", null, "run_mcp_error_1"),
+                        List.of()
+                ),
+                false
+        );
+
+        assertThat(invocations.get()).isEqualTo(2);
+        String firstResult = singleToolResult(batch, "call_mcp_error_1");
+        String secondResult = singleToolResult(batch, "call_mcp_error_2");
+        assertThat(firstResult).contains("\"ok\":false");
+        assertThat(firstResult).contains("\"code\":\"mcp_call_failed\"");
+        assertThat(secondResult).contains("\"ok\":true");
+        assertThat(secondResult).contains("\"result\":\"done\"");
     }
 
     private Map<String, BaseTool> enabledTools(ToolRegistry toolRegistry) {

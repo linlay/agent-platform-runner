@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 
 import com.linlay.agentplatform.agent.AgentCatalogProperties;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
@@ -36,12 +37,14 @@ public class RuntimeResourceSyncService {
     private final Path skillsDir;
     private final Path teamsDir;
     private final Path modelsDir;
+    private final Path mcpServersDir;
 
     @Autowired
     public RuntimeResourceSyncService(
             AgentCatalogProperties agentCatalogProperties,
             ViewportCatalogProperties viewportCatalogProperties,
             CapabilityCatalogProperties capabilityCatalogProperties,
+            McpProperties mcpProperties,
             SkillCatalogProperties skillCatalogProperties,
             TeamCatalogProperties teamCatalogProperties,
             ModelCatalogProperties modelCatalogProperties
@@ -53,7 +56,8 @@ public class RuntimeResourceSyncService {
                 Path.of(capabilityCatalogProperties.getToolsExternalDir()).toAbsolutePath().normalize(),
                 Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 Path.of(teamCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(modelCatalogProperties.getExternalDir()).toAbsolutePath().normalize()
+                Path.of(modelCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(mcpProperties.getRegistry().getExternalDir()).toAbsolutePath().normalize()
         );
     }
 
@@ -64,7 +68,8 @@ public class RuntimeResourceSyncService {
             Path toolsDir,
             Path skillsDir,
             Path teamsDir,
-            Path modelsDir
+            Path modelsDir,
+            Path mcpServersDir
     ) {
         this.resourceResolver = resourceResolver;
         this.agentsDir = agentsDir;
@@ -73,6 +78,7 @@ public class RuntimeResourceSyncService {
         this.skillsDir = skillsDir;
         this.teamsDir = teamsDir;
         this.modelsDir = modelsDir;
+        this.mcpServersDir = mcpServersDir;
     }
 
     @PostConstruct
@@ -83,6 +89,7 @@ public class RuntimeResourceSyncService {
         syncResourceDirectory("skills", skillsDir);
         syncResourceDirectory("teams", teamsDir);
         syncResourceDirectory("models", modelsDir);
+        syncResourceDirectory("mcp-servers", mcpServersDir);
     }
 
     private void syncResourceDirectory(String resourceDir, Path targetDir) {

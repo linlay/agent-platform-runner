@@ -220,3 +220,56 @@ MCP 服务群：
 3. 补管理端 API，完成 MCP server 动态注册能力。
 4. 灰度稳定后再迁 `_bash_` 与 `_skill_run_script_`。
 
+## 13. Phase1 执行门禁（approved）
+
+- 状态：`approved`
+- 确认时间：`2026-03-04`
+- 执行范围：`Phase1 only`
+
+### 13.1 target_task_ids
+
+- `T0`：补齐计划确认区与执行门禁。
+- `T1`：新增 `agent.mcp.*` 配置模型与示例配置。
+- `T2`：实现 MCP server registry（静态+文件热刷新）。
+- `T3`：实现 Streamable HTTP JSON-RPC 客户端（initialize/tools/list/tools/call，含 SSE 响应解析）。
+- `T4`：实现 MCP capability 同步与 ToolRegistry 双源合并（本地优先、alias 注入）。
+- `T5`：ToolExecutionService 接入 ToolInvoker 路由。
+- `T6`：MCP 失败统一结构化错误返回。
+- `T7`：Runner 侧测试补齐并通过。
+- `M1`：初始化 `mcp-server-mock` Spring Boot WebFlux 工程。
+- `M2`：实现 6 个 mock 工具（新命名）且输出字段与现有本地 mock 完全一致。
+- `M3`：Runner↔Mock 联调测试通过。
+
+### 13.2 git_change_scope
+
+- Runner:
+  - `src/main/java/com/linlay/agentplatform/{agent,tool,service,config}/**`
+  - `src/main/resources/application.yml`
+  - `application.example.yml`
+  - `src/test/java/com/linlay/agentplatform/{agent,tool,service,controller,config}/**`
+  - `.doc/plans/2026-03-03_mcp_tool_offloading_plan.md`
+- Mock:
+  - `/Users/linlay/Project/mcp-server-mock/**`
+
+### 13.3 acceptance_criteria
+
+1. 默认 `agent.mcp.enabled=false` 时，现有行为无回归（核心测试通过）。
+2. 启用 MCP 并配置 server 后，`/api/ap/tools` 返回 MCP 工具且包含 `meta.sourceType/sourceKey`。
+3. 同名冲突场景本地优先，MCP 同名只告警不生效。
+4. MCP 调用失败返回结构化错误 `{tool,ok:false,code,error}`，运行主链路不中断。
+5. 变更 `mcp-servers/*.json` 后可触发 registry + capability 自动刷新。
+6. Runner↔Mock 在 SSE/JSON-RPC 下完成 `initialize -> tools/list -> tools/call` 联调。
+
+### 13.4 rollback_rule
+
+- 将 `agent.mcp.enabled` 置为 `false`，即时回切本地工具执行路径。
+- 保留本地工具实现，不做删除性改动。
+
+### 13.5 verification_commands
+
+- Runner:
+  - `mvn -q -DskipTests compile`
+  - `mvn -q test -Dtest=ToolExecutionServiceTest,ToolRegistryTest,DirectoryWatchServiceTest,AgentControllerTest`
+- Mock:
+  - `mvn -q -DskipTests compile`
+  - `mvn -q test`

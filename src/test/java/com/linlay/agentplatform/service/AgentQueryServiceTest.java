@@ -228,6 +228,8 @@ class AgentQueryServiceTest {
                 CapabilityKind.FRONTEND,
                 "frontend",
                 null,
+                "local",
+                null,
                 "confirm_dialog",
                 "/tmp/confirm_dialog.frontend"
         );

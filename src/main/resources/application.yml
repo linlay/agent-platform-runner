@@ -34,6 +34,16 @@ agent:
   model:
     external-dir: ${AGENT_MODEL_EXTERNAL_DIR:models}
     refresh-interval-ms: ${AGENT_MODEL_REFRESH_INTERVAL_MS:30000}
+  mcp:
+    enabled: ${AGENT_MCP_ENABLED:true}
+    protocol-version: ${AGENT_MCP_PROTOCOL_VERSION:2025-06}
+    connect-timeout-ms: ${AGENT_MCP_CONNECT_TIMEOUT_MS:3000}
+    retry: ${AGENT_MCP_RETRY:1}
+    registry:
+      external-dir: ${AGENT_MCP_REGISTRY_EXTERNAL_DIR:mcp-servers}
+    # Deprecated: runtime MCP server registration is now registry-only.
+    # This key is kept for backward-compatible binding and is ignored by registry loader.
+    servers: []
   tools:
     frontend:
       submit-timeout-ms: ${AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS:300000}

@@ -11,6 +11,8 @@ public record CapabilityDescriptor(
         CapabilityKind kind,
         String toolType,
         String toolApi,
+        String sourceType,
+        String sourceKey,
         String viewportKey,
         String sourceFile
 ) {
@@ -24,5 +26,7 @@ public record CapabilityDescriptor(
         } else {
             parameters = Map.copyOf(parameters);
         }
+        sourceType = sourceType == null || sourceType.isBlank() ? "local" : sourceType.trim().toLowerCase();
+        sourceKey = sourceKey == null || sourceKey.isBlank() ? null : sourceKey.trim().toLowerCase();
     }
 }

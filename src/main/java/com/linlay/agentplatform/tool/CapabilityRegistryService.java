@@ -159,6 +159,8 @@ public class CapabilityRegistryService {
                     kind,
                     toolType,
                     toolApi,
+                    "local",
+                    null,
                     viewportKey,
                     file.toString()
             );

@@ -16,8 +16,8 @@
   "toolConfig": {
     "backends": [
       "city_datetime",
-      "mock_city_weather",
-      "mock_sensitive_data_detector"
+      "mock.weather.query",
+      "mock.sensitive-data.detect"
     ],
     "frontends": [],
     "actions": []

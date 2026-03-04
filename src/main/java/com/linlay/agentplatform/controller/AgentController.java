@@ -370,6 +370,8 @@ public class AgentController {
                 CapabilityKind.BACKEND,
                 "function",
                 null,
+                "local",
+                null,
                 null,
                 "java://builtin"
         ));
@@ -425,6 +427,8 @@ public class AgentController {
         meta.put("kind", descriptor.kind() == null ? "" : descriptor.kind().name().toLowerCase(Locale.ROOT));
         meta.put("toolType", descriptor.toolType());
         meta.put("toolApi", descriptor.toolApi());
+        meta.put("sourceType", descriptor.sourceType());
+        meta.put("sourceKey", descriptor.sourceKey());
         meta.put("viewportKey", descriptor.viewportKey());
         meta.put("strict", descriptor.strict());
         return meta;
