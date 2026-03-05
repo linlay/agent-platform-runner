@@ -31,6 +31,11 @@
 2. 保证 `modelConfig.modelKey` 在 `example/models` 中可解析。
 3. 运行示例安装脚本同步到外层 `agents/`。
 
+## 附带示例
+
+- `demoScheduleManager`：计划任务管理示例（REACT + `_bash_`），用于维护 `schedules/*.json`。
+  使用提示：如需创建/改写文件，通常需要在 bash 白名单中放行相关命令，并按需启用 `AGENT_BASH_SHELL_FEATURES_ENABLED=true`。
+
 ## 与外层目录关系
 
 - 源：`example/agents/`

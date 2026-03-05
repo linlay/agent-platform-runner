@@ -7,6 +7,8 @@ import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
+import com.linlay.agentplatform.schedule.ScheduleCatalogProperties;
+import com.linlay.agentplatform.schedule.ScheduledQueryOrchestrator;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.team.TeamCatalogProperties;
@@ -161,6 +163,28 @@ class DirectoryWatchServiceReloadRoutingTest {
         }
     }
 
+    @Test
+    void shouldRefreshSchedulesWhenScheduleDirectoryChanged() throws Exception {
+        ScheduledQueryOrchestrator orchestrator = mock(ScheduledQueryOrchestrator.class);
+        DirectoryWatchService service = createService(
+                mock(AgentRegistry.class),
+                mock(ViewportRegistryService.class),
+                mock(CapabilityRegistryService.class),
+                mock(ModelRegistryService.class),
+                mock(SkillRegistryService.class),
+                mock(TeamRegistryService.class),
+                mock(McpServerRegistryService.class),
+                mock(McpCapabilitySyncService.class),
+                orchestrator
+        );
+        try {
+            callbackFor(service, tempDir.resolve("schedules")).run();
+            verify(orchestrator).refreshAndReconcile();
+        } finally {
+            service.destroy();
+        }
+    }
+
     private DirectoryWatchService createService(
             AgentRegistry agentRegistry,
             ViewportRegistryService viewportRegistryService,
@@ -170,6 +194,30 @@ class DirectoryWatchServiceReloadRoutingTest {
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
             McpCapabilitySyncService mcpCapabilitySyncService
+    ) {
+        return createService(
+                agentRegistry,
+                viewportRegistryService,
+                capabilityRegistryService,
+                modelRegistryService,
+                skillRegistryService,
+                teamRegistryService,
+                mcpServerRegistryService,
+                mcpCapabilitySyncService,
+                mock(ScheduledQueryOrchestrator.class)
+        );
+    }
+
+    private DirectoryWatchService createService(
+            AgentRegistry agentRegistry,
+            ViewportRegistryService viewportRegistryService,
+            CapabilityRegistryService capabilityRegistryService,
+            ModelRegistryService modelRegistryService,
+            SkillRegistryService skillRegistryService,
+            TeamRegistryService teamRegistryService,
+            McpServerRegistryService mcpServerRegistryService,
+            McpCapabilitySyncService mcpCapabilitySyncService,
+            ScheduledQueryOrchestrator scheduledQueryOrchestrator
     ) {
         AgentCatalogProperties agentCatalogProperties = new AgentCatalogProperties();
         agentCatalogProperties.setExternalDir(tempDir.resolve("agents").toString());
@@ -189,6 +237,9 @@ class DirectoryWatchServiceReloadRoutingTest {
         TeamCatalogProperties teamCatalogProperties = new TeamCatalogProperties();
         teamCatalogProperties.setExternalDir(tempDir.resolve("teams").toString());
 
+        ScheduleCatalogProperties scheduleCatalogProperties = new ScheduleCatalogProperties();
+        scheduleCatalogProperties.setExternalDir(tempDir.resolve("schedules").toString());
+
         McpProperties mcpProperties = new McpProperties();
         mcpProperties.getRegistry().setExternalDir(tempDir.resolve("mcp-servers").toString());
 
@@ -201,13 +252,15 @@ class DirectoryWatchServiceReloadRoutingTest {
                 teamRegistryService,
                 mcpServerRegistryService,
                 mcpCapabilitySyncService,
+                scheduledQueryOrchestrator,
                 agentCatalogProperties,
                 viewportCatalogProperties,
                 capabilityCatalogProperties,
                 mcpProperties,
                 modelCatalogProperties,
                 skillCatalogProperties,
-                teamCatalogProperties
+                teamCatalogProperties,
+                scheduleCatalogProperties
         );
     }
 

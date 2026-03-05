@@ -96,6 +96,7 @@ class AgentControllerTest {
         Files.writeString(teamsDir.resolve("a1b2c3d4e5f6.json"), """
                 {
                   "name": "Default Team",
+                  "defaultAgentKey": "demoModeReact",
                   "agentKeys": ["demoModeReact"]
                 }
                 """);
@@ -199,6 +200,7 @@ class AgentControllerTest {
                 .jsonPath("$.data[?(@.key=='demoViewport')]").exists()
                 .jsonPath("$.data[?(@.key=='demoAction')]").exists()
                 .jsonPath("$.data[?(@.key=='demoAgentCreator')]").exists()
+                .jsonPath("$.data[?(@.key=='demoScheduleManager')]").exists()
                 .jsonPath("$.data[?(@.key=='demoMathSkill')]").exists()
                 .jsonPath("$.data[?(@.key=='demoConfirmDialog')]").exists()
                 .jsonPath("$.data[?(@.key=='demoDataViewer')]").exists();
@@ -225,24 +227,45 @@ class AgentControllerTest {
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data[?(@.teamId=='a1b2c3d4e5f6')]").exists()
-                .jsonPath("$.data[0].meta.invalidAgentKeys").isArray();
+                .jsonPath("$.data[0].meta.invalidAgentKeys").isArray()
+                .jsonPath("$.data[0].meta.defaultAgentKey").isEqualTo("demoModeReact")
+                .jsonPath("$.data[0].meta.defaultAgentKeyValid").isEqualTo(true);
 
         Path teamsDir = Path.of(teamCatalogProperties.getExternalDir()).toAbsolutePath().normalize();
         Files.createDirectories(teamsDir);
         Files.writeString(teamsDir.resolve("bbccddeeff00.json"), """
                 {
                   "name": "Invalid Team",
+                  "defaultAgentKey": "missing_agent",
                   "agentKeys": ["missing_agent", "demoModePlain"]
                 }
                 """);
         teamRegistryService.refreshTeams();
 
-        webTestClient.get()
+        String body = webTestClient.get()
                 .uri("/api/ap/teams")
                 .exchange()
                 .expectStatus().isOk()
-                .expectBody()
-                .jsonPath("$.data[?(@.teamId=='bbccddeeff00')].meta.invalidAgentKeys[0]").isEqualTo("missing_agent");
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
+        assertThat(body).isNotBlank();
+        Map<String, Object> root = objectMapper.readValue(body, new TypeReference<>() {
+        });
+        List<Map<String, Object>> teams = objectMapper.convertValue(root.get("data"), new TypeReference<>() {
+        });
+        Map<String, Object> invalidTeam = teams.stream()
+                .filter(item -> "bbccddeeff00".equals(item.get("teamId")))
+                .findFirst()
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) invalidTeam.get("meta");
+        assertThat(meta).isNotNull();
+        assertThat(meta.get("defaultAgentKey")).isEqualTo("missing_agent");
+        assertThat(meta.get("defaultAgentKeyValid")).isEqualTo(false);
+        @SuppressWarnings("unchecked")
+        List<String> invalidAgentKeys = (List<String>) meta.get("invalidAgentKeys");
+        assertThat(invalidAgentKeys).contains("missing_agent");
     }
 
     @Test

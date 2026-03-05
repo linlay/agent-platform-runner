@@ -101,6 +101,10 @@ agent:
       shell-executable: bash
       shell-timeout-ms: 10000
       max-command-chars: 16000
+  # schedule 默认值已由内置 application.yml 提供（external-dir/enabled/pool-size）。
+  # 如需统一时区，可仅覆盖 default-zone-id；留空则使用系统时区。
+  schedule:
+    default-zone-id: Asia/Shanghai
 
 memory:
   chats:

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.schedule.ScheduleCatalogProperties;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
 
 class RuntimeResourceSyncServiceTest {
@@ -22,9 +23,11 @@ class RuntimeResourceSyncServiceTest {
         Path agentsDir = tempDir.resolve("agents");
         Path toolsDir = tempDir.resolve("tools");
         Path skillsDir = tempDir.resolve("skills");
+        Path schedulesDir = tempDir.resolve("schedules");
         Files.createDirectories(agentsDir);
         Files.createDirectories(toolsDir);
         Files.createDirectories(skillsDir);
+        Files.createDirectories(schedulesDir);
 
         Path modePlainAgent = agentsDir.resolve("demoModePlain.json");
         Path weatherTool = toolsDir.resolve("city_datetime.backend");
@@ -33,6 +36,8 @@ class RuntimeResourceSyncServiceTest {
         Path extraTool = toolsDir.resolve("custom.backend");
         Path mathBasicSkillFile = skillsDir.resolve("math_basic").resolve("SKILL.md");
         Path extraSkillFile = skillsDir.resolve("custom_skill").resolve("SKILL.md");
+        Path builtInSchedule = schedulesDir.resolve("demo_daily_summary.json");
+        Path extraSchedule = schedulesDir.resolve("custom_schedule.json");
 
         Files.writeString(modePlainAgent, "old-agent-content");
         Files.writeString(weatherTool, "old-tool-content");
@@ -42,11 +47,14 @@ class RuntimeResourceSyncServiceTest {
         Files.createDirectories(extraSkillFile.getParent());
         Files.writeString(mathBasicSkillFile, "old-skill-content");
         Files.writeString(extraSkillFile, "custom skill content");
+        Files.writeString(builtInSchedule, "old-schedule-content");
+        Files.writeString(extraSchedule, "custom schedule content");
 
         RuntimeResourceSyncService service = new RuntimeResourceSyncService(
                 new PathMatchingResourcePatternResolver(),
                 toolsDir,
-                skillsDir
+                skillsDir,
+                schedulesDir
         );
         service.syncRuntimeDirectories();
         service.syncRuntimeDirectories();
@@ -54,37 +62,45 @@ class RuntimeResourceSyncServiceTest {
         String syncedTool = Files.readString(weatherTool);
         String syncedSkillScriptTool = Files.readString(skillScriptTool);
         String syncedSkill = Files.readString(mathBasicSkillFile);
+        String syncedSchedule = Files.readString(builtInSchedule);
 
         assertThat(syncedTool).contains("\"name\": \"city_datetime\"");
         assertThat(syncedSkillScriptTool).contains("\"name\": \"_skill_run_script_\"");
         assertThat(syncedSkill).contains("name: \"math_basic\"");
+        assertThat(syncedSchedule).contains("\"cron\": \"0 0 9 * * *\"");
         assertThat(skillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
         assertThat(skillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
         assertThat(skillsDir.resolve("text_utils").resolve("SKILL.md")).exists();
+        assertThat(schedulesDir.resolve("demo_daily_summary.json")).exists();
         assertThat(Files.readString(modePlainAgent)).isEqualTo("old-agent-content");
         assertThat(agentsDir.resolve("demoAction.json")).doesNotExist();
         assertThat(Files.readString(extraAgent)).isEqualTo("custom agent content");
         assertThat(Files.readString(extraTool)).isEqualTo("custom tool content");
         assertThat(Files.readString(extraSkillFile)).isEqualTo("custom skill content");
+        assertThat(Files.readString(extraSchedule)).isEqualTo("custom schedule content");
     }
 
     @Test
     void shouldSyncToConfiguredDirectoriesInsteadOfUserDirRoot() throws Exception {
         Path configuredToolsDir = tempDir.resolve("configured").resolve("tools");
         Path configuredSkillsDir = tempDir.resolve("configured").resolve("skills");
+        Path configuredSchedulesDir = tempDir.resolve("configured").resolve("schedules");
         Path legacyUserDir = tempDir.resolve("legacy-user-dir");
 
         CapabilityCatalogProperties capabilityProperties = new CapabilityCatalogProperties();
         capabilityProperties.setExternalDir(configuredToolsDir.toString());
         SkillCatalogProperties skillProperties = new SkillCatalogProperties();
         skillProperties.setExternalDir(configuredSkillsDir.toString());
+        ScheduleCatalogProperties scheduleProperties = new ScheduleCatalogProperties();
+        scheduleProperties.setExternalDir(configuredSchedulesDir.toString());
 
         String originalUserDir = System.getProperty("user.dir");
         try {
             System.setProperty("user.dir", legacyUserDir.toString());
             RuntimeResourceSyncService service = new RuntimeResourceSyncService(
                     capabilityProperties,
-                    skillProperties
+                    skillProperties,
+                    scheduleProperties
             );
             service.syncRuntimeDirectories();
         } finally {
@@ -99,8 +115,10 @@ class RuntimeResourceSyncServiceTest {
         assertThat(configuredSkillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
         assertThat(configuredSkillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
         assertThat(configuredSkillsDir.resolve("text_utils").resolve("SKILL.md")).exists();
+        assertThat(configuredSchedulesDir.resolve("demo_daily_summary.json")).exists();
         assertThat(legacyUserDir.resolve("tools")).doesNotExist();
         assertThat(legacyUserDir.resolve("skills")).doesNotExist();
+        assertThat(legacyUserDir.resolve("schedules")).doesNotExist();
     }
 
     @Test

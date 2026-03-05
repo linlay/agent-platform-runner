@@ -104,7 +104,8 @@ public class TeamRegistryService {
                 return Optional.empty();
             }
             List<String> agentKeys = parseAgentKeys(root.path("agentKeys"));
-            return Optional.of(new TeamDescriptor(teamId, name, agentKeys, file.toString()));
+            String defaultAgentKey = parseDefaultAgentKey(root.path("defaultAgentKey"));
+            return Optional.of(new TeamDescriptor(teamId, name, agentKeys, defaultAgentKey, file.toString()));
         } catch (Exception ex) {
             log.warn("Skip invalid team file: {}", file, ex);
             return Optional.empty();
@@ -127,6 +128,14 @@ public class TeamRegistryService {
             unique.add(normalized);
         }
         return List.copyOf(new ArrayList<>(unique));
+    }
+
+    private String parseDefaultAgentKey(JsonNode node) {
+        if (node == null || node.isNull() || !node.isTextual()) {
+            return null;
+        }
+        String normalized = node.asText("").trim();
+        return normalized.isBlank() ? null : normalized;
     }
 
     private String normalizeTeamId(String raw) {

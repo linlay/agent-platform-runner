@@ -15,6 +15,7 @@
 ```json
 {
   "name": "Default Team",
+  "defaultAgentKey": "demoModeReact",
   "agentKeys": ["demoModeReact"]
 }
 ```
@@ -23,7 +24,8 @@
 
 1. 新建 `<team-id>.json`。
 2. 在 `agentKeys` 中填写已存在的 agent key。
-3. 执行示例安装脚本同步到外层 `teams/`。
+3. 可选设置 `defaultAgentKey`，用于计划任务仅配置 `teamId` 时选择默认执行智能体。
+4. 执行示例安装脚本同步到外层 `teams/`。
 
 ## 与外层目录关系
 

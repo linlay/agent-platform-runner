@@ -11,6 +11,7 @@
 - `viewports/`：demo 前端视图
 - `tools/`：demo 工具定义
 - `skills/`：demo 技能目录
+- `schedules/`：demo 计划任务定义
 
 ## 一键安装脚本
 
@@ -23,6 +24,7 @@
 - `viewports`
 - `tools`
 - `skills`
+- `schedules`
 
 特性：
 

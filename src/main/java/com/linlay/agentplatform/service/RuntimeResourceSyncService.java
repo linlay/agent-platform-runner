@@ -16,6 +16,7 @@ import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.schedule.ScheduleCatalogProperties;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
 
 import jakarta.annotation.PostConstruct;
@@ -28,16 +29,26 @@ public class RuntimeResourceSyncService {
     private final ResourcePatternResolver resourceResolver;
     private final Path toolsDir;
     private final Path skillsDir;
+    private final Path schedulesDir;
 
-    @Autowired
     public RuntimeResourceSyncService(
             CapabilityCatalogProperties capabilityCatalogProperties,
             SkillCatalogProperties skillCatalogProperties
     ) {
+        this(capabilityCatalogProperties, skillCatalogProperties, new ScheduleCatalogProperties());
+    }
+
+    @Autowired
+    public RuntimeResourceSyncService(
+            CapabilityCatalogProperties capabilityCatalogProperties,
+            SkillCatalogProperties skillCatalogProperties,
+            ScheduleCatalogProperties scheduleCatalogProperties
+    ) {
         this(
                 new PathMatchingResourcePatternResolver(),
                 Path.of(capabilityCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize()
+                Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(scheduleCatalogProperties.getExternalDir()).toAbsolutePath().normalize()
         );
     }
 
@@ -46,18 +57,32 @@ public class RuntimeResourceSyncService {
             Path toolsDir,
             Path skillsDir
     ) {
+        this(resourceResolver, toolsDir, skillsDir, null);
+    }
+
+    RuntimeResourceSyncService(
+            ResourcePatternResolver resourceResolver,
+            Path toolsDir,
+            Path skillsDir,
+            Path schedulesDir
+    ) {
         this.resourceResolver = resourceResolver;
         this.toolsDir = toolsDir;
         this.skillsDir = skillsDir;
+        this.schedulesDir = schedulesDir;
     }
 
     @PostConstruct
     public void syncRuntimeDirectories() {
         syncResourceDirectory("tools", toolsDir);
         syncResourceDirectory("skills", skillsDir);
+        syncResourceDirectory("schedules", schedulesDir);
     }
 
     private void syncResourceDirectory(String resourceDir, Path targetDir) {
+        if (targetDir == null) {
+            return;
+        }
         try {
             Files.createDirectories(targetDir);
         } catch (IOException ex) {

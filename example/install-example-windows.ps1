@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rootDir = (Resolve-Path (Join-Path $scriptDir "..")).Path
 $exampleDir = Join-Path $rootDir "example"
-$dirs = @("agents", "teams", "models", "mcp-servers", "viewports", "tools", "skills")
+$dirs = @("agents", "teams", "models", "mcp-servers", "viewports", "tools", "skills", "schedules")
 
 function Write-Log {
     param([string]$Message)

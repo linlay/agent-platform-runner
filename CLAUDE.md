@@ -315,6 +315,23 @@ Agent JSON 中引用 skills：
 | `text_utils` | 文本指标（字符/词数/行数，可选空白归一化） |
 | `slack-gif-creator` | GIF 动画创建 |
 
+## Schedules 系统
+
+### 目录结构
+
+```
+schedules/<schedule-id>.json
+```
+
+- 每个文件仅定义一个 cron 计划任务。
+- 必填字段：`cron`、`query`。
+- 目标字段：`agentKey` 或 `teamId`（至少一个）。
+- 可选字段：`enabled`、`name`、`zoneId`、`params`。
+- 启动时会同步内置 `src/main/resources/schedules/**` 到运行目录 `schedules/`。
+- 热加载：仅监听运行目录 `schedules/` 的文件变化，并做增量重编排。
+- 触发执行：内部构造一次 `QueryRequest`（`stream=false`，`chatId` 每次新 UUID），走与普通对话相同链路。
+- 若仅配置 `teamId`，则使用 `teams/<teamId>.json` 中 `defaultAgentKey` 作为默认执行智能体。
+
 ## Viewport 系统
 
 ### /api/ap/viewport 端点契约
@@ -529,6 +546,10 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `AGENT_SKILLS_EXTERNAL_DIR` | `agent.skills.external-dir` | `skills` | 技能目录 |
 | `AGENT_SKILLS_REFRESH_INTERVAL_MS` | `agent.skills.refresh-interval-ms` | `30000` | 技能刷新间隔（ms） |
 | `AGENT_SKILLS_MAX_PROMPT_CHARS` | `agent.skills.max-prompt-chars` | `8000` | 技能 prompt 最大字符数 |
+| `AGENT_SCHEDULE_EXTERNAL_DIR` | `agent.schedule.external-dir` | `schedules` | 计划任务目录 |
+| `AGENT_SCHEDULE_ENABLED` | `agent.schedule.enabled` | `true` | 计划任务总开关 |
+| `AGENT_SCHEDULE_DEFAULT_ZONE_ID` | `agent.schedule.default-zone-id` | 系统时区 | 计划任务默认时区 |
+| `AGENT_SCHEDULE_POOL_SIZE` | `agent.schedule.pool-size` | `4` | 计划任务线程池大小 |
 
 #### Auth / Chat Image Token / Memory / LLM 日志
 

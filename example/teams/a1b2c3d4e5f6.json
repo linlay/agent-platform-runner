@@ -1,5 +1,6 @@
 {
   "name": "Default Team",
+  "defaultAgentKey": "demoModeReact",
   "agentKeys": [
     "demoModeReact",
     "demoViewport",

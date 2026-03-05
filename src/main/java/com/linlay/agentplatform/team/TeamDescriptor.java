@@ -6,6 +6,7 @@ public record TeamDescriptor(
         String id,
         String name,
         List<String> agentKeys,
+        String defaultAgentKey,
         String sourceFile
 ) {
 }

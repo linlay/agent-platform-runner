@@ -326,7 +326,14 @@ public class AgentController {
                 icon = agent.icon();
             }
         }
-        Map<String, Object> meta = Map.of("invalidAgentKeys", List.copyOf(invalidAgentKeys));
+        String defaultAgentKey = team.defaultAgentKey();
+        boolean defaultAgentKeyValid = StringUtils.hasText(defaultAgentKey)
+                && team.agentKeys().contains(defaultAgentKey)
+                && agentsById.containsKey(defaultAgentKey);
+        Map<String, Object> meta = new java.util.LinkedHashMap<>();
+        meta.put("invalidAgentKeys", List.copyOf(invalidAgentKeys));
+        meta.put("defaultAgentKey", defaultAgentKey);
+        meta.put("defaultAgentKeyValid", defaultAgentKeyValid);
         return new TeamSummaryResponse(
                 team.id(),
                 team.name(),

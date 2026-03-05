@@ -74,7 +74,7 @@
 
 `GET /api/ap/teams` 返回结构：
 
-- 列表项：`teamId`, `name`, `icon`, `agentKeys`, `meta.invalidAgentKeys`
+- 列表项：`teamId`, `name`, `icon`, `agentKeys`, `meta.invalidAgentKeys`, `meta.defaultAgentKey`, `meta.defaultAgentKeyValid`
 
 `GET /api/ap/skills` 返回结构：
 
@@ -200,11 +200,13 @@
 │   ├── viewports/
 │   ├── tools/
 │   ├── skills/
+│   ├── schedules/
 │   ├── install-example-mac.sh
 │   ├── install-example-linux.sh
 │   └── install-example-windows.ps1
 ├── src/
 ├── data/
+├── schedules/
 ├── release-scripts/
 │   ├── mac/
 │   └── windows/
@@ -445,9 +447,11 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
   - viewports: `viewports/`
   - tools: `tools/`
   - skills: `skills/`
-- 启动时仅同步内置 `src/main/resources/tools|skills` 到外部目录：
+- schedules: `schedules/`
+- 启动时同步内置 `src/main/resources/tools|skills|schedules` 到外部目录：
   - `AGENT_TOOLS_EXTERNAL_DIR`
   - `AGENT_SKILLS_EXTERNAL_DIR`
+  - `AGENT_SCHEDULE_EXTERNAL_DIR`
 - `agents|teams|models|mcp-servers|viewports` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
 - 示例安装为覆盖写入同名文件，但不会清空目标目录，不会删除额外文件。
 - 目录监听热重载策略：
@@ -456,6 +460,7 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
   - `mcp-servers/` 变更：刷新 mcp server 与 mcp tool registry，并按依赖精准刷新受影响 agent。
   - `models/` 变更：刷新 model registry，并按 `modelKey` 依赖精准刷新受影响 agent。
   - `skills/` 变更：仅刷新 skill registry，不触发 agent reload。
+  - `schedules/` 变更：刷新计划任务 registry，并增量重编排 cron 触发器。
 - 运行中一致性：当前进行中的 run 保持旧快照；reload 后仅新 run 使用新配置。
 - `viewports` 支持后缀：`.html`、`.qlc`，默认每 30 秒刷新内存快照。
 - `tools`:
@@ -467,6 +472,12 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
   - 目录结构：`skills/<skill-id>/SKILL.md`（强约束，目录式）
   - 可选子目录：`scripts/`、`references/`、`assets/`
   - `skill-id` 取目录名，`SKILL.md` frontmatter 的 `name/description` 作为元信息。
+- `schedules`:
+  - 目录结构：`schedules/<schedule-id>.json`
+  - 必填字段：`cron`、`query`
+  - 目标字段：`agentKey` 或 `teamId`（至少一个）
+  - 可选字段：`enabled`、`name`、`zoneId`、`params`
+  - 若仅配置 `teamId`，则读取 team 的 `defaultAgentKey` 作为默认执行智能体
 - `models`:
   - 目录结构：`models/<model-key>.json`
   - 关键字段：`key/provider/protocol/modelId/pricing`
@@ -480,7 +491,7 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
   - macOS：`./example/install-example-mac.sh`
   - Linux：`./example/install-example-linux.sh`
   - Windows PowerShell：`.\\example\\install-example-windows.ps1`
-- 脚本会覆盖复制：`agents/teams/models/mcp-servers/viewports/tools/skills`。
+- 脚本会覆盖复制：`agents/teams/models/mcp-servers/viewports/tools/skills/schedules`。
 
 ### /api/ap/viewport 约定
 
@@ -607,6 +618,10 @@ for f in *.md; do echo "$f"; done
 | `AGENT_VIEWPORTS_EXTERNAL_DIR` | `viewports` | Viewport 目录 |
 | `AGENT_TOOLS_EXTERNAL_DIR` | `tools` | 工具目录 |
 | `AGENT_SKILLS_EXTERNAL_DIR` | `skills` | 技能目录 |
+| `AGENT_SCHEDULE_EXTERNAL_DIR` | `schedules` | 计划任务目录 |
+| `AGENT_SCHEDULE_ENABLED` | `true` | 计划任务总开关 |
+| `AGENT_SCHEDULE_DEFAULT_ZONE_ID` | 系统时区 | 计划任务默认时区 |
+| `AGENT_SCHEDULE_POOL_SIZE` | `4` | 计划任务线程池大小 |
 | `AGENT_DATA_EXTERNAL_DIR` | `data` | 静态文件目录 |
 | `AGENT_BASH_WORKING_DIRECTORY` | `${user.dir}` | Bash 工作目录 |
 | `AGENT_BASH_ALLOWED_PATHS` | （空） | Bash 允许路径 |

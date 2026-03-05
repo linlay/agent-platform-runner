@@ -7,6 +7,8 @@ import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
+import com.linlay.agentplatform.schedule.ScheduleCatalogProperties;
+import com.linlay.agentplatform.schedule.ScheduledQueryOrchestrator;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.team.TeamCatalogProperties;
@@ -53,13 +55,15 @@ public class DirectoryWatchService implements DisposableBean {
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
             McpCapabilitySyncService mcpCapabilitySyncService,
+            ScheduledQueryOrchestrator scheduledQueryOrchestrator,
             AgentCatalogProperties agentCatalogProperties,
             ViewportCatalogProperties viewportCatalogProperties,
             CapabilityCatalogProperties capabilityCatalogProperties,
             McpProperties mcpProperties,
             ModelCatalogProperties modelCatalogProperties,
             SkillCatalogProperties skillCatalogProperties,
-            TeamCatalogProperties teamCatalogProperties
+            TeamCatalogProperties teamCatalogProperties,
+            ScheduleCatalogProperties scheduleCatalogProperties
     ) {
         this.watchedDirs = new LinkedHashMap<>();
         watchedDirs.put(
@@ -111,6 +115,10 @@ public class DirectoryWatchService implements DisposableBean {
                     java.util.Set<String> affectedAgents = agentRegistry.findAgentIdsByTools(diff.changedKeys());
                     agentRegistry.refreshAgentsByIds(affectedAgents, "mcp-registry-directory");
                 }
+        );
+        watchedDirs.put(
+                Path.of(scheduleCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                scheduledQueryOrchestrator::refreshAndReconcile
         );
 
         start();

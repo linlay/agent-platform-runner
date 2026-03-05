@@ -162,6 +162,25 @@ class DirectoryWatchServiceTest {
         }
     }
 
+    @Test
+    void shouldTriggerScheduleRefreshCallbackOnFileChange() throws Exception {
+        Path schedulesDir = tempDir.resolve("schedules");
+        Files.createDirectories(schedulesDir);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        Map<Path, Runnable> dirs = new LinkedHashMap<>();
+        dirs.put(schedulesDir, latch::countDown);
+
+        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        try {
+            Files.writeString(schedulesDir.resolve("demo_daily_summary.json"), "{}");
+            boolean triggered = latch.await(10, TimeUnit.SECONDS);
+            assertThat(triggered).isTrue();
+        } finally {
+            service.destroy();
+        }
+    }
+
     private boolean waitForCountAtLeast(AtomicInteger counter, int expected, long timeoutMs) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
         while (System.nanoTime() < deadline) {
