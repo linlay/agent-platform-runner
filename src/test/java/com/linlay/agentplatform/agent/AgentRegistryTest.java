@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -112,5 +113,121 @@ class AgentRegistryTest {
         registry.refreshAgents();
         assertThatThrownBy(() -> registry.get("demo_two"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldResolveAffectedAgentsByToolAndModelDependencies() throws Exception {
+        Path agentsDir = tempDir.resolve("agents");
+        Files.createDirectories(agentsDir);
+
+        Files.writeString(agentsDir.resolve("agent_alpha.json"), """
+                {
+                  "description": "alpha",
+                  "key": "agent_alpha",
+                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
+                  "toolConfig": { "backends": ["_bash_"], "frontends": [], "actions": [] },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "alpha" }
+                }
+                """);
+        Files.writeString(agentsDir.resolve("agent_beta.json"), """
+                {
+                  "description": "beta",
+                  "key": "agent_beta",
+                  "modelConfig": { "modelKey": "siliconflow-deepseek-v3_2" },
+                  "toolConfig": { "backends": ["city_datetime"], "frontends": [], "actions": [] },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "beta" }
+                }
+                """);
+
+        AgentRegistry registry = createRegistry(agentsDir);
+
+        assertThat(registry.findAgentIdsByTools(Set.of("_bash_"))).containsExactly("agent_alpha");
+        assertThat(registry.findAgentIdsByTools(Set.of("city_datetime"))).containsExactly("agent_beta");
+        assertThat(registry.findAgentIdsByModels(Set.of("bailian-qwen3-max"))).containsExactly("agent_alpha");
+        assertThat(registry.findAgentIdsByModels(Set.of("siliconflow-deepseek-v3_2"))).containsExactly("agent_beta");
+    }
+
+    @Test
+    void shouldRefreshOnlySelectedAgents() throws Exception {
+        Path agentsDir = tempDir.resolve("agents");
+        Files.createDirectories(agentsDir);
+
+        Files.writeString(agentsDir.resolve("agent_alpha.json"), """
+                {
+                  "description": "alpha",
+                  "key": "agent_alpha",
+                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
+                  "toolConfig": { "backends": ["_bash_"], "frontends": [], "actions": [] },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "alpha-v1" }
+                }
+                """);
+        Files.writeString(agentsDir.resolve("agent_beta.json"), """
+                {
+                  "description": "beta",
+                  "key": "agent_beta",
+                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
+                  "toolConfig": { "backends": ["_bash_"], "frontends": [], "actions": [] },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "beta-v1" }
+                }
+                """);
+
+        AgentRegistry registry = createRegistry(agentsDir);
+
+        Agent alphaBefore = registry.get("agent_alpha");
+        Agent betaBefore = registry.get("agent_beta");
+
+        Files.writeString(agentsDir.resolve("agent_alpha.json"), """
+                {
+                  "description": "alpha",
+                  "key": "agent_alpha",
+                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
+                  "toolConfig": { "backends": ["_bash_"], "frontends": [], "actions": [] },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "alpha-v2" }
+                }
+                """);
+
+        registry.refreshAgentsByIds(Set.of("agent_alpha"), "test-selective");
+
+        Agent alphaAfter = registry.get("agent_alpha");
+        Agent betaAfter = registry.get("agent_beta");
+
+        assertThat(alphaAfter).isNotSameAs(alphaBefore);
+        assertThat(betaAfter).isSameAs(betaBefore);
+    }
+
+    private AgentRegistry createRegistry(Path agentsDir) {
+        AgentCatalogProperties properties = new AgentCatalogProperties();
+        properties.setExternalDir(agentsDir.toString());
+
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        LlmService llmService = new LlmService(null, null);
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(
+                new SystemBash(),
+                new PlatformCreateAgent(agentsDir)
+        ));
+        ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
+        memoryProperties.setDir(tempDir.resolve("chats").toString());
+        ChatWindowMemoryStore memoryStore = new ChatWindowMemoryStore(new ObjectMapper(), memoryProperties);
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        ToolInvokerRouter toolInvokerRouter = new ToolInvokerRouter(
+                toolRegistry,
+                new LocalToolInvoker(toolRegistry),
+                beanFactory.getBeanProvider(McpToolInvoker.class)
+        );
+        return new AgentRegistry(
+                loader,
+                llmService,
+                toolRegistry,
+                new ObjectMapper(),
+                memoryStore,
+                null,
+                null,
+                toolInvokerRouter
+        );
     }
 }

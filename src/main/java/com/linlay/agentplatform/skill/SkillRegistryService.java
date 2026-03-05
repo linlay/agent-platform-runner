@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import com.linlay.agentplatform.service.CatalogDiff;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -51,18 +52,19 @@ public class SkillRegistryService {
         return Optional.ofNullable(byId.get(normalized));
     }
 
-    public void refreshSkills() {
+    public CatalogDiff refreshSkills() {
         synchronized (reloadLock) {
+            Map<String, SkillDescriptor> before = byId;
             Map<String, SkillDescriptor> loaded = new LinkedHashMap<>();
             Path dir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
             if (!Files.exists(dir)) {
                 byId = Map.of();
-                return;
+                return CatalogDiff.between(before, byId);
             }
             if (!Files.isDirectory(dir)) {
                 log.warn("Configured skills directory is not a directory: {}", dir);
                 byId = Map.of();
-                return;
+                return CatalogDiff.between(before, byId);
             }
 
             try (Stream<Path> stream = Files.list(dir)) {
@@ -96,7 +98,9 @@ public class SkillRegistryService {
             }
 
             byId = Map.copyOf(loaded);
-            log.debug("Refreshed skill registry, size={}", loaded.size());
+            CatalogDiff diff = CatalogDiff.between(before, byId);
+            log.debug("Refreshed skill registry, size={}, changed={}", loaded.size(), diff.changedKeys().size());
+            return diff;
         }
     }
 

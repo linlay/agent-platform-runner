@@ -72,6 +72,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 - **模型注册中心** — 模型通过 `models/*.json` 管理，目录变更会热加载到内存
 - **原生 Function Calling** — `tools[]` + `delta.tool_calls` 流式协议
 - **示例资源分发** — demo 资源统一放在 `example/`，可通过 `example/install-example-*` 覆盖复制到外层运行目录
+- **依赖感知热重载** — `tools/mcp/models` 变更按依赖精准刷新 agent；`skills` 仅刷新技能注册表
 - **工具参数模板** — `{{tool_name.field+Nd}}` 日期运算和链式引用
 - **双路径 LLM** — WebClient 原生 SSE 和 ChatClient，按需选择
 - **响应格式** — 非 SSE 接口统一 `{"code": 0, "msg": "success", "data": {}}`
@@ -187,7 +188,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 
 - 运行目录：`models/`（默认，可通过 `agent.model.external-dir` 覆盖）。
 - 不再内置同步 `models/`；可从 `example/models/` 复制到外置目录。
-- 热加载：目录变更会触发模型刷新，并联动 agent 重新加载（因为 agent 依赖 `modelKey` 解析）。
+- 热加载：目录变更会触发模型刷新，并按 `modelKey` 依赖精准刷新受影响 agent。
 - 文件格式：每个模型一个 JSON（建议 `models/<modelKey>.json`）。
 - 必填字段：`key`、`provider`、`protocol`、`modelId`。
 - 常用字段：`isReasoner`、`isFunction`、`maxTokens`、`maxInputTokens`、`maxOutputTokens`。
@@ -293,6 +294,8 @@ Agent JSON 中引用 skills：
 ```
 
 两种写法会合并去重。运行时，技能目录摘要注入 system prompt；LLM 调用 `_skill_run_script_` 时补充完整技能说明。
+
+- 热加载：`skills/` 目录变更仅刷新 `SkillRegistryService`，不触发 agent reload；reload 后新 run 会读取新技能内容。
 
 ### Prompt 注入定制
 

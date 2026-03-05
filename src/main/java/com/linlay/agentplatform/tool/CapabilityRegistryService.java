@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.service.CatalogDiff;
 
 @Service
 @DependsOn("runtimeResourceSyncService")
@@ -64,15 +65,18 @@ public class CapabilityRegistryService {
         return Optional.ofNullable(byName.get(normalizeName(toolName)));
     }
 
-    public void refreshCapabilities() {
+    public CatalogDiff refreshCapabilities() {
         synchronized (reloadLock) {
+            Map<String, CapabilityDescriptor> before = byName;
             Map<String, CapabilityDescriptor> loaded = new LinkedHashMap<>();
             Set<String> conflicts = new HashSet<>();
 
             loadToolsDirectory(Path.of(properties.getToolsExternalDir()).toAbsolutePath().normalize(), loaded, conflicts);
 
             byName = Map.copyOf(loaded);
-            log.debug("Refreshed capability registry, size={}", loaded.size());
+            CatalogDiff diff = CatalogDiff.between(before, byName);
+            log.debug("Refreshed capability registry, size={}, changed={}", loaded.size(), diff.changedKeys().size());
+            return diff;
         }
     }
 

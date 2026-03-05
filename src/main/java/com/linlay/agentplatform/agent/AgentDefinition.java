@@ -21,7 +21,8 @@ public record AgentDefinition(
         RunSpec runSpec,
         AgentMode agentMode,
         List<String> tools,
-        List<String> skills
+        List<String> skills,
+        List<String> modelKeys
 ) {
     public AgentDefinition(
             String id,
@@ -37,7 +38,7 @@ public record AgentDefinition(
             List<String> tools,
             List<String> skills
     ) {
-        this(id, name, icon, description, role, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills);
+        this(id, name, icon, description, role, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of());
     }
 
     public AgentDefinition(
@@ -53,7 +54,26 @@ public record AgentDefinition(
             List<String> tools,
             List<String> skills
     ) {
-        this(id, name, icon, description, name, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills);
+        this(id, name, icon, description, name, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of());
+    }
+
+    public AgentDefinition(
+            String id,
+            String name,
+            Object icon,
+            String description,
+            String role,
+            String modelKey,
+            String providerKey,
+            String model,
+            ModelProtocol protocol,
+            AgentRuntimeMode mode,
+            RunSpec runSpec,
+            AgentMode agentMode,
+            List<String> tools,
+            List<String> skills
+    ) {
+        this(id, name, icon, description, role, modelKey, providerKey, model, protocol, mode, runSpec, agentMode, tools, skills, List.of());
     }
 
     public AgentDefinition {
@@ -69,6 +89,11 @@ public record AgentDefinition(
             skills = List.of();
         } else {
             skills = List.copyOf(skills);
+        }
+        if (modelKeys == null) {
+            modelKeys = List.of();
+        } else {
+            modelKeys = List.copyOf(modelKeys);
         }
         if (protocol == null) {
             protocol = ModelProtocol.OPENAI;

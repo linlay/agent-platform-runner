@@ -72,7 +72,14 @@ public class DirectoryWatchService implements DisposableBean {
         );
         watchedDirs.put(
                 Path.of(capabilityCatalogProperties.getToolsExternalDir()).toAbsolutePath().normalize(),
-                capabilityRegistryService::refreshCapabilities
+                () -> {
+                    CatalogDiff diff = capabilityRegistryService.refreshCapabilities();
+                    if (diff.isEmpty()) {
+                        return;
+                    }
+                    java.util.Set<String> affectedAgents = agentRegistry.findAgentIdsByTools(diff.changedKeys());
+                    agentRegistry.refreshAgentsByIds(affectedAgents, "tools-directory");
+                }
         );
         watchedDirs.put(
                 Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
@@ -85,15 +92,24 @@ public class DirectoryWatchService implements DisposableBean {
         watchedDirs.put(
                 Path.of(modelCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 () -> {
-                    modelRegistryService.refreshModels();
-                    agentRegistry.refreshAgents();
+                    CatalogDiff diff = modelRegistryService.refreshModels();
+                    if (diff.isEmpty()) {
+                        return;
+                    }
+                    java.util.Set<String> affectedAgents = agentRegistry.findAgentIdsByModels(diff.changedKeys());
+                    agentRegistry.refreshAgentsByIds(affectedAgents, "models-directory");
                 }
         );
         watchedDirs.put(
                 Path.of(mcpProperties.getRegistry().getExternalDir()).toAbsolutePath().normalize(),
                 () -> {
                     mcpServerRegistryService.refreshServers();
-                    mcpCapabilitySyncService.refreshCapabilities();
+                    CatalogDiff diff = mcpCapabilitySyncService.refreshCapabilities();
+                    if (diff.isEmpty()) {
+                        return;
+                    }
+                    java.util.Set<String> affectedAgents = agentRegistry.findAgentIdsByTools(diff.changedKeys());
+                    agentRegistry.refreshAgentsByIds(affectedAgents, "mcp-registry-directory");
                 }
         );
 

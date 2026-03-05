@@ -138,6 +138,7 @@ public class AgentDefinitionLoader {
             String role = normalize(config.getRole(), name);
             List<String> tools = collectToolNames(config);
             List<String> skills = collectSkillNames(config);
+            List<String> modelKeys = collectModelKeys(config);
 
             AgentMode agentMode = AgentModeFactory.create(mode, config, file, this::resolveModelByKey);
             RunSpec runSpec = agentMode.defaultRunSpec(config);
@@ -156,7 +157,8 @@ public class AgentDefinitionLoader {
                     runSpec,
                     agentMode,
                     tools,
-                    skills
+                    skills,
+                    modelKeys
             ));
         } catch (Exception ex) {
             log.warn("Skip invalid external agent file: {}", file, ex);
@@ -408,6 +410,42 @@ public class AgentDefinitionLoader {
             merged.addAll(normalizeSkillNames(config.getSkillConfig().getSkills()));
         }
         return merged.stream().distinct().toList();
+    }
+
+    private List<String> collectModelKeys(AgentConfigFile config) {
+        if (config == null) {
+            return List.of();
+        }
+        List<String> merged = new ArrayList<>();
+        addModelKey(merged, config.getModelConfig());
+        if (config.getPlain() != null) {
+            addModelKey(merged, config.getPlain().getModelConfig());
+        }
+        if (config.getReact() != null) {
+            addModelKey(merged, config.getReact().getModelConfig());
+        }
+        if (config.getPlanExecute() != null) {
+            if (config.getPlanExecute().getPlan() != null) {
+                addModelKey(merged, config.getPlanExecute().getPlan().getModelConfig());
+            }
+            if (config.getPlanExecute().getExecute() != null) {
+                addModelKey(merged, config.getPlanExecute().getExecute().getModelConfig());
+            }
+            if (config.getPlanExecute().getSummary() != null) {
+                addModelKey(merged, config.getPlanExecute().getSummary().getModelConfig());
+            }
+        }
+        return merged.stream().distinct().toList();
+    }
+
+    private void addModelKey(List<String> merged, AgentConfigFile.ModelConfig modelConfig) {
+        if (modelConfig == null || !StringUtils.hasText(modelConfig.getModelKey())) {
+            return;
+        }
+        String normalized = normalize(modelConfig.getModelKey(), "").trim().toLowerCase(Locale.ROOT);
+        if (!normalized.isBlank()) {
+            merged.add(normalized);
+        }
     }
 
     private List<String> toolNames(AgentConfigFile.ToolConfig toolConfig) {

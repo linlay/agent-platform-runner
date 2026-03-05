@@ -5,6 +5,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import com.linlay.agentplatform.service.CatalogDiff;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -98,6 +99,21 @@ class SkillRegistryServiceTest {
         assertThat(service.find("math_basic").orElseThrow().name()).isEqualTo("Math Basic");
         assertThat(service.find("math_stats").orElseThrow().name()).isEqualTo("Math Stats");
         assertThat(service.find("text_utils").orElseThrow().name()).isEqualTo("Text Utils");
+    }
+
+    @Test
+    void shouldReturnCatalogDiffWhenSkillsChanged() throws Exception {
+        writeSkill("math_basic", "Math Basic", "basic arithmetic");
+
+        SkillCatalogProperties properties = new SkillCatalogProperties();
+        properties.setExternalDir(tempDir.toString());
+        SkillRegistryService service = new SkillRegistryService(properties);
+
+        writeSkill("math_stats", "Math Stats", "stats operations");
+        CatalogDiff diff = service.refreshSkills();
+
+        assertThat(diff.addedKeys()).contains("math_stats");
+        assertThat(diff.changedKeys()).contains("math_stats");
     }
 
     private void writeSkill(String id, String name, String description) throws Exception {

@@ -4,7 +4,7 @@ out/
 /release-local/
 target/
 
-# Runtime external directories (generated/overridden locally)
+# Runtime generated directories (generated/overridden locally)
 /agents/
 /teams/
 /chats/
@@ -17,13 +17,15 @@ target/
 /tools/
 /viewports/
 
-# Local configs and secrets
+# Local config/secrets
 .env
 .env.*
 /application.yaml
 /application.yml
+/settings.xml
+/git-command-bug.md
 
-# IDE
+# IDE/Editor
 .classpath
 .idea/
 .project
@@ -44,7 +46,7 @@ logs/
 hs_err_pid*
 replay_pid*
 
-# Keep classpath runtime resources tracked
+# Negation keep rules (classpath runtime resources tracked)
 !/src/main/resources/skills/
 !/src/main/resources/skills/**
 !/src/main/resources/tools/

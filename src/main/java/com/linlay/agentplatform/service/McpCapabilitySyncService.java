@@ -59,14 +59,15 @@ public class McpCapabilitySyncService {
         refreshCapabilities();
     }
 
-    public void refreshCapabilities() {
+    public CatalogDiff refreshCapabilities() {
         synchronized (refreshLock) {
+            Map<String, CapabilityDescriptor> before = capabilitiesByName;
             if (!properties.isEnabled()) {
                 capabilitiesByName = Map.of();
                 aliasToCanonical = Map.of();
                 snapshotsByServerKey = Map.of();
                 availabilityGate.prune(Set.of());
-                return;
+                return CatalogDiff.between(before, capabilitiesByName);
             }
 
             List<McpServerRegistryService.RegisteredServer> servers = serverRegistryService.list();
@@ -118,7 +119,14 @@ public class McpCapabilitySyncService {
             snapshotsByServerKey = Map.copyOf(nextSnapshots);
             capabilitiesByName = Map.copyOf(loaded);
             aliasToCanonical = Map.copyOf(loadedAlias);
-            log.debug("Refreshed MCP capability cache, size={}, aliases={}", capabilitiesByName.size(), aliasToCanonical.size());
+            CatalogDiff diff = CatalogDiff.between(before, capabilitiesByName);
+            log.debug(
+                    "Refreshed MCP capability cache, size={}, aliases={}, changed={}",
+                    capabilitiesByName.size(),
+                    aliasToCanonical.size(),
+                    diff.changedKeys().size()
+            );
+            return diff;
         }
     }
 

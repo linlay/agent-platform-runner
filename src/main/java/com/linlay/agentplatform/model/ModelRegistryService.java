@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.AgentProviderProperties;
+import com.linlay.agentplatform.service.CatalogDiff;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.DependsOn;
@@ -59,19 +60,20 @@ public class ModelRegistryService {
         return Optional.ofNullable(byKey.get(normalize(modelKey)));
     }
 
-    public void refreshModels() {
+    public CatalogDiff refreshModels() {
         synchronized (reloadLock) {
             Path dir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
+            Map<String, ModelDefinition> before = byKey;
             Map<String, ModelDefinition> loaded = new LinkedHashMap<>();
 
             if (!Files.exists(dir)) {
                 byKey = Map.of();
-                return;
+                return CatalogDiff.between(before, byKey);
             }
             if (!Files.isDirectory(dir)) {
                 log.warn("Configured models directory is not a directory: {}", dir);
                 byKey = Map.of();
-                return;
+                return CatalogDiff.between(before, byKey);
             }
 
             try (Stream<Path> stream = Files.list(dir)) {
@@ -89,7 +91,9 @@ public class ModelRegistryService {
             }
 
             byKey = Map.copyOf(loaded);
-            log.debug("Refreshed model registry, size={}", loaded.size());
+            CatalogDiff diff = CatalogDiff.between(before, byKey);
+            log.debug("Refreshed model registry, size={}, changed={}", loaded.size(), diff.changedKeys().size());
+            return diff;
         }
     }
 

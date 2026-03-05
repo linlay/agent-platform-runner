@@ -10,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.service.CatalogDiff;
 
 class CapabilityRegistryServiceTest {
 
@@ -141,6 +142,27 @@ class CapabilityRegistryServiceTest {
         assertThat(frontend.viewportKey()).isEqualTo("show_form");
 
         assertThat(service.find("legacy_html_frontend")).isEmpty();
+    }
+
+    @Test
+    void shouldReturnCatalogDiffWhenCapabilitiesChanged() throws Exception {
+        Path toolsDir = tempDir.resolve("tools");
+        Files.createDirectories(toolsDir);
+        Files.writeString(toolsDir.resolve("a.backend"), """
+                { "tools": [ {"type":"function", "name":"a_tool", "description":"a", "parameters":{"type":"object"}} ] }
+                """);
+
+        CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
+        properties.setToolsExternalDir(toolsDir.toString());
+        CapabilityRegistryService service = new CapabilityRegistryService(new ObjectMapper(), properties);
+
+        Files.writeString(toolsDir.resolve("b.backend"), """
+                { "tools": [ {"type":"function", "name":"b_tool", "description":"b", "parameters":{"type":"object"}} ] }
+                """);
+        CatalogDiff diff = service.refreshCapabilities();
+
+        assertThat(diff.addedKeys()).contains("b_tool");
+        assertThat(diff.changedKeys()).contains("b_tool");
     }
 
 }

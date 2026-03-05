@@ -427,6 +427,13 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
   - `AGENT_SKILL_EXTERNAL_DIR`
 - `agents|teams|models|mcp-servers|viewports` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
 - 示例安装为覆盖写入同名文件，但不会清空目标目录，不会删除额外文件。
+- 目录监听热重载策略：
+  - `agents/` 变更：全量刷新 agent 定义。
+  - `tools/` 变更：刷新 tool registry，并按依赖精准刷新受影响 agent。
+  - `mcp-servers/` 变更：刷新 mcp server 与 mcp tool registry，并按依赖精准刷新受影响 agent。
+  - `models/` 变更：刷新 model registry，并按 `modelKey` 依赖精准刷新受影响 agent。
+  - `skills/` 变更：仅刷新 skill registry，不触发 agent reload。
+- 运行中一致性：当前进行中的 run 保持旧快照；reload 后仅新 run 使用新配置。
 - `viewports` 支持后缀：`.html`、`.qlc`，默认每 30 秒刷新内存快照。
 - `tools`:
   - 后端工具文件：`*.backend`

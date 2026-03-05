@@ -61,10 +61,11 @@ class McpCapabilitySyncServiceTest {
                 client,
                 new ObjectMapper()
         );
-        service.refreshCapabilities();
+        CatalogDiff diff = service.refreshCapabilities();
 
         assertThat(service.find("mock.weather.query")).isPresent();
         assertThat(service.find("mock_city_weather")).isEmpty();
+        assertThat(diff.addedKeys()).contains("mock.weather.query");
         assertThat(service.find("mock.weather.query").orElseThrow().sourceKey()).isEqualTo("mock");
         assertThat(service.find("mock.weather.query").orElseThrow().afterCallHint())
                 .isEqualTo("use weather viewport card");
@@ -82,9 +83,10 @@ class McpCapabilitySyncServiceTest {
                 new ObjectMapper()
         );
 
-        service.refreshCapabilities();
+        CatalogDiff diff = service.refreshCapabilities();
         assertThat(service.list()).isEmpty();
         assertThat(service.find("any.tool")).isEmpty();
+        assertThat(diff.isEmpty()).isTrue();
     }
 
     @Test

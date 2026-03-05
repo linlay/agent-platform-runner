@@ -2,6 +2,7 @@ package com.linlay.agentplatform.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.AgentProviderProperties;
+import com.linlay.agentplatform.service.CatalogDiff;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -136,6 +137,39 @@ class ModelRegistryServiceTest {
         );
 
         assertThat(service.find("bad-protocol")).isEmpty();
+    }
+
+    @Test
+    void shouldReturnCatalogDiffWhenModelsChanged() throws Exception {
+        Path modelsDir = tempDir.resolve("models");
+        Files.createDirectories(modelsDir);
+        Files.writeString(modelsDir.resolve("a.json"), """
+                {
+                  "key": "model-a",
+                  "provider": "bailian",
+                  "protocol": "OPENAI",
+                  "modelId": "model-a"
+                }
+                """);
+
+        ModelRegistryService service = new ModelRegistryService(
+                new ObjectMapper(),
+                modelProperties(modelsDir),
+                providerProperties(Map.of("bailian", provider()))
+        );
+
+        Files.writeString(modelsDir.resolve("b.json"), """
+                {
+                  "key": "model-b",
+                  "provider": "bailian",
+                  "protocol": "OPENAI",
+                  "modelId": "model-b"
+                }
+                """);
+
+        CatalogDiff diff = service.refreshModels();
+        assertThat(diff.addedKeys()).contains("model-b");
+        assertThat(diff.changedKeys()).contains("model-b");
     }
 
     private ModelCatalogProperties modelProperties(Path modelsDir) {
