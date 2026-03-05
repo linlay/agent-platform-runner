@@ -13,6 +13,7 @@ import com.linlay.agentplatform.team.TeamCatalogProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
 import com.linlay.agentplatform.tool.CapabilityDescriptor;
 import com.linlay.agentplatform.tool.CapabilityKind;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
@@ -55,6 +56,8 @@ import static org.mockito.Mockito.when;
                 "agent.auth.enabled=false",
                 "memory.chat.dir=${java.io.tmpdir}/springai-agent-platform-test-chats-${random.uuid}",
                 "memory.chat.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-test-chats-db-${random.uuid}/chats.db",
+                "agent.catalog.external-dir=${user.dir}/example/agents",
+                "agent.model.external-dir=${user.dir}/example/models",
                 "agent.viewport.external-dir=${java.io.tmpdir}/springai-agent-platform-test-viewports-${random.uuid}",
                 "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agent-platform-test-tools-${random.uuid}",
                 "agent.mcp.enabled=true",
@@ -85,6 +88,19 @@ class AgentControllerTest {
     private TeamRegistryService teamRegistryService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @BeforeEach
+    void seedTeamFixtures() throws Exception {
+        Path teamsDir = Path.of(teamCatalogProperties.getExternalDir()).toAbsolutePath().normalize();
+        Files.createDirectories(teamsDir);
+        Files.writeString(teamsDir.resolve("a1b2c3d4e5f6.json"), """
+                {
+                  "name": "Default Team",
+                  "agentKeys": ["demoModeReact"]
+                }
+                """);
+        teamRegistryService.refreshTeams();
+    }
 
     @TestConfiguration
     static class TestLlmServiceConfig {

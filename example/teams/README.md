@@ -1,0 +1,32 @@
+# teams 示例说明
+
+## 用途
+
+该目录存放示例 team 定义，文件名即 teamId（12 位十六进制）。
+
+## 命名规范
+
+- 文件后缀：`.json`
+- 文件命名：`<team-id>.json`
+- `team-id`：12 位小写十六进制，例如 `a1b2c3d4e5f6`
+
+## 最小示例
+
+```json
+{
+  "name": "Default Team",
+  "agentKeys": ["demoModeReact"]
+}
+```
+
+## 如何新增
+
+1. 新建 `<team-id>.json`。
+2. 在 `agentKeys` 中填写已存在的 agent key。
+3. 执行示例安装脚本同步到外层 `teams/`。
+
+## 与外层目录关系
+
+- 源：`example/teams/`
+- 目标：项目根目录 `teams/`
+- 策略：覆盖同名文件，保留额外文件

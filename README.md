@@ -190,13 +190,19 @@
 ```text
 .
 ├── .dockerignore
+├── example/
+│   ├── agents/
+│   ├── teams/
+│   ├── models/
+│   ├── mcp-servers/
+│   ├── viewports/
+│   ├── tools/
+│   ├── skills/
+│   ├── install-example-mac.sh
+│   ├── install-example-linux.sh
+│   └── install-example-windows.ps1
 ├── src/
-├── agents/
 ├── data/
-├── models/
-├── skills/
-├── viewports/
-├── tools/
 ├── release-scripts/
 │   ├── mac/
 │   └── windows/
@@ -416,13 +422,11 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
   - viewports: `viewports/`
   - tools: `tools/`
   - skills: `skills/`
-- 启动时会将 `src/main/resources/agents|models|viewports|tools|skills` 同步到外部目录：
-  - `AGENT_EXTERNAL_DIR`
-  - `AGENT_MODEL_EXTERNAL_DIR`
-  - `AGENT_VIEWPORT_EXTERNAL_DIR`
+- 启动时仅同步内置 `src/main/resources/tools|skills` 到外部目录：
   - `AGENT_TOOLS_EXTERNAL_DIR`
   - `AGENT_SKILL_EXTERNAL_DIR`
-- 同名内置文件会覆盖；外部额外自定义文件会保留，不会被删除。
+- `agents|teams|models|mcp-servers|viewports` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
+- 示例安装为覆盖写入同名文件，但不会清空目标目录，不会删除额外文件。
 - `viewports` 支持后缀：`.html`、`.qlc`，默认每 30 秒刷新内存快照。
 - `tools`:
   - 后端工具文件：`*.backend`
@@ -438,6 +442,15 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
   - 关键字段：`key/provider/protocol/modelId/pricing`
   - `protocol` 固定值：`OPENAI`、`ANTHROPIC`、`NEWAPI_OPENAI_COMPATIBLE`
 - `show_weather_card` 当前仅作为 viewport（`viewports/show_weather_card.html`），不是可调用 tool。
+
+### 示例资源初始化
+
+- 示例资源位于 `example/`。
+- 一键安装脚本：
+  - macOS：`./example/install-example-mac.sh`
+  - Linux：`./example/install-example-linux.sh`
+  - Windows PowerShell：`.\\example\\install-example-windows.ps1`
+- 脚本会覆盖复制：`agents/teams/models/mcp-servers/viewports/tools/skills`。
 
 ### /api/ap/viewport 约定
 

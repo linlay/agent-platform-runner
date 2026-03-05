@@ -1,6 +1,6 @@
 {
   "serverKey": "mock",
-  "baseUrl": "http://localhost:19080",
+  "baseUrl": "http://localhost:11969",
   "endpointPath": "/mcp",
   "enabled": true,
   "toolPrefix": "mock",

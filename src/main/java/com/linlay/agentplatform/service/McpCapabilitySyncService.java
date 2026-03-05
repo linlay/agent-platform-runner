@@ -93,7 +93,12 @@ public class McpCapabilitySyncService {
                     availabilityGate.markSuccess(serverKey);
                 } catch (Exception ex) {
                     availabilityGate.markFailure(serverKey, registryVersion);
-                    log.warn("Failed to sync MCP capabilities from server '{}'", server.serverKey(), ex);
+                    log.warn("Failed to sync MCP capabilities from server '{}': {}",
+                            server.serverKey(),
+                            summarizeException(ex));
+                    if (log.isDebugEnabled()) {
+                        log.debug("MCP capability sync stack server='{}'", server.serverKey(), ex);
+                    }
                 }
             }
 
@@ -293,6 +298,22 @@ public class McpCapabilitySyncService {
 
     private String normalizeText(String raw) {
         return raw == null ? "" : raw.trim();
+    }
+
+    private String summarizeException(Throwable throwable) {
+        if (throwable == null) {
+            return "unknown error";
+        }
+        Throwable root = throwable;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        String type = root.getClass().getSimpleName();
+        String message = root.getMessage();
+        if (!StringUtils.hasText(message)) {
+            return type;
+        }
+        return type + ": " + message;
     }
 
     private record ServerCapabilitySnapshot(

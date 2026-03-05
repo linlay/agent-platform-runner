@@ -12,6 +12,7 @@ target/
 /com/
 /data/
 /models/
+/mcp-servers/
 /skills/
 /tools/
 /viewports/
@@ -44,13 +45,7 @@ hs_err_pid*
 replay_pid*
 
 # Keep classpath runtime resources tracked
-!/src/main/resources/agents/
-!/src/main/resources/agents/**
-!/src/main/resources/models/
-!/src/main/resources/models/**
 !/src/main/resources/skills/
 !/src/main/resources/skills/**
 !/src/main/resources/tools/
 !/src/main/resources/tools/**
-!/src/main/resources/viewports/
-!/src/main/resources/viewports/**

@@ -15,13 +15,8 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
-import com.linlay.agentplatform.agent.AgentCatalogProperties;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
-import com.linlay.agentplatform.config.McpProperties;
-import com.linlay.agentplatform.config.ViewportCatalogProperties;
-import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
-import com.linlay.agentplatform.team.TeamCatalogProperties;
 
 import jakarta.annotation.PostConstruct;
 
@@ -31,65 +26,35 @@ public class RuntimeResourceSyncService {
     private static final Logger log = LoggerFactory.getLogger(RuntimeResourceSyncService.class);
 
     private final ResourcePatternResolver resourceResolver;
-    private final Path agentsDir;
-    private final Path viewportsDir;
     private final Path toolsDir;
     private final Path skillsDir;
-    private final Path teamsDir;
-    private final Path modelsDir;
-    private final Path mcpServersDir;
 
     @Autowired
     public RuntimeResourceSyncService(
-            AgentCatalogProperties agentCatalogProperties,
-            ViewportCatalogProperties viewportCatalogProperties,
             CapabilityCatalogProperties capabilityCatalogProperties,
-            McpProperties mcpProperties,
-            SkillCatalogProperties skillCatalogProperties,
-            TeamCatalogProperties teamCatalogProperties,
-            ModelCatalogProperties modelCatalogProperties
+            SkillCatalogProperties skillCatalogProperties
     ) {
         this(
                 new PathMatchingResourcePatternResolver(),
-                Path.of(agentCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(viewportCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 Path.of(capabilityCatalogProperties.getToolsExternalDir()).toAbsolutePath().normalize(),
-                Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(teamCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(modelCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(mcpProperties.getRegistry().getExternalDir()).toAbsolutePath().normalize()
+                Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize()
         );
     }
 
     RuntimeResourceSyncService(
             ResourcePatternResolver resourceResolver,
-            Path agentsDir,
-            Path viewportsDir,
             Path toolsDir,
-            Path skillsDir,
-            Path teamsDir,
-            Path modelsDir,
-            Path mcpServersDir
+            Path skillsDir
     ) {
         this.resourceResolver = resourceResolver;
-        this.agentsDir = agentsDir;
-        this.viewportsDir = viewportsDir;
         this.toolsDir = toolsDir;
         this.skillsDir = skillsDir;
-        this.teamsDir = teamsDir;
-        this.modelsDir = modelsDir;
-        this.mcpServersDir = mcpServersDir;
     }
 
     @PostConstruct
     public void syncRuntimeDirectories() {
-        syncResourceDirectory("agents", agentsDir);
-        syncResourceDirectory("viewports", viewportsDir);
         syncResourceDirectory("tools", toolsDir);
         syncResourceDirectory("skills", skillsDir);
-        syncResourceDirectory("teams", teamsDir);
-        syncResourceDirectory("models", modelsDir);
-        syncResourceDirectory("mcp-servers", mcpServersDir);
     }
 
     private void syncResourceDirectory(String resourceDir, Path targetDir) {

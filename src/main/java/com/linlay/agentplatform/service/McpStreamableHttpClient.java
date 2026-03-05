@@ -138,7 +138,21 @@ public class McpStreamableHttpClient {
                 return new RpcResponse(result, error);
             } catch (RuntimeException ex) {
                 lastError = ex;
-                log.warn("MCP call failed serverKey={}, method={}, attempt={}/{}", server.serverKey(), method, attempt, attempts, ex);
+                String reason = summarizeException(ex);
+                log.warn("MCP call failed serverKey={}, method={}, attempt={}/{}: {}",
+                        server.serverKey(),
+                        method,
+                        attempt,
+                        attempts,
+                        reason);
+                if (log.isDebugEnabled()) {
+                    log.debug("MCP call stack serverKey={}, method={}, attempt={}/{}",
+                            server.serverKey(),
+                            method,
+                            attempt,
+                            attempts,
+                            ex);
+                }
             }
         }
         throw lastError == null ? new IllegalStateException("MCP call failed: " + method) : lastError;
@@ -238,6 +252,22 @@ public class McpStreamableHttpClient {
         }
         String raw = node.asText(null);
         return StringUtils.hasText(raw) ? raw.trim() : null;
+    }
+
+    private String summarizeException(Throwable throwable) {
+        if (throwable == null) {
+            return "unknown error";
+        }
+        Throwable root = throwable;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        String type = root.getClass().getSimpleName();
+        String message = root.getMessage();
+        if (!StringUtils.hasText(message)) {
+            return type;
+        }
+        return type + ": " + message;
     }
 
     public record McpToolDefinition(

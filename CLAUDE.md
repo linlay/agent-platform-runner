@@ -69,8 +69,9 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 ### 关键设计
 
 - **定义驱动** — Agent 通过 `agents/` 目录下 JSON 文件配置，文件名即 agentId
-- **模型注册中心** — 模型通过 `models/*.json` 管理，启动同步内置模型到外置目录并热加载到内存
+- **模型注册中心** — 模型通过 `models/*.json` 管理，目录变更会热加载到内存
 - **原生 Function Calling** — `tools[]` + `delta.tool_calls` 流式协议
+- **示例资源分发** — demo 资源统一放在 `example/`，可通过 `example/install-example-*` 覆盖复制到外层运行目录
 - **工具参数模板** — `{{tool_name.field+Nd}}` 日期运算和链式引用
 - **双路径 LLM** — WebClient 原生 SSE 和 ChatClient，按需选择
 - **响应格式** — 非 SSE 接口统一 `{"code": 0, "msg": "success", "data": {}}`
@@ -185,7 +186,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 ## Models 目录（内部注册）
 
 - 运行目录：`models/`（默认，可通过 `agent.model.external-dir` 覆盖）。
-- 启动同步：`src/main/resources/models` 会同步到外置 `models/`；同名内置文件覆盖，外置自定义文件保留。
+- 不再内置同步 `models/`；可从 `example/models/` 复制到外置目录。
 - 热加载：目录变更会触发模型刷新，并联动 agent 重新加载（因为 agent 依赖 `modelKey` 解析）。
 - 文件格式：每个模型一个 JSON（建议 `models/<modelKey>.json`）。
 - 必填字段：`key`、`provider`、`protocol`、`modelId`。

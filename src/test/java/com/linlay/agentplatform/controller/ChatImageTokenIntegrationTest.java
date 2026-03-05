@@ -69,6 +69,8 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.chat-image-token.ttl-seconds=86400",
                 "memory.chat.dir=${java.io.tmpdir}/springai-agent-platform-chat-image-token-chats-${random.uuid}",
                 "memory.chat.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-chat-image-token-chats-db-${random.uuid}/chats.db",
+                "agent.catalog.external-dir=${user.dir}/example/agents",
+                "agent.model.external-dir=${user.dir}/example/models",
                 "agent.viewport.external-dir=${java.io.tmpdir}/springai-agent-platform-chat-image-token-viewports-${random.uuid}",
                 "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agent-platform-chat-image-token-tools-${random.uuid}",
                 "agent.skill.external-dir=${java.io.tmpdir}/springai-agent-platform-chat-image-token-skills-${random.uuid}",

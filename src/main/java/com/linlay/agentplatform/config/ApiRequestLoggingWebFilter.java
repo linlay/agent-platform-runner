@@ -24,7 +24,7 @@ public class ApiRequestLoggingWebFilter implements WebFilter {
     public static final String ATTR_RUN_ID = "API_REQUEST_LOG_RUN_ID";
     public static final String ATTR_BODY_SUMMARY = "API_REQUEST_LOG_BODY_SUMMARY";
 
-    private static final Logger log = LoggerFactory.getLogger(ApiRequestLoggingWebFilter.class);
+    private static final Logger log = LoggerFactory.getLogger("api.req");
 
     private final LoggingAgentProperties loggingAgentProperties;
 
@@ -69,38 +69,12 @@ public class ApiRequestLoggingWebFilter implements WebFilter {
             bodySummary = resolveBodySummary(exchange);
         }
 
-        if (!query.isBlank() && !bodySummary.isEmpty()) {
-            log.info(
-                    "api.request method={}, path={}, query={}, status={}, latencyMs={}, requestId={}, runId={}, body={}",
-                    method,
-                    path,
-                    query,
-                    status,
-                    latencyMs,
-                    requestId,
-                    runId,
-                    bodySummary
-            );
-            return;
-        }
-        if (!query.isBlank()) {
-            log.info(
-                    "api.request method={}, path={}, query={}, status={}, latencyMs={}, requestId={}, runId={}",
-                    method,
-                    path,
-                    query,
-                    status,
-                    latencyMs,
-                    requestId,
-                    runId
-            );
-            return;
-        }
+        String target = query.isBlank() ? path : path + "?" + query;
         if (!bodySummary.isEmpty()) {
             log.info(
-                    "api.request method={}, path={}, status={}, latencyMs={}, requestId={}, runId={}, body={}",
+                    "{} {} -> {} {}ms rid={} run={} body={}",
                     method,
-                    path,
+                    target,
                     status,
                     latencyMs,
                     requestId,
@@ -110,9 +84,9 @@ public class ApiRequestLoggingWebFilter implements WebFilter {
             return;
         }
         log.info(
-                "api.request method={}, path={}, status={}, latencyMs={}, requestId={}, runId={}",
+                "{} {} -> {} {}ms rid={} run={}",
                 method,
-                path,
+                target,
                 status,
                 latencyMs,
                 requestId,
