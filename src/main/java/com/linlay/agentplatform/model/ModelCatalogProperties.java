@@ -2,7 +2,7 @@ package com.linlay.agentplatform.model;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "agent.model")
+@ConfigurationProperties(prefix = "agent.models")
 public class ModelCatalogProperties {
 
     private String externalDir = "models";

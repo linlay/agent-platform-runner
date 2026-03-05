@@ -28,11 +28,11 @@ ENV JAVA_OPTS="-server -Xms256m -XX:MaxRAMPercentage=60" \
     JAVA_AGENT="" \
     PATH="/opt/venv/bin:${PATH}" \
     SPRING_CONFIG_ADDITIONAL_LOCATION="optional:file:/opt/application.yml" \
-    AGENT_EXTERNAL_DIR="/opt/agents" \
-    AGENT_VIEWPORT_EXTERNAL_DIR="/opt/viewports" \
+    AGENT_AGENTS_EXTERNAL_DIR="/opt/agents" \
+    AGENT_VIEWPORTS_EXTERNAL_DIR="/opt/viewports" \
     AGENT_TOOLS_EXTERNAL_DIR="/opt/tools" \
-    AGENT_SKILL_EXTERNAL_DIR="/opt/skills" \
-    MEMORY_CHAT_DIR="/opt/chats"
+    AGENT_SKILLS_EXTERNAL_DIR="/opt/skills" \
+    MEMORY_CHATS_DIR="/opt/chats"
 
 COPY --from=building /workspace/target/springai-agent-platform-0.0.1-SNAPSHOT.jar /opt/app.jar
 

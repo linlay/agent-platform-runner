@@ -2,7 +2,7 @@ package com.linlay.agentplatform.team;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "agent.team")
+@ConfigurationProperties(prefix = "agent.teams")
 public class TeamCatalogProperties {
 
     private String externalDir = "teams";

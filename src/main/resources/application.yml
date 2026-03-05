@@ -13,38 +13,37 @@ spring:
       api-key: ${OPENAI_API_KEY:dummy-openai-key}
 
 agent:
-  catalog:
-    external-dir: ${AGENT_EXTERNAL_DIR:agents}
-    refresh-interval-ms: ${AGENT_REFRESH_INTERVAL_MS:10000}
-  viewport:
-    external-dir: ${AGENT_VIEWPORT_EXTERNAL_DIR:viewports}
-    refresh-interval-ms: ${AGENT_VIEWPORT_REFRESH_INTERVAL_MS:30000}
+  agents:
+    external-dir: ${AGENT_AGENTS_EXTERNAL_DIR:agents}
+    refresh-interval-ms: ${AGENT_AGENTS_REFRESH_INTERVAL_MS:10000}
+  viewports:
+    external-dir: ${AGENT_VIEWPORTS_EXTERNAL_DIR:viewports}
+    refresh-interval-ms: ${AGENT_VIEWPORTS_REFRESH_INTERVAL_MS:30000}
   data:
     external-dir: ${AGENT_DATA_EXTERNAL_DIR:data}
-  capability:
-    tools-external-dir: ${AGENT_TOOLS_EXTERNAL_DIR:tools}
-    refresh-interval-ms: ${AGENT_CAPABILITY_REFRESH_INTERVAL_MS:30000}
-  skill:
-    external-dir: ${AGENT_SKILL_EXTERNAL_DIR:skills}
-    refresh-interval-ms: ${AGENT_SKILL_REFRESH_INTERVAL_MS:30000}
-    max-prompt-chars: ${AGENT_SKILL_MAX_PROMPT_CHARS:8000}
-  team:
-    external-dir: ${AGENT_TEAM_EXTERNAL_DIR:teams}
-    refresh-interval-ms: ${AGENT_TEAM_REFRESH_INTERVAL_MS:30000}
-  model:
-    external-dir: ${AGENT_MODEL_EXTERNAL_DIR:models}
-    refresh-interval-ms: ${AGENT_MODEL_REFRESH_INTERVAL_MS:30000}
-  mcp:
-    enabled: ${AGENT_MCP_ENABLED:true}
-    protocol-version: ${AGENT_MCP_PROTOCOL_VERSION:2025-06}
-    connect-timeout-ms: ${AGENT_MCP_CONNECT_TIMEOUT_MS:3000}
-    retry: ${AGENT_MCP_RETRY:1}
+  skills:
+    external-dir: ${AGENT_SKILLS_EXTERNAL_DIR:skills}
+    refresh-interval-ms: ${AGENT_SKILLS_REFRESH_INTERVAL_MS:30000}
+    max-prompt-chars: ${AGENT_SKILLS_MAX_PROMPT_CHARS:8000}
+  teams:
+    external-dir: ${AGENT_TEAMS_EXTERNAL_DIR:teams}
+    refresh-interval-ms: ${AGENT_TEAMS_REFRESH_INTERVAL_MS:30000}
+  models:
+    external-dir: ${AGENT_MODELS_EXTERNAL_DIR:models}
+    refresh-interval-ms: ${AGENT_MODELS_REFRESH_INTERVAL_MS:30000}
+  mcp-servers:
+    enabled: ${AGENT_MCP_SERVERS_ENABLED:true}
+    protocol-version: ${AGENT_MCP_SERVERS_PROTOCOL_VERSION:2025-06}
+    connect-timeout-ms: ${AGENT_MCP_SERVERS_CONNECT_TIMEOUT_MS:3000}
+    retry: ${AGENT_MCP_SERVERS_RETRY:1}
     registry:
-      external-dir: ${AGENT_MCP_REGISTRY_EXTERNAL_DIR:mcp-servers}
+      external-dir: ${AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR:mcp-servers}
     # Deprecated: runtime MCP server registration is now registry-only.
     # This key is kept for backward-compatible binding and is ignored by registry loader.
     servers: []
   tools:
+    external-dir: ${AGENT_TOOLS_EXTERNAL_DIR:tools}
+    refresh-interval-ms: ${AGENT_TOOLS_REFRESH_INTERVAL_MS:30000}
     frontend:
       submit-timeout-ms: ${AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS:300000}
     agent-file-create:
@@ -135,14 +134,14 @@ agent:
     data-token-validation-enabled: ${CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED:true}
 
 memory:
-  chat:
-    dir: ${MEMORY_CHAT_DIR:./chats}
-    k: ${MEMORY_CHAT_K:20}
-    charset: ${MEMORY_CHAT_CHARSET:UTF-8}
-    action-tools: ${MEMORY_CHAT_ACTION_TOOLS:}
+  chats:
+    dir: ${MEMORY_CHATS_DIR:./chats}
+    k: ${MEMORY_CHATS_K:20}
+    charset: ${MEMORY_CHATS_CHARSET:UTF-8}
+    action-tools: ${MEMORY_CHATS_ACTION_TOOLS:}
     index:
-      sqlite-file: ${MEMORY_CHAT_INDEX_SQLITE_FILE:chats.db}
-      auto-rebuild-on-incompatible-schema: ${MEMORY_CHAT_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA:true}
+      sqlite-file: ${MEMORY_CHATS_INDEX_SQLITE_FILE:chats.db}
+      auto-rebuild-on-incompatible-schema: ${MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA:true}
 
 logging:
   agent:

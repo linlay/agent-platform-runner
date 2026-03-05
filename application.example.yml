@@ -4,10 +4,6 @@ server:
 agent:
   # Local overrides for development. Copy this file to application.yml
   # and replace placeholder values with your own settings.
-  catalog:
-    external-dir: agents
-  team:
-    external-dir: teams
   auth:
     enabled: true
     # Optional: set either local-public-key or jwks settings.
@@ -86,19 +82,15 @@ agent:
       base-url: https://api.siliconflow.cn
       api-key: replace-with-your-siliconflow-api-key
       model: deepseek-ai/DeepSeek-V3.2
-  mcp:
+  mcp-servers:
     enabled: true
     protocol-version: 2025-06
     connect-timeout-ms: 3000
     retry: 1
-    registry:
-      # Registry-only source, canonical tool names only.
-      # Built-in sample file is synced from:
-      # src/main/resources/mcp-servers/mock.json
-      external-dir: mcp-servers
-    # Deprecated: kept only for backward-compatible binding, ignored at runtime.
     servers: []
   tools:
+    external-dir: tools
+    refresh-interval-ms: 30000
     bash:
       working-directory: ${user.dir}
       allowed-paths: ${user.dir},/tmp
@@ -110,10 +102,9 @@ agent:
       max-command-chars: 16000
 
 memory:
-  chat:
-    dir: ./chats
+  chats:
+    # Directory and sqlite file use built-in defaults by default, and can still be overridden by env vars.
     index:
-      sqlite-file: chats.db
       auto-rebuild-on-incompatible-schema: true
 
 logging:

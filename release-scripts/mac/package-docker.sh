@@ -75,7 +75,7 @@ services:
     container_name: agent-platform
     restart: unless-stopped
     ports:
-      - "${SERVER_PORT:-8080}:8080"
+      - "${SERVER_PORT}:8080"
     volumes:
       - ./agents:/opt/agents
       - ./viewports:/opt/viewports
@@ -90,7 +90,7 @@ EOF
 # 生成 .env.example
 cat >"$RELEASE_DIR/.env.example" <<'EOF'
 # Server
-SERVER_PORT=8080
+SERVER_PORT=11949
 
 # Auth
 AGENT_AUTH_ENABLED=false

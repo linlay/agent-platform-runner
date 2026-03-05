@@ -19,8 +19,8 @@ class ChatWindowMemoryPropertiesBindingTest {
     void shouldBindAutoRebuildSwitch() {
         contextRunner
                 .withPropertyValues(
-                        "memory.chat.index.sqlite-file=custom.db",
-                        "memory.chat.index.auto-rebuild-on-incompatible-schema=false"
+                        "memory.chats.index.sqlite-file=custom.db",
+                        "memory.chats.index.auto-rebuild-on-incompatible-schema=false"
                 )
                 .run(context -> {
                     ChatWindowMemoryProperties properties = context.getBean(ChatWindowMemoryProperties.class);

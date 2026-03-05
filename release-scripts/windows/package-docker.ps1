@@ -103,7 +103,7 @@ services:
     container_name: agent-platform
     restart: unless-stopped
     ports:
-      - "${SERVER_PORT:-8080}:8080"
+      - "${SERVER_PORT}:8080"
     volumes:
       - ./agents:/opt/agents
       - ./viewports:/opt/viewports
@@ -118,7 +118,7 @@ Set-Content -Path (Join-Path $releaseDir "docker-compose.yml") -Value $composeFi
 
 $envExample = @'
 # Server
-SERVER_PORT=8080
+SERVER_PORT=11949
 
 # Auth
 AGENT_AUTH_ENABLED=false

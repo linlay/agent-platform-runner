@@ -190,6 +190,8 @@
 ```text
 .
 ├── .dockerignore
+├── .env.example
+├── docker-compose.yml
 ├── example/
 │   ├── agents/
 │   ├── teams/
@@ -226,7 +228,26 @@ mvn clean test
 mvn spring-boot:run
 ```
 
-默认端口 `8080`。
+默认端口 `8080`（来自 `src/main/resources/application.yml` 的 `SERVER_PORT` 默认值）。
+若本地 `application.yml` 或环境变量覆盖了端口（例如开发常用 `11949`），则以覆盖值为准。
+
+### 根目录 `.env` 与 Docker Compose（发布部署版）
+
+根目录提供了 `docker-compose.yml` + `.env.example` 作为统一入口：
+
+```bash
+cp .env.example .env
+# 按环境修改 .env（最小运行集）
+docker compose config
+docker compose up -d --build
+```
+
+约定：
+
+- `.env` 负责简单环境开关与端口（如 `SERVER_PORT`、`AGENT_AUTH_ENABLED`）。
+- `application.yml` 负责结构化大配置，尤其是多 LLM 账号/多 provider（`agent.providers.*`）。
+- `.env.example` 的示例端口是 `11949`，用于本地开发环境；服务基线默认端口仍是 `8080`。
+- `docker-compose.yml` 使用 `ports: "${SERVER_PORT}:8080"`，端口由 `.env` 显式控制。
 
 ### release-local 配置说明
 
@@ -256,6 +277,7 @@ mvn spring-boot:run
 
 - `release-scripts/` 仅放打包与运行脚本（按平台分目录），不放部署配置资产。
 - `Dockerfile` 与 `settings.xml` 保持在项目根目录，匹配 `docker build .` 常见上下文和当前打包脚本路径约定。
+- `.env.example` 与 `docker-compose.yml` 保持在项目根目录，作为容器运行基线模板。
 - `application.example.yml` 保持在项目根目录，作为开发初始化模板（复制为 `application.yml`）。
 - `nginx.conf` 当前保持在项目根目录，作为反向代理示例配置；若后续出现多环境部署资产，可统一迁移到 `deploy/nginx/`。
 - `.dockerignore` 需要保留：用于缩小 Docker build context，并避免将本地敏感配置（如 `application.yml`）带入构建上下文。
@@ -264,6 +286,7 @@ mvn spring-boot:run
 
 - 主配置事实源为 `src/main/resources/application.yml`，本地可通过 `./application.yml` 覆盖。
 - 可先复制根目录示例：`cp application.example.yml application.yml`，再填写本地私有配置（如 API Key）。
+- 可先复制环境变量示例：`cp .env.example .env`，再按环境调整端口与认证开关。
 - `spring.config.import` 默认加载：`./application.yml` 和 `/opt/application.yml`（均为 optional）。
 - `agent.cors.enabled` 在主配置中默认是 `false`，即默认不启用 CORS 过滤器。
 - `agent.cors.allowed-origin-patterns` 仅匹配请求头 `Origin`，当前服务不读取/校验 `Referer`。
@@ -325,7 +348,7 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
 - `agents/*.json` 以 `key` 作为 agentId；若缺失 `key`，回退为文件名（不含 `.json`）
 - `modelConfig.modelKey` 为必填，模型信息统一从 `models/*.json` 解析
 - 服务启动时会先加载一次，并通过目录监听自动刷新
-- 可通过 `AGENT_EXTERNAL_DIR` 指定目录
+- 可通过 `AGENT_AGENTS_EXTERNAL_DIR` 指定目录
 - `systemPrompt` 同时支持标准 JSON 字符串和 `"""` 多行写法（仅 `systemPrompt`）
 
 ### ONESHOT 示例
@@ -424,7 +447,7 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
   - skills: `skills/`
 - 启动时仅同步内置 `src/main/resources/tools|skills` 到外部目录：
   - `AGENT_TOOLS_EXTERNAL_DIR`
-  - `AGENT_SKILL_EXTERNAL_DIR`
+  - `AGENT_SKILLS_EXTERNAL_DIR`
 - `agents|teams|models|mcp-servers|viewports` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
 - 示例安装为覆盖写入同名文件，但不会清空目标目录，不会删除额外文件。
 - 目录监听热重载策略：
@@ -574,11 +597,11 @@ for f in *.md; do echo "$f"; done
 | 环境变量 | 默认值 | 说明 |
 |---------|-------|------|
 | `SERVER_PORT` | `8080` | HTTP 服务端口 |
-| `AGENT_EXTERNAL_DIR` | `agents` | Agent 定义目录 |
-| `AGENT_MODEL_EXTERNAL_DIR` | `models` | Model 定义目录 |
-| `AGENT_VIEWPORT_EXTERNAL_DIR` | `viewports` | Viewport 目录 |
+| `AGENT_AGENTS_EXTERNAL_DIR` | `agents` | Agent 定义目录 |
+| `AGENT_MODELS_EXTERNAL_DIR` | `models` | Model 定义目录 |
+| `AGENT_VIEWPORTS_EXTERNAL_DIR` | `viewports` | Viewport 目录 |
 | `AGENT_TOOLS_EXTERNAL_DIR` | `tools` | 工具目录 |
-| `AGENT_SKILL_EXTERNAL_DIR` | `skills` | 技能目录 |
+| `AGENT_SKILLS_EXTERNAL_DIR` | `skills` | 技能目录 |
 | `AGENT_DATA_EXTERNAL_DIR` | `data` | 静态文件目录 |
 | `AGENT_BASH_WORKING_DIRECTORY` | `${user.dir}` | Bash 工作目录 |
 | `AGENT_BASH_ALLOWED_PATHS` | （空） | Bash 允许路径 |
@@ -591,10 +614,10 @@ for f in *.md; do echo "$f"; done
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `300000` | 前端工具提交超时 |
 | `AGENT_AUTH_ENABLED` | `true` | JWT 认证开关 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/ap/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |
-| `MEMORY_CHAT_DIR` | `./chats` | 聊天记忆目录 |
-| `MEMORY_CHAT_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `MEMORY_CHAT_DIR` 解析） |
-| `MEMORY_CHAT_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `true` | sqlite 索引 schema 不兼容时是否自动备份并重建 |
-| `MEMORY_CHAT_K` | `20` | 滑动窗口大小 |
+| `MEMORY_CHATS_DIR` | `./chats` | 聊天记忆目录 |
+| `MEMORY_CHATS_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `MEMORY_CHATS_DIR` 解析） |
+| `MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `true` | sqlite 索引 schema 不兼容时是否自动备份并重建 |
+| `MEMORY_CHATS_K` | `20` | 滑动窗口大小 |
 | `LOGGING_AGENT_REQUEST_ENABLED` | `true` | API 请求摘要日志开关（不记录 header） |
 | `LOGGING_AGENT_AUTH_ENABLED` | `true` | 认证失败原因日志开关（401/403） |
 | `LOGGING_AGENT_EXCEPTION_ENABLED` | `true` | 统一异常日志开关 |
@@ -603,6 +626,30 @@ for f in *.md; do echo "$f"; done
 | `LOGGING_AGENT_VIEWPORT_ENABLED` | `true` | viewport API 日志开关 |
 | `LOGGING_AGENT_SSE_ENABLED` | `false` | SSE 每条事件日志开关 |
 | `LOGGING_AGENT_LLM_INTERACTION_ENABLED` | `true` | LLM 交互日志开关 |
+
+说明：根目录 `.env.example` 将 `SERVER_PORT` 预设为 `11949`，用于本地开发示例；若不覆盖，服务基线默认端口仍为 `8080`。
+
+### Breaking Change（配置命名迁移）
+
+- 旧配置键已禁用，启动时检测到旧键会直接失败。
+- 旧环境变量已禁用，启动时检测到旧变量会直接失败。
+- 关键迁移映射：
+  - `agent.catalog.*` -> `agent.agents.*`
+  - `agent.viewport.*` -> `agent.viewports.*`
+  - `agent.capability.*` -> `agent.tools.*`
+  - `agent.skill.*` -> `agent.skills.*`
+  - `agent.team.*` -> `agent.teams.*`
+  - `agent.model.*` -> `agent.models.*`
+  - `agent.mcp.*` -> `agent.mcp-servers.*`
+  - `memory.chat.*` -> `memory.chats.*`
+- 关键环境变量迁移：
+  - `AGENT_EXTERNAL_DIR` -> `AGENT_AGENTS_EXTERNAL_DIR`
+  - `AGENT_VIEWPORT_EXTERNAL_DIR` -> `AGENT_VIEWPORTS_EXTERNAL_DIR`
+  - `AGENT_SKILL_EXTERNAL_DIR` -> `AGENT_SKILLS_EXTERNAL_DIR`
+  - `AGENT_TEAM_EXTERNAL_DIR` -> `AGENT_TEAMS_EXTERNAL_DIR`
+  - `AGENT_MODEL_EXTERNAL_DIR` -> `AGENT_MODELS_EXTERNAL_DIR`
+  - `AGENT_MCP_*` -> `AGENT_MCP_SERVERS_*`
+  - `MEMORY_CHAT_*` -> `MEMORY_CHATS_*`
 
 ## 静态文件服务（Data）
 

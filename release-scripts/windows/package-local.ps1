@@ -149,11 +149,11 @@ if (-not $env:JAVA_OPTS) {
     $env:JAVA_OPTS = "-server -Xms256m -Xmx512m"
 }
 
-if (-not $env:AGENT_EXTERNAL_DIR) { $env:AGENT_EXTERNAL_DIR = Join-Path $appDir "agents" }
-if (-not $env:AGENT_VIEWPORT_EXTERNAL_DIR) { $env:AGENT_VIEWPORT_EXTERNAL_DIR = Join-Path $appDir "viewports" }
+if (-not $env:AGENT_AGENTS_EXTERNAL_DIR) { $env:AGENT_AGENTS_EXTERNAL_DIR = Join-Path $appDir "agents" }
+if (-not $env:AGENT_VIEWPORTS_EXTERNAL_DIR) { $env:AGENT_VIEWPORTS_EXTERNAL_DIR = Join-Path $appDir "viewports" }
 if (-not $env:AGENT_TOOLS_EXTERNAL_DIR) { $env:AGENT_TOOLS_EXTERNAL_DIR = Join-Path $appDir "tools" }
-if (-not $env:AGENT_SKILL_EXTERNAL_DIR) { $env:AGENT_SKILL_EXTERNAL_DIR = Join-Path $appDir "skills" }
-if (-not $env:MEMORY_CHAT_DIR) { $env:MEMORY_CHAT_DIR = Join-Path $appDir "chats" }
+if (-not $env:AGENT_SKILLS_EXTERNAL_DIR) { $env:AGENT_SKILLS_EXTERNAL_DIR = Join-Path $appDir "skills" }
+if (-not $env:MEMORY_CHATS_DIR) { $env:MEMORY_CHATS_DIR = Join-Path $appDir "chats" }
 
 $springOpts = $null
 $runtimeConfig = Join-Path $appDir "application.yml"

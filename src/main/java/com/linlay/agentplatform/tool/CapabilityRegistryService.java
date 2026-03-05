@@ -71,7 +71,7 @@ public class CapabilityRegistryService {
             Map<String, CapabilityDescriptor> loaded = new LinkedHashMap<>();
             Set<String> conflicts = new HashSet<>();
 
-            loadToolsDirectory(Path.of(properties.getToolsExternalDir()).toAbsolutePath().normalize(), loaded, conflicts);
+            loadToolsDirectory(Path.of(properties.getExternalDir()).toAbsolutePath().normalize(), loaded, conflicts);
 
             byName = Map.copyOf(loaded);
             CatalogDiff diff = CatalogDiff.between(before, byName);

@@ -36,7 +36,7 @@ public class RuntimeResourceSyncService {
     ) {
         this(
                 new PathMatchingResourcePatternResolver(),
-                Path.of(capabilityCatalogProperties.getToolsExternalDir()).toAbsolutePath().normalize(),
+                Path.of(capabilityCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize()
         );
     }

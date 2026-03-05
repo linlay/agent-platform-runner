@@ -19,18 +19,18 @@ class McpPropertiesBindingTest {
     void shouldBindNestedMcpProperties() {
         contextRunner
                 .withPropertyValues(
-                        "agent.mcp.enabled=true",
-                        "agent.mcp.protocol-version=2025-06",
-                        "agent.mcp.connect-timeout-ms=2100",
-                        "agent.mcp.retry=2",
-                        "agent.mcp.registry.external-dir=/tmp/mcp-servers",
-                        "agent.mcp.servers[0].server-key=mock",
-                        "agent.mcp.servers[0].base-url=http://localhost:19080",
-                        "agent.mcp.servers[0].endpoint-path=/mcp",
-                        "agent.mcp.servers[0].read-timeout-ms=9100",
-                        "agent.mcp.servers[0].tool-prefix=mock",
-                        "agent.mcp.servers[0].headers.X-Api-Key=test-key",
-                        "agent.mcp.servers[0].alias-map.legacy_weather=mock.weather.query"
+                        "agent.mcp-servers.enabled=true",
+                        "agent.mcp-servers.protocol-version=2025-06",
+                        "agent.mcp-servers.connect-timeout-ms=2100",
+                        "agent.mcp-servers.retry=2",
+                        "agent.mcp-servers.registry.external-dir=/tmp/mcp-servers",
+                        "agent.mcp-servers.servers[0].server-key=mock",
+                        "agent.mcp-servers.servers[0].base-url=http://localhost:19080",
+                        "agent.mcp-servers.servers[0].endpoint-path=/mcp",
+                        "agent.mcp-servers.servers[0].read-timeout-ms=9100",
+                        "agent.mcp-servers.servers[0].tool-prefix=mock",
+                        "agent.mcp-servers.servers[0].headers.X-Api-Key=test-key",
+                        "agent.mcp-servers.servers[0].alias-map.legacy_weather=mock.weather.query"
                 )
                 .run(context -> {
                     McpProperties properties = context.getBean(McpProperties.class);

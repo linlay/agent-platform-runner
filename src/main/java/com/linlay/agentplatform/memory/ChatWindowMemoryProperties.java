@@ -2,7 +2,7 @@ package com.linlay.agentplatform.memory;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "memory.chat")
+@ConfigurationProperties(prefix = "memory.chats")
 public class ChatWindowMemoryProperties {
 
     private String dir = "./chats";

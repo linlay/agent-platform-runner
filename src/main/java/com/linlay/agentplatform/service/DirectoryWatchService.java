@@ -71,7 +71,7 @@ public class DirectoryWatchService implements DisposableBean {
                 viewportRegistryService::refreshViewports
         );
         watchedDirs.put(
-                Path.of(capabilityCatalogProperties.getToolsExternalDir()).toAbsolutePath().normalize(),
+                Path.of(capabilityCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 () -> {
                     CatalogDiff diff = capabilityRegistryService.refreshCapabilities();
                     if (diff.isEmpty()) {

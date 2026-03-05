@@ -186,7 +186,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 
 ## Models 目录（内部注册）
 
-- 运行目录：`models/`（默认，可通过 `agent.model.external-dir` 覆盖）。
+- 运行目录：`models/`（默认，可通过 `agent.models.external-dir` 覆盖）。
 - 不再内置同步 `models/`；可从 `example/models/` 复制到外置目录。
 - 热加载：目录变更会触发模型刷新，并按 `modelKey` 依赖精准刷新受影响 agent。
 - 文件格式：每个模型一个 JSON（建议 `models/<modelKey>.json`）。
@@ -425,7 +425,7 @@ type=html, key=show_weather_card
   - `role=assistant`：三种快照形态之一：`content[]` / `reasoning_content[]` / `tool_calls[]`
   - `role=tool`：`name` + `tool_call_id` + `content[]` + `ts`
 - assistant/tool 扩展字段支持：`_reasoningId`、`_contentId`、`_msgId`、`_toolId`、`_actionId`、`_timing`、`_usage`。
-- action/tool 判定：通过 `memory.chat.action-tools` 白名单；命中写 `_actionId`，否则写 `_toolId`。
+- action/tool 判定：通过 `memory.chats.action-tools` 白名单；命中写 `_actionId`，否则写 `_toolId`。
 - memory 回放约束：`reasoning_content` **不回传**给下一轮模型上下文。
 - 滑动窗口：k=20 单位仍然是 **run**；`trimToWindow` 按 `runId` 分组，保留最近 k 个 run 的所有行。
 
@@ -501,20 +501,20 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 
 | 环境变量 | 属性键 | 默认值 | 说明 |
 |---------|--------|-------|------|
-| `AGENT_EXTERNAL_DIR` | `agent.catalog.external-dir` | `agents` | Agent JSON 定义目录 |
-| `AGENT_REFRESH_INTERVAL_MS` | `agent.catalog.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
-| `AGENT_MODEL_EXTERNAL_DIR` | `agent.model.external-dir` | `models` | Model JSON 定义目录 |
-| `AGENT_MODEL_REFRESH_INTERVAL_MS` | `agent.model.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |
-| `AGENT_VIEWPORT_EXTERNAL_DIR` | `agent.viewport.external-dir` | `viewports` | Viewport 目录 |
-| `AGENT_VIEWPORT_REFRESH_INTERVAL_MS` | `agent.viewport.refresh-interval-ms` | `30000` | Viewport 刷新间隔（ms） |
+| `AGENT_AGENTS_EXTERNAL_DIR` | `agent.agents.external-dir` | `agents` | Agent JSON 定义目录 |
+| `AGENT_AGENTS_REFRESH_INTERVAL_MS` | `agent.agents.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
+| `AGENT_MODELS_EXTERNAL_DIR` | `agent.models.external-dir` | `models` | Model JSON 定义目录 |
+| `AGENT_MODELS_REFRESH_INTERVAL_MS` | `agent.models.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |
+| `AGENT_VIEWPORTS_EXTERNAL_DIR` | `agent.viewports.external-dir` | `viewports` | Viewport 目录 |
+| `AGENT_VIEWPORTS_REFRESH_INTERVAL_MS` | `agent.viewports.refresh-interval-ms` | `30000` | Viewport 刷新间隔（ms） |
 | `AGENT_DATA_EXTERNAL_DIR` | `agent.data.external-dir` | `data` | 静态文件目录 |
 
 #### Tools / Skills
 
 | 环境变量 | 属性键 | 默认值 | 说明 |
 |---------|--------|-------|------|
-| `AGENT_TOOLS_EXTERNAL_DIR` | `agent.capability.tools-external-dir` | `tools` | 工具定义文件目录 |
-| `AGENT_CAPABILITY_REFRESH_INTERVAL_MS` | `agent.capability.refresh-interval-ms` | `30000` | 工具目录刷新间隔（ms） |
+| `AGENT_TOOLS_EXTERNAL_DIR` | `agent.tools.external-dir` | `tools` | 工具定义文件目录 |
+| `AGENT_TOOLS_REFRESH_INTERVAL_MS` | `agent.tools.refresh-interval-ms` | `30000` | 工具目录刷新间隔（ms） |
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `agent.tools.frontend.submit-timeout-ms` | `300000` | 前端工具提交等待超时（ms） |
 | `AGENT_TOOLS_AGENT_FILE_CREATE_DEFAULT_SYSTEM_PROMPT` | `agent.tools.agent-file-create.default-system-prompt` | `你是通用助理，回答要清晰和可执行。` | `agent_file_create` 默认 system prompt |
 | `AGENT_BASH_WORKING_DIRECTORY` | `agent.tools.bash.working-directory` | `${user.dir}` | Bash 工具工作目录 |
@@ -525,9 +525,9 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `AGENT_BASH_SHELL_EXECUTABLE` | `agent.tools.bash.shell-executable` | `bash` | Shell 模式执行器 |
 | `AGENT_BASH_SHELL_TIMEOUT_MS` | `agent.tools.bash.shell-timeout-ms` | `10000` | Shell 模式超时（ms） |
 | `AGENT_BASH_MAX_COMMAND_CHARS` | `agent.tools.bash.max-command-chars` | `16000` | Bash 命令最大字符数 |
-| `AGENT_SKILL_EXTERNAL_DIR` | `agent.skill.external-dir` | `skills` | 技能目录 |
-| `AGENT_SKILL_REFRESH_INTERVAL_MS` | `agent.skill.refresh-interval-ms` | `30000` | 技能刷新间隔（ms） |
-| `AGENT_SKILL_MAX_PROMPT_CHARS` | `agent.skill.max-prompt-chars` | `8000` | 技能 prompt 最大字符数 |
+| `AGENT_SKILLS_EXTERNAL_DIR` | `agent.skills.external-dir` | `skills` | 技能目录 |
+| `AGENT_SKILLS_REFRESH_INTERVAL_MS` | `agent.skills.refresh-interval-ms` | `30000` | 技能刷新间隔（ms） |
+| `AGENT_SKILLS_MAX_PROMPT_CHARS` | `agent.skills.max-prompt-chars` | `8000` | 技能 prompt 最大字符数 |
 
 #### Auth / Chat Image Token / Memory / LLM 日志
 
@@ -541,14 +541,20 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `CHAT_IMAGE_TOKEN_PREVIOUS_SECRETS` | `agent.chat-image-token.previous-secrets` | （空） | 历史密钥列表（逗号分隔），用于密钥轮换验证 |
 | `CHAT_IMAGE_TOKEN_TTL_SECONDS` | `agent.chat-image-token.ttl-seconds` | `86400` | 图片令牌过期秒数 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `agent.chat-image-token.data-token-validation-enabled` | `true` | `/api/ap/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |
-| `MEMORY_CHAT_DIR` | `memory.chat.dir` | `./chats` | 聊天记忆目录 |
-| `MEMORY_CHAT_K` | `memory.chat.k` | `20` | 滑动窗口大小（按 run） |
-| `MEMORY_CHAT_CHARSET` | `memory.chat.charset` | `UTF-8` | 记忆文件编码 |
-| `MEMORY_CHAT_ACTION_TOOLS` | `memory.chat.action-tools` | （空） | action 工具白名单 |
+| `MEMORY_CHATS_DIR` | `memory.chats.dir` | `./chats` | 聊天记忆目录 |
+| `MEMORY_CHATS_K` | `memory.chats.k` | `20` | 滑动窗口大小（按 run） |
+| `MEMORY_CHATS_CHARSET` | `memory.chats.charset` | `UTF-8` | 记忆文件编码 |
+| `MEMORY_CHATS_ACTION_TOOLS` | `memory.chats.action-tools` | （空） | action 工具白名单 |
 | `LOGGING_AGENT_LLM_INTERACTION_ENABLED` | `logging.agent.llm.interaction.enabled` | `true` | LLM 交互日志开关 |
 | `LOGGING_AGENT_LLM_INTERACTION_MASK_SENSITIVE` | `logging.agent.llm.interaction.mask-sensitive` | `true` | 日志脱敏开关 |
 
 说明：`agent.auth.local-public-key` 仅支持在 YAML 中配置 PEM 文本，不提供环境变量映射。
+
+迁移说明（Breaking Change）：
+
+- 旧键已禁用：`agent.catalog.*`、`agent.viewport.*`、`agent.capability.*`、`agent.skill.*`、`agent.team.*`、`agent.model.*`、`agent.mcp.*`、`memory.chat.*`。
+- 旧环境变量已禁用：`AGENT_EXTERNAL_DIR`、`AGENT_VIEWPORT_EXTERNAL_DIR`、`AGENT_SKILL_EXTERNAL_DIR`、`AGENT_TEAM_EXTERNAL_DIR`、`AGENT_MODEL_EXTERNAL_DIR`、`AGENT_MCP_*`、`MEMORY_CHAT_*` 等。
+- 启动时若检测到旧键或旧变量，服务会直接失败；请按新命名迁移后再启动。
 
 ### CORS（主配置默认）
 

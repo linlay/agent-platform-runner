@@ -49,11 +49,11 @@ import java.util.Date;
                 "agent.auth.issuer=https://auth.example.local",
                 "agent.chat-image-token.secret=chat-image-token-secret-for-tests",
                 "agent.chat-image-token.data-token-validation-enabled=false",
-                "memory.chat.dir=${java.io.tmpdir}/springai-agent-platform-data-token-toggle-chats-${random.uuid}",
-                "memory.chat.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-data-token-toggle-chats-db-${random.uuid}/chats.db",
-                "agent.viewport.external-dir=${java.io.tmpdir}/springai-agent-platform-data-token-toggle-viewports-${random.uuid}",
-                "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agent-platform-data-token-toggle-tools-${random.uuid}",
-                "agent.skill.external-dir=${java.io.tmpdir}/springai-agent-platform-data-token-toggle-skills-${random.uuid}",
+                "memory.chats.dir=${java.io.tmpdir}/springai-agent-platform-data-token-toggle-chats-${random.uuid}",
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-data-token-toggle-chats-db-${random.uuid}/chats.db",
+                "agent.viewports.external-dir=${java.io.tmpdir}/springai-agent-platform-data-token-toggle-viewports-${random.uuid}",
+                "agent.tools.external-dir=${java.io.tmpdir}/springai-agent-platform-data-token-toggle-tools-${random.uuid}",
+                "agent.skills.external-dir=${java.io.tmpdir}/springai-agent-platform-data-token-toggle-skills-${random.uuid}",
                 "agent.data.external-dir=${java.io.tmpdir}/springai-agent-platform-data-token-toggle-data-${random.uuid}"
         }
 )

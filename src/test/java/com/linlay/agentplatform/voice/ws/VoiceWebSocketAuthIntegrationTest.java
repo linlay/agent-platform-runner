@@ -40,11 +40,11 @@ import java.util.Date;
                 "agent.auth.issuer=https://auth.example.local",
                 "agent.voice.ws.enabled=true",
                 "agent.voice.ws.auth-required=true",
-                "memory.chat.dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-chats-${random.uuid}",
-                "memory.chat.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-chats-db-${random.uuid}/chats.db",
-                "agent.viewport.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-viewports-${random.uuid}",
-                "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-tools-${random.uuid}",
-                "agent.skill.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-skills-${random.uuid}"
+                "memory.chats.dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-chats-${random.uuid}",
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-chats-db-${random.uuid}/chats.db",
+                "agent.viewports.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-viewports-${random.uuid}",
+                "agent.tools.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-tools-${random.uuid}",
+                "agent.skills.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-skills-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient

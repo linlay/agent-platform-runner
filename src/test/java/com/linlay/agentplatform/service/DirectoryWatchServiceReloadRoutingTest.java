@@ -178,7 +178,7 @@ class DirectoryWatchServiceReloadRoutingTest {
         viewportCatalogProperties.setExternalDir(tempDir.resolve("viewports").toString());
 
         CapabilityCatalogProperties capabilityCatalogProperties = new CapabilityCatalogProperties();
-        capabilityCatalogProperties.setToolsExternalDir(tempDir.resolve("tools").toString());
+        capabilityCatalogProperties.setExternalDir(tempDir.resolve("tools").toString());
 
         ModelCatalogProperties modelCatalogProperties = new ModelCatalogProperties();
         modelCatalogProperties.setExternalDir(tempDir.resolve("models").toString());

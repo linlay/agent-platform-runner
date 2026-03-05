@@ -7,7 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-@ConfigurationProperties(prefix = "agent.mcp")
+@ConfigurationProperties(prefix = "agent.mcp-servers")
 public class McpProperties {
 
     private boolean enabled = false;
@@ -15,7 +15,7 @@ public class McpProperties {
     private int connectTimeoutMs = 3_000;
     private int retry = 1;
     /**
-     * @deprecated Runtime registration is now registry-only (agent.mcp.registry.external-dir).
+     * @deprecated Runtime registration is now registry-only (agent.mcp-servers.registry.external-dir).
      * This field is kept for backward-compatible configuration binding only.
      */
     @Deprecated

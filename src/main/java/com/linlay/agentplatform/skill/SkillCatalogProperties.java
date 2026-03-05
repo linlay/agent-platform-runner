@@ -2,7 +2,7 @@ package com.linlay.agentplatform.skill;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "agent.skill")
+@ConfigurationProperties(prefix = "agent.skills")
 public class SkillCatalogProperties {
 
     private String externalDir = "skills";

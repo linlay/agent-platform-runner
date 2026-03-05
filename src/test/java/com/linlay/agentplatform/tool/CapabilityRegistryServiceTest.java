@@ -52,7 +52,7 @@ class CapabilityRegistryServiceTest {
                 """);
 
         CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
-        properties.setToolsExternalDir(toolsDir.toString());
+        properties.setExternalDir(toolsDir.toString());
 
         CapabilityRegistryService service = new CapabilityRegistryService(
                 new ObjectMapper(),
@@ -98,7 +98,7 @@ class CapabilityRegistryServiceTest {
                 """);
 
         CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
-        properties.setToolsExternalDir(toolsDir.toString());
+        properties.setExternalDir(toolsDir.toString());
 
         CapabilityRegistryService service = new CapabilityRegistryService(
                 new ObjectMapper(),
@@ -129,7 +129,7 @@ class CapabilityRegistryServiceTest {
                 """);
 
         CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
-        properties.setToolsExternalDir(toolsDir.toString());
+        properties.setExternalDir(toolsDir.toString());
 
         CapabilityRegistryService service = new CapabilityRegistryService(
                 new ObjectMapper(),
@@ -153,7 +153,7 @@ class CapabilityRegistryServiceTest {
                 """);
 
         CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
-        properties.setToolsExternalDir(toolsDir.toString());
+        properties.setExternalDir(toolsDir.toString());
         CapabilityRegistryService service = new CapabilityRegistryService(new ObjectMapper(), properties);
 
         Files.writeString(toolsDir.resolve("b.backend"), """

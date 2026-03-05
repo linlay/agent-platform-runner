@@ -1,0 +1,18 @@
+services:
+  agent-platform:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agent-platform
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT}:8080"
+    volumes:
+      - ./agents:/opt/agents
+      - ./viewports:/opt/viewports
+      - ./tools:/opt/tools
+      - ./skills:/opt/skills
+      - ./chats:/opt/chats
+      - ./application.yml:/opt/application.yml:ro
+    env_file:
+      - .env

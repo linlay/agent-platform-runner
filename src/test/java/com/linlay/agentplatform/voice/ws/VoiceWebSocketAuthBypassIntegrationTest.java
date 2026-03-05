@@ -18,11 +18,11 @@ import org.springframework.test.web.reactive.server.WebTestClient;
                 "agent.auth.enabled=true",
                 "agent.voice.ws.enabled=true",
                 "agent.voice.ws.auth-required=false",
-                "memory.chat.dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-bypass-chats-${random.uuid}",
-                "memory.chat.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-bypass-chats-db-${random.uuid}/chats.db",
-                "agent.viewport.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-bypass-viewports-${random.uuid}",
-                "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-bypass-tools-${random.uuid}",
-                "agent.skill.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-bypass-skills-${random.uuid}"
+                "memory.chats.dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-bypass-chats-${random.uuid}",
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-bypass-chats-db-${random.uuid}/chats.db",
+                "agent.viewports.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-bypass-viewports-${random.uuid}",
+                "agent.tools.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-bypass-tools-${random.uuid}",
+                "agent.skills.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-auth-bypass-skills-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient

@@ -57,7 +57,7 @@ public class McpServerRegistryService {
             Map<String, RegisteredServer> dynamic = loadDynamicServers();
             dynamic.forEach(merged::putIfAbsent);
             if (!properties.getServers().isEmpty()) {
-                log.warn("agent.mcp.servers is deprecated and ignored; use agent.mcp.registry.external-dir files instead");
+                log.warn("agent.mcp-servers.servers is deprecated and ignored; use agent.mcp-servers.registry.external-dir files instead");
             }
 
             byKey = Map.copyOf(merged);

@@ -75,7 +75,7 @@ class RuntimeResourceSyncServiceTest {
         Path legacyUserDir = tempDir.resolve("legacy-user-dir");
 
         CapabilityCatalogProperties capabilityProperties = new CapabilityCatalogProperties();
-        capabilityProperties.setToolsExternalDir(configuredToolsDir.toString());
+        capabilityProperties.setExternalDir(configuredToolsDir.toString());
         SkillCatalogProperties skillProperties = new SkillCatalogProperties();
         skillProperties.setExternalDir(configuredSkillsDir.toString());
 

@@ -75,7 +75,7 @@ class ToolRegistryTest {
                 """);
 
         CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
-        properties.setToolsExternalDir(toolsDir.toString());
+        properties.setExternalDir(toolsDir.toString());
         CapabilityRegistryService capabilityRegistryService = new CapabilityRegistryService(
                 new ObjectMapper(),
                 properties

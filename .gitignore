@@ -19,7 +19,6 @@ target/
 
 # Local config/secrets
 .env
-.env.*
 /application.yaml
 /application.yml
 /settings.xml

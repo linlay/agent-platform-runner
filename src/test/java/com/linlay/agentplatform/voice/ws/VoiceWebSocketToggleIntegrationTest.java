@@ -17,11 +17,11 @@ import org.springframework.test.web.reactive.server.WebTestClient;
                 "agent.providers.siliconflow.model=test-siliconflow-model",
                 "agent.auth.enabled=false",
                 "agent.voice.ws.enabled=false",
-                "memory.chat.dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-toggle-chats-${random.uuid}",
-                "memory.chat.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-voice-ws-toggle-chats-db-${random.uuid}/chats.db",
-                "agent.viewport.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-toggle-viewports-${random.uuid}",
-                "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-toggle-tools-${random.uuid}",
-                "agent.skill.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-toggle-skills-${random.uuid}"
+                "memory.chats.dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-toggle-chats-${random.uuid}",
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-voice-ws-toggle-chats-db-${random.uuid}/chats.db",
+                "agent.viewports.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-toggle-viewports-${random.uuid}",
+                "agent.tools.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-toggle-tools-${random.uuid}",
+                "agent.skills.external-dir=${java.io.tmpdir}/springai-agent-platform-voice-ws-toggle-skills-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient

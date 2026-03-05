@@ -32,11 +32,11 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.providers.siliconflow.api-key=test-siliconflow-key",
                 "agent.providers.siliconflow.model=test-siliconflow-model",
                 "agent.auth.enabled=false",
-                "memory.chat.dir=${java.io.tmpdir}/springai-agent-platform-test-data-chats-${random.uuid}",
-                "memory.chat.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-test-data-chats-db-${random.uuid}/chats.db",
-                "agent.viewport.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-viewports-${random.uuid}",
-                "agent.capability.tools-external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-tools-${random.uuid}",
-                "agent.skill.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-skills-${random.uuid}",
+                "memory.chats.dir=${java.io.tmpdir}/springai-agent-platform-test-data-chats-${random.uuid}",
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-test-data-chats-db-${random.uuid}/chats.db",
+                "agent.viewports.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-viewports-${random.uuid}",
+                "agent.tools.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-tools-${random.uuid}",
+                "agent.skills.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-skills-${random.uuid}",
                 "agent.data.external-dir=${java.io.tmpdir}/springai-agent-platform-test-datafiles-${random.uuid}"
         }
 )

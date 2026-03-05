@@ -2,7 +2,7 @@ package com.linlay.agentplatform.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "agent.viewport")
+@ConfigurationProperties(prefix = "agent.viewports")
 public class ViewportCatalogProperties {
 
     private String externalDir = "viewports";
