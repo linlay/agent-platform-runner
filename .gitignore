@@ -21,7 +21,6 @@ target/
 .env
 /application.yaml
 /application.yml
-/settings.xml
 /git-command-bug.md
 
 # IDE/Editor
