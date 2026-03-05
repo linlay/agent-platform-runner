@@ -8,10 +8,13 @@ services:
     ports:
       - "${SERVER_PORT}:8080"
     volumes:
-      - ./agents:/opt/agents
-      - ./viewports:/opt/viewports
+      - ./models:/opt/models
       - ./tools:/opt/tools
+      - ./mcp-servers:/opt/mcp-servers
       - ./skills:/opt/skills
+      - ./viewports:/opt/viewports
+      - ./agents:/opt/agents
+      - ./teams:/opt/teams
       - ./chats:/opt/chats
       - ./application.yml:/opt/application.yml:ro
     env_file:
