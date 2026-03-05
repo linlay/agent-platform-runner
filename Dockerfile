@@ -28,10 +28,13 @@ RUN apt-get update \
 ENV JAVA_OPTS="-server -Xms256m -XX:MaxRAMPercentage=60" \
     JAVA_AGENT="" \
     SPRING_CONFIG_ADDITIONAL_LOCATION="optional:file:/opt/application.yml" \
-    AGENT_AGENTS_EXTERNAL_DIR="/opt/agents" \
-    AGENT_VIEWPORTS_EXTERNAL_DIR="/opt/viewports" \
+    AGENT_MODELS_EXTERNAL_DIR="/opt/models" \
     AGENT_TOOLS_EXTERNAL_DIR="/opt/tools" \
+    AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR="/opt/mcp-servers" \
+    AGENT_VIEWPORTS_EXTERNAL_DIR="/opt/viewports" \
     AGENT_SKILLS_EXTERNAL_DIR="/opt/skills" \
+    AGENT_AGENTS_EXTERNAL_DIR="/opt/agents" \
+    AGENT_TEAMS_EXTERNAL_DIR="/opt/teams" \
     MEMORY_CHATS_DIR="/opt/chats"
 
 COPY --from=building /workspace/target/springai-agent-platform-0.0.1-SNAPSHOT.jar /opt/app.jar

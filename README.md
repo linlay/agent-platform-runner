@@ -246,10 +246,12 @@ docker compose up -d --build
 
 约定：
 
-- `.env` 负责简单环境开关与端口（如 `SERVER_PORT`、`AGENT_AUTH_ENABLED`）。
+- `.env` 负责简单环境开关与端口（如 `HOST_PORT`、`SERVER_PORT`、`AGENT_AUTH_ENABLED`）。
 - `application.yml` 负责结构化大配置，尤其是多 LLM 账号/多 provider（`agent.providers.*`）。
-- `.env.example` 的示例端口是 `11949`，用于本地开发环境；服务基线默认端口仍是 `8080`。
-- `docker-compose.yml` 使用 `ports: "${SERVER_PORT}:8080"`，端口由 `.env` 显式控制。
+- `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
+- `docker-compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
+  - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
+  - 容器内应用端口固定为 `8080`（`environment.SERVER_PORT=8080`）。
 
 ### release-local 配置说明
 
@@ -612,7 +614,8 @@ for f in *.md; do echo "$f"; done
 
 | 环境变量 | 默认值 | 说明 |
 |---------|-------|------|
-| `SERVER_PORT` | `8080` | HTTP 服务端口 |
+| `HOST_PORT` | `11949` | Docker Compose 宿主机暴露端口（映射到容器 `8080`） |
+| `SERVER_PORT` | `8080` | 应用 HTTP 监听端口（容器内固定 `8080`；本地非 Docker 运行可覆盖） |
 | `AGENT_AGENTS_EXTERNAL_DIR` | `agents` | Agent 定义目录 |
 | `AGENT_MODELS_EXTERNAL_DIR` | `models` | Model 定义目录 |
 | `AGENT_VIEWPORTS_EXTERNAL_DIR` | `viewports` | Viewport 目录 |
@@ -648,7 +651,7 @@ for f in *.md; do echo "$f"; done
 | `LOGGING_AGENT_SSE_ENABLED` | `false` | SSE 每条事件日志开关 |
 | `LOGGING_AGENT_LLM_INTERACTION_ENABLED` | `true` | LLM 交互日志开关 |
 
-说明：根目录 `.env.example` 将 `SERVER_PORT` 预设为 `11949`，用于本地开发示例；若不覆盖，服务基线默认端口仍为 `8080`。
+说明：为避免歧义，容器化部署建议使用 `HOST_PORT` 控制宿主机映射端口；`SERVER_PORT` 表示应用监听端口。
 
 ### Breaking Change（配置命名迁移）
 
@@ -753,7 +756,10 @@ curl -N -X GET "$BASE_URL/api/ap/chat?chatId=d0e5b9ab-af21-4e3b-8e1a-a977dc6d565
 ### Query 回归测试
 
 ```bash
-BASE_URL="http://localhost:8080"
+# Docker Compose 默认端口（HOST_PORT=11949）
+BASE_URL="http://localhost:11949"
+# 若本地直接运行 mvn spring-boot:run，可切换为 http://localhost:8080
+# BASE_URL="http://localhost:8080"
 ACCESS_TOKEN=""
 ```
 
