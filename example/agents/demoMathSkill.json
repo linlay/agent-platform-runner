@@ -8,7 +8,7 @@
   },
   "description": "内置示例：ONESHOT 模式结合 skills 与 Python 脚本执行",
   "modelConfig": {
-    "modelKey": "bailian-qwen3-max",
+    "modelKey": "bailian-qwen3_5-plus",
     "reasoning": {
       "enabled": false
     }

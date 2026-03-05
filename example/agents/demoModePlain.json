@@ -8,7 +8,7 @@
   },
   "description": "内置示例：ONESHOT 模式单次直答",
   "modelConfig": {
-    "modelKey": "bailian-qwen3-max",
+    "modelKey": "bailian-qwen3_5-plus",
     "reasoning": {
       "enabled": false
     }

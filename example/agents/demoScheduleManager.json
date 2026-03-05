@@ -8,7 +8,7 @@
   },
   "description": "示例智能体：使用 bash 在 schedules/ 目录中新增、更新、删除计划任务文件",
   "modelConfig": {
-    "modelKey": "bailian-qwen3-max",
+    "modelKey": "bailian-qwen3_5-plus",
     "reasoning": {
       "enabled": true,
       "effort": "MEDIUM"
