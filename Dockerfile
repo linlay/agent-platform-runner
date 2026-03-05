@@ -14,19 +14,19 @@ FROM eclipse-temurin:21-jre-jammy AS running
 WORKDIR /opt/app
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 python3-venv python3-pip bash ffmpeg \
- && python3 -m venv /opt/venv \
- && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
- && /opt/venv/bin/pip install --no-cache-dir \
-    "pillow>=10.0.0" \
-    "imageio>=2.31.0" \
-    "imageio-ffmpeg>=0.4.9" \
-    "numpy>=1.24.0" \
+ && apt-get install -y --no-install-recommends bash ffmpeg \
+ # && apt-get install -y --no-install-recommends python3 python3-venv python3-pip \
+ # && python3 -m venv /opt/venv \
+ # && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
+ # && /opt/venv/bin/pip install --no-cache-dir \
+ #    "pillow>=10.0.0" \
+ #    "imageio>=2.31.0" \
+ #    "imageio-ffmpeg>=0.4.9" \
+ #    "numpy>=1.24.0" \
  && rm -rf /var/lib/apt/lists/*
 
 ENV JAVA_OPTS="-server -Xms256m -XX:MaxRAMPercentage=60" \
     JAVA_AGENT="" \
-    PATH="/opt/venv/bin:${PATH}" \
     SPRING_CONFIG_ADDITIONAL_LOCATION="optional:file:/opt/application.yml" \
     AGENT_AGENTS_EXTERNAL_DIR="/opt/agents" \
     AGENT_VIEWPORTS_EXTERNAL_DIR="/opt/viewports" \
