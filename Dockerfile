@@ -14,7 +14,7 @@ FROM eclipse-temurin:21-jre-jammy AS running
 WORKDIR /opt/app
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends bash ffmpeg \
+ && apt-get install -y --no-install-recommends bash \
  # && apt-get install -y --no-install-recommends python3 python3-venv python3-pip \
  # && python3 -m venv /opt/venv \
  # && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
