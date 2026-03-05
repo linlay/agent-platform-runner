@@ -96,6 +96,7 @@ agent:
       allowed-paths: ${user.dir},/tmp
       allowed-commands: ls,pwd,cat,head,tail,top,free,df,git,rg,find
       path-checked-commands: ls,cat,head,tail,git,rg,find
+      path-check-bypass-commands: git,curl
       shell-features-enabled: false
       shell-executable: bash
       shell-timeout-ms: 10000

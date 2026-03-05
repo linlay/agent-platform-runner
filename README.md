@@ -545,6 +545,8 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
 
 `path-checked-commands` 为空时，默认等于 `allowed-commands`；并且只会对 `allowed-commands` 的交集生效。`working-directory` 仅决定进程启动目录，不会自动加入 `allowed-paths`。
 
+`path-check-bypass-commands` 为空时默认关闭。配置后仅对 `allowed-commands` 交集生效；命中的命令会跳过路径参数与重定向目标的目录白名单校验（例如可用于 `git`/`curl` 的命令级放开）。
+
 `shell-features-enabled=false`（默认）时，工具保持严格模式，仅执行单条命令。设置为 `true` 后，遇到高级 shell 语法（管道、重定向、here-doc、`&&`/`||` 等）会切换到 shell 模式执行，同时继续执行命令白名单和路径白名单校验。为安全起见，`source/.`、`eval`、`exec`、进程替换（`<(...)`/`>(...)`）、`coproc`、`fg/bg/jobs` 会被拒绝。
 
 ```yaml
@@ -559,6 +561,8 @@ agent:
         - ls,pwd,cat,head,tail,top,free,df,git
       path-checked-commands:
         - ls,cat,head,tail,git
+      path-check-bypass-commands:
+        - git,curl
       shell-features-enabled: false
       shell-executable: bash
       shell-timeout-ms: 10000
@@ -572,6 +576,7 @@ AGENT_BASH_WORKING_DIRECTORY=/opt/app
 AGENT_BASH_ALLOWED_PATHS=/opt/app,/opt/data
 AGENT_BASH_ALLOWED_COMMANDS=ls,pwd,cat,head,tail,top,free,df,git
 AGENT_BASH_PATH_CHECKED_COMMANDS=ls,cat,head,tail,git
+AGENT_BASH_PATH_CHECK_BYPASS_COMMANDS=git,curl
 AGENT_BASH_SHELL_FEATURES_ENABLED=true
 AGENT_BASH_SHELL_EXECUTABLE=bash
 AGENT_BASH_SHELL_TIMEOUT_MS=10000
@@ -607,6 +612,7 @@ for f in *.md; do echo "$f"; done
 | `AGENT_BASH_ALLOWED_PATHS` | （空） | Bash 允许路径 |
 | `AGENT_BASH_ALLOWED_COMMANDS` | （空=拒绝执行） | Bash 允许命令列表（逗号分隔） |
 | `AGENT_BASH_PATH_CHECKED_COMMANDS` | （空=默认等于 allowed-commands） | 启用路径校验的命令列表（逗号分隔） |
+| `AGENT_BASH_PATH_CHECK_BYPASS_COMMANDS` | （空=默认关闭） | 跳过路径校验的命令列表（逗号分隔，仅对 allowed-commands 交集生效） |
 | `AGENT_BASH_SHELL_FEATURES_ENABLED` | `false` | Bash 高级 shell 语法开关（管道/重定向/here-doc） |
 | `AGENT_BASH_SHELL_EXECUTABLE` | `bash` | Bash shell 模式执行器 |
 | `AGENT_BASH_SHELL_TIMEOUT_MS` | `10000` | Bash shell 模式超时（ms） |

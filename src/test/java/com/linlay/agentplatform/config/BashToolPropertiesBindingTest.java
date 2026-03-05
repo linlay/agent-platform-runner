@@ -58,12 +58,14 @@ class BashToolPropertiesBindingTest {
                         "agent.tools.bash.working-directory=" + workingDir,
                         "agent.tools.bash.allowed-paths=" + workingDir + "," + externalDir,
                         "agent.tools.bash.allowed-commands=cat,echo",
-                        "agent.tools.bash.path-checked-commands=cat,git"
+                        "agent.tools.bash.path-checked-commands=cat,git",
+                        "agent.tools.bash.path-check-bypass-commands=git,curl"
                 )
                 .run(context -> {
                     BashToolProperties properties = context.getBean(BashToolProperties.class);
                     assertThat(properties.getAllowedCommands()).contains("cat", "echo");
                     assertThat(properties.getAllowedPaths()).contains(workingDir.toString(), externalDir.toString());
+                    assertThat(properties.getPathCheckBypassCommands()).contains("git", "curl");
 
                     SystemBash bash = context.getBean(SystemBash.class);
                     JsonNode catResult = bash.invoke(Map.of("command", "cat " + externalFile));
@@ -73,6 +75,22 @@ class BashToolPropertiesBindingTest {
                     assertThat(catResult.asText()).contains("hello-comma");
                     assertThat(echoResult.asText()).contains("exitCode: 0");
                     assertThat(echoResult.asText()).contains("ok");
+                });
+    }
+
+    @Test
+    void indexedBypassCommandsShouldBind(@TempDir Path tempDir) {
+        contextRunner
+                .withPropertyValues(
+                        "agent.tools.bash.working-directory=" + tempDir,
+                        "agent.tools.bash.allowed-paths[0]=" + tempDir,
+                        "agent.tools.bash.allowed-commands[0]=git",
+                        "agent.tools.bash.path-check-bypass-commands[0]=git",
+                        "agent.tools.bash.path-check-bypass-commands[1]=curl"
+                )
+                .run(context -> {
+                    BashToolProperties properties = context.getBean(BashToolProperties.class);
+                    assertThat(properties.getPathCheckBypassCommands()).containsExactly("git", "curl");
                 });
     }
 

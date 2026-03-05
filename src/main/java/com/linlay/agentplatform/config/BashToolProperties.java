@@ -12,6 +12,7 @@ public class BashToolProperties {
     private List<String> allowedPaths = new ArrayList<>();
     private List<String> allowedCommands = new ArrayList<>();
     private List<String> pathCheckedCommands = new ArrayList<>();
+    private List<String> pathCheckBypassCommands = new ArrayList<>();
     private boolean shellFeaturesEnabled = false;
     private String shellExecutable = "bash";
     private int shellTimeoutMs = 10_000;
@@ -47,6 +48,14 @@ public class BashToolProperties {
 
     public void setPathCheckedCommands(List<String> pathCheckedCommands) {
         this.pathCheckedCommands = pathCheckedCommands;
+    }
+
+    public List<String> getPathCheckBypassCommands() {
+        return pathCheckBypassCommands;
+    }
+
+    public void setPathCheckBypassCommands(List<String> pathCheckBypassCommands) {
+        this.pathCheckBypassCommands = pathCheckBypassCommands;
     }
 
     public boolean isShellFeaturesEnabled() {

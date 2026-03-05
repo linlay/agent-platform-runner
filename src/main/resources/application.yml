@@ -55,6 +55,7 @@ agent:
       allowed-paths: ${AGENT_BASH_ALLOWED_PATHS:${user.dir},/tmp}
       allowed-commands: ${AGENT_BASH_ALLOWED_COMMANDS:ls,pwd,cat,head,tail,top,free,df,git,rg,find}
       path-checked-commands: ${AGENT_BASH_PATH_CHECKED_COMMANDS:ls,cat,head,tail,git,rg,find}
+      path-check-bypass-commands: ${AGENT_BASH_PATH_CHECK_BYPASS_COMMANDS:}
       shell-features-enabled: ${AGENT_BASH_SHELL_FEATURES_ENABLED:false}
       shell-executable: ${AGENT_BASH_SHELL_EXECUTABLE:bash}
       shell-timeout-ms: ${AGENT_BASH_SHELL_TIMEOUT_MS:10000}

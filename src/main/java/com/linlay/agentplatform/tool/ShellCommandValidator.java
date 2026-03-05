@@ -27,15 +27,18 @@ final class ShellCommandValidator {
     private final List<Path> allowedRoots;
     private final Set<String> allowedCommands;
     private final Set<String> pathCheckedCommands;
+    private final Set<String> pathCheckBypassCommands;
 
     ShellCommandValidator(Path workingDirectory,
                           List<Path> allowedRoots,
                           Set<String> allowedCommands,
-                          Set<String> pathCheckedCommands) {
+                          Set<String> pathCheckedCommands,
+                          Set<String> pathCheckBypassCommands) {
         this.workingDirectory = workingDirectory;
         this.allowedRoots = allowedRoots;
         this.allowedCommands = allowedCommands;
         this.pathCheckedCommands = pathCheckedCommands;
+        this.pathCheckBypassCommands = pathCheckBypassCommands;
     }
 
     String validate(String rawCommand) {
@@ -616,7 +619,8 @@ final class ShellCommandValidator {
                 return "Command not allowed: " + command.commandName;
             }
 
-            if (pathCheckedCommands.contains(command.commandName)) {
+            if (pathCheckedCommands.contains(command.commandName)
+                    && !pathCheckBypassCommands.contains(command.commandName)) {
                 String pathError = validatePathCheckedCommand(command);
                 if (pathError != null) {
                     return pathError;

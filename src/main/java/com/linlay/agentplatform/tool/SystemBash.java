@@ -34,6 +34,8 @@ agent:
         - ls,pwd,cat,head,tail,top,free,df,git
       path-checked-commands:
         - ls,cat,head,tail,git
+      path-check-bypass-commands:
+        - git,curl
 ```
 */
 
@@ -52,6 +54,7 @@ public class SystemBash extends AbstractDeterministicTool {
     private final List<Path> allowedRoots;
     private final Set<String> allowedCommands;
     private final Set<String> pathCheckedCommands;
+    private final Set<String> pathCheckBypassCommands;
     private final boolean shellFeaturesEnabled;
     private final String shellExecutable;
     private final int timeoutMs;
@@ -64,6 +67,7 @@ public class SystemBash extends AbstractDeterministicTool {
              parseAllowedPaths(properties.getAllowedPaths()),
              parseCommandSet(properties.getAllowedCommands()),
              parseCommandSet(properties.getPathCheckedCommands()),
+             parseCommandSet(properties.getPathCheckBypassCommands()),
              properties.isShellFeaturesEnabled(),
              properties.getShellExecutable(),
              properties.getShellTimeoutMs(),
@@ -83,7 +87,7 @@ public class SystemBash extends AbstractDeterministicTool {
     }
 
     SystemBash(Path workingDirectory, List<Path> additionalAllowedRoots, Set<String> allowedCommands, Set<String> pathCheckedCommands) {
-        this(workingDirectory, additionalAllowedRoots, allowedCommands, pathCheckedCommands, false, DEFAULT_SHELL_EXECUTABLE, DEFAULT_TIMEOUT_MS, DEFAULT_MAX_COMMAND_CHARS);
+        this(workingDirectory, additionalAllowedRoots, allowedCommands, pathCheckedCommands, Set.of(), false, DEFAULT_SHELL_EXECUTABLE, DEFAULT_TIMEOUT_MS, DEFAULT_MAX_COMMAND_CHARS);
     }
 
     SystemBash(Path workingDirectory,
@@ -94,15 +98,34 @@ public class SystemBash extends AbstractDeterministicTool {
                String shellExecutable,
                int timeoutMs,
                int maxCommandChars) {
+        this(workingDirectory, additionalAllowedRoots, allowedCommands, pathCheckedCommands, Set.of(), shellFeaturesEnabled, shellExecutable, timeoutMs, maxCommandChars);
+    }
+
+    SystemBash(Path workingDirectory,
+               List<Path> additionalAllowedRoots,
+               Set<String> allowedCommands,
+               Set<String> pathCheckedCommands,
+               Set<String> pathCheckBypassCommands,
+               boolean shellFeaturesEnabled,
+               String shellExecutable,
+               int timeoutMs,
+               int maxCommandChars) {
         this.workingDirectory = workingDirectory.toAbsolutePath().normalize();
         this.allowedRoots = buildAllowedRoots(additionalAllowedRoots);
         this.allowedCommands = normalizeCommandSet(allowedCommands);
         this.pathCheckedCommands = resolvePathCheckedCommands(pathCheckedCommands, this.allowedCommands);
+        this.pathCheckBypassCommands = resolvePathCheckBypassCommands(pathCheckBypassCommands, this.allowedCommands);
         this.shellFeaturesEnabled = shellFeaturesEnabled;
         this.shellExecutable = normalizeShellExecutable(shellExecutable);
         this.timeoutMs = clampTimeout(timeoutMs);
         this.maxCommandChars = clampMaxCommandChars(maxCommandChars);
-        this.shellCommandValidator = new ShellCommandValidator(this.workingDirectory, this.allowedRoots, this.allowedCommands, this.pathCheckedCommands);
+        this.shellCommandValidator = new ShellCommandValidator(
+                this.workingDirectory,
+                this.allowedRoots,
+                this.allowedCommands,
+                this.pathCheckedCommands,
+                this.pathCheckBypassCommands
+        );
     }
 
     @Override
@@ -383,6 +406,9 @@ public class SystemBash extends AbstractDeterministicTool {
 
     private String unsafeArgumentError(List<String> tokens) {
         String baseCommand = tokens.get(0);
+        if (pathCheckBypassCommands.contains(baseCommand)) {
+            return null;
+        }
         if (!pathCheckedCommands.contains(baseCommand) || tokens.size() == 1) {
             return null;
         }
@@ -499,6 +525,23 @@ public class SystemBash extends AbstractDeterministicTool {
         Set<String> normalized = normalizeCommandSet(configuredPathCheckedCommands);
         if (normalized.isEmpty()) {
             return allowedCommands;
+        }
+        LinkedHashSet<String> intersected = new LinkedHashSet<>();
+        for (String command : normalized) {
+            if (allowedCommands.contains(command)) {
+                intersected.add(command);
+            }
+        }
+        return intersected.isEmpty() ? Set.of() : Set.copyOf(intersected);
+    }
+
+    private static Set<String> resolvePathCheckBypassCommands(Set<String> configuredPathCheckBypassCommands, Set<String> allowedCommands) {
+        if (allowedCommands.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> normalized = normalizeCommandSet(configuredPathCheckBypassCommands);
+        if (normalized.isEmpty()) {
+            return Set.of();
         }
         LinkedHashSet<String> intersected = new LinkedHashSet<>();
         for (String command : normalized) {

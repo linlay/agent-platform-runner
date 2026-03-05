@@ -222,4 +222,88 @@ class SystemBashAdvancedTest {
         assertThat(result.asText()).contains("mode: strict");
         assertThat(result.asText()).contains("Path not allowed outside authorized directories: ../outside");
     }
+
+    @Test
+    void shouldAllowGitPathOptionOutsideAllowedRootsWhenBypassEnabled(@TempDir Path tempDir) throws IOException {
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+        SystemBash bash = new SystemBash(
+                tempDir,
+                List.of(repo),
+                Set.of("git"),
+                Set.of("git"),
+                Set.of("git"),
+                false,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "git -C ../outside status"));
+
+        assertThat(result.asText()).contains("mode: strict");
+        assertThat(result.asText()).doesNotContain("Path not allowed outside authorized directories: ../outside");
+    }
+
+    @Test
+    void shouldAllowCurlRedirectOutsideAllowedPathsWhenBypassEnabled(@TempDir Path tempDir) throws IOException {
+        Path outsideFile = tempDir.getParent().resolve("outside-bypass-curl.txt");
+        Files.deleteIfExists(outsideFile);
+        SystemBash bash = new SystemBash(
+                tempDir,
+                List.of(tempDir),
+                Set.of("curl"),
+                Set.of("curl"),
+                Set.of("curl"),
+                true,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "curl --version > ../outside-bypass-curl.txt"));
+
+        assertThat(result.asText()).contains("mode: shell");
+        assertThat(result.asText()).doesNotContain("Path not allowed outside authorized directories");
+        assertThat(Files.exists(outsideFile)).isTrue();
+    }
+
+    @Test
+    void shouldRejectCurlRedirectOutsideAllowedPathsWhenBypassDisabled(@TempDir Path tempDir) {
+        SystemBash bash = new SystemBash(
+                tempDir,
+                List.of(tempDir),
+                Set.of("curl"),
+                Set.of("curl"),
+                true,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "curl --version > ../outside-bypass-curl.txt"));
+
+        assertThat(result.asText()).contains("mode: shell");
+        assertThat(result.asText()).contains("Path not allowed outside authorized directories: ../outside-bypass-curl.txt");
+    }
+
+    @Test
+    void shouldKeepNonBypassCommandPathChecksWhenBypassConfigured(@TempDir Path tempDir) {
+        SystemBash bash = new SystemBash(
+                tempDir,
+                List.of(tempDir),
+                Set.of("cat", "curl"),
+                Set.of("cat", "curl"),
+                Set.of("curl"),
+                false,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "cat ../outside.txt"));
+
+        assertThat(result.asText()).contains("mode: strict");
+        assertThat(result.asText()).contains("Path not allowed outside authorized directories: ../outside.txt");
+    }
 }
