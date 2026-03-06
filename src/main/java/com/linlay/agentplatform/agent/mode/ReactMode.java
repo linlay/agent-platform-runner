@@ -55,7 +55,11 @@ public final class ReactMode extends AgentMode {
             OrchestratorServices services,
             FluxSink<AgentDelta> sink
     ) {
-        Map<String, BaseTool> configuredTools = services.selectTools(enabledToolsByName, stage.tools());
+        Map<String, BaseTool> configuredTools = services.selectTools(
+                enabledToolsByName.keySet().stream().toList(),
+                stage.tools(),
+                enabledToolsByName::get
+        );
         Map<String, BaseTool> stageTools = services.allowsTool(context) ? configuredTools : Map.of();
         int effectiveMaxSteps = maxSteps;
         int retries = services.modelRetryCount(context, 1);

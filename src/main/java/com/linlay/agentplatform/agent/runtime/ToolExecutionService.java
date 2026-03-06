@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -37,6 +38,13 @@ import java.util.function.Consumer;
 public class ToolExecutionService {
 
     public static final String FRONTEND_SUBMIT_TIMEOUT_CODE = "frontend_submit_timeout";
+    public static final String TOOL_NOT_REGISTERED_CODE = "tool_not_registered";
+    public static final Set<String> FATAL_TOOL_ERROR_CODES = Set.of(
+            TOOL_NOT_REGISTERED_CODE,
+            "mcp_capability_missing",
+            "mcp_server_not_found",
+            "mcp_server_unavailable"
+    );
     private static final Logger log = LoggerFactory.getLogger(ToolExecutionService.class);
 
     private static final ExecutorService BACKEND_TOOL_EXECUTOR = Executors.newCachedThreadPool(runnable -> {
@@ -201,6 +209,10 @@ public class ToolExecutionService {
             if (planDelta != null) {
                 deltas.add(planDelta);
             }
+
+            if (isFatalToolError(resultNode)) {
+                break;
+            }
         }
 
         return new ToolExecutionBatch(List.copyOf(deltas), List.copyOf(events));
@@ -348,6 +360,12 @@ public class ToolExecutionService {
     ) {
         if (!enabledToolsByName.containsKey(toolName)) {
             return new InvokeResult(errorResult(toolName, "Tool is not enabled for this agent: " + toolName), null);
+        }
+        if (toolRegistry.capability(toolName).isEmpty()) {
+            return new InvokeResult(
+                    errorResult(toolName, TOOL_NOT_REGISTERED_CODE, "Tool is not registered: " + toolName),
+                    null
+            );
         }
 
         if ("_plan_get_tasks_".equals(toolName)) {
@@ -794,6 +812,20 @@ public class ToolExecutionService {
         return toolRegistry.capability(toolName)
                 .map(descriptor -> descriptor.kind() == CapabilityKind.BACKEND)
                 .orElse(true);
+    }
+
+    private boolean isFatalToolError(JsonNode resultNode) {
+        if (resultNode == null || !resultNode.isObject()) {
+            return false;
+        }
+        if (resultNode.path("ok").asBoolean(true)) {
+            return false;
+        }
+        String code = normalize(resultNode.path("code").asText("")).toLowerCase(Locale.ROOT);
+        if (!StringUtils.hasText(code)) {
+            return false;
+        }
+        return FATAL_TOOL_ERROR_CODES.contains(code);
     }
 
     private ObjectNode errorResult(String toolName, String message) {

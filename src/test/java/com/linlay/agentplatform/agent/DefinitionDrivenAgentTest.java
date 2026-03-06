@@ -256,6 +256,67 @@ class DefinitionDrivenAgentTest {
     }
 
     @Test
+    void missingConfiguredToolShouldStillBeExposedAndTerminateRunAtInvocation() throws Exception {
+        AgentDefinition definition = definition(
+                "demoMissingTool",
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
+                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("missing_tool"), false, ComputePolicy.MEDIUM), null, null),
+                List.of("missing_tool")
+        );
+
+        Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                stageSpecs.put(spec.stage(), spec);
+                if ("agent-oneshot-tool-first".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta("call_missing_1", "function", "missing_tool", "{}")),
+                            "tool_calls"
+                    ));
+                }
+                return Flux.just(new LlmDelta("不应到达 final", null, "stop"));
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                new ToolRegistry(List.of()),
+                objectMapper,
+                null,
+                null
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试缺失工具", null, null, "run_missing_tool_1"))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(stageSpecs.get("agent-oneshot-tool-first")).isNotNull();
+        assertThat(stageSpecs.get("agent-oneshot-tool-first").tools().stream().map(LlmService.LlmFunctionTool::name).toList())
+                .contains("missing_tool");
+        assertThat(stageSpecs).doesNotContainKey("agent-oneshot-tool-final");
+
+        String resultText = deltas.stream()
+                .flatMap(delta -> delta.toolResults().stream())
+                .filter(item -> "call_missing_1".equals(item.toolId()))
+                .map(AgentDelta.ToolResult::result)
+                .findFirst()
+                .orElseThrow();
+        JsonNode result = objectMapper.readTree(resultText);
+        assertThat(result.path("code").asText()).isEqualTo("tool_not_registered");
+
+        assertThat(deltas.stream()
+                .map(AgentDelta::content)
+                .filter(text -> text != null && !text.isBlank())
+                .anyMatch(text -> text.contains("Tool is not registered"))).isTrue();
+        assertThat(deltas.getLast().finishReason()).isEqualTo("tool_error");
+    }
+
+    @Test
     void oneshotReasoningShouldExposeReasoningTokensWhenEnabled() {
         AgentDefinition definition = definition(
                 "demoReasoning",

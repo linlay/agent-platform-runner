@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.agent;
 
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.mode.AgentMode;
 import com.linlay.agentplatform.agent.mode.OneshotMode;
@@ -9,6 +10,7 @@ import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
+import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.ToolInvoker;
@@ -48,11 +50,16 @@ public class DefinitionDrivenAgent implements Agent {
 
     private static final Logger log = LoggerFactory.getLogger(DefinitionDrivenAgent.class);
     private static final String FRONTEND_TIMEOUT_FALLBACK_MESSAGE = "前端工具等待用户提交超时，本次运行已结束。请重新发起或在超时前提交。";
+    private static final Map<String, Object> DEFAULT_PLACEHOLDER_PARAMETERS = Map.of(
+            "type", "object",
+            "properties", Map.of(),
+            "additionalProperties", true
+    );
 
     private final AgentDefinition definition;
     private final ChatWindowMemoryStore chatWindowMemoryStore;
     private final ToolRegistry toolRegistry;
-    private final Map<String, BaseTool> enabledToolsByName;
+    private final Map<String, BaseTool> configuredToolsByName;
     private final OrchestratorServices services;
     private final ObjectMapper objectMapper;
     private final SkillRegistryService skillRegistryService;
@@ -139,7 +146,7 @@ public class DefinitionDrivenAgent implements Agent {
         this.chatWindowMemoryStore = chatWindowMemoryStore;
         this.objectMapper = objectMapper;
         this.skillRegistryService = skillRegistryService;
-        this.enabledToolsByName = resolveEnabledTools(definition.tools());
+        this.configuredToolsByName = resolveConfiguredTools(definition.tools());
 
         ToolArgumentResolver argumentResolver = new ToolArgumentResolver(objectMapper);
         ToolExecutionService toolExecutionService = new ToolExecutionService(
@@ -216,7 +223,7 @@ public class DefinitionDrivenAgent implements Agent {
                 providerKey(),
                 model(),
                 mode(),
-                enabledToolsByName.keySet(),
+                configuredToolsByName.keySet(),
                 definition.skills(),
                 normalize(request.message(), "")
         );
@@ -253,8 +260,15 @@ public class DefinitionDrivenAgent implements Agent {
             if (context.hasPlan()) {
                 services.emit(sink, AgentDelta.planUpdate(context.planId(), context.request().chatId(), context.planTasks()));
             }
-            definition.agentMode().run(context, enabledToolsByName, services, sink);
+            definition.agentMode().run(context, configuredToolsByName, services, sink);
             services.emit(sink, AgentDelta.finish("stop"));
+            if (!sink.isCancelled()) {
+                sink.complete();
+            }
+        } catch (FatalToolExecutionException ex) {
+            log.info("[agent:{}] fatal tool error code={}, message={}", definition.id(), ex.code(), ex.getMessage());
+            services.emit(sink, AgentDelta.content(resolveFatalToolMessage(ex)));
+            services.emit(sink, AgentDelta.finish("tool_error"));
             if (!sink.isCancelled()) {
                 sink.complete();
             }
@@ -287,14 +301,21 @@ public class DefinitionDrivenAgent implements Agent {
         return raw;
     }
 
-    private Map<String, BaseTool> resolveEnabledTools(List<String> configuredTools) {
+    private String resolveFatalToolMessage(FatalToolExecutionException ex) {
+        if (ex == null || !StringUtils.hasText(ex.getMessage())) {
+            return "工具调用失败，本次运行已结束。";
+        }
+        return ex.getMessage().trim();
+    }
+
+    private Map<String, BaseTool> resolveConfiguredTools(List<String> configuredTools) {
         Map<String, BaseTool> allToolsByName = new LinkedHashMap<>();
         for (BaseTool tool : toolRegistry.list()) {
             allToolsByName.put(normalizeToolName(tool.name()), tool);
         }
 
         List<String> requested = configuredTools == null ? List.of() : configuredTools;
-        Map<String, BaseTool> enabled = new LinkedHashMap<>();
+        Map<String, BaseTool> resolved = new LinkedHashMap<>();
         for (String rawName : requested) {
             String name = normalizeToolName(rawName);
             if (name.isBlank()) {
@@ -302,12 +323,13 @@ public class DefinitionDrivenAgent implements Agent {
             }
             BaseTool tool = allToolsByName.get(name);
             if (tool == null) {
-                log.warn("[agent:{}] configured tool not found and will be ignored: {}", id(), name);
-                continue;
+                log.info("[agent:{}] configured tool currently not registered, keep runtime placeholder: {}", id(), name);
+                resolved.put(name, new DeclaredToolPlaceholder(name));
+            } else {
+                resolved.put(name, tool);
             }
-            enabled.put(name, tool);
         }
-        return Map.copyOf(enabled);
+        return Map.copyOf(resolved);
     }
 
     private String normalizeToolName(String raw) {
@@ -433,8 +455,8 @@ public class DefinitionDrivenAgent implements Agent {
             snapshot.messages = List.of(systemMessage);
         }
 
-        if (!enabledToolsByName.isEmpty()) {
-            List<ChatWindowMemoryStore.SystemToolSnapshot> tools = enabledToolsByName.values().stream()
+        if (!configuredToolsByName.isEmpty()) {
+            List<ChatWindowMemoryStore.SystemToolSnapshot> tools = configuredToolsByName.values().stream()
                     .sorted(java.util.Comparator.comparing(BaseTool::name))
                     .map(tool -> {
                         ChatWindowMemoryStore.SystemToolSnapshot item = new ChatWindowMemoryStore.SystemToolSnapshot();
@@ -600,7 +622,10 @@ public class DefinitionDrivenAgent implements Agent {
 
     private Map<String, Object> toolsSnapshot() {
         Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("enabled", groupToolNames(enabledToolsByName.keySet()));
+        List<String> registered = currentlyRegisteredConfiguredTools();
+        snapshot.put("configured", groupToolNames(configuredToolsByName.keySet()));
+        snapshot.put("currentlyRegistered", groupToolNames(registered));
+        snapshot.put("enabled", groupToolNames(registered));
 
         Map<String, Object> stageTools = new LinkedHashMap<>();
         AgentMode modeImpl = definition.agentMode();
@@ -615,6 +640,13 @@ public class DefinitionDrivenAgent implements Agent {
         }
         snapshot.put("stageTools", stageTools);
         return snapshot;
+    }
+
+    private List<String> currentlyRegisteredConfiguredTools() {
+        return configuredToolsByName.keySet().stream()
+                .filter(name -> toolRegistry.capability(name).isPresent())
+                .sorted()
+                .toList();
     }
 
     private Map<String, Object> skillsSnapshot() {
@@ -695,6 +727,34 @@ public class DefinitionDrivenAgent implements Agent {
             return "frontend";
         }
         return "backend";
+    }
+
+    private static final class DeclaredToolPlaceholder implements BaseTool {
+        private final String name;
+
+        private DeclaredToolPlaceholder(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public String description() {
+            return "Configured tool placeholder. Runtime will validate registration when invoked.";
+        }
+
+        @Override
+        public Map<String, Object> parametersSchema() {
+            return DEFAULT_PLACEHOLDER_PARAMETERS;
+        }
+
+        @Override
+        public JsonNode invoke(Map<String, Object> args) {
+            throw new IllegalStateException("Declared tool placeholder cannot be invoked directly: " + name);
+        }
     }
 
     private final class TurnTrace {

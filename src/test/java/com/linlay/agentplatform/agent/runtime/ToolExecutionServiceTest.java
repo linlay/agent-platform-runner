@@ -453,6 +453,48 @@ class ToolExecutionServiceTest {
         assertThat(secondResult).contains("\"result\":\"done\"");
     }
 
+    @Test
+    void unregisteredToolShouldReturnStandardErrorCodeAndStopFollowingCalls() throws Exception {
+        ConstantTool registeredTool = new ConstantTool("registered_tool", "LOCAL_OK");
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(registeredTool));
+        ToolExecutionService toolExecutionService = new ToolExecutionService(
+                toolRegistry,
+                new ToolArgumentResolver(objectMapper),
+                objectMapper,
+                null
+        );
+
+        Map<String, BaseTool> stageTools = new LinkedHashMap<>();
+        stageTools.put("missing_tool", new ConstantTool("missing_tool", "IGNORED"));
+        stageTools.put("registered_tool", registeredTool);
+
+        ToolExecutionService.ToolExecutionBatch batch = toolExecutionService.executeToolCalls(
+                List.of(
+                        new PlannedToolCall("missing_tool", Map.of(), "call_missing_1"),
+                        new PlannedToolCall("registered_tool", Map.of(), "call_registered_1")
+                ),
+                Map.copyOf(stageTools),
+                new ArrayList<>(),
+                "run_missing_tool_1",
+                new ExecutionContext(
+                        definition(List.of("missing_tool", "registered_tool"), Budget.DEFAULT),
+                        new AgentRequest("test", "chat_missing_tool_1", null, "run_missing_tool_1"),
+                        List.of()
+                ),
+                false
+        );
+
+        String firstResult = singleToolResult(batch, "call_missing_1");
+        com.fasterxml.jackson.databind.JsonNode resultNode = objectMapper.readTree(firstResult);
+        assertThat(resultNode.path("ok").asBoolean(true)).isFalse();
+        assertThat(resultNode.path("code").asText()).isEqualTo(ToolExecutionService.TOOL_NOT_REGISTERED_CODE);
+        assertThat(resultNode.path("error").asText()).contains("Tool is not registered");
+        assertThat(batch.deltas().stream()
+                .flatMap(delta -> delta.toolResults().stream())
+                .map(AgentDelta.ToolResult::toolId)
+                .toList()).containsExactly("call_missing_1");
+    }
+
     private Map<String, BaseTool> enabledTools(ToolRegistry toolRegistry) {
         Map<String, BaseTool> enabledTools = new LinkedHashMap<>();
         for (BaseTool tool : toolRegistry.list()) {

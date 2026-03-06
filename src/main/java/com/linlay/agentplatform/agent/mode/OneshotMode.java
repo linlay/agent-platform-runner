@@ -58,7 +58,11 @@ public final class OneshotMode extends AgentMode {
         StageSettings stageSettings = stage == null
                 ? new StageSettings(systemPrompt, null, null, List.of(), false, null)
                 : stage;
-        Map<String, BaseTool> configuredTools = services.selectTools(enabledToolsByName, stageSettings.tools());
+        Map<String, BaseTool> configuredTools = services.selectTools(
+                enabledToolsByName.keySet().stream().toList(),
+                stageSettings.tools(),
+                enabledToolsByName::get
+        );
         Map<String, BaseTool> stageTools = services.allowsTool(context) ? configuredTools : Map.of();
         boolean hasTools = !stageTools.isEmpty();
         boolean emitReasoning = stageSettings.reasoningEnabled();

@@ -138,13 +138,25 @@ public final class PlanExecuteMode extends AgentMode {
             }
 
             StageSettings summary = summaryStage == null ? executeStage : summaryStage;
-            Map<String, BaseTool> planPromptTools = services.selectTools(enabledToolsByName, planStage.tools());
+            Map<String, BaseTool> planPromptTools = services.selectTools(
+                    enabledToolsByName.keySet().stream().toList(),
+                    planStage.tools(),
+                    enabledToolsByName::get
+            );
             Map<String, BaseTool> planCallableTools = selectPlanCallableTools(planPromptTools);
             if (!planCallableTools.containsKey(PLAN_ADD_TASK_TOOL)) {
                 throw new PlanExecutionStalledException("计划任务执行中断：缺少必需工具 _plan_add_tasks_，无法创建计划任务。");
             }
-            Map<String, BaseTool> executeTools = services.selectTools(enabledToolsByName, executeStage.tools());
-            Map<String, BaseTool> summaryTools = services.selectTools(enabledToolsByName, summary.tools());
+            Map<String, BaseTool> executeTools = services.selectTools(
+                    enabledToolsByName.keySet().stream().toList(),
+                    executeStage.tools(),
+                    enabledToolsByName::get
+            );
+            Map<String, BaseTool> summaryTools = services.selectTools(
+                    enabledToolsByName.keySet().stream().toList(),
+                    summary.tools(),
+                    enabledToolsByName::get
+            );
 
             StageSettings augmentedPlanStage = augmentPlanStageWithToolPrompts(
                     planStage, executeTools, planCallableTools, services

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentDefinition;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
+import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
@@ -114,6 +115,62 @@ class OrchestratorServicesTest {
                 .flatMap(delta -> delta.toolResults().stream())
                 .map(AgentDelta.ToolResult::toolId)
                 .toList()).contains("call_frontend_1");
+    }
+
+    @Test
+    void executeToolsAndEmitShouldThrowFatalToolExecutionExceptionWhenToolIsUnregistered() {
+        ToolExecutionService toolExecutionService = mock(ToolExecutionService.class);
+        OrchestratorServices services = new OrchestratorServices(mock(LlmService.class), toolExecutionService, new ObjectMapper());
+        ExecutionContext context = contextWithBudget(new Budget(
+                0L,
+                new Budget.Scope(10, 10_000L, 0),
+                new Budget.Scope(10, 20_000L, 0)
+        ));
+
+        String fatalResult = """
+                {"tool":"missing_tool","ok":false,"code":"tool_not_registered","error":"Tool is not registered: missing_tool"}
+                """.trim();
+        ToolExecutionService.ToolExecutionBatch batch = new ToolExecutionService.ToolExecutionBatch(
+                List.of(AgentDelta.toolResult("call_missing_1", fatalResult)),
+                List.of(new ToolExecutionService.ToolExecutionEvent(
+                        "call_missing_1",
+                        "missing_tool",
+                        "function",
+                        "{}",
+                        fatalResult
+                ))
+        );
+        when(toolExecutionService.executeToolCalls(
+                anyList(),
+                anyMap(),
+                anyList(),
+                eq("run_1"),
+                any(ExecutionContext.class),
+                eq(false),
+                any(),
+                any()
+        )).thenReturn(batch);
+
+        List<AgentDelta> emitted = new ArrayList<>();
+        AtomicReference<Throwable> thrown = new AtomicReference<>();
+
+        Flux<AgentDelta> flux = Flux.create(sink -> {
+            try {
+                services.executeToolsAndEmit(context, Map.of(), List.of(), sink);
+            } catch (Throwable ex) {
+                thrown.set(ex);
+            } finally {
+                sink.complete();
+            }
+        });
+        emitted.addAll(flux.collectList().block(Duration.ofSeconds(3)));
+
+        assertThat(thrown.get()).isInstanceOf(FatalToolExecutionException.class);
+        assertThat(thrown.get().getMessage()).contains("Tool is not registered");
+        assertThat(emitted.stream()
+                .flatMap(delta -> delta.toolResults().stream())
+                .map(AgentDelta.ToolResult::toolId)
+                .toList()).contains("call_missing_1");
     }
 
     private ExecutionContext contextWithBudget(Budget budget) {

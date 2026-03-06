@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.PlannedToolCall;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
+import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
 public class OrchestratorServices {
@@ -285,6 +287,10 @@ public class OrchestratorServices {
         if (frontendTimeout != null) {
             throw frontendTimeout;
         }
+        FatalToolExecutionException fatalToolError = detectFatalToolExecution(batch.events());
+        if (fatalToolError != null) {
+            throw fatalToolError;
+        }
         context.incrementToolCalls(batch.events().size());
     }
 
@@ -302,16 +308,31 @@ public class OrchestratorServices {
         if (enabledToolsByName == null || enabledToolsByName.isEmpty()) {
             return Map.of();
         }
-        if (configuredTools == null || configuredTools.isEmpty()) {
-            return enabledToolsByName;
+        return selectTools(
+                enabledToolsByName.keySet().stream().toList(),
+                configuredTools,
+                enabledToolsByName::get
+        );
+    }
+
+    public Map<String, BaseTool> selectTools(
+            List<String> configuredAgentTools,
+            List<String> configuredStageTools,
+            Function<String, BaseTool> toolResolver
+    ) {
+        if (toolResolver == null) {
+            return Map.of();
         }
+        List<String> effective = configuredStageTools == null || configuredStageTools.isEmpty()
+                ? (configuredAgentTools == null ? List.of() : configuredAgentTools)
+                : configuredStageTools;
         Map<String, BaseTool> selected = new LinkedHashMap<>();
-        for (String raw : configuredTools) {
+        for (String raw : effective) {
             String name = normalize(raw).toLowerCase(Locale.ROOT);
             if (!StringUtils.hasText(name)) {
                 continue;
             }
-            BaseTool tool = enabledToolsByName.get(name);
+            BaseTool tool = toolResolver.apply(name);
             if (tool != null) {
                 selected.put(name, tool);
             }
@@ -455,6 +476,35 @@ public class OrchestratorServices {
                 String rawMessage = result.path("error").asText(null);
                 String message = StringUtils.hasText(rawMessage) ? rawMessage.trim() : FRONTEND_TIMEOUT_MESSAGE;
                 return new FrontendSubmitTimeoutException(message);
+            } catch (Exception ignored) {
+                // ignore malformed tool results and continue scanning
+            }
+        }
+        return null;
+    }
+
+    private FatalToolExecutionException detectFatalToolExecution(List<ToolExecutionService.ToolExecutionEvent> events) {
+        if (events == null || events.isEmpty()) {
+            return null;
+        }
+        for (ToolExecutionService.ToolExecutionEvent event : events) {
+            if (event == null || !StringUtils.hasText(event.resultText())) {
+                continue;
+            }
+            try {
+                JsonNode result = objectMapper.readTree(event.resultText());
+                if (!result.isObject()) {
+                    continue;
+                }
+                String code = normalize(result.path("code").asText("")).toLowerCase(Locale.ROOT);
+                if (!ToolExecutionService.FATAL_TOOL_ERROR_CODES.contains(code)) {
+                    continue;
+                }
+                String rawMessage = result.path("error").asText(null);
+                String message = StringUtils.hasText(rawMessage)
+                        ? rawMessage.trim()
+                        : "Tool invocation failed: " + normalize(event.toolName());
+                return new FatalToolExecutionException(code, message);
             } catch (Exception ignored) {
                 // ignore malformed tool results and continue scanning
             }
