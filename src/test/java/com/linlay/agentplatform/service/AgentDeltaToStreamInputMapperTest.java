@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AgentDeltaToStreamInputMapperTest {
 
@@ -355,6 +356,29 @@ class AgentDeltaToStreamInputMapperTest {
         assertThat(requestQuery.payload()).containsEntry("teamId", "a1b2c3d4e5f6");
     }
 
+    @Test
+    void shouldRejectRunStartWithoutAgentKey() {
+        assertThatThrownBy(() -> new StreamEventAssembler()
+                .begin(new StreamRequest.Query(
+                        "req_missing_agent_1",
+                        "chat_missing_agent_1",
+                        "user",
+                        "missing agent",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        true,
+                        "missing-agent-chat",
+                        "run_missing_agent_1"
+                )))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("run.start requires non-blank agentKey")
+                .hasMessageContaining("chatId=chat_missing_agent_1")
+                .hasMessageContaining("runId=run_missing_agent_1");
+    }
+
     private List<StreamEvent> assembleEvents(AgentDeltaToStreamInputMapper mapper, List<AgentDelta> deltas) {
         StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
                 .begin(new StreamRequest.Query(
@@ -362,7 +386,7 @@ class AgentDeltaToStreamInputMapperTest {
                         "chat_1",
                         "user",
                         "test",
-                        null,
+                        "demoModePlain",
                         null,
                         null,
                         null,

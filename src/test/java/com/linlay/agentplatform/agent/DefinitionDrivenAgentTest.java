@@ -1986,7 +1986,7 @@ class DefinitionDrivenAgentTest {
                         chatId,
                         "user",
                         "test",
-                        null,
+                        "demoModeReact",
                         null,
                         null,
                         null,

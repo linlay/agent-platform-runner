@@ -716,6 +716,7 @@ public class ChatRecordStore {
             int persistedIndex = 0;
 
             Map<String, Object> requestQueryPayload = buildRequestQueryPayload(chatId, run);
+            String runAgentKey = requireRunStartAgentKey(chatId, run.runId, requestQueryPayload.get("agentKey"));
             events.add(event("request.query", timestampCursor, seq++, requestQueryPayload));
 
             if (!emittedChatStart) {
@@ -733,7 +734,7 @@ public class ChatRecordStore {
             Map<String, Object> runStartPayload = new LinkedHashMap<>();
             runStartPayload.put("runId", run.runId);
             runStartPayload.put("chatId", chatId);
-            putIfNonNull(runStartPayload, "agentKey", requestQueryPayload.get("agentKey"));
+            runStartPayload.put("agentKey", runAgentKey);
             events.add(event("run.start", timestampCursor, seq++, runStartPayload));
 
             Map<String, Object> planUpdate = planUpdateEvent(run.plan, chatId, timestampCursor);
@@ -885,6 +886,15 @@ public class ChatRecordStore {
         putIfNonNull(payload, "scene", query.get("scene"));
         putIfNonNull(payload, "stream", query.get("stream"));
         return payload;
+    }
+
+    private String requireRunStartAgentKey(String chatId, String runId, Object agentKeyValue) {
+        if (agentKeyValue instanceof String text && StringUtils.hasText(text)) {
+            return text.trim();
+        }
+        throw new IllegalStateException(
+                "run.start requires non-blank agentKey in history query for chatId=" + chatId + ", runId=" + runId
+        );
     }
 
     private IdBinding resolveBindingForAssistantToolCall(

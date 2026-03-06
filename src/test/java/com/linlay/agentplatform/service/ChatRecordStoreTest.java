@@ -63,7 +63,7 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void loadChatShouldKeepRunStartCompatibleWhenQueryHasNoAgentKey() throws Exception {
+    void loadChatShouldFailFastWhenRunQueryMissingAgentKey() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174023";
         Path chatDir = tempDir.resolve("chats");
         writeIndex(chatDir, chatId, "兼容会话", 1707000800000L, 1707000800000L);
@@ -80,13 +80,11 @@ class ChatRecordStoreTest {
                 )));
 
         ChatRecordStore store = newStore();
-        ChatDetailResponse detail = store.loadChat(chatId, false);
-
-        Map<String, Object> runStart = detail.events().stream()
-                .filter(event -> "run.start".equals(event.get("type")))
-                .findFirst()
-                .orElseThrow();
-        assertThat(runStart).doesNotContainKey("agentKey");
+        assertThatThrownBy(() -> store.loadChat(chatId, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("run.start requires non-blank agentKey in history query")
+                .hasMessageContaining("chatId=" + chatId)
+                .hasMessageContaining("runId=run_compat_1");
     }
 
     @Test

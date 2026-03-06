@@ -146,9 +146,10 @@ public class StreamEventAssembler {
                 }
 
                 Map<String, Object> runPayload = new LinkedHashMap<>();
+                String runAgentKey = requireRunStartAgentKey(query.agentKey(), query.chatId(), runId);
                 runPayload.put("runId", runId);
                 runPayload.put("chatId", query.chatId());
-                putIfNonNull(runPayload, "agentKey", query.agentKey());
+                runPayload.put("agentKey", runAgentKey);
                 bootstrapEvents.add(next("run.start", runPayload));
                 return;
             }
@@ -644,6 +645,13 @@ public class StreamEventAssembler {
             return fallback;
         }
         return value;
+    }
+
+    private static String requireRunStartAgentKey(String agentKey, String chatId, String runId) {
+        if (agentKey == null || agentKey.isBlank()) {
+            throw new IllegalStateException("run.start requires non-blank agentKey for chatId=" + chatId + ", runId=" + runId);
+        }
+        return agentKey.trim();
     }
 
     private static void putIfNonNull(Map<String, Object> payload, String key, Object value) {
