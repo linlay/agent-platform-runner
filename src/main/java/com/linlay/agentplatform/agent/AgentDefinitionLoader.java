@@ -55,10 +55,6 @@ public class AgentDefinitionLoader {
     }
 
     public List<AgentDefinition> loadAll() {
-        return loadExternalAgents();
-    }
-
-    private List<AgentDefinition> loadExternalAgents() {
         Path dir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
         if (!Files.exists(dir)) {
             log.debug("External agents dir does not exist, skip loading: {}", dir);
@@ -316,18 +312,18 @@ public class AgentDefinitionLoader {
         return modelConfig != null && StringUtils.hasText(modelConfig.getModelKey());
     }
 
-    private List<String> normalizeToolNames(List<String> rawTools) {
-        if (rawTools == null || rawTools.isEmpty()) {
+    private List<String> normalizeNames(List<String> rawValues) {
+        if (rawValues == null || rawValues.isEmpty()) {
             return List.of();
         }
-        List<String> tools = new ArrayList<>();
-        for (String raw : rawTools) {
+        List<String> normalized = new ArrayList<>();
+        for (String raw : rawValues) {
             if (raw == null || raw.isBlank()) {
                 continue;
             }
-            tools.add(raw.trim().toLowerCase(Locale.ROOT));
+            normalized.add(raw.trim().toLowerCase(Locale.ROOT));
         }
-        return List.copyOf(tools);
+        return List.copyOf(normalized);
     }
 
     private Object normalizeIcon(JsonNode icon) {
@@ -357,20 +353,6 @@ public class AgentDefinitionLoader {
             normalized.put("color", color.trim());
         }
         return normalized;
-    }
-
-    private List<String> normalizeSkillNames(List<String> rawSkills) {
-        if (rawSkills == null || rawSkills.isEmpty()) {
-            return List.of();
-        }
-        List<String> skills = new ArrayList<>();
-        for (String raw : rawSkills) {
-            if (raw == null || raw.isBlank()) {
-                continue;
-            }
-            skills.add(raw.trim().toLowerCase(Locale.ROOT));
-        }
-        return List.copyOf(skills);
     }
 
     private List<String> collectToolNames(AgentConfigFile config) {
@@ -405,9 +387,9 @@ public class AgentDefinitionLoader {
             return List.of();
         }
         List<String> merged = new ArrayList<>();
-        merged.addAll(normalizeSkillNames(config.getSkills()));
+        merged.addAll(normalizeNames(config.getSkills()));
         if (config.getSkillConfig() != null) {
-            merged.addAll(normalizeSkillNames(config.getSkillConfig().getSkills()));
+            merged.addAll(normalizeNames(config.getSkillConfig().getSkills()));
         }
         return merged.stream().distinct().toList();
     }
@@ -453,9 +435,9 @@ public class AgentDefinitionLoader {
             return List.of();
         }
         List<String> merged = new ArrayList<>();
-        merged.addAll(normalizeToolNames(toolConfig.getBackends()));
-        merged.addAll(normalizeToolNames(toolConfig.getFrontends()));
-        merged.addAll(normalizeToolNames(toolConfig.getActions()));
+        merged.addAll(normalizeNames(toolConfig.getBackends()));
+        merged.addAll(normalizeNames(toolConfig.getFrontends()));
+        merged.addAll(normalizeNames(toolConfig.getActions()));
         return merged;
     }
 
@@ -509,53 +491,6 @@ public class AgentDefinitionLoader {
         if (modelKey.isBlank()) {
             return null;
         }
-        if (modelRegistryService != null) {
-            return modelRegistryService.find(modelKey).orElse(null);
-        }
-        return fallbackModels().get(modelKey);
-    }
-
-    private Map<String, ModelDefinition> fallbackModels() {
-        Map<String, ModelDefinition> map = new LinkedHashMap<>();
-        map.put("bailian-qwen3-max", new ModelDefinition(
-                "bailian-qwen3-max",
-                "bailian",
-                ModelProtocol.OPENAI,
-                "qwen3-max",
-                false,
-                true,
-                null,
-                null,
-                null,
-                null,
-                null
-        ));
-        map.put("bailian-qwen3_5-plus", new ModelDefinition(
-                "bailian-qwen3_5-plus",
-                "bailian",
-                ModelProtocol.OPENAI,
-                "qwen3.5-plus",
-                true,
-                true,
-                null,
-                null,
-                null,
-                null,
-                null
-        ));
-        map.put("siliconflow-deepseek-v3_2", new ModelDefinition(
-                "siliconflow-deepseek-v3_2",
-                "siliconflow",
-                ModelProtocol.OPENAI,
-                "deepseek-ai/DeepSeek-V3.2",
-                true,
-                true,
-                null,
-                null,
-                null,
-                null,
-                null
-        ));
-        return map;
+        return modelRegistryService == null ? null : modelRegistryService.find(modelKey).orElse(null);
     }
 }

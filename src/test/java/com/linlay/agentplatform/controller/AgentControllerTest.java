@@ -7,10 +7,12 @@ import com.linlay.agentplatform.service.McpCapabilitySyncService;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.service.ViewportRegistryService;
 import com.linlay.agentplatform.team.TeamCatalogProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
+import com.linlay.agentplatform.testsupport.StubLlmService;
 import com.linlay.agentplatform.tool.CapabilityDescriptor;
 import com.linlay.agentplatform.tool.CapabilityKind;
 import org.junit.jupiter.api.BeforeEach;
@@ -108,21 +110,10 @@ class AgentControllerTest {
         @Bean
         @Primary
         LlmService llmService() {
-            return new LlmService(null, null) {
+            return new StubLlmService() {
                 @Override
-                public Flux<String> streamContent(String providerKey, String model, String systemPrompt, String userPrompt) {
+                protected Flux<String> contentBySpec(LlmCallSpec spec) {
                     return Flux.just("这是", "测试", "输出");
-                }
-
-                @Override
-                public Flux<String> streamContent(
-                        String providerKey,
-                        String model,
-                        String systemPrompt,
-                        String userPrompt,
-                        String stage
-                ) {
-                    return streamContent(providerKey, model, systemPrompt, userPrompt);
                 }
 
                 @Override

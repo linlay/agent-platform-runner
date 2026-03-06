@@ -127,9 +127,9 @@ public class ChatWindowMemoryStore {
         StepLine line = new StepLine();
         line.chatId = chatId;
         line.runId = normalizedRunId;
-        line.stage = hasText(stage) ? stage.trim() : "oneshot";
+        line.stage = StringUtils.hasText(stage) ? stage.trim() : "oneshot";
         line.seq = seq;
-        line.taskId = hasText(taskId) ? taskId.trim() : null;
+        line.taskId = StringUtils.hasText(taskId) ? taskId.trim() : null;
         line.updatedAt = now;
         line.system = normalizedSystem;
         line.plan = normalizePlanSnapshot(plan);
@@ -278,10 +278,10 @@ public class ChatWindowMemoryStore {
         stored.role = "assistant";
         stored.reasoningContent = textContent(message.text());
         stored.ts = ts;
-        stored.reasoningId = hasText(message.reasoningId())
+        stored.reasoningId = StringUtils.hasText(message.reasoningId())
                 ? message.reasoningId().trim()
                 : autoReasoningId(runId, index);
-        stored.msgId = hasText(message.msgId()) ? message.msgId().trim() : null;
+        stored.msgId = StringUtils.hasText(message.msgId()) ? message.msgId().trim() : null;
         stored.timing = positiveOrNull(message.timing());
         stored.usage = usageOrNull(message.usage());
         return stored;
@@ -295,10 +295,10 @@ public class ChatWindowMemoryStore {
         stored.role = "assistant";
         stored.content = textContent(message.text());
         stored.ts = ts;
-        stored.contentId = hasText(message.contentId())
+        stored.contentId = StringUtils.hasText(message.contentId())
                 ? message.contentId().trim()
                 : autoContentId(runId, index);
-        stored.msgId = hasText(message.msgId()) ? message.msgId().trim() : null;
+        stored.msgId = StringUtils.hasText(message.msgId()) ? message.msgId().trim() : null;
         stored.timing = positiveOrNull(message.timing());
         stored.usage = usageOrNull(message.usage());
         return stored;
@@ -310,7 +310,7 @@ public class ChatWindowMemoryStore {
             Map<String, ToolIdentity> toolIdentityByCallId,
             Set<String> runtimeActionTools
     ) {
-        if (!hasText(message.name()) || !hasText(message.toolCallId()) || !hasText(message.toolArgs())) {
+        if (!StringUtils.hasText(message.name()) || !StringUtils.hasText(message.toolCallId()) || !StringUtils.hasText(message.toolArgs())) {
             return null;
         }
         String toolCallId = message.toolCallId().trim();
@@ -323,7 +323,7 @@ public class ChatWindowMemoryStore {
 
         StoredToolCall toolCall = new StoredToolCall();
         toolCall.id = toolCallId;
-        toolCall.type = hasText(message.toolCallType()) ? message.toolCallType().trim() : "function";
+        toolCall.type = StringUtils.hasText(message.toolCallType()) ? message.toolCallType().trim() : "function";
         FunctionCall function = new FunctionCall();
         function.name = toolName;
         function.arguments = message.toolArgs().trim();
@@ -333,7 +333,7 @@ public class ChatWindowMemoryStore {
         stored.role = "assistant";
         stored.toolCalls = List.of(toolCall);
         stored.ts = ts;
-        stored.msgId = hasText(message.msgId()) ? message.msgId().trim() : null;
+        stored.msgId = StringUtils.hasText(message.msgId()) ? message.msgId().trim() : null;
         if (identity.action) {
             stored.actionId = identity.id;
         } else {
@@ -350,7 +350,7 @@ public class ChatWindowMemoryStore {
             Map<String, ToolIdentity> toolIdentityByCallId,
             Set<String> runtimeActionTools
     ) {
-        if (!hasText(message.name()) || !hasText(message.toolCallId())) {
+        if (!StringUtils.hasText(message.name()) || !StringUtils.hasText(message.toolCallId())) {
             return null;
         }
         String toolCallId = message.toolCallId().trim();
@@ -480,7 +480,7 @@ public class ChatWindowMemoryStore {
             JsonNode node = objectMapper.readTree(rawLine);
             if (node != null && node.has("runId")) {
                 String runId = node.path("runId").asText(null);
-                return hasText(runId) ? runId : null;
+                return StringUtils.hasText(runId) ? runId : null;
             }
         } catch (Exception ignored) {
         }
@@ -510,7 +510,7 @@ public class ChatWindowMemoryStore {
     // ========= Spring Message Conversion =========
 
     private Message toSpringMessage(StoredMessage message) {
-        if (message == null || !hasText(message.role)) {
+        if (message == null || !StringUtils.hasText(message.role)) {
             return null;
         }
         String role = message.role.trim().toLowerCase();
@@ -525,23 +525,23 @@ public class ChatWindowMemoryStore {
 
     private Message toUserMessage(StoredMessage message) {
         String text = textFromContentParts(message.content);
-        return hasText(text) ? new UserMessage(text) : null;
+        return StringUtils.hasText(text) ? new UserMessage(text) : null;
     }
 
     private Message toSystemMessage(StoredMessage message) {
         String text = textFromContentParts(message.content);
-        return hasText(text) ? new SystemMessage(text) : null;
+        return StringUtils.hasText(text) ? new SystemMessage(text) : null;
     }
 
     private Message toAssistantMessage(StoredMessage message) {
         if (message.toolCalls != null && !message.toolCalls.isEmpty()) {
             List<AssistantMessage.ToolCall> toolCalls = new ArrayList<>();
             for (StoredToolCall toolCall : message.toolCalls) {
-                if (toolCall == null || toolCall.function == null || !hasText(toolCall.id) || !hasText(toolCall.function.name)) {
+                if (toolCall == null || toolCall.function == null || !StringUtils.hasText(toolCall.id) || !StringUtils.hasText(toolCall.function.name)) {
                     continue;
                 }
-                String type = hasText(toolCall.type) ? toolCall.type : "function";
-                String arguments = hasText(toolCall.function.arguments) ? toolCall.function.arguments : "{}";
+                String type = StringUtils.hasText(toolCall.type) ? toolCall.type : "function";
+                String arguments = StringUtils.hasText(toolCall.function.arguments) ? toolCall.function.arguments : "{}";
                 toolCalls.add(new AssistantMessage.ToolCall(
                         toolCall.id,
                         type,
@@ -562,11 +562,11 @@ public class ChatWindowMemoryStore {
         }
 
         String text = textFromContentParts(message.content);
-        return hasText(text) ? new AssistantMessage(text) : null;
+        return StringUtils.hasText(text) ? new AssistantMessage(text) : null;
     }
 
     private Message toToolMessage(StoredMessage message) {
-        if (!hasText(message.toolCallId) || !hasText(message.name)) {
+        if (!StringUtils.hasText(message.toolCallId) || !StringUtils.hasText(message.name)) {
             return null;
         }
         String responseData = textFromContentParts(message.content);
@@ -584,7 +584,7 @@ public class ChatWindowMemoryStore {
         }
         StringBuilder sb = new StringBuilder();
         for (ContentPart contentPart : contentParts) {
-            if (contentPart == null || !hasText(contentPart.text)) {
+            if (contentPart == null || !StringUtils.hasText(contentPart.text)) {
                 continue;
             }
             sb.append(contentPart.text);
@@ -593,7 +593,7 @@ public class ChatWindowMemoryStore {
     }
 
     private List<ContentPart> textContent(String text) {
-        if (!hasText(text)) {
+        if (!StringUtils.hasText(text)) {
             return null;
         }
         ContentPart part = new ContentPart();
@@ -636,12 +636,12 @@ public class ChatWindowMemoryStore {
             return null;
         }
         PlanSnapshot normalized = objectMapper.convertValue(source, PlanSnapshot.class);
-        if (normalized == null || !hasText(normalized.planId) || normalized.tasks == null || normalized.tasks.isEmpty()) {
+        if (normalized == null || !StringUtils.hasText(normalized.planId) || normalized.tasks == null || normalized.tasks.isEmpty()) {
             return null;
         }
         List<PlanTaskSnapshot> tasks = new ArrayList<>();
         for (PlanTaskSnapshot task : normalized.tasks) {
-            if (task == null || !hasText(task.taskId) || !hasText(task.description)) {
+            if (task == null || !StringUtils.hasText(task.taskId) || !StringUtils.hasText(task.description)) {
                 continue;
             }
             PlanTaskSnapshot item = new PlanTaskSnapshot();
@@ -665,7 +665,7 @@ public class ChatWindowMemoryStore {
         }
         List<SystemMessageSnapshot> normalized = new ArrayList<>();
         for (SystemMessageSnapshot message : messages) {
-            if (message == null || !hasText(message.role) || !hasText(message.content)) {
+            if (message == null || !StringUtils.hasText(message.role) || !StringUtils.hasText(message.content)) {
                 continue;
             }
             SystemMessageSnapshot item = new SystemMessageSnapshot();
@@ -682,7 +682,7 @@ public class ChatWindowMemoryStore {
         }
         List<SystemToolSnapshot> normalized = new ArrayList<>();
         for (SystemToolSnapshot tool : tools) {
-            if (tool == null || !hasText(tool.type) || !hasText(tool.name)) {
+            if (tool == null || !StringUtils.hasText(tool.type) || !StringUtils.hasText(tool.name)) {
                 continue;
             }
             SystemToolSnapshot item = new SystemToolSnapshot();
@@ -701,7 +701,7 @@ public class ChatWindowMemoryStore {
         boolean action = "action".equalsIgnoreCase(normalizeType(toolType))
                 || isActionTool(toolName)
                 || isRuntimeActionTool(runtimeActionTools, toolName);
-        String id = hasText(toolCallId) ? toolCallId.trim() : shortId("t", toolCallId);
+        String id = StringUtils.hasText(toolCallId) ? toolCallId.trim() : shortId("t", toolCallId);
         if (action) {
             return new ToolIdentity(id, true);
         }
@@ -709,14 +709,14 @@ public class ChatWindowMemoryStore {
     }
 
     private String normalizeType(String rawType) {
-        if (!hasText(rawType)) {
+        if (!StringUtils.hasText(rawType)) {
             return "";
         }
         return rawType.trim().toLowerCase();
     }
 
     private boolean isActionTool(String toolName) {
-        if (!hasText(toolName)) {
+        if (!StringUtils.hasText(toolName)) {
             return false;
         }
         String normalized = normalizeToolName(toolName);
@@ -725,7 +725,7 @@ public class ChatWindowMemoryStore {
             return false;
         }
         for (String configured : actionTools) {
-            if (hasText(configured) && normalized.equals(normalizeToolName(configured))) {
+            if (StringUtils.hasText(configured) && normalized.equals(normalizeToolName(configured))) {
                 return true;
             }
         }
@@ -738,7 +738,7 @@ public class ChatWindowMemoryStore {
         }
         Set<String> names = new HashSet<>();
         for (SystemToolSnapshot tool : systemSnapshot.tools) {
-            if (tool == null || !hasText(tool.type) || !hasText(tool.name)) {
+            if (tool == null || !StringUtils.hasText(tool.type) || !StringUtils.hasText(tool.name)) {
                 continue;
             }
             if (!"action".equalsIgnoreCase(tool.type.trim())) {
@@ -750,7 +750,7 @@ public class ChatWindowMemoryStore {
     }
 
     private boolean isRuntimeActionTool(Set<String> runtimeActionTools, String toolName) {
-        if (runtimeActionTools == null || runtimeActionTools.isEmpty() || !hasText(toolName)) {
+        if (runtimeActionTools == null || runtimeActionTools.isEmpty() || !StringUtils.hasText(toolName)) {
             return false;
         }
         return runtimeActionTools.contains(normalizeToolName(toolName));
@@ -764,7 +764,7 @@ public class ChatWindowMemoryStore {
 
     private String shortId(String prefix, String seed) {
         String shortPart;
-        if (hasText(seed)) {
+        if (StringUtils.hasText(seed)) {
             shortPart = UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8))
                     .toString()
                     .replace("-", "")
@@ -790,19 +790,19 @@ public class ChatWindowMemoryStore {
     }
 
     private String normalizeRunId(String runId) {
-        if (hasText(runId)) {
+        if (StringUtils.hasText(runId)) {
             return runId.trim();
         }
         return toBase36Now();
     }
 
     private String autoReasoningId(String runId, int index) {
-        String normalizedRunId = hasText(runId) ? runId.trim() : toBase36Now();
+        String normalizedRunId = StringUtils.hasText(runId) ? runId.trim() : toBase36Now();
         return normalizedRunId + "_r_" + Math.max(1, index + 1);
     }
 
     private String autoContentId(String runId, int index) {
-        String normalizedRunId = hasText(runId) ? runId.trim() : toBase36Now();
+        String normalizedRunId = StringUtils.hasText(runId) ? runId.trim() : toBase36Now();
         return normalizedRunId + "_c_" + Math.max(1, index + 1);
     }
 
@@ -811,7 +811,7 @@ public class ChatWindowMemoryStore {
     }
 
     private String nullable(String value) {
-        return hasText(value) ? value.trim() : null;
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private String defaultString(String value) {
@@ -841,10 +841,6 @@ public class ChatWindowMemoryStore {
         } catch (Exception ignored) {
             return StandardCharsets.UTF_8;
         }
-    }
-
-    private boolean hasText(String value) {
-        return StringUtils.hasText(value);
     }
 
     private boolean isValidChatId(String chatId) {

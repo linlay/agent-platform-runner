@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.DataCatalogProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.service.ChatRecordStore;
+import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.testsupport.StubLlmService;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -103,15 +105,10 @@ class ChatImageTokenIntegrationTest {
         @Bean
         @Primary
         LlmService llmService() {
-            return new LlmService(null, null) {
+            return new StubLlmService() {
                 @Override
-                public Flux<String> streamContent(String providerKey, String model, String systemPrompt, String userPrompt) {
+                protected Flux<String> contentBySpec(LlmCallSpec spec) {
                     return Flux.just("hello", " ", "world");
-                }
-
-                @Override
-                public Flux<String> streamContent(String providerKey, String model, String systemPrompt, String userPrompt, String stage) {
-                    return streamContent(providerKey, model, systemPrompt, userPrompt);
                 }
 
                 @Override

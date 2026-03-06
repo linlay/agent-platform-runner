@@ -63,72 +63,6 @@ public class DefinitionDrivenAgent implements Agent {
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
             ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator
-    ) {
-        this(
-                definition,
-                llmService,
-                toolRegistry,
-                objectMapper,
-                chatWindowMemoryStore,
-                frontendSubmitCoordinator,
-                null,
-                new LoggingAgentProperties(),
-                null
-        );
-    }
-
-    public DefinitionDrivenAgent(
-            AgentDefinition definition,
-            LlmService llmService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator,
-            SkillRegistryService skillRegistryService
-    ) {
-        this(
-                definition,
-                llmService,
-                toolRegistry,
-                objectMapper,
-                chatWindowMemoryStore,
-                frontendSubmitCoordinator,
-                skillRegistryService,
-                new LoggingAgentProperties(),
-                null
-        );
-    }
-
-    public DefinitionDrivenAgent(
-            AgentDefinition definition,
-            LlmService llmService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator,
-            SkillRegistryService skillRegistryService,
-            LoggingAgentProperties loggingAgentProperties
-    ) {
-        this(
-                definition,
-                llmService,
-                toolRegistry,
-                objectMapper,
-                chatWindowMemoryStore,
-                frontendSubmitCoordinator,
-                skillRegistryService,
-                loggingAgentProperties,
-                null
-        );
-    }
-
-    public DefinitionDrivenAgent(
-            AgentDefinition definition,
-            LlmService llmService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
@@ -310,10 +244,6 @@ public class DefinitionDrivenAgent implements Agent {
 
     private String normalizeToolName(String raw) {
         return normalize(raw, "").trim().toLowerCase(Locale.ROOT);
-    }
-
-    private String sanitize(String input) {
-        return normalize(input, "tool").replaceAll("[^a-zA-Z0-9_]", "_").toLowerCase(Locale.ROOT);
     }
 
     private SkillPromptBundle resolveSkillPrompts() {
@@ -719,8 +649,6 @@ public class DefinitionDrivenAgent implements Agent {
             if (delta.stageMarker() != null) {
                 String marker = delta.stageMarker().trim();
                 String newStage = parseStage(marker);
-                String newTaskId = parseTaskId(marker);
-
                 // plan-draft and plan-generate merge into one "plan" step
                 if ("plan".equals(newStage) && currentStep != null && "plan".equals(currentStep.stage)) {
                     // continue same plan step, don't flush
@@ -728,7 +656,7 @@ public class DefinitionDrivenAgent implements Agent {
                 }
 
                 flushCurrentStep();
-                currentStep = new StepAccumulator(newStage, newTaskId);
+                currentStep = new StepAccumulator(newStage, null);
                 return;
             }
 
@@ -894,13 +822,6 @@ public class DefinitionDrivenAgent implements Agent {
                 return "summary";
             }
             return marker;
-        }
-
-        private String parseTaskId(String marker) {
-            if (marker.startsWith("execute-task-")) {
-                return null;
-            }
-            return null;
         }
 
         private ChatWindowMemoryStore.PlanSnapshot toPlanSnapshot(AgentDelta.PlanUpdate planUpdate) {

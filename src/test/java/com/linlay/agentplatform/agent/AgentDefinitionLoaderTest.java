@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.mode.OneshotMode;
 import com.linlay.agentplatform.agent.mode.PlanExecuteMode;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.testsupport.TestModelRegistryServices;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -47,7 +48,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
@@ -90,7 +91,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
@@ -118,7 +119,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
 
@@ -142,7 +143,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
 
@@ -169,7 +170,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
@@ -211,7 +212,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         AgentDefinition definition = loader.loadAll().stream()
                 .filter(item -> "demoModePlanExecute".equals(item.id()))
@@ -272,7 +273,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
 
@@ -301,7 +302,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         AgentDefinition definition = loader.loadAll().stream()
                 .filter(item -> "skills_top_level".equals(item.id()))
@@ -331,7 +332,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         AgentDefinition definition = loader.loadAll().stream()
                 .filter(item -> "skills_alias".equals(item.id()))
@@ -365,7 +366,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         AgentDefinition definition = loader.loadAll().stream()
                 .filter(item -> "demoModePlainSkillMath".equals(item.id()))
@@ -395,7 +396,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         AgentDefinition definition = loader.loadAll().stream()
                 .filter(item -> "inner_model_only".equals(item.id()))
@@ -425,7 +426,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
 
@@ -458,7 +459,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         AgentDefinition definition = loader.loadAll().stream()
                 .filter(item -> "inherit_plan".equals(item.id()))
@@ -506,7 +507,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         AgentDefinition definition = loader.loadAll().stream()
                 .filter(item -> "deep_thinking_plan".equals(item.id()))
@@ -570,7 +571,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         AgentDefinition definition = loader.loadAll().stream()
                 .filter(item -> "runtime_prompts".equals(item.id()))
@@ -704,7 +705,7 @@ class AgentDefinitionLoaderTest {
 
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
@@ -716,9 +717,13 @@ class AgentDefinitionLoaderTest {
     private Map<String, AgentDefinition> loadById() {
         AgentCatalogProperties properties = new AgentCatalogProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
         return loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
+    }
+
+    private AgentDefinitionLoader newLoader(AgentCatalogProperties properties) {
+        return new AgentDefinitionLoader(new ObjectMapper(), properties, TestModelRegistryServices.standardRegistry());
     }
 
     private void writePlanExecuteWithDisallowedDeepThinking(

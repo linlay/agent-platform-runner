@@ -32,7 +32,7 @@ class ToolRegistryTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final CityDateTime cityDateTimeTool = new CityDateTime();
-    private final SystemBash bashTool = new SystemBash();
+    private final SystemBash bashTool = TestSystemBashFactory.defaultBash();
 
     @Test
     void cityDateTimeShouldReturnRealtimeTimeWithTimezone() {
@@ -199,7 +199,7 @@ class ToolRegistryTest {
     void bashToolShouldRejectRelativePathWhenWorkingDirectoryNotInAllowedPaths(@TempDir Path tempDir) throws IOException {
         Path file = tempDir.resolve("demo.txt");
         Files.writeString(file, "hello");
-        SystemBash localBashTool = new SystemBash(tempDir, List.of(), Set.of("cat"), Set.of());
+        SystemBash localBashTool = TestSystemBashFactory.bash(tempDir, List.of(), Set.of("cat"), Set.of());
 
         JsonNode result = localBashTool.invoke(Map.of("command", "cat demo.txt"));
 
@@ -212,7 +212,7 @@ class ToolRegistryTest {
     void bashToolShouldAllowRelativeAndAbsolutePathsInsideAllowedPaths(@TempDir Path tempDir) throws IOException {
         Path file = tempDir.resolve("demo.txt");
         Files.writeString(file, "hello");
-        SystemBash localBashTool = new SystemBash(tempDir, List.of(tempDir), Set.of("cat"), Set.of());
+        SystemBash localBashTool = TestSystemBashFactory.bash(tempDir, List.of(tempDir), Set.of("cat"), Set.of());
 
         JsonNode relativeResult = localBashTool.invoke(Map.of("command", "cat demo.txt"));
         JsonNode absoluteResult = localBashTool.invoke(Map.of("command", "cat " + file));
@@ -230,7 +230,7 @@ class ToolRegistryTest {
         Path keyFile = externalDir.resolve("demo.key");
         Files.writeString(keyFile, "secret");
 
-        SystemBash localBashTool = new SystemBash(
+        SystemBash localBashTool = TestSystemBashFactory.bash(
                 Path.of(System.getProperty("user.dir", ".")),
                 List.of(externalDir),
                 Set.of("cat"),
@@ -247,7 +247,7 @@ class ToolRegistryTest {
     void bashToolShouldUseAllowedCommandsAsDefaultPathCheckedCommands(@TempDir Path tempDir) throws IOException {
         Path file = tempDir.resolve("demo.txt");
         Files.writeString(file, "hello");
-        SystemBash localBashTool = new SystemBash(tempDir, List.of(), Set.of("cat"), Set.of());
+        SystemBash localBashTool = TestSystemBashFactory.bash(tempDir, List.of(), Set.of("cat"), Set.of());
 
         JsonNode result = localBashTool.invoke(Map.of("command", "cat " + file));
 
@@ -257,7 +257,7 @@ class ToolRegistryTest {
 
     @Test
     void bashToolShouldAllowCustomConfiguredCommands(@TempDir Path tempDir) {
-        SystemBash localBashTool = new SystemBash(tempDir, List.of(), Set.of("echo", "ls"), Set.of("ls"));
+        SystemBash localBashTool = TestSystemBashFactory.bash(tempDir, List.of(), Set.of("echo", "ls"), Set.of("ls"));
 
         JsonNode echoResult = localBashTool.invoke(Map.of("command", "echo hello"));
         assertThat(echoResult.asText()).contains("exitCode: 0");
