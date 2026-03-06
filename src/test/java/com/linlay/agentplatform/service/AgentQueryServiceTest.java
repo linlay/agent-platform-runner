@@ -28,6 +28,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -218,6 +219,50 @@ class AgentQueryServiceTest {
         verify(chatRecordStore).onRunCompleted(any(ChatRecordStore.RunCompletion.class));
     }
 
+    @Test
+    void streamShouldHideClientInvisibleToolEvents() {
+        Agent agent = mock(Agent.class);
+        when(agent.stream(any(AgentRequest.class))).thenReturn(Flux.<AgentDelta>empty());
+
+        ToolRegistry toolRegistry = mock(ToolRegistry.class);
+        when(toolRegistry.capability("_plan_add_tasks_")).thenReturn(Optional.of(hiddenCapability("_plan_add_tasks_")));
+
+        com.linlay.agentplatform.stream.service.StreamSseStreamer streamer = mock(com.linlay.agentplatform.stream.service.StreamSseStreamer.class);
+        when(streamer.stream(any(StreamRequest.class), any())).thenReturn(Flux.just(
+                ServerSentEvent.builder("{\"type\":\"tool.start\",\"toolName\":\"_plan_add_tasks_\",\"toolId\":\"call_hidden_1\",\"runId\":\"run-1\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"tool.args\",\"toolId\":\"call_hidden_1\",\"delta\":\"{}\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"tool.end\",\"toolId\":\"call_hidden_1\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"tool.result\",\"toolId\":\"call_hidden_1\",\"result\":\"ok\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"content.delta\",\"delta\":\"final\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"run.complete\",\"runId\":\"run-1\",\"timestamp\":200}").build()
+        ));
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        AgentQueryService service = new AgentQueryService(
+                mock(AgentRegistry.class),
+                streamer,
+                objectMapper,
+                chatRecordStore,
+                toolRegistry,
+                mock(ViewportRegistryService.class),
+                new FrontendToolProperties(),
+                mock(TeamRegistryService.class)
+        );
+
+        String chatId = UUID.randomUUID().toString();
+        AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
+                agent,
+                new StreamRequest.Query("req-1", chatId, "user", "fallback", "demo", null, null, null, null, true, "chat", "run-1"),
+                new AgentRequest("fallback", chatId, "req-1", "run-1", Map.of())
+        );
+
+        List<ServerSentEvent<String>> events = service.stream(session).collectList().block();
+        assertThat(events).hasSize(2);
+        assertThat(events.stream().map(ServerSentEvent::data))
+                .allMatch(item -> item.contains("\"content.delta\"") || item.contains("\"run.complete\""));
+        verify(chatRecordStore, times(2)).appendEvent(any(String.class), any(String.class));
+    }
+
     private CapabilityDescriptor frontendCapability() {
         return new CapabilityDescriptor(
                 "confirm_dialog",
@@ -225,6 +270,7 @@ class AgentQueryServiceTest {
                 "",
                 Map.of("type", "object"),
                 false,
+                true,
                 CapabilityKind.FRONTEND,
                 "frontend",
                 null,
@@ -232,6 +278,24 @@ class AgentQueryServiceTest {
                 null,
                 "confirm_dialog",
                 "/tmp/confirm_dialog.frontend"
+        );
+    }
+
+    private CapabilityDescriptor hiddenCapability(String toolName) {
+        return new CapabilityDescriptor(
+                toolName,
+                "hidden",
+                "",
+                Map.of("type", "object"),
+                false,
+                false,
+                CapabilityKind.BACKEND,
+                "function",
+                null,
+                "local",
+                null,
+                null,
+                "/tmp/hidden.backend"
         );
     }
 

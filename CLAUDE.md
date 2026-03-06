@@ -455,6 +455,7 @@ type=html, key=show_weather_card
 - plain 模式（当前无 plan）不应出现 `task.*`，叶子事件直接归属 `run`
 - `GET /api/ap/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件，并保留 `tool.result` / `action.result`
 - 历史里 `run.complete` 每个 run 都保留，`chat.start` 仅首次一次
+- `/api/ap/query` 在流式输出结束时追加传输层终止帧 `data:[DONE]`；该 sentinel 不属于 Event Model v2 业务事件，也不写入 chat 历史事件。
 
 ## Chat Memory V3（JSONL）
 

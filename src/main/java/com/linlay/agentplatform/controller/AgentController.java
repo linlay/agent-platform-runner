@@ -65,6 +65,8 @@ import java.util.Map;
 public class AgentController {
 
     private static final Logger log = LoggerFactory.getLogger(AgentController.class);
+    private static final String SSE_EVENT_MESSAGE = "message";
+    private static final String SSE_DONE_SENTINEL = "[DONE]";
 
     private final AgentRegistry agentRegistry;
     private final AgentQueryService agentQueryService;
@@ -218,6 +220,10 @@ public class AgentController {
         if (StringUtils.hasText(chatImageToken)) {
             stream = stream.map(event -> attachChatImageTokenForChatStart(event, chatImageToken));
         }
+        stream = stream.concatWith(Flux.just(ServerSentEvent.<String>builder()
+                .event(SSE_EVENT_MESSAGE)
+                .data(SSE_DONE_SENTINEL)
+                .build()));
         return sseFlushWriter.write(response, stream);
     }
 
@@ -374,6 +380,7 @@ public class AgentController {
                 tool.afterCallHint(),
                 tool.parametersSchema(),
                 false,
+                true,
                 CapabilityKind.BACKEND,
                 "function",
                 null,

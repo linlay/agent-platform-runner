@@ -67,6 +67,7 @@ class CapabilityRegistryServiceTest {
         assertThat(backend.kind()).isEqualTo(CapabilityKind.BACKEND);
         assertThat(backend.toolType()).isEqualTo("function");
         assertThat(backend.afterCallHint()).isEqualTo("bash prompt");
+        assertThat(backend.clientVisible()).isTrue();
         assertThat(service.find("show_weather_card")).isEmpty();
 
         assertThat(action.kind()).isEqualTo(CapabilityKind.ACTION);
@@ -142,6 +143,34 @@ class CapabilityRegistryServiceTest {
         assertThat(frontend.viewportKey()).isEqualTo("show_form");
 
         assertThat(service.find("legacy_html_frontend")).isEmpty();
+    }
+
+    @Test
+    void shouldLoadYamlCapabilityContentAndClientVisibleFlag() throws Exception {
+        Path toolsDir = tempDir.resolve("tools");
+        Files.createDirectories(toolsDir);
+
+        Files.writeString(toolsDir.resolve("hidden_yaml.backend"), """
+                tools:
+                  - type: function
+                    name: hidden_yaml_tool
+                    description: hidden yaml tool
+                    clientVisible: false
+                    parameters:
+                      type: object
+                """);
+
+        CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
+        properties.setExternalDir(toolsDir.toString());
+
+        CapabilityRegistryService service = new CapabilityRegistryService(
+                new ObjectMapper(),
+                properties
+        );
+
+        CapabilityDescriptor descriptor = service.find("hidden_yaml_tool").orElseThrow();
+        assertThat(descriptor.kind()).isEqualTo(CapabilityKind.BACKEND);
+        assertThat(descriptor.clientVisible()).isFalse();
     }
 
     @Test

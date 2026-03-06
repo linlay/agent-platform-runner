@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.config.CapabilityCatalogProperties;
 import com.linlay.agentplatform.service.CatalogDiff;
 
@@ -38,6 +39,7 @@ public class CapabilityRegistryService {
     private static final Set<String> FRONTEND_SUFFIXES = Set.of(".frontend");
 
     private final ObjectMapper objectMapper;
+    private final ObjectMapper yamlMapper;
     private final CapabilityCatalogProperties properties;
 
     private final Object reloadLock = new Object();
@@ -48,6 +50,7 @@ public class CapabilityRegistryService {
             CapabilityCatalogProperties properties
     ) {
         this.objectMapper = objectMapper;
+        this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.properties = properties;
         refreshCapabilities();
     }
@@ -118,7 +121,7 @@ public class CapabilityRegistryService {
     ) {
         JsonNode root;
         try {
-            root = objectMapper.readTree(Files.readString(file));
+            root = yamlMapper.readTree(Files.readString(file));
         } catch (Exception ex) {
             log.warn("Skip invalid capability file: {}", file, ex);
             return;
@@ -150,6 +153,7 @@ public class CapabilityRegistryService {
             String description = normalize(node.path("description").asText(""));
             String afterCallHint = normalize(node.path("afterCallHint").asText(""));
             Boolean strict = node.has("strict") ? node.path("strict").asBoolean(false) : null;
+            Boolean clientVisible = node.has("clientVisible") ? node.path("clientVisible").asBoolean(true) : null;
             String toolApi = node.has("toolApi") && node.get("toolApi").isTextual()
                     ? node.get("toolApi").asText()
                     : null;
@@ -160,6 +164,7 @@ public class CapabilityRegistryService {
                     afterCallHint,
                     parameters,
                     strict,
+                    clientVisible,
                     kind,
                     toolType,
                     toolApi,

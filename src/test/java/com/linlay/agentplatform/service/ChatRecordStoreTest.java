@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;
+import com.linlay.agentplatform.tool.CapabilityDescriptor;
+import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -12,9 +15,12 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ChatRecordStoreTest {
 
@@ -67,6 +73,11 @@ class ChatRecordStoreTest {
         String chatId = "123e4567-e89b-12d3-a456-426614174023";
         Path chatDir = tempDir.resolve("chats");
         writeIndex(chatDir, chatId, "兼容会话", 1707000800000L, 1707000800000L);
+        try (java.sql.Connection connection = java.sql.DriverManager.getConnection("jdbc:sqlite:" + chatDir.resolve("chats.db"));
+             java.sql.PreparedStatement statement = connection.prepareStatement("UPDATE CHATS SET AGENT_KEY_ = '' WHERE CHAT_ID_ = ?")) {
+            statement.setString(1, chatId);
+            statement.executeUpdate();
+        }
 
         Path historyPath = chatDir.resolve(chatId + ".json");
         Map<String, Object> queryWithoutAgentKey = new LinkedHashMap<>(query("run_compat_1", chatId, "你好", List.of()));
@@ -85,6 +96,32 @@ class ChatRecordStoreTest {
                 .hasMessageContaining("run.start requires non-blank agentKey in history query")
                 .hasMessageContaining("chatId=" + chatId)
                 .hasMessageContaining("runId=run_compat_1");
+    }
+
+    @Test
+    void loadChatShouldFallbackToBoundAgentKeyWhenQueryAgentKeyMissing() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174024";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "兼容会话", 1707000800000L, 1707000800000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".json");
+        Map<String, Object> queryWithoutAgentKey = new LinkedHashMap<>(query("run_compat_2", chatId, "你好", List.of()));
+        queryWithoutAgentKey.remove("agentKey");
+        writeJsonLine(historyPath, queryLine(chatId, "run_compat_2", queryWithoutAgentKey));
+        writeJsonLine(historyPath, stepLine(chatId, "run_compat_2", "oneshot", 1, null,
+                1707000800000L,
+                List.of(
+                        userMessage("你好", 1707000800000L),
+                        assistantContentMessage("你好，我是助手", 1707000800001L)
+                )));
+
+        ChatRecordStore store = newStore();
+        ChatDetailResponse detail = store.loadChat(chatId, false);
+        Map<String, Object> runStart = detail.events().stream()
+                .filter(event -> "run.start".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(runStart).containsEntry("agentKey", "demo");
     }
 
     @Test
@@ -138,6 +175,47 @@ class ChatRecordStoreTest {
         assertThat(countType(detail.events(), "action.start")).isEqualTo(0);
         assertThat(countType(detail.events(), "action.args")).isEqualTo(0);
         assertThat(countType(detail.events(), "action.end")).isEqualTo(0);
+    }
+
+    @Test
+    void loadChatShouldHideToolSnapshotAndResultWhenToolIsClientInvisible() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174099";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "隐藏工具会话", 1707000100000L, 1707000100000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".json");
+        writeJsonLine(historyPath, queryLine(chatId, "run_099", query("run_099", chatId, "创建计划", List.of())));
+        writeJsonLine(historyPath, stepLine(chatId, "run_099", "react", 1, null,
+                1707000100000L,
+                List.of(
+                        userMessage("创建计划", 1707000100000L),
+                        assistantToolCallMessage("_plan_add_tasks_", "call_hidden_1", "{\"tasks\":[{\"description\":\"a\"}]}", 1707000100001L, "tool_hidden_1", null),
+                        toolMessage("_plan_add_tasks_", "call_hidden_1", "{\"ok\":true}", 1707000100002L, "tool_hidden_1", null),
+                        assistantToolCallMessage("bash", "call_visible_1", "{\"command\":\"pwd\"}", 1707000100003L, "tool_visible_1", null),
+                        toolMessage("bash", "call_visible_1", "{\"ok\":true}", 1707000100004L, "tool_visible_1", null),
+                        assistantContentMessage("完成", 1707000100005L)
+                )));
+
+        ToolRegistry toolRegistry = mock(ToolRegistry.class);
+        when(toolRegistry.capability("_plan_add_tasks_")).thenReturn(Optional.of(capability("_plan_add_tasks_", false)));
+        when(toolRegistry.capability("bash")).thenReturn(Optional.of(capability("bash", true)));
+
+        ChatRecordStore store = newStore(toolRegistry);
+        ChatDetailResponse detail = store.loadChat(chatId, true);
+
+        List<Map<String, Object>> toolSnapshots = detail.events().stream()
+                .filter(event -> "tool.snapshot".equals(event.get("type")))
+                .toList();
+        List<Map<String, Object>> toolResults = detail.events().stream()
+                .filter(event -> "tool.result".equals(event.get("type")))
+                .toList();
+
+        assertThat(toolSnapshots).hasSize(1);
+        assertThat(toolSnapshots.getFirst()).containsEntry("toolName", "bash");
+        assertThat(toolResults).hasSize(1);
+        assertThat(toolResults.getFirst()).containsEntry("toolId", "tool_visible_1");
+        assertThat(detail.events().stream()
+                .anyMatch(event -> "_plan_add_tasks_".equals(event.get("toolName")))).isFalse();
     }
 
     @Test
@@ -504,6 +582,33 @@ class ChatRecordStoreTest {
         ChatRecordStore store = new ChatRecordStore(objectMapper, properties);
         store.initializeDatabase();
         return store;
+    }
+
+    private ChatRecordStore newStore(ToolRegistry toolRegistry) {
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        properties.setDir(tempDir.resolve("chats").toString());
+        properties.getIndex().setSqliteFile(tempDir.resolve("chats").resolve("chats.db").toString());
+        ChatRecordStore store = new ChatRecordStore(objectMapper, properties, toolRegistry);
+        store.initializeDatabase();
+        return store;
+    }
+
+    private CapabilityDescriptor capability(String name, boolean clientVisible) {
+        return new CapabilityDescriptor(
+                name,
+                name + " desc",
+                "",
+                Map.of("type", "object"),
+                false,
+                clientVisible,
+                CapabilityKind.BACKEND,
+                "function",
+                null,
+                "local",
+                null,
+                null,
+                "test://tool"
+        );
     }
 
     private void writeIndex(Path chatDir, String chatId, String chatName, long createdAt, long updatedAt) throws Exception {

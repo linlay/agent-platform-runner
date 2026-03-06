@@ -8,6 +8,7 @@ public record CapabilityDescriptor(
         String afterCallHint,
         Map<String, Object> parameters,
         Boolean strict,
+        Boolean clientVisible,
         CapabilityKind kind,
         String toolType,
         String toolApi,
@@ -26,6 +27,7 @@ public record CapabilityDescriptor(
         } else {
             parameters = Map.copyOf(parameters);
         }
+        clientVisible = clientVisible == null ? Boolean.TRUE : clientVisible;
         sourceType = sourceType == null || sourceType.isBlank() ? "local" : sourceType.trim().toLowerCase();
         sourceKey = sourceKey == null || sourceKey.isBlank() ? null : sourceKey.trim().toLowerCase();
     }

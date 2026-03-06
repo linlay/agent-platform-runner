@@ -27,11 +27,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
@@ -165,8 +167,15 @@ public class AgentQueryService {
         StringBuilder assistantContent = new StringBuilder();
         boolean[] completed = {false};
         AtomicLong eventSeq = new AtomicLong(0L);
+        Set<String> hiddenToolIds = new HashSet<>();
         return streamSseStreamer.stream(session.request(), inputs)
-                .map(this::normalizeEvent)
+                .concatMap(event -> {
+                    ServerSentEvent<String> normalized = normalizeEvent(event, hiddenToolIds);
+                    if (normalized != null) {
+                        return Flux.just(normalized);
+                    }
+                    return Flux.empty();
+                })
                 .doOnNext(event -> {
                     if (event == null || !StringUtils.hasText(event.data())) {
                         return;
@@ -218,7 +227,7 @@ public class AgentQueryService {
                 .doOnNext(event -> chatRecordStore.appendEvent(session.request().chatId(), event.data()));
     }
 
-    private ServerSentEvent<String> normalizeEvent(ServerSentEvent<String> event) {
+    private ServerSentEvent<String> normalizeEvent(ServerSentEvent<String> event, Set<String> hiddenToolIds) {
         if (event == null) {
             return null;
         }
@@ -252,11 +261,20 @@ public class AgentQueryService {
             return rebuildEvent(event, normalized);
         }
 
+        if (shouldHideToolEvent(type, objectNode, hiddenToolIds)) {
+            return null;
+        }
+
         if (normalizeFrontendToolEvent(type, objectNode)) {
             return rebuildEvent(event, objectNode);
         }
 
         return event;
+    }
+
+    @SuppressWarnings("unused")
+    private ServerSentEvent<String> normalizeEvent(ServerSentEvent<String> event) {
+        return normalizeEvent(event, new HashSet<>());
     }
 
     private ServerSentEvent<String> normalizeHeartbeatCommentEvent(ServerSentEvent<String> event) {
@@ -337,6 +355,35 @@ public class AgentQueryService {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    private boolean shouldHideToolEvent(String eventType, ObjectNode root, Set<String> hiddenToolIds) {
+        if (root == null || hiddenToolIds == null || !StringUtils.hasText(eventType)) {
+            return false;
+        }
+        if ("tool.start".equals(eventType) || "tool.snapshot".equals(eventType)) {
+            String toolName = root.path("toolName").asText(null);
+            String toolId = root.path("toolId").asText(null);
+            boolean hidden = toolRegistry.capability(toolName)
+                    .map(descriptor -> Boolean.FALSE.equals(descriptor.clientVisible()))
+                    .orElse(false);
+            if (hidden && StringUtils.hasText(toolId)) {
+                hiddenToolIds.add(toolId.trim());
+            }
+            return hidden;
+        }
+        if (!eventType.startsWith("tool.")) {
+            return false;
+        }
+        String toolId = root.path("toolId").asText(null);
+        if (!StringUtils.hasText(toolId)) {
+            return false;
+        }
+        boolean hidden = hiddenToolIds.contains(toolId.trim());
+        if (hidden && "tool.result".equals(eventType)) {
+            hiddenToolIds.remove(toolId.trim());
+        }
+        return hidden;
     }
 
     private String resolveFrontendToolType(String toolKey) {

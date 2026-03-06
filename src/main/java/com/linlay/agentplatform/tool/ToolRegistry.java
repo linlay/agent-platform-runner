@@ -142,6 +142,7 @@ public class ToolRegistry {
                 nativeTool.afterCallHint(),
                 nativeTool.parametersSchema(),
                 false,
+                true,
                 CapabilityKind.BACKEND,
                 "function",
                 null,

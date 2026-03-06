@@ -7,9 +7,11 @@ import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;
 import com.linlay.agentplatform.model.api.QueryRequest;
+import com.linlay.agentplatform.tool.ToolRegistry;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -81,11 +83,18 @@ public class ChatRecordStore {
 
     private final ObjectMapper objectMapper;
     private final ChatWindowMemoryProperties properties;
+    private final ToolRegistry toolRegistry;
     private final Object lock = new Object();
 
     public ChatRecordStore(ObjectMapper objectMapper, ChatWindowMemoryProperties properties) {
+        this(objectMapper, properties, null);
+    }
+
+    @Autowired
+    public ChatRecordStore(ObjectMapper objectMapper, ChatWindowMemoryProperties properties, ToolRegistry toolRegistry) {
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.toolRegistry = toolRegistry;
     }
 
     @PostConstruct
@@ -709,6 +718,8 @@ public class ChatRecordStore {
             int toolIndex = 0;
             int actionIndex = 0;
             Map<String, IdBinding> bindingByCallId = new LinkedHashMap<>();
+            List<String> hiddenToolCallIds = new ArrayList<>();
+            List<String> hiddenToolBindingIds = new ArrayList<>();
             List<PersistedEvent> persistedEvents = run.persistedEvents.stream()
                     .sorted(Comparator.comparingLong(PersistedEvent::timestamp)
                             .thenComparingInt(PersistedEvent::lineIndex))
@@ -801,6 +812,13 @@ public class ChatRecordStore {
                             } else {
                                 toolIndex++;
                             }
+                            if (!binding.action && !isClientVisibleTool(toolCall.function.name)) {
+                                if (StringUtils.hasText(toolCall.id)) {
+                                    hiddenToolCallIds.add(toolCall.id.trim());
+                                }
+                                hiddenToolBindingIds.add(binding.id());
+                                continue;
+                            }
                             if (StringUtils.hasText(toolCall.id)) {
                                 bindingByCallId.put(toolCall.id.trim(), binding);
                             }
@@ -836,8 +854,21 @@ public class ChatRecordStore {
                     result = "";
                 }
 
+                if (StringUtils.hasText(message.toolId) && hiddenToolBindingIds.contains(message.toolId.trim())) {
+                    continue;
+                }
+                if (StringUtils.hasText(message.toolCallId) && hiddenToolCallIds.contains(message.toolCallId.trim())) {
+                    continue;
+                }
+
                 IdBinding binding = resolveBindingForToolResult(run.runId, message, bindingByCallId, toolIndex, actionIndex);
                 if (binding == null) {
+                    continue;
+                }
+                if (!binding.action && hiddenToolBindingIds.contains(binding.id())) {
+                    continue;
+                }
+                if (!binding.action && StringUtils.hasText(message.name) && !isClientVisibleTool(message.name)) {
                     continue;
                 }
                 if (binding.action) {
@@ -891,6 +922,10 @@ public class ChatRecordStore {
     private String requireRunStartAgentKey(String chatId, String runId, Object agentKeyValue) {
         if (agentKeyValue instanceof String text && StringUtils.hasText(text)) {
             return text.trim();
+        }
+        String boundAgentKey = findBoundAgentKey(chatId).orElse(null);
+        if (StringUtils.hasText(boundAgentKey)) {
+            return boundAgentKey.trim();
         }
         throw new IllegalStateException(
                 "run.start requires non-blank agentKey in history query for chatId=" + chatId + ", runId=" + runId
@@ -968,6 +1003,15 @@ public class ChatRecordStore {
         } catch (Exception ex) {
             return null;
         }
+    }
+
+    private boolean isClientVisibleTool(String toolName) {
+        if (!StringUtils.hasText(toolName) || toolRegistry == null) {
+            return true;
+        }
+        return toolRegistry.capability(toolName)
+                .map(descriptor -> !Boolean.FALSE.equals(descriptor.clientVisible()))
+                .orElse(true);
     }
 
     private String firstUserText(List<ChatWindowMemoryStore.StoredMessage> messages) {

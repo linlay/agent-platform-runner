@@ -3,19 +3,27 @@ package com.linlay.agentplatform.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.model.AgentRequest;
+import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.service.McpCapabilitySyncService;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
+import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.service.ViewportRegistryService;
+import com.linlay.agentplatform.stream.model.StreamRequest;
+import com.linlay.agentplatform.stream.service.SseFlushWriter;
 import com.linlay.agentplatform.team.TeamCatalogProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
 import com.linlay.agentplatform.tool.CapabilityDescriptor;
 import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -23,8 +31,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
+import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.test.web.reactive.server.FluxExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -37,6 +49,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -111,6 +125,28 @@ class AgentControllerTest {
             return new LlmService(null, null) {
                 @Override
                 public Flux<String> streamContent(String providerKey, String model, String systemPrompt, String userPrompt) {
+                    if (userPrompt != null && userPrompt.contains("__force_stream_error__")) {
+                        return Flux.error(new IllegalStateException("forced stream error"));
+                    }
+                    return Flux.just("这是", "测试", "输出");
+                }
+
+                @Override
+                public Flux<String> streamContent(
+                        String providerKey,
+                        String model,
+                        String systemPrompt,
+                        List<Message> historyMessages,
+                        String userPrompt,
+                        String stage
+                ) {
+                    boolean forcedError = (userPrompt != null && userPrompt.contains("__force_stream_error__"))
+                            || (historyMessages != null && historyMessages.stream()
+                            .anyMatch(message -> message != null && message.getText() != null
+                                    && message.getText().contains("__force_stream_error__")));
+                    if (forcedError) {
+                        return Flux.error(new IllegalStateException("forced stream error"));
+                    }
                     return Flux.just("这是", "测试", "输出");
                 }
 
@@ -163,6 +199,7 @@ class AgentControllerTest {
                             "additionalProperties", true
                     ),
                     false,
+                    true,
                     CapabilityKind.BACKEND,
                     "function",
                     "mcp://mock/mock.weather.query",
@@ -404,6 +441,12 @@ class AgentControllerTest {
         assertThat(joined).contains("\"type\":\"request.query\"");
         assertThat(joined).contains("\"type\":\"run.start\"");
         assertThat(joined).contains("\"type\":\"run.complete\"");
+        assertThat(countOccurrences(joined, "[DONE]")).isEqualTo(1);
+        int runCompleteIndex = joined.lastIndexOf("\"type\":\"run.complete\"");
+        int doneIndex = joined.lastIndexOf("[DONE]");
+        assertThat(runCompleteIndex).isGreaterThanOrEqualTo(0);
+        assertThat(doneIndex).isGreaterThan(runCompleteIndex);
+        assertThat(joined.trim()).endsWith("[DONE]");
 
         String requestId = extractFirstValue(joined, "requestId");
         String runId = extractFirstValue(joined, "runId");
@@ -411,6 +454,93 @@ class AgentControllerTest {
         assertThat(runId).isNotBlank();
         assertThat(runId).matches("^[0-9a-z]+$");
         assertThat(requestId).isEqualTo(runId);
+    }
+
+    @Test
+    void queryShouldAppendDoneSentinelAfterRunError() {
+        AgentQueryService queryService = mock(AgentQueryService.class);
+        SseFlushWriter flushWriter = mock(SseFlushWriter.class);
+        AtomicReference<Flux<ServerSentEvent<String>>> writtenStreamRef = new AtomicReference<>();
+        when(flushWriter.write(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        )).thenAnswer(invocation -> {
+            writtenStreamRef.set(invocation.getArgument(1));
+            return Mono.empty();
+        });
+
+        String requestId = "req_error_001";
+        String chatId = UUID.randomUUID().toString();
+        String runId = "run_error_001";
+        StreamRequest.Query streamRequest = new StreamRequest.Query(
+                requestId,
+                chatId,
+                "user",
+                "trigger run error",
+                "demoModePlain",
+                null,
+                null,
+                null,
+                null,
+                true,
+                "chat",
+                runId
+        );
+        AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
+                mock(com.linlay.agentplatform.agent.Agent.class),
+                streamRequest,
+                new AgentRequest("trigger run error", chatId, requestId, runId, Map.of())
+        );
+        when(queryService.prepare(org.mockito.ArgumentMatchers.any())).thenReturn(session);
+        when(queryService.stream(org.mockito.ArgumentMatchers.any())).thenReturn(Flux.just(
+                ServerSentEvent.<String>builder()
+                        .event("message")
+                        .data("{\"type\":\"run.error\",\"runId\":\"run_error_001\",\"timestamp\":1,\"error\":{\"message\":\"boom\"}}")
+                        .build()
+        ));
+
+        AgentController controller = new AgentController(
+                mock(com.linlay.agentplatform.agent.AgentRegistry.class),
+                queryService,
+                mock(ChatRecordStore.class),
+                flushWriter,
+                mock(ViewportRegistryService.class),
+                mock(FrontendSubmitCoordinator.class),
+                mock(com.linlay.agentplatform.security.ChatImageTokenService.class),
+                mock(com.linlay.agentplatform.skill.SkillRegistryService.class),
+                mock(TeamRegistryService.class),
+                mock(ToolRegistry.class),
+                new com.linlay.agentplatform.config.LoggingAgentProperties(),
+                new ObjectMapper()
+        );
+
+        ServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/ap/query").build()
+        );
+        ServerHttpResponse response = mock(ServerHttpResponse.class);
+        QueryRequest request = new QueryRequest(
+                requestId,
+                chatId,
+                "demoModePlain",
+                null,
+                "user",
+                "trigger run error",
+                null,
+                null,
+                null,
+                true
+        );
+
+        controller.query(request, response, exchange).block(Duration.ofSeconds(2));
+
+        Flux<ServerSentEvent<String>> writtenStream = writtenStreamRef.get();
+        assertThat(writtenStream).isNotNull();
+        List<ServerSentEvent<String>> events = writtenStream.collectList().block(Duration.ofSeconds(2));
+        assertThat(events).isNotNull();
+        assertThat(events).hasSize(2);
+        assertThat(events.get(0).data()).contains("\"type\":\"run.error\"");
+        assertThat(events.get(1).event()).isEqualTo("message");
+        assertThat(events.get(1).data()).isEqualTo("[DONE]");
     }
 
     @Test
@@ -779,6 +909,43 @@ class AgentControllerTest {
                 .expectBody()
                 .jsonPath("$.data.rawMessages[0].role").isEqualTo("user")
                 .jsonPath("$.data.events[?(@.type=='request.query')]").exists();
+    }
+
+    @Test
+    void chatReplayShouldNotContainDoneSentinel() {
+        FluxExchangeResult<String> result = webTestClient.post()
+                .uri("/api/ap/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "agentKey", "demoModePlain",
+                        "message", "chat replay done sentinel check"
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(String.class);
+
+        List<String> chunks = result.getResponseBody()
+                .take(800)
+                .collectList()
+                .block(Duration.ofSeconds(8));
+        assertThat(chunks).isNotNull();
+
+        String chatId = extractFirstValue(String.join("", chunks), "chatId");
+        assertThat(chatId).isNotBlank();
+
+        byte[] responseBody = webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/ap/chat")
+                        .queryParam("chatId", chatId)
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+        assertThat(responseBody).isNotNull();
+        String json = new String(responseBody, StandardCharsets.UTF_8);
+        assertThat(json).doesNotContain("[DONE]");
     }
 
     @Test

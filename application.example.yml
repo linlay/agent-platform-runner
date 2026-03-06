@@ -92,15 +92,28 @@ agent:
     external-dir: tools
     refresh-interval-ms: 30000
     bash:
+      # 低权限模式（默认生效）：保留基础命令白名单与路径校验。
       working-directory: ${user.dir}
       allowed-paths: ${user.dir},/tmp
       allowed-commands: ls,pwd,cat,head,tail,top,free,df,git,rg,find
       path-checked-commands: ls,cat,head,tail,git,rg,find
-      path-check-bypass-commands: git,curl
+      path-check-bypass-commands: git
       shell-features-enabled: false
       shell-executable: bash
       shell-timeout-ms: 10000
       max-command-chars: 16000
+      # 高权限模式（注释模板，按需手动切换）：
+      # 1) 将下列注释行复制替换上面的低权限值；
+      # 2) bypass 仅对 allowed-commands 交集生效（命令未放行时 bypass 不生效）。
+      # working-directory: ${user.home}
+      # allowed-paths: ${user.dir},${user.home}/Project,${user.home}/Server,/tmp,/dev/null
+      # allowed-commands: ls,pwd,cat,head,tail,top,free,df,git,rg,find,grep,wc,curl
+      # path-checked-commands: ls,cat,head,tail,git,rg,find,grep,wc,curl
+      # path-check-bypass-commands: git,curl,ls,find,grep,wc
+      # shell-features-enabled: true
+      # shell-executable: bash
+      # shell-timeout-ms: 10000
+      # max-command-chars: 16000
   # schedule 默认值已由内置 application.yml 提供（external-dir/enabled/pool-size）。
   # 如需统一时区，可仅覆盖 default-zone-id；留空则使用系统时区。
   schedule:

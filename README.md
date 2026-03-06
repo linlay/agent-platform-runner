@@ -28,6 +28,7 @@
 ## 返回格式约定
 
 - `POST /api/ap/query` 返回 SSE event stream。
+- `/api/ap/query` 流结束时会追加传输层终止帧 `data:[DONE]`（不属于业务事件模型，也不会出现在 `/api/ap/chat` 的历史 `events` 中）。
 - 其它 JSON 接口统一返回：
 
 ```json

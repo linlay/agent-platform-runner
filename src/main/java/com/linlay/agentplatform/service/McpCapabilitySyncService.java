@@ -188,6 +188,7 @@ public class McpCapabilitySyncService {
                     afterCallHint,
                     toParameters(tool.inputSchema()),
                     false,
+                    true,
                     CapabilityKind.BACKEND,
                     "function",
                     "mcp://" + server.serverKey() + "/" + toolName,
