@@ -225,6 +225,171 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldLoadYamlAgentDefinitionsAcrossModes() throws IOException {
+        Files.writeString(tempDir.resolve("yaml_oneshot.yml"), """
+                key: yaml_oneshot
+                name: YAML Oneshot
+                description: yaml oneshot
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: |
+                    你是 YAML 助手
+                    请保留多行
+                """);
+        Files.writeString(tempDir.resolve("yaml_react.yaml"), """
+                key: yaml_react
+                description: yaml react
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: REACT
+                react:
+                  systemPrompt: react prompt
+                  maxSteps: 4
+                """);
+        Files.writeString(tempDir.resolve("yaml_plan_execute.yml"), """
+                key: yaml_plan_execute
+                description: yaml plan execute
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: |
+                      先规划
+                      再拆解
+                  execute:
+                    systemPrompt: 执行任务
+                  summary:
+                    systemPrompt: 总结结果
+                """);
+
+        AgentCatalogProperties properties = new AgentCatalogProperties();
+        properties.setExternalDir(tempDir.toString());
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+
+        Map<String, AgentDefinition> byId = loader.loadAll().stream()
+                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
+
+        assertThat(byId).containsKeys("yaml_oneshot", "yaml_react", "yaml_plan_execute");
+        assertThat(byId.get("yaml_oneshot").mode()).isEqualTo(AgentRuntimeMode.ONESHOT);
+        assertThat(byId.get("yaml_oneshot").systemPrompt()).isEqualTo("你是 YAML 助手\n请保留多行");
+        assertThat(byId.get("yaml_react").mode()).isEqualTo(AgentRuntimeMode.REACT);
+        assertThat(byId.get("yaml_plan_execute").mode()).isEqualTo(AgentRuntimeMode.PLAN_EXECUTE);
+
+        PlanExecuteMode mode = (PlanExecuteMode) byId.get("yaml_plan_execute").agentMode();
+        assertThat(mode.planStage().systemPrompt()).isEqualTo("先规划\n再拆解");
+        assertThat(mode.executeStage().systemPrompt()).isEqualTo("执行任务");
+        assertThat(mode.summaryStage().systemPrompt()).isEqualTo("总结结果");
+    }
+
+    @Test
+    void shouldUseFileBasenameAcrossJsonAndYamlWhenKeyMissing() throws IOException {
+        Files.writeString(tempDir.resolve("basename_json.json"), """
+                {
+                  "description": "json fallback",
+                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "json prompt" }
+                }
+                """);
+        Files.writeString(tempDir.resolve("basename_yml.yml"), """
+                description: yml fallback
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: yml prompt
+                """);
+        Files.writeString(tempDir.resolve("basename_yaml.yaml"), """
+                description: yaml fallback
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: yaml prompt
+                """);
+
+        AgentCatalogProperties properties = new AgentCatalogProperties();
+        properties.setExternalDir(tempDir.toString());
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+
+        Map<String, AgentDefinition> byId = loader.loadAll().stream()
+                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
+
+        assertThat(byId).containsKeys("basename_json", "basename_yml", "basename_yaml");
+    }
+
+    @Test
+    void shouldPreferYamlWhenBasenameConflictsAcrossFormats() throws IOException {
+        Files.writeString(tempDir.resolve("conflict_agent.json"), """
+                {
+                  "key": "conflict_agent",
+                  "description": "json version",
+                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "json prompt" }
+                }
+                """);
+        Files.writeString(tempDir.resolve("conflict_agent.yml"), """
+                key: conflict_agent
+                description: yaml version
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: yaml prompt
+                """);
+
+        AgentCatalogProperties properties = new AgentCatalogProperties();
+        properties.setExternalDir(tempDir.toString());
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+
+        AgentDefinition definition = loader.loadAll().stream()
+                .filter(item -> "conflict_agent".equals(item.id()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(definition.description()).isEqualTo("yaml version");
+        assertThat(definition.systemPrompt()).isEqualTo("yaml prompt");
+    }
+
+    @Test
+    void shouldPreferYamlWhenKeyDuplicatedAcrossFormats() throws IOException {
+        Files.writeString(tempDir.resolve("alpha_duplicate.json"), """
+                {
+                  "key": "dup_agent",
+                  "description": "json duplicate",
+                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "json duplicate" }
+                }
+                """);
+        Files.writeString(tempDir.resolve("beta_duplicate.yml"), """
+                key: dup_agent
+                description: yaml duplicate
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: yaml duplicate
+                """);
+
+        AgentCatalogProperties properties = new AgentCatalogProperties();
+        properties.setExternalDir(tempDir.toString());
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+
+        AgentDefinition definition = loader.loadAll().stream()
+                .filter(item -> "dup_agent".equals(item.id()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(definition.description()).isEqualTo("yaml duplicate");
+        assertThat(definition.systemPrompt()).isEqualTo("yaml duplicate");
+    }
+
+    @Test
     void shouldParseAllThreeModes() throws IOException {
         Files.writeString(tempDir.resolve("m_oneshot.json"), """
                 {

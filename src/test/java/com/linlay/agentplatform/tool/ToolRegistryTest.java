@@ -268,7 +268,7 @@ class ToolRegistryTest {
     }
 
     @Test
-    void agentFileCreateToolShouldWriteAgentJson(@TempDir Path tempDir) throws IOException {
+    void agentFileCreateToolShouldWriteAgentYamlByDefault(@TempDir Path tempDir) throws IOException {
         Path agentsDir = tempDir.resolve("agents");
         PlatformCreateAgent tool = new PlatformCreateAgent(agentsDir);
 
@@ -283,15 +283,37 @@ class ToolRegistryTest {
         assertThat(result.path("ok").asBoolean()).isTrue();
         assertThat(result.path("created").asBoolean()).isTrue();
         assertThat(result.path("agentId").asText()).isEqualTo("qa_bot");
+        assertThat(result.path("format").asText()).isEqualTo("yml");
 
-        Path file = agentsDir.resolve("qa_bot.json");
+        Path file = agentsDir.resolve("qa_bot.yml");
         assertThat(Files.exists(file)).isTrue();
-        JsonNode content = objectMapper.readTree(Files.readString(file));
+        JsonNode content = new ObjectMapper(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
+                .readTree(Files.readString(file));
         assertThat(content.path("description").asText()).isEqualTo("QA 助手");
         assertThat(content.path("modelConfig").path("modelKey").asText()).isEqualTo("openai-gpt35");
         assertThat(content.path("mode").asText()).isEqualTo("ONESHOT");
         assertThat(content.path("plain").path("systemPrompt").asText()).isEqualTo("你是 QA 助手\n请先问清问题");
         assertThat(content.has("toolConfig")).isFalse();
+    }
+
+    @Test
+    void agentFileCreateToolShouldWriteAgentJsonWhenRequested(@TempDir Path tempDir) throws IOException {
+        Path agentsDir = tempDir.resolve("agents");
+        PlatformCreateAgent tool = new PlatformCreateAgent(agentsDir);
+
+        JsonNode result = tool.invoke(Map.of(
+                "agentId", "qa_json_bot",
+                "description", "QA JSON 助手",
+                "modelKey", "openai-gpt35",
+                "systemPrompt", "json output",
+                "mode", "ONESHOT",
+                "format", "json"
+        ));
+
+        assertThat(result.path("ok").asBoolean()).isTrue();
+        assertThat(result.path("format").asText()).isEqualTo("json");
+        assertThat(Files.exists(agentsDir.resolve("qa_json_bot.json"))).isTrue();
+        assertThat(Files.exists(agentsDir.resolve("qa_json_bot.yml"))).isFalse();
     }
 
     @Test
@@ -309,7 +331,8 @@ class ToolRegistryTest {
         ));
 
         assertThat(result.path("ok").asBoolean()).isTrue();
-        JsonNode content = objectMapper.readTree(Files.readString(agentsDir.resolve("icon_bot.json")));
+        JsonNode content = new ObjectMapper(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
+                .readTree(Files.readString(agentsDir.resolve("icon_bot.yml")));
         assertThat(content.path("icon").path("name").asText()).isEqualTo("rocket");
         assertThat(content.path("icon").path("color").asText()).isEqualTo("#3F7BFA");
     }
@@ -388,7 +411,8 @@ class ToolRegistryTest {
         ));
 
         assertThat(result.path("ok").asBoolean()).isTrue();
-        JsonNode content = objectMapper.readTree(Files.readString(agentsDir.resolve("fortune_bot.json")));
+        JsonNode content = new ObjectMapper(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
+                .readTree(Files.readString(agentsDir.resolve("fortune_bot.yml")));
         assertThat(content.path("modelConfig").path("modelKey").asText()).isEqualTo("zhipu-glm-4-plus");
         assertThat(content.path("mode").asText()).isEqualTo("ONESHOT");
     }
@@ -405,8 +429,47 @@ class ToolRegistryTest {
         ));
 
         assertThat(result.path("ok").asBoolean()).isTrue();
-        JsonNode content = objectMapper.readTree(Files.readString(agentsDir.resolve("default_prompt_bot.json")));
+        JsonNode content = new ObjectMapper(new com.fasterxml.jackson.dataformat.yaml.YAMLFactory())
+                .readTree(Files.readString(agentsDir.resolve("default_prompt_bot.yml")));
         assertThat(content.path("plain").path("systemPrompt").asText()).isEqualTo("这是配置的默认提示词");
+    }
+
+    @Test
+    void agentFileCreateToolShouldUpdateExistingJsonInsteadOfCreatingYaml(@TempDir Path tempDir) throws IOException {
+        Path agentsDir = tempDir.resolve("agents");
+        Files.createDirectories(agentsDir);
+        Files.writeString(agentsDir.resolve("legacy_bot.json"), """
+                {
+                  "key": "legacy_bot",
+                  "description": "legacy",
+                  "modelConfig": {
+                    "modelKey": "openai-gpt35"
+                  },
+                  "mode": "ONESHOT",
+                  "plain": {
+                    "systemPrompt": "old prompt"
+                  }
+                }
+                """);
+        PlatformCreateAgent tool = new PlatformCreateAgent(agentsDir);
+
+        JsonNode result = tool.invoke(Map.of(
+                "agentId", "legacy_bot",
+                "description", "updated legacy",
+                "modelKey", "openai-gpt35",
+                "systemPrompt", "new prompt",
+                "mode", "ONESHOT"
+        ));
+
+        assertThat(result.path("ok").asBoolean()).isTrue();
+        assertThat(result.path("updated").asBoolean()).isTrue();
+        assertThat(result.path("format").asText()).isEqualTo("json");
+        assertThat(Files.exists(agentsDir.resolve("legacy_bot.json"))).isTrue();
+        assertThat(Files.exists(agentsDir.resolve("legacy_bot.yml"))).isFalse();
+
+        JsonNode content = objectMapper.readTree(Files.readString(agentsDir.resolve("legacy_bot.json")));
+        assertThat(content.path("description").asText()).isEqualTo("updated legacy");
+        assertThat(content.path("plain").path("systemPrompt").asText()).isEqualTo("new prompt");
     }
 
 }

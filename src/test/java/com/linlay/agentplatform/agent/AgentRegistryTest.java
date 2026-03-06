@@ -150,6 +150,42 @@ class AgentRegistryTest {
     }
 
     @Test
+    void shouldLoadMixedJsonAndYamlAgentsAfterRefresh() throws Exception {
+        Path agentsDir = tempDir.resolve("agents");
+        Files.createDirectories(agentsDir);
+
+        Files.writeString(agentsDir.resolve("json_agent.json"), """
+                {
+                  "description": "json agent",
+                  "key": "json_agent",
+                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "json prompt" }
+                }
+                """);
+
+        AgentRegistry registry = createRegistry(agentsDir);
+        assertThat(registry.listIds()).containsExactly("json_agent");
+
+        Files.writeString(agentsDir.resolve("yaml_agent.yml"), """
+                key: yaml_agent
+                description: yaml agent
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: |
+                    yaml prompt
+                    second line
+                """);
+
+        registry.refreshAgents();
+
+        assertThat(registry.listIds()).containsExactlyInAnyOrder("json_agent", "yaml_agent");
+        assertThat(registry.get("yaml_agent").systemPrompt()).isEqualTo("yaml prompt\nsecond line");
+    }
+
+    @Test
     void shouldRefreshOnlySelectedAgents() throws Exception {
         Path agentsDir = tempDir.resolve("agents");
         Files.createDirectories(agentsDir);

@@ -34,7 +34,8 @@ for dir in "${DIRS[@]}"; do
 
   mkdir -p "$dest"
   src_count="$(count_files "$src")"
-  cp -R "$src"/. "$dest"/
+  # Sync all files except README.md to avoid copying local helper scripts.
+  (cd "$src" && tar --exclude='README.md' -cf - .) | (cd "$dest" && tar -xf -)
   dest_count="$(count_files "$dest")"
 
   log "synced $dir (source files=$src_count, target files=$dest_count)"

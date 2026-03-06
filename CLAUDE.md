@@ -78,7 +78,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 - **响应格式** — 非 SSE 接口统一 `{"code": 0, "msg": "success", "data": {}}`
 - **会话详情格式** — `GET /api/ap/chat` 的 `data` 字段固定为 `chatId/chatName/rawMessages/events/references`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回
 
-## Agent JSON 定义
+## Agent Definition 文件格式
 
 ### 完整 Schema
 
@@ -144,6 +144,30 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 }
 ```
 
+YAML 与 JSON 共享同一套 schema，推荐新建 Agent 使用 `.yml`：
+
+```yaml
+key: agent_key
+name: agent_name
+role: 角色标签
+icon: "emoji:🤖"
+description: 描述
+modelConfig:
+  modelKey: bailian-qwen3-max
+  reasoning:
+    enabled: true
+    effort: MEDIUM
+toolConfig:
+  backends: ["_bash_", "city_datetime"]
+  frontends: ["show_weather_card"]
+  actions: ["switch_theme"]
+mode: ONESHOT
+plain:
+  systemPrompt: |
+    系统提示词
+    支持多行
+```
+
 ### Agent / Skill / Tool REST 契约
 
 - `GET /api/ap/agents`：返回 `AgentSummary[]`，顶层包含 `key/name/icon/description/role/meta`。
@@ -166,7 +190,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 **modelConfig 继承：**
 - 支持外层默认 + stage 内层覆盖；内层优先。
 - 外层 `modelConfig` 可省略，但"外层或任一 stage"至少要有一处 `modelConfig.modelKey`。
-- `provider/modelId/protocol` 不在 Agent JSON 中声明，统一由 `models/<modelKey>.json` 解析得到。
+- `provider/modelId/protocol` 不在 Agent Definition 文件中声明，统一由 `models/<modelKey>.json` 解析得到。
 
 **toolConfig 继承：**
 - 支持外层默认 + stage 覆盖。
@@ -177,8 +201,13 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 **skillConfig 配置：**
 - 支持两种写法（会合并去重）：`"skillConfig": {"skills": [...]}` 或 `"skills": [...]`。
 
+**文件格式与优先级：**
+- `agents/` 支持 `.json`、`.yml`、`.yaml`。
+- 同 basename 或同 `key` 冲突时，YAML 优先于 JSON；同优先级下按文件名升序决定首个生效项。
+
 **多行 Prompt 写法：**
-- `systemPrompt` 字段支持 `"""..."""` 三引号格式（非标准 JSON，预处理阶段转换）。仅匹配字段名含 `systemPrompt` 的键（大小写不敏感）。
+- YAML 推荐使用 block scalar（`|` / `>`）。
+- JSON 兼容 `"""..."""` 三引号格式（非标准 JSON，预处理阶段转换）。仅匹配字段名含 `systemPrompt` 的键（大小写不敏感）。
 
 **步骤上限：**
 - `react.maxSteps` 控制 REACT 循环上限。
@@ -281,7 +310,7 @@ skills/<skill-id>/
 
 ### skillConfig 配置
 
-Agent JSON 中引用 skills：
+Agent Definition 文件中引用 skills：
 
 ```json
 { "skillConfig": { "skills": ["math_basic", "screenshot"] } }
@@ -518,7 +547,7 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 
 | 环境变量 | 属性键 | 默认值 | 说明 |
 |---------|--------|-------|------|
-| `AGENT_AGENTS_EXTERNAL_DIR` | `agent.agents.external-dir` | `agents` | Agent JSON 定义目录 |
+| `AGENT_AGENTS_EXTERNAL_DIR` | `agent.agents.external-dir` | `agents` | Agent Definition 目录 |
 | `AGENT_AGENTS_REFRESH_INTERVAL_MS` | `agent.agents.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
 | `AGENT_MODELS_EXTERNAL_DIR` | `agent.models.external-dir` | `models` | Model JSON 定义目录 |
 | `AGENT_MODELS_REFRESH_INTERVAL_MS` | `agent.models.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |

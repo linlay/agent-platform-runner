@@ -34,11 +34,15 @@ foreach ($dir in $dirs) {
     New-Item -Path $dest -ItemType Directory -Force | Out-Null
     $srcCount = Get-FileCount -Dir $src
 
-    $items = Get-ChildItem -Path $src -Force
-    if ($items.Count -gt 0) {
-        $items | ForEach-Object {
-            Copy-Item -Path $_.FullName -Destination $dest -Recurse -Force
+    $files = Get-ChildItem -Path $src -Recurse -File -Force | Where-Object { $_.Name -ne "README.md" }
+    foreach ($file in $files) {
+        $relativePath = $file.FullName.Substring($src.Length).TrimStart('\', '/')
+        $targetFile = Join-Path $dest $relativePath
+        $targetDir = Split-Path -Parent $targetFile
+        if (-not (Test-Path $targetDir)) {
+            New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
         }
+        Copy-Item -Path $file.FullName -Destination $targetFile -Force
     }
 
     $destCount = Get-FileCount -Dir $dest

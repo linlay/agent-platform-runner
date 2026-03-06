@@ -347,17 +347,38 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
 
 ## Agent 配置快速上手
 
-> 完整 schema 规范、配置规则和已移除字段列表见 [CLAUDE.md #Agent JSON 定义](./CLAUDE.md#agent-json-定义)。
+> 完整 schema 规范、配置规则和已移除字段列表见 [CLAUDE.md #Agent Definition 文件格式](./CLAUDE.md#agent-definition-文件格式)。
 
-- `agents/*.json` 以 `key` 作为 agentId；若缺失 `key`，回退为文件名（不含 `.json`）
+- `agents/` 同时支持 `*.json`、`*.yml`、`*.yaml`
+- 以 `key` 作为 agentId；若缺失 `key`，回退为文件名（不含 `.json/.yml/.yaml`）
 - `modelConfig.modelKey` 为必填，模型信息统一从 `models/*.json` 解析
 - 服务启动时会先加载一次，并通过目录监听自动刷新
 - 可通过 `AGENT_AGENTS_EXTERNAL_DIR` 指定目录
-- `systemPrompt` 同时支持标准 JSON 字符串和 `"""` 多行写法（仅 `systemPrompt`）
+- YAML 推荐作为新建格式，天然支持多行字符串
+- `systemPrompt` 在 JSON 中兼容 `"""` 多行写法（仅 `systemPrompt`）；YAML 推荐使用 `|` / `>`
+- 同 basename 或同 `key` 冲突时，YAML 优先于 JSON
 
 ### ONESHOT 示例
 
-单轮直答；若配置工具可在单轮中调用工具并收敛最终答案。
+单轮直答；若配置工具可在单轮中调用工具并收敛最终答案。新建示例建议优先用 YAML。
+
+```yaml
+key: fortune_teller
+name: 算命大师
+icon: "emoji:🔮"
+description: 算命大师
+modelConfig:
+  modelKey: bailian-qwen3-max
+  reasoning:
+    enabled: false
+mode: ONESHOT
+plain:
+  systemPrompt: |
+    你是算命大师
+    请先问出生日期
+```
+
+如需继续使用 JSON，旧写法仍兼容：
 
 ```json
 {
@@ -376,7 +397,7 @@ wscat -c "ws://127.0.0.1:11948/api/ap/ws/voice?access_token=xxx"
 }
 ```
 
-### REACT 示例
+### REACT 示例（JSON 兼容写法）
 
 最多 N 轮循环（默认 6）：思考 → 调 1 个工具 → 观察结果。
 

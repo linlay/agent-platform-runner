@@ -1,9 +1,12 @@
 package com.linlay.agentplatform.tool;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.linlay.agentplatform.agent.AgentCatalogProperties;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.config.AgentFileCreateToolProperties;
@@ -20,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 @Component
@@ -27,10 +31,13 @@ public class PlatformCreateAgent extends AbstractDeterministicTool {
 
     private static final Pattern AGENT_ID_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
     private static final String DEFAULT_DESCRIPTION = "由 agent_file_create 创建的智能体";
+    private static final String FORMAT_JSON = "json";
+    private static final String FORMAT_YML = "yml";
 
     private final Path agentsDir;
     private final String defaultSystemPrompt;
     private final String defaultModelKey;
+    private final ObjectMapper yamlMapper;
 
     @Autowired
     public PlatformCreateAgent(
@@ -60,6 +67,9 @@ public class PlatformCreateAgent extends AbstractDeterministicTool {
         this.agentsDir = agentsDir.toAbsolutePath().normalize();
         this.defaultSystemPrompt = normalizeText(defaultSystemPrompt, AgentFileCreateToolProperties.DEFAULT_SYSTEM_PROMPT);
         this.defaultModelKey = normalizeText(defaultModelKey, "").toLowerCase(Locale.ROOT);
+        this.yamlMapper = new ObjectMapper(YAMLFactory.builder()
+                .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+                .build());
     }
 
     @Override
@@ -134,7 +144,12 @@ public class PlatformCreateAgent extends AbstractDeterministicTool {
         }
         root.setAll(modeConfig);
 
-        Path file = agentsDir.resolve(normalizedKey + ".json").normalize();
+        String requestedFormat = normalizeFormat(readString(mergedArgs, "format"));
+        if (requestedFormat == null) {
+            return failure(result, "Invalid format. Use json or yml");
+        }
+
+        Path file = resolveTargetFile(normalizedKey, requestedFormat).normalize();
         if (!file.startsWith(agentsDir)) {
             return failure(result, "Resolved path escapes agents directory");
         }
@@ -142,12 +157,15 @@ public class PlatformCreateAgent extends AbstractDeterministicTool {
         try {
             Files.createDirectories(agentsDir);
             boolean existed = Files.exists(file);
-            Files.writeString(file, OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(root) + "\n");
+            String outputFormat = detectFormat(file);
+            String rendered = renderConfig(root, outputFormat);
+            Files.writeString(file, rendered);
 
             result.put("ok", true);
             result.put("created", !existed);
             result.put("updated", existed);
             result.put("agentId", normalizedKey);
+            result.put("format", outputFormat);
             result.put("file", file.toString());
             result.set("config", root);
             return result;
@@ -200,6 +218,54 @@ public class PlatformCreateAgent extends AbstractDeterministicTool {
             normalized.put("color", color);
         }
         return normalized;
+    }
+
+    private String normalizeFormat(String format) {
+        if (format == null || format.isBlank()) {
+            return FORMAT_YML;
+        }
+        String normalized = format.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case FORMAT_JSON -> FORMAT_JSON;
+            case FORMAT_YML, "yaml" -> FORMAT_YML;
+            default -> null;
+        };
+    }
+
+    private Path resolveTargetFile(String normalizedKey, String requestedFormat) {
+        Optional<Path> existingYaml = existingFile(normalizedKey, FORMAT_YML)
+                .or(() -> existingFile(normalizedKey, "yaml"));
+        if (existingYaml.isPresent()) {
+            return existingYaml.get();
+        }
+        Optional<Path> existingJson = existingFile(normalizedKey, FORMAT_JSON);
+        if (existingJson.isPresent()) {
+            return existingJson.get();
+        }
+        return agentsDir.resolve(normalizedKey + "." + requestedFormat);
+    }
+
+    private Optional<Path> existingFile(String key, String extension) {
+        Path path = agentsDir.resolve(key + "." + extension).normalize();
+        if (!path.startsWith(agentsDir)) {
+            return Optional.empty();
+        }
+        return Files.exists(path) ? Optional.of(path) : Optional.empty();
+    }
+
+    private String detectFormat(Path file) {
+        String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (fileName.endsWith(".json")) {
+            return FORMAT_JSON;
+        }
+        return FORMAT_YML;
+    }
+
+    private String renderConfig(ObjectNode root, String outputFormat) throws IOException {
+        if (FORMAT_JSON.equals(outputFormat)) {
+            return OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(root) + "\n";
+        }
+        return yamlMapper.writeValueAsString(root);
     }
 
     private ObjectNode buildModeConfig(AgentRuntimeMode mode, Map<String, Object> args) {
