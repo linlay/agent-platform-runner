@@ -1,14 +1,8 @@
-{
-  "tools": [
-    {
-      "type": "function",
-      "name": "_plan_get_tasks_",
-      "description": "获取当前计划快照，返回纯文本任务列表和当前应执行 taskId。",
-      "parameters": {
-        "type": "object",
-        "properties": {},
-        "additionalProperties": false
-      }
-    }
-  ]
-}
+tools:
+  - type: function
+    name: _plan_get_tasks_
+    description: 获取当前计划快照，返回纯文本任务列表和当前应执行 taskId。
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
