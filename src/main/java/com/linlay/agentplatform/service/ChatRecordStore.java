@@ -733,6 +733,7 @@ public class ChatRecordStore {
             Map<String, Object> runStartPayload = new LinkedHashMap<>();
             runStartPayload.put("runId", run.runId);
             runStartPayload.put("chatId", chatId);
+            putIfNonNull(runStartPayload, "agentKey", requestQueryPayload.get("agentKey"));
             events.add(event("run.start", timestampCursor, seq++, runStartPayload));
 
             Map<String, Object> planUpdate = planUpdateEvent(run.plan, chatId, timestampCursor);

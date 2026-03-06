@@ -294,6 +294,31 @@ class AgentDeltaToStreamInputMapperTest {
     }
 
     @Test
+    void shouldIncludeAgentKeyInRunStartBootstrapEvent() {
+        StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
+                .begin(new StreamRequest.Query(
+                        "req_agent_1",
+                        "chat_agent_1",
+                        "user",
+                        "agent test",
+                        "demoModeReact",
+                        null,
+                        null,
+                        null,
+                        null,
+                        true,
+                        "agent-chat",
+                        "run_agent_1"
+                ));
+
+        StreamEvent runStart = state.bootstrapEvents().stream()
+                .filter(event -> "run.start".equals(event.type()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(runStart.payload()).containsEntry("agentKey", "demoModeReact");
+    }
+
+    @Test
     void shouldIncludeTeamIdInRequestQueryBootstrapEvent() {
         StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
                 .begin(new StreamRequest.Query(

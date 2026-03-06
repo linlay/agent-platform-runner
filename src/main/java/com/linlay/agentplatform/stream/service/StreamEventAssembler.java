@@ -148,6 +148,7 @@ public class StreamEventAssembler {
                 Map<String, Object> runPayload = new LinkedHashMap<>();
                 runPayload.put("runId", runId);
                 runPayload.put("chatId", query.chatId());
+                putIfNonNull(runPayload, "agentKey", query.agentKey());
                 bootstrapEvents.add(next("run.start", runPayload));
                 return;
             }

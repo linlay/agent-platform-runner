@@ -385,7 +385,7 @@ type=html, key=show_weather_card
 
 - `plan.create`：`planId`, `chatId`, `plan`
 - `plan.update`：`planId`, `chatId`, `plan`（总是带 `chatId`）
-- `run.start`：`runId`, `chatId`
+- `run.start`：`runId`, `chatId`, `agentKey`
 - `run.complete`：`runId`, `finishReason?`
 - `run.cancel`：`runId`
 - `run.error`：`runId`, `error`
