@@ -18,11 +18,16 @@ import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.service.AgentDeltaToStreamInputMapper;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
+import com.linlay.agentplatform.stream.model.StreamEvent;
+import com.linlay.agentplatform.stream.model.StreamInput;
+import com.linlay.agentplatform.stream.model.StreamRequest;
+import com.linlay.agentplatform.stream.service.StreamEventAssembler;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.SystemPlanAddTasks;
 import com.linlay.agentplatform.tool.SystemPlanGetTasks;
@@ -36,6 +41,7 @@ import reactor.core.publisher.Flux;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -633,6 +639,119 @@ class DefinitionDrivenAgentTest {
         assertThat(stored).contains("测试 memory");
         assertThat(stored).doesNotContain("always verify target window.");
         assertThat(stored).doesNotContain("instructions:");
+    }
+
+    @Test
+    void memoryTextBlockIdsShouldMatchSseAcrossExecuteStepsAndSummary() throws Exception {
+        Path memoryDir = Files.createTempDirectory("chat-memory-ids");
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        properties.setDir(memoryDir.toString());
+        properties.setK(20);
+        ChatWindowMemoryStore memoryStore = new ChatWindowMemoryStore(objectMapper, properties);
+        String chatId = UUID.randomUUID().toString();
+        String runId = "run_trace_ids";
+
+        AgentDefinition definition = definition(
+                "demoPlanExecuteTraceIds",
+                AgentRuntimeMode.PLAN_EXECUTE,
+                new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
+                new PlanExecuteMode(
+                        new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_"), true, ComputePolicy.MEDIUM),
+                        new StageSettings("执行系统提示", null, null, List.of("_plan_update_task_"), false, ComputePolicy.MEDIUM),
+                        new StageSettings("总结系统提示", null, null, List.of(), false, ComputePolicy.MEDIUM),
+                        null, null
+                ),
+                List.of("_plan_add_tasks_", "_plan_update_task_")
+        );
+
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                if ("agent-plan-generate".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta("call_plan_ids", "function", "_plan_add_tasks_",
+                                    "{\"tasks\":[{\"taskId\":\"t1\",\"description\":\"任务1\",\"status\":\"init\"},{\"taskId\":\"t2\",\"description\":\"任务2\",\"status\":\"init\"}]}")),
+                            "tool_calls"
+                    ));
+                }
+                if ("agent-plan-execute-step-1".equals(spec.stage())) {
+                    String taskId = currentTaskId(spec);
+                    return Flux.just(
+                            new LlmDelta("执行步骤一完成", null, null),
+                            new LlmDelta(
+                                    null,
+                                    List.of(new ToolCallDelta("call_update_ids_1", "function", "_plan_update_task_",
+                                            "{\"taskId\":\"" + taskId + "\",\"status\":\"completed\"}")),
+                                    "tool_calls"
+                            )
+                    );
+                }
+                if ("agent-plan-execute-step-2".equals(spec.stage())) {
+                    String taskId = currentTaskId(spec);
+                    return Flux.just(
+                            new LlmDelta("执行步骤二完成", null, null),
+                            new LlmDelta(
+                                    null,
+                                    List.of(new ToolCallDelta("call_update_ids_2", "function", "_plan_update_task_",
+                                            "{\"taskId\":\"" + taskId + "\",\"status\":\"completed\"}")),
+                                    "tool_calls"
+                            )
+                    );
+                }
+                if ("agent-plan-final".equals(spec.stage())) {
+                    return Flux.just(
+                            new LlmDelta("总结推理", null, null, null),
+                            new LlmDelta(null, "最终总结", null, "stop")
+                    );
+                }
+                return Flux.empty();
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanUpdateTask())),
+                objectMapper,
+                memoryStore,
+                null
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试 trace ids", chatId, "req_trace_ids", runId))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+
+        List<StreamEvent> events = assembleEvents(chatId, runId, deltas);
+        List<String> sseReasoningIds = events.stream()
+                .filter(event -> "reasoning.start".equals(event.type()))
+                .map(event -> String.valueOf(event.payload().get("reasoningId")))
+                .toList();
+        List<String> sseContentIds = events.stream()
+                .filter(event -> "content.start".equals(event.type()))
+                .map(event -> String.valueOf(event.payload().get("contentId")))
+                .toList();
+
+        Path memoryFile = memoryDir.resolve(chatId + ".json");
+        List<String> lines = Files.readAllLines(memoryFile).stream().filter(line -> !line.isBlank()).toList();
+        List<String> storedReasoningIds = new ArrayList<>();
+        List<String> storedContentIds = new ArrayList<>();
+        for (int i = 1; i < lines.size(); i++) {
+            JsonNode step = objectMapper.readTree(lines.get(i));
+            for (JsonNode message : step.path("messages")) {
+                if (message.has("_reasoningId")) {
+                    storedReasoningIds.add(message.path("_reasoningId").asText());
+                }
+                if (message.has("_contentId")) {
+                    storedContentIds.add(message.path("_contentId").asText());
+                }
+            }
+        }
+
+        assertThat(storedReasoningIds).isEqualTo(sseReasoningIds);
+        assertThat(storedContentIds).isEqualTo(sseContentIds);
     }
 
     @Test
@@ -1857,6 +1976,33 @@ class DefinitionDrivenAgentTest {
             }
         }
         return "unknown";
+    }
+
+    private List<StreamEvent> assembleEvents(String chatId, String runId, List<AgentDelta> deltas) {
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper(runId);
+        StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
+                .begin(new StreamRequest.Query(
+                        "req_" + runId,
+                        chatId,
+                        "user",
+                        "test",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        true,
+                        "chat_" + runId,
+                        runId
+                ));
+        List<StreamEvent> events = new ArrayList<>(state.bootstrapEvents());
+        for (AgentDelta delta : deltas) {
+            for (StreamInput input : mapper.mapOrEmpty(delta)) {
+                events.addAll(state.consume(input));
+            }
+        }
+        events.addAll(state.complete());
+        return events;
     }
 
     private abstract static class StubLlmService extends LlmService {

@@ -188,6 +188,18 @@ class AgentDeltaToStreamInputMapperTest {
     }
 
     @Test
+    void shouldPreferIdsProvidedByAgentDelta() {
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        List<StreamEvent> events = assembleEvents(mapper, List.of(
+                AgentDelta.reasoning("reasoning-1").withReasoningId("run_1_r_9"),
+                AgentDelta.content("content-1").withContentId("run_1_c_7")
+        ));
+
+        assertThat(payloadValues(events, "reasoning.start", "reasoningId")).containsExactly("run_1_r_9");
+        assertThat(payloadValues(events, "content.start", "contentId")).containsExactly("run_1_c_7");
+    }
+
+    @Test
     void shouldMapPlanUpdateWithSinglePlanEventType() {
         AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
         List<StreamEvent> events = assembleEvents(mapper, List.of(

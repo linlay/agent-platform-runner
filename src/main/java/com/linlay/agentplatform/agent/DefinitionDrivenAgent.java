@@ -239,7 +239,9 @@ public class DefinitionDrivenAgent implements Agent {
                     if (latestPlanSnapshot != null) {
                         context.initializePlan(latestPlanSnapshot.planId, toPlanTasks(latestPlanSnapshot.tasks));
                     }
+                    TextBlockIdAssigner textBlockIdAssigner = new TextBlockIdAssigner(runId);
                     return Flux.<AgentDelta>create(sink -> runWithMode(context, sink), FluxSink.OverflowStrategy.BUFFER)
+                            .map(textBlockIdAssigner::assign)
                             .doOnNext(trace::capture)
                             .doOnComplete(() -> finalizeTrace(request, trace));
                 })
@@ -741,8 +743,13 @@ public class DefinitionDrivenAgent implements Agent {
                     currentStep.currentMsgId = StepAccumulator.generateMsgId();
                     currentStep.needNewMsgId = false;
                 }
+                currentStep.flushAssistantContent(now);
+                currentStep.rotateReasoningBlockIfNeeded(delta.reasoningId(), now);
                 if (currentStep.pendingReasoningStartedAt <= 0) {
                     currentStep.pendingReasoningStartedAt = now;
+                }
+                if (!StringUtils.hasText(currentStep.pendingReasoningId)) {
+                    currentStep.pendingReasoningId = delta.reasoningId();
                 }
                 currentStep.pendingReasoning.append(delta.reasoning());
             }
@@ -752,15 +759,20 @@ public class DefinitionDrivenAgent implements Agent {
                     currentStep.currentMsgId = StepAccumulator.generateMsgId();
                     currentStep.needNewMsgId = false;
                 }
+                currentStep.flushReasoning(now);
+                currentStep.rotateContentBlockIfNeeded(delta.contentId(), now);
                 if (currentStep.pendingAssistantStartedAt <= 0) {
                     currentStep.pendingAssistantStartedAt = now;
+                }
+                if (!StringUtils.hasText(currentStep.pendingAssistantContentId)) {
+                    currentStep.pendingAssistantContentId = delta.contentId();
                 }
                 currentStep.pendingAssistant.append(delta.content());
             }
 
             if (delta.toolCalls() != null && !delta.toolCalls().isEmpty()) {
                 currentStep.flushReasoning(now);
-                currentStep.flushAssistantContent();
+                currentStep.flushAssistantContent(now);
                 for (ToolCallDelta toolCall : delta.toolCalls()) {
                     if (toolCall == null) {
                         continue;
@@ -784,7 +796,7 @@ public class DefinitionDrivenAgent implements Agent {
 
             if (delta.toolResults() != null && !delta.toolResults().isEmpty()) {
                 currentStep.flushReasoning(now);
-                currentStep.flushAssistantContent();
+                currentStep.flushAssistantContent(now);
                 for (AgentDelta.ToolResult toolResult : delta.toolResults()) {
                     if (toolResult == null || !StringUtils.hasText(toolResult.toolId())) {
                         continue;
@@ -932,8 +944,10 @@ public class DefinitionDrivenAgent implements Agent {
         private final String stage;
         private final String taskId;
         private final StringBuilder pendingReasoning = new StringBuilder();
+        private String pendingReasoningId;
         private long pendingReasoningStartedAt;
         private final StringBuilder pendingAssistant = new StringBuilder();
+        private String pendingAssistantContentId;
         private long pendingAssistantStartedAt;
         private final List<ChatWindowMemoryStore.RunMessage> orderedMessages = new ArrayList<>();
         private final Map<String, ToolTrace> toolByCallId = new LinkedHashMap<>();
@@ -962,7 +976,7 @@ public class DefinitionDrivenAgent implements Agent {
         private List<ChatWindowMemoryStore.RunMessage> runMessages() {
             long now = System.currentTimeMillis();
             flushReasoning(now);
-            flushAssistantContent();
+            flushAssistantContent(now);
             toolByCallId.values().forEach(toolTrace -> appendAssistantToolCallIfNeeded(
                     toolTrace,
                     toolTrace.resultAt > 0 ? toolTrace.resultAt : now
@@ -1030,30 +1044,140 @@ public class DefinitionDrivenAgent implements Agent {
             long startedAt = pendingReasoningStartedAt > 0 ? pendingReasoningStartedAt : now;
             orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantReasoning(
                     pendingReasoning.toString(),
+                    pendingReasoningId,
                     currentMsgId,
                     startedAt,
                     startedAt > 0 && now >= startedAt ? now - startedAt : null,
                     null
             ));
             pendingReasoning.setLength(0);
+            pendingReasoningId = null;
             pendingReasoningStartedAt = 0L;
         }
 
-        private void flushAssistantContent() {
+        private void flushAssistantContent(long now) {
             if (!StringUtils.hasText(pendingAssistant)) {
                 return;
             }
-            long now = System.currentTimeMillis();
             long startedAt = pendingAssistantStartedAt > 0 ? pendingAssistantStartedAt : now;
             orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantContent(
                     pendingAssistant.toString(),
+                    pendingAssistantContentId,
                     currentMsgId,
                     startedAt,
                     startedAt > 0 && now >= startedAt ? now - startedAt : null,
                     null
             ));
             pendingAssistant.setLength(0);
+            pendingAssistantContentId = null;
             pendingAssistantStartedAt = 0L;
+        }
+
+        private void rotateReasoningBlockIfNeeded(String nextReasoningId, long now) {
+            if (!StringUtils.hasText(pendingReasoning) || !StringUtils.hasText(pendingReasoningId)) {
+                return;
+            }
+            if (!Objects.equals(pendingReasoningId, nextReasoningId)) {
+                flushReasoning(now);
+            }
+        }
+
+        private void rotateContentBlockIfNeeded(String nextContentId, long now) {
+            if (!StringUtils.hasText(pendingAssistant) || !StringUtils.hasText(pendingAssistantContentId)) {
+                return;
+            }
+            if (!Objects.equals(pendingAssistantContentId, nextContentId)) {
+                flushAssistantContent(now);
+            }
+        }
+    }
+
+    private static final class TextBlockIdAssigner {
+        private final String runPrefix;
+        private int reasoningSeq;
+        private int contentSeq;
+        private String activeReasoningId;
+        private String activeContentId;
+
+        private TextBlockIdAssigner(String runId) {
+            this.runPrefix = StringUtils.hasText(runId) ? runId.trim() : "run";
+        }
+
+        private AgentDelta assign(AgentDelta delta) {
+            if (delta == null) {
+                return null;
+            }
+            if (StringUtils.hasText(delta.stageMarker())) {
+                closeTextBlocks();
+                return delta;
+            }
+
+            AgentDelta assigned = delta;
+            if (StringUtils.hasText(delta.reasoning())) {
+                closeContentBlock();
+                String reasoningId = StringUtils.hasText(delta.reasoningId())
+                        ? delta.reasoningId().trim()
+                        : openReasoningBlockIfNeeded();
+                activeReasoningId = reasoningId;
+                if (!Objects.equals(reasoningId, delta.reasoningId())) {
+                    assigned = assigned.withReasoningId(reasoningId);
+                }
+            }
+
+            if (StringUtils.hasText(delta.content())) {
+                closeReasoningBlock();
+                String contentId = StringUtils.hasText(delta.contentId())
+                        ? delta.contentId().trim()
+                        : openContentBlockIfNeeded();
+                activeContentId = contentId;
+                if (!Objects.equals(contentId, assigned.contentId())) {
+                    assigned = assigned.withContentId(contentId);
+                }
+            }
+
+            if (hasNonTextPayload(delta)) {
+                closeTextBlocks();
+            }
+            return assigned;
+        }
+
+        private boolean hasNonTextPayload(AgentDelta delta) {
+            return delta.taskLifecycle() != null
+                    || (delta.toolCalls() != null && !delta.toolCalls().isEmpty())
+                    || (delta.toolEnds() != null && !delta.toolEnds().isEmpty())
+                    || (delta.toolResults() != null && !delta.toolResults().isEmpty())
+                    || delta.planUpdate() != null
+                    || delta.requestSubmit() != null
+                    || StringUtils.hasText(delta.finishReason());
+        }
+
+        private String openReasoningBlockIfNeeded() {
+            if (!StringUtils.hasText(activeReasoningId)) {
+                reasoningSeq++;
+                activeReasoningId = runPrefix + "_r_" + reasoningSeq;
+            }
+            return activeReasoningId;
+        }
+
+        private String openContentBlockIfNeeded() {
+            if (!StringUtils.hasText(activeContentId)) {
+                contentSeq++;
+                activeContentId = runPrefix + "_c_" + contentSeq;
+            }
+            return activeContentId;
+        }
+
+        private void closeReasoningBlock() {
+            activeReasoningId = null;
+        }
+
+        private void closeContentBlock() {
+            activeContentId = null;
+        }
+
+        private void closeTextBlocks() {
+            closeReasoningBlock();
+            closeContentBlock();
         }
     }
 

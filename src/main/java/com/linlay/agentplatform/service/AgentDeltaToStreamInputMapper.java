@@ -77,12 +77,12 @@ public class AgentDeltaToStreamInputMapper {
 
         if (hasText(delta.reasoning())) {
             closeContentBlock();
-            inputs.add(new StreamInput.ReasoningDelta(openReasoningBlockIfNeeded(), delta.reasoning(), delta.taskId()));
+            inputs.add(new StreamInput.ReasoningDelta(resolveReasoningId(delta), delta.reasoning(), delta.taskId()));
         }
 
         if (hasText(delta.content())) {
             closeReasoningBlock();
-            inputs.add(new StreamInput.ContentDelta(openContentBlockIfNeeded(), delta.content(), delta.taskId()));
+            inputs.add(new StreamInput.ContentDelta(resolveContentId(delta), delta.content(), delta.taskId()));
         }
 
         if (delta.toolCalls() != null && !delta.toolCalls().isEmpty()) {
@@ -248,6 +248,22 @@ public class AgentDeltaToStreamInputMapper {
             activeContentId = runPrefix + "_c_" + contentSeq;
         }
         return activeContentId;
+    }
+
+    private String resolveReasoningId(AgentDelta delta) {
+        if (delta != null && hasText(delta.reasoningId())) {
+            activeReasoningId = delta.reasoningId().trim();
+            return activeReasoningId;
+        }
+        return openReasoningBlockIfNeeded();
+    }
+
+    private String resolveContentId(AgentDelta delta) {
+        if (delta != null && hasText(delta.contentId())) {
+            activeContentId = delta.contentId().trim();
+            return activeContentId;
+        }
+        return openContentBlockIfNeeded();
     }
 
     private void closeReasoningBlock() {

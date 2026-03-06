@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Objects;
 
 @Service
 public class ChatWindowMemoryStore {
@@ -119,7 +120,8 @@ public class ChatWindowMemoryStore {
         String normalizedRunId = normalizeRunId(runId);
         SystemSnapshot normalizedSystem = normalizeSystemSnapshot(system);
         Set<String> runtimeActionTools = extractActionToolNames(normalizedSystem);
-        List<StoredMessage> storedMessages = convertRunMessages(normalizedRunId, runMessages, runtimeActionTools);
+        TextBlockSequenceState sequenceState = nextTextBlockSequenceState(chatId, normalizedRunId);
+        List<StoredMessage> storedMessages = convertRunMessages(normalizedRunId, runMessages, runtimeActionTools, sequenceState);
         if (storedMessages.isEmpty()) {
             return;
         }
@@ -233,11 +235,16 @@ public class ChatWindowMemoryStore {
 
     // ========= RunMessage -> StoredMessage conversion =========
 
-    private List<StoredMessage> convertRunMessages(String runId, List<RunMessage> runMessages, Set<String> runtimeActionTools) {
+    private List<StoredMessage> convertRunMessages(
+            String runId,
+            List<RunMessage> runMessages,
+            Set<String> runtimeActionTools,
+            TextBlockSequenceState sequenceState
+    ) {
         Map<String, ToolIdentity> toolIdentityByCallId = new LinkedHashMap<>();
         List<StoredMessage> storedMessages = new ArrayList<>();
-        int reasoningIndex = 0;
-        int contentIndex = 0;
+        int reasoningSeq = sequenceState == null ? 1 : Math.max(1, sequenceState.nextReasoningSeq());
+        int contentSeq = sequenceState == null ? 1 : Math.max(1, sequenceState.nextContentSeq());
         long tsCursor = System.currentTimeMillis();
         for (RunMessage message : runMessages) {
             if (message == null || !StringUtils.hasText(message.kind())) {
@@ -246,8 +253,8 @@ public class ChatWindowMemoryStore {
             long ts = message.ts() == null ? tsCursor++ : message.ts();
             StoredMessage converted = switch (message.kind().trim().toLowerCase()) {
                 case "user_content" -> toUserStoredMessage(message, ts);
-                case "assistant_reasoning" -> toAssistantReasoningMessage(runId, message, ts, reasoningIndex++);
-                case "assistant_content" -> toAssistantContentMessage(runId, message, ts, contentIndex++);
+                case "assistant_reasoning" -> toAssistantReasoningMessage(runId, message, ts, reasoningSeq++);
+                case "assistant_content" -> toAssistantContentMessage(runId, message, ts, contentSeq++);
                 case "assistant_tool_call" -> toAssistantToolCallMessage(message, ts, toolIdentityByCallId, runtimeActionTools);
                 case "tool_result" -> toToolResultMessage(message, ts, toolIdentityByCallId, runtimeActionTools);
                 default -> null;
@@ -270,7 +277,7 @@ public class ChatWindowMemoryStore {
         return stored;
     }
 
-    private StoredMessage toAssistantReasoningMessage(String runId, RunMessage message, long ts, int index) {
+    private StoredMessage toAssistantReasoningMessage(String runId, RunMessage message, long ts, int sequence) {
         if (!StringUtils.hasText(message.text())) {
             return null;
         }
@@ -280,14 +287,14 @@ public class ChatWindowMemoryStore {
         stored.ts = ts;
         stored.reasoningId = hasText(message.reasoningId())
                 ? message.reasoningId().trim()
-                : autoReasoningId(runId, index);
+                : autoReasoningId(runId, sequence);
         stored.msgId = hasText(message.msgId()) ? message.msgId().trim() : null;
         stored.timing = positiveOrNull(message.timing());
         stored.usage = usageOrNull(message.usage());
         return stored;
     }
 
-    private StoredMessage toAssistantContentMessage(String runId, RunMessage message, long ts, int index) {
+    private StoredMessage toAssistantContentMessage(String runId, RunMessage message, long ts, int sequence) {
         if (!StringUtils.hasText(message.text())) {
             return null;
         }
@@ -297,7 +304,7 @@ public class ChatWindowMemoryStore {
         stored.ts = ts;
         stored.contentId = hasText(message.contentId())
                 ? message.contentId().trim()
-                : autoContentId(runId, index);
+                : autoContentId(runId, sequence);
         stored.msgId = hasText(message.msgId()) ? message.msgId().trim() : null;
         stored.timing = positiveOrNull(message.timing());
         stored.usage = usageOrNull(message.usage());
@@ -796,14 +803,44 @@ public class ChatWindowMemoryStore {
         return toBase36Now();
     }
 
-    private String autoReasoningId(String runId, int index) {
-        String normalizedRunId = hasText(runId) ? runId.trim() : toBase36Now();
-        return normalizedRunId + "_r_" + Math.max(1, index + 1);
+    private TextBlockSequenceState nextTextBlockSequenceState(String chatId, String runId) {
+        int maxReasoningSeq = 0;
+        int maxContentSeq = 0;
+        for (ParsedLine line : readAllParsedLines(chatId)) {
+            if (!(line instanceof ParsedStepLine step) || !Objects.equals(runId, step.runId()) || step.messages() == null) {
+                continue;
+            }
+            for (StoredMessage message : step.messages()) {
+                if (message == null) {
+                    continue;
+                }
+                maxReasoningSeq = Math.max(maxReasoningSeq, extractTextBlockSequence(runId, message.reasoningId, "_r_"));
+                maxContentSeq = Math.max(maxContentSeq, extractTextBlockSequence(runId, message.contentId, "_c_"));
+            }
+        }
+        return new TextBlockSequenceState(maxReasoningSeq + 1, maxContentSeq + 1);
     }
 
-    private String autoContentId(String runId, int index) {
+    private int extractTextBlockSequence(String runId, String id, String separator) {
+        if (!hasText(runId) || !hasText(id) || !id.startsWith(runId + separator)) {
+            return 0;
+        }
+        String suffix = id.substring((runId + separator).length());
+        try {
+            return Integer.parseInt(suffix);
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    private String autoReasoningId(String runId, int sequence) {
         String normalizedRunId = hasText(runId) ? runId.trim() : toBase36Now();
-        return normalizedRunId + "_c_" + Math.max(1, index + 1);
+        return normalizedRunId + "_r_" + Math.max(1, sequence);
+    }
+
+    private String autoContentId(String runId, int sequence) {
+        String normalizedRunId = hasText(runId) ? runId.trim() : toBase36Now();
+        return normalizedRunId + "_c_" + Math.max(1, sequence);
     }
 
     private String toBase36Now() {
@@ -886,23 +923,45 @@ public class ChatWindowMemoryStore {
         }
 
         public static RunMessage assistantReasoning(String content, Long ts, Long timing, Map<String, Object> usage) {
-            return new RunMessage("assistant", "assistant_reasoning", content, null, null, null, null, null, null, null, ts, timing, usage);
+            return assistantReasoning(content, null, null, ts, timing, usage);
         }
 
         public static RunMessage assistantReasoning(String content, String msgId, Long ts, Long timing, Map<String, Object> usage) {
-            return new RunMessage("assistant", "assistant_reasoning", content, null, null, null, null, null, null, msgId, ts, timing, usage);
+            return assistantReasoning(content, null, msgId, ts, timing, usage);
+        }
+
+        public static RunMessage assistantReasoning(
+                String content,
+                String reasoningId,
+                String msgId,
+                Long ts,
+                Long timing,
+                Map<String, Object> usage
+        ) {
+            return new RunMessage("assistant", "assistant_reasoning", content, null, null, null, null, reasoningId, null, msgId, ts, timing, usage);
         }
 
         public static RunMessage assistantContent(String content) {
-            return new RunMessage("assistant", "assistant_content", content, null, null, null, null, null, null, null, null, null, null);
+            return assistantContent(content, null, null, null, null, null);
         }
 
         public static RunMessage assistantContent(String content, Long ts, Long timing, Map<String, Object> usage) {
-            return new RunMessage("assistant", "assistant_content", content, null, null, null, null, null, null, null, ts, timing, usage);
+            return assistantContent(content, null, null, ts, timing, usage);
         }
 
         public static RunMessage assistantContent(String content, String msgId, Long ts, Long timing, Map<String, Object> usage) {
-            return new RunMessage("assistant", "assistant_content", content, null, null, null, null, null, null, msgId, ts, timing, usage);
+            return assistantContent(content, null, msgId, ts, timing, usage);
+        }
+
+        public static RunMessage assistantContent(
+                String content,
+                String contentId,
+                String msgId,
+                Long ts,
+                Long timing,
+                Map<String, Object> usage
+        ) {
+            return new RunMessage("assistant", "assistant_content", content, null, null, null, null, null, contentId, msgId, ts, timing, usage);
         }
 
         public static RunMessage assistantToolCall(String toolName, String toolCallId, String toolArgs) {
@@ -1011,6 +1070,12 @@ public class ChatWindowMemoryStore {
             PlanSnapshot plan,
             List<StoredMessage> messages
     ) implements ParsedLine {
+    }
+
+    private record TextBlockSequenceState(
+            int nextReasoningSeq,
+            int nextContentSeq
+    ) {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

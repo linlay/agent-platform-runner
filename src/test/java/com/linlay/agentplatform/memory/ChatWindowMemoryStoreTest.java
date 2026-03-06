@@ -414,6 +414,43 @@ class ChatWindowMemoryStoreTest {
     }
 
     @Test
+    void shouldContinueFallbackContentAndReasoningIdsAcrossStepsWithinRun() throws Exception {
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        properties.setDir(tempDir.resolve("chats").toString());
+        properties.setK(20);
+
+        ChatWindowMemoryStore store = new ChatWindowMemoryStore(objectMapper, properties);
+        String chatId = "123e4567-e89b-12d3-a456-426614174007";
+        String runId = "run_010";
+
+        store.appendQueryLine(chatId, runId, query(runId, chatId, "连续 step"));
+        store.appendStepLine(chatId, runId, "execute", 1, "task_1", null, null, List.of(
+                ChatWindowMemoryStore.RunMessage.user("连续 step", 1000L),
+                ChatWindowMemoryStore.RunMessage.assistantReasoning("r1", 1001L, 5L, null),
+                ChatWindowMemoryStore.RunMessage.assistantContent("c1", 1002L, 5L, null)
+        ));
+        store.appendStepLine(chatId, runId, "execute", 2, "task_2", null, null, List.of(
+                ChatWindowMemoryStore.RunMessage.assistantContent("c2", 2000L, 5L, null)
+        ));
+        store.appendStepLine(chatId, runId, "summary", 3, null, null, null, List.of(
+                ChatWindowMemoryStore.RunMessage.assistantReasoning("r2", 3000L, 5L, null),
+                ChatWindowMemoryStore.RunMessage.assistantContent("c3", 3001L, 5L, null)
+        ));
+
+        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
+        JsonNode step1 = objectMapper.readTree(lines.get(1));
+        JsonNode step2 = objectMapper.readTree(lines.get(2));
+        JsonNode step3 = objectMapper.readTree(lines.get(3));
+
+        assertThat(step1.path("messages").get(1).path("_reasoningId").asText()).isEqualTo("run_010_r_1");
+        assertThat(step1.path("messages").get(2).path("_contentId").asText()).isEqualTo("run_010_c_1");
+        assertThat(step2.path("messages").get(0).path("_contentId").asText()).isEqualTo("run_010_c_2");
+        assertThat(step3.path("messages").get(0).path("_reasoningId").asText()).isEqualTo("run_010_r_2");
+        assertThat(step3.path("messages").get(1).path("_contentId").asText()).isEqualTo("run_010_c_3");
+    }
+
+    @Test
     void isSameSystemShouldCompareByJsonEquality() throws Exception {
         ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
         properties.setDir(tempDir.resolve("chats").toString());
