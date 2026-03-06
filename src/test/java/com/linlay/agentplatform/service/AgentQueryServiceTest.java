@@ -82,6 +82,27 @@ class AgentQueryServiceTest {
     }
 
     @Test
+    void normalizeEventShouldPreserveSeqForPlanUpdate() throws Exception {
+        AgentQueryService service = newService();
+        String payload = """
+                {"seq":3,"type":"plan.update","planId":"plan_1","chatId":"chat_1","plan":[{"taskId":"task1","description":"d1","status":"init"}],"timestamp":1700000000000}
+                """;
+        ServerSentEvent<String> event = ServerSentEvent.builder(payload)
+                .event("message")
+                .build();
+
+        ServerSentEvent<String> normalized = ReflectionTestUtils.invokeMethod(service, "normalizeEvent", event);
+        JsonNode node = objectMapper.readTree(normalized.data());
+
+        assertThat(node.path("seq").asLong()).isEqualTo(3L);
+        assertThat(node.path("type").asText()).isEqualTo("plan.update");
+        assertThat(node.path("planId").asText()).isEqualTo("plan_1");
+        assertThat(node.path("chatId").asText()).isEqualTo("chat_1");
+        assertThat(node.path("plan").isArray()).isTrue();
+        assertThat(node.path("timestamp").asLong()).isEqualTo(1700000000000L);
+    }
+
+    @Test
     void normalizeEventShouldInjectFrontendFieldsForToolStart() throws Exception {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
         ViewportRegistryService viewportRegistryService = mock(ViewportRegistryService.class);

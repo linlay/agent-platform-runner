@@ -253,6 +253,7 @@ public class AgentQueryService {
         String type = objectNode.path("type").asText();
         if ("plan.update".equals(type)) {
             ObjectNode normalized = objectMapper.createObjectNode();
+            putIfPresent(normalized, "seq", objectNode.get("seq"));
             normalized.put("type", "plan.update");
             putIfPresent(normalized, "planId", objectNode.get("planId"));
             putIfPresent(normalized, "chatId", objectNode.get("chatId"));

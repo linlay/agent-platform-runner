@@ -1121,7 +1121,7 @@ class AgentControllerTest {
     }
 
     @Test
-    void chatApiShouldReturnStrictPlanUpdateFormat() throws Exception {
+    void chatApiShouldReturnPlanUpdateWithSeq() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174088";
         Path chatDir = Path.of(chatWindowMemoryProperties.getDir());
         Files.createDirectories(chatDir);
@@ -1198,11 +1198,12 @@ class AgentControllerTest {
         assertThat(planUpdate).containsEntry("chatId", chatId);
         assertThat(planUpdate).containsKey("plan");
         assertThat(planUpdate).containsKey("timestamp");
-        assertThat(planUpdate).doesNotContainKey("seq");
+        assertThat(planUpdate).containsKey("seq");
+        assertThat(planUpdate.get("seq")).isInstanceOf(Number.class);
     }
 
     @Test
-    void queryShouldEmitStrictPlanUpdateSseFormat() throws Exception {
+    void queryShouldEmitPlanUpdateSseWithSeq() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174089";
         Path chatDir = Path.of(chatWindowMemoryProperties.getDir());
         Files.createDirectories(chatDir);
@@ -1275,7 +1276,7 @@ class AgentControllerTest {
         String planPayload = extractTypedJsonObject(joined, "plan.update");
         assertThat(planPayload).isNotBlank();
         assertThat(planPayload).contains("\"type\":\"plan.update\"");
-        assertThat(planPayload).doesNotContain("\"seq\":");
+        assertThat(planPayload).contains("\"seq\":");
     }
 
     private String extractFirstValue(String text, String key) {
@@ -1301,8 +1302,12 @@ class AgentControllerTest {
     }
 
     private String extractTypedJsonObject(String text, String type) {
-        String marker = "{\"type\":\"" + type + "\"";
-        int start = text.indexOf(marker);
+        String marker = "\"type\":\"" + type + "\"";
+        int markerIndex = text.indexOf(marker);
+        if (markerIndex < 0) {
+            return "";
+        }
+        int start = text.lastIndexOf("{", markerIndex);
         if (start < 0) {
             return "";
         }

@@ -748,10 +748,10 @@ public class ChatRecordStore {
             runStartPayload.put("agentKey", runAgentKey);
             events.add(event("run.start", timestampCursor, seq++, runStartPayload));
 
-            Map<String, Object> planUpdate = planUpdateEvent(run.plan, chatId, timestampCursor);
-            if (!planUpdate.isEmpty()) {
-                timestampCursor = normalizeEventTimestamp(((Number) planUpdate.get("timestamp")).longValue(), timestampCursor);
-                events.add(planUpdate);
+            Map<String, Object> planUpdatePayload = planUpdatePayload(run.plan, chatId);
+            if (!planUpdatePayload.isEmpty()) {
+                timestampCursor = normalizeEventTimestamp(timestampCursor + 1, timestampCursor);
+                events.add(event("plan.update", timestampCursor, seq++, planUpdatePayload));
             }
 
             while (persistedIndex < persistedEvents.size()
@@ -1108,10 +1108,9 @@ public class ChatRecordStore {
         return data;
     }
 
-    private Map<String, Object> planUpdateEvent(
+    private Map<String, Object> planUpdatePayload(
             ChatWindowMemoryStore.PlanSnapshot planSnapshot,
-            String chatId,
-            long previousTimestamp
+            String chatId
     ) {
         if (planSnapshot == null
                 || !StringUtils.hasText(planSnapshot.planId)
@@ -1135,13 +1134,11 @@ public class ChatRecordStore {
             return Map.of();
         }
 
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("type", "plan.update");
-        data.put("planId", planSnapshot.planId.trim());
-        data.put("chatId", StringUtils.hasText(chatId) ? chatId : null);
-        data.put("plan", plan);
-        data.put("timestamp", normalizeEventTimestamp(previousTimestamp + 1, previousTimestamp));
-        return data;
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("planId", planSnapshot.planId.trim());
+        payload.put("chatId", StringUtils.hasText(chatId) ? chatId : null);
+        payload.put("plan", plan);
+        return payload;
     }
 
     private String normalizeStatus(String raw) {

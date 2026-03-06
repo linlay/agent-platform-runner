@@ -483,7 +483,7 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void loadChatShouldReplayPlanUpdateInStrictFormat() throws Exception {
+    void loadChatShouldReplayPlanUpdateWithSeq() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174017";
         Path chatDir = tempDir.resolve("chats");
         writeIndex(chatDir, chatId, "计划会话", 1707000500000L, 1707000500000L);
@@ -517,7 +517,8 @@ class ChatRecordStoreTest {
         assertThat(planUpdate).containsEntry("chatId", chatId);
         assertThat(planUpdate).containsKey("plan");
         assertThat(planUpdate).containsKey("timestamp");
-        assertThat(planUpdate).doesNotContainKey("seq");
+        assertThat(planUpdate).containsKey("seq");
+        assertThat(planUpdate.get("seq")).isInstanceOf(Number.class);
     }
 
     @Test
