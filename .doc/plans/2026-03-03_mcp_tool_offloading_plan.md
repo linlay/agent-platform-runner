@@ -91,7 +91,7 @@ MCP 服务群：
 
 新增：
 - `McpServerRegistryService`
-- `McpCapabilitySyncService`
+- `McpToolSyncService`
 
 职责：
 - 管理 MCP server 清单。

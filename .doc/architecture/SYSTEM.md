@@ -25,7 +25,7 @@ flowchart LR
     Orchestrator --> ToolExec[ToolExecutionService]
 
     LLM --> Provider[(OpenAI Compatible / NEWAPI)]
-    ToolExec --> ToolReg[ToolRegistry + CapabilityRegistryService]
+    ToolExec --> ToolReg[ToolRegistry + ToolFileRegistryService]
     ToolExec --> SubmitCoord[FrontendSubmitCoordinator]
 
     QuerySvc --> ChatStore[ChatRecordStore]

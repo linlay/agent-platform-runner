@@ -26,13 +26,13 @@ public class SkillRegistryService {
     private static final Logger log = LoggerFactory.getLogger(SkillRegistryService.class);
     private static final String SKILL_FILE = "SKILL.md";
 
-    private final SkillCatalogProperties properties;
+    private final SkillProperties properties;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, SkillDescriptor> byId = Map.of();
 
     public SkillRegistryService(
-            SkillCatalogProperties properties
+            SkillProperties properties
     ) {
         this.properties = properties;
         refreshSkills();

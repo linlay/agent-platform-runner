@@ -3,7 +3,7 @@ package com.linlay.agentplatform.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "agent.data")
-public class DataCatalogProperties {
+public class DataProperties {
 
     private String externalDir = "data";
 

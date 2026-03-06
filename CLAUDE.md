@@ -57,12 +57,12 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 | `agent.mode` | `AgentMode`（sealed：`OneshotMode`/`ReactMode`/`PlanExecuteMode`）、`OrchestratorServices` 流式编排、`StageSettings` |
 | `agent.runtime` | `AgentRuntimeMode` 枚举、`ExecutionContext`（状态/预算/对话历史管理）、`ToolExecutionService` |
 | `agent.runtime.policy` | `RunSpec`、`ToolChoice`、`ComputePolicy`、`Budget` 等策略定义 |
-| `model` | `AgentRequest`、`ModelCatalogProperties`、`ModelDefinition`、`ModelProtocol`、`ViewportType` |
+| `model` | `AgentRequest`、`ModelProperties`、`ModelDefinition`、`ModelProtocol`、`ViewportType` |
 | `model.api` | REST 契约：`ApiResponse`、`QueryRequest`、`SubmitRequest`、`ChatDetailResponse` 等 |
 | `model.stream` | 流式类型：`AgentDelta` |
 | `service` | `LlmService`（WebClient SSE + ChatClient 双路径）、`AgentQueryService`（流编排）、`ChatRecordStore`、`DirectoryWatchService` |
-| `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册、`CapabilityRegistryService`（外部工具），内置 bash/city_datetime/mock_city_weather 等 |
-| `skill` | `SkillRegistryService`（技能注册与热刷新）、`SkillDescriptor`、`SkillCatalogProperties` |
+| `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册、`ToolFileRegistryService`（外部工具），内置 bash/city_datetime/mock_city_weather 等 |
+| `skill` | `SkillRegistryService`（技能注册与热刷新）、`SkillDescriptor`、`SkillProperties` |
 | `controller` | REST API：`/api/ap/agents`、`/api/ap/agent`、`/api/ap/skills`、`/api/ap/skill`、`/api/ap/tools`、`/api/ap/tool`、`/api/ap/chats`、`/api/ap/chat`、`/api/ap/query`（SSE）、`/api/ap/submit`、`/api/ap/viewport` |
 | `memory` | 滑动窗口聊天记忆（k=20），文件存储于 `chats/` |
 
@@ -254,7 +254,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 `tools/` 目录下的文件按后缀区分三种类型：
 
-| 后缀 | CapabilityKind | 说明 |
+| 后缀 | ToolKind | 说明 |
 |------|----------------|------|
 | `.backend` | `BACKEND` | 后端工具，模型通过 Function Calling 调用。`description` 用于 OpenAI tool schema，`after_call_hint` 用于注入 system prompt 的"工具调用后推荐指令"章节 |
 | `.action` | `ACTION` | 动作工具，触发前端行为（如主题切换、烟花特效）。不等待 `/api/ap/submit`，直接返回 `"OK"` |

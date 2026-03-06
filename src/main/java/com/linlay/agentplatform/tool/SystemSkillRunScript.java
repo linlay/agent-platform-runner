@@ -2,7 +2,7 @@ package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.linlay.agentplatform.skill.SkillCatalogProperties;
+import com.linlay.agentplatform.skill.SkillProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -33,7 +33,7 @@ public class SystemSkillRunScript extends AbstractDeterministicTool {
     private final String bashCommand;
 
     @Autowired
-    public SystemSkillRunScript(SkillCatalogProperties properties) {
+    public SystemSkillRunScript(SkillProperties properties) {
         this(Path.of(properties.getExternalDir()), "python3", "bash");
     }
 

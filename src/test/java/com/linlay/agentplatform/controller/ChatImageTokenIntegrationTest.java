@@ -2,7 +2,7 @@ package com.linlay.agentplatform.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.DataCatalogProperties;
+import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.LlmService;
@@ -92,7 +92,7 @@ class ChatImageTokenIntegrationTest {
     @Autowired
     private ChatWindowMemoryProperties chatWindowMemoryProperties;
     @Autowired
-    private DataCatalogProperties dataCatalogProperties;
+    private DataProperties dataProperties;
     @Autowired
     private ChatRecordStore chatRecordStore;
 
@@ -151,7 +151,7 @@ class ChatImageTokenIntegrationTest {
     @BeforeEach
     void setUp() throws IOException {
         Files.createDirectories(Path.of(chatWindowMemoryProperties.getDir()));
-        Files.createDirectories(Path.of(dataCatalogProperties.getExternalDir()));
+        Files.createDirectories(Path.of(dataProperties.getExternalDir()));
     }
 
     @Test
@@ -436,7 +436,7 @@ class ChatImageTokenIntegrationTest {
     }
 
     private void writeImageFile(String filename) throws Exception {
-        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         Files.createDirectories(dataDir);
         Files.write(dataDir.resolve(filename), createMinimalPng());
     }

@@ -15,9 +15,9 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
-import com.linlay.agentplatform.config.CapabilityCatalogProperties;
-import com.linlay.agentplatform.schedule.ScheduleCatalogProperties;
-import com.linlay.agentplatform.skill.SkillCatalogProperties;
+import com.linlay.agentplatform.config.ToolProperties;
+import com.linlay.agentplatform.schedule.ScheduleProperties;
+import com.linlay.agentplatform.skill.SkillProperties;
 
 import jakarta.annotation.PostConstruct;
 
@@ -32,23 +32,23 @@ public class RuntimeResourceSyncService {
     private final Path schedulesDir;
 
     public RuntimeResourceSyncService(
-            CapabilityCatalogProperties capabilityCatalogProperties,
-            SkillCatalogProperties skillCatalogProperties
+            ToolProperties toolProperties,
+            SkillProperties skillProperties
     ) {
-        this(capabilityCatalogProperties, skillCatalogProperties, new ScheduleCatalogProperties());
+        this(toolProperties, skillProperties, new ScheduleProperties());
     }
 
     @Autowired
     public RuntimeResourceSyncService(
-            CapabilityCatalogProperties capabilityCatalogProperties,
-            SkillCatalogProperties skillCatalogProperties,
-            ScheduleCatalogProperties scheduleCatalogProperties
+            ToolProperties toolProperties,
+            SkillProperties skillProperties,
+            ScheduleProperties scheduleProperties
     ) {
         this(
                 new PathMatchingResourcePatternResolver(),
-                Path.of(capabilityCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(scheduleCatalogProperties.getExternalDir()).toAbsolutePath().normalize()
+                Path.of(toolProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(skillProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(scheduleProperties.getExternalDir()).toAbsolutePath().normalize()
         );
     }
 

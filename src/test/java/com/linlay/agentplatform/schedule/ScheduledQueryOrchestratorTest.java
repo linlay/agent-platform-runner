@@ -17,7 +17,7 @@ class ScheduledQueryOrchestratorTest {
     void shouldRegisterAndCancelSchedulesOnReconcile() {
         ScheduledQueryRegistryService registryService = mock(ScheduledQueryRegistryService.class);
         ScheduledQueryDispatchService dispatchService = mock(ScheduledQueryDispatchService.class);
-        ScheduleCatalogProperties properties = new ScheduleCatalogProperties();
+        ScheduleProperties properties = new ScheduleProperties();
         properties.setEnabled(true);
         properties.setDefaultZoneId("Asia/Shanghai");
         TaskScheduler taskScheduler = mock(TaskScheduler.class);
@@ -58,7 +58,7 @@ class ScheduledQueryOrchestratorTest {
     void refreshAndReconcileShouldRefreshRegistry() {
         ScheduledQueryRegistryService registryService = mock(ScheduledQueryRegistryService.class);
         ScheduledQueryDispatchService dispatchService = mock(ScheduledQueryDispatchService.class);
-        ScheduleCatalogProperties properties = new ScheduleCatalogProperties();
+        ScheduleProperties properties = new ScheduleProperties();
         properties.setEnabled(false);
         TaskScheduler taskScheduler = mock(TaskScheduler.class);
 

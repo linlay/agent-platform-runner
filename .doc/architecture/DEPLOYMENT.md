@@ -21,7 +21,7 @@
 `DirectoryWatchService` 监听以下目录变化并触发刷新：
 - `agents/` -> `AgentRegistry.refreshAgents()`
 - `models/` -> `ModelRegistryService.refreshModels()` + `AgentRegistry.refreshAgents()`
-- `tools/` -> `CapabilityRegistryService.refreshCapabilities()`
+- `tools/` -> `ToolFileRegistryService.refreshTools()`
 - `skills/` -> `SkillRegistryService.refreshSkills()`
 - `viewports/` -> `ViewportRegistryService.refreshViewports()`
 

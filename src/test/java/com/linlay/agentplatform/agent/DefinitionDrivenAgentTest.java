@@ -22,7 +22,7 @@ import com.linlay.agentplatform.service.AgentDeltaToStreamInputMapper;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
-import com.linlay.agentplatform.skill.SkillCatalogProperties;
+import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.stream.model.StreamEvent;
 import com.linlay.agentplatform.stream.model.StreamInput;
@@ -371,7 +371,7 @@ class DefinitionDrivenAgentTest {
                 always verify target window.
                 """);
 
-        SkillCatalogProperties skillProperties = new SkillCatalogProperties();
+        SkillProperties skillProperties = new SkillProperties();
         skillProperties.setExternalDir(skillsRoot.toString());
         skillProperties.setMaxPromptChars(1000);
         SkillRegistryService skillRegistryService = new SkillRegistryService(skillProperties);
@@ -1975,7 +1975,7 @@ class DefinitionDrivenAgentTest {
                 %s
                 """.formatted(promptText));
 
-        SkillCatalogProperties skillProperties = new SkillCatalogProperties();
+        SkillProperties skillProperties = new SkillProperties();
         skillProperties.setExternalDir(skillsRoot.toString());
         skillProperties.setMaxPromptChars(1000);
         return new SkillRegistryService(skillProperties);

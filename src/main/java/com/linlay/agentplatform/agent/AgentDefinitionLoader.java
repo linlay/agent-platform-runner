@@ -44,13 +44,13 @@ public class AgentDefinitionLoader {
 
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
-    private final AgentCatalogProperties properties;
+    private final AgentProperties properties;
     private final ModelRegistryService modelRegistryService;
 
     @Autowired
     public AgentDefinitionLoader(
             ObjectMapper objectMapper,
-            AgentCatalogProperties properties,
+            AgentProperties properties,
             ModelRegistryService modelRegistryService
     ) {
         this.objectMapper = objectMapper;

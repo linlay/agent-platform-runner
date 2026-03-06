@@ -3,7 +3,7 @@ package com.linlay.agentplatform.schedule;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "agent.schedule")
-public class ScheduleCatalogProperties {
+public class ScheduleProperties {
 
     private String externalDir = "schedules";
     private boolean enabled = true;

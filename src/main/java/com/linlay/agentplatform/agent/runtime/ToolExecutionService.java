@@ -13,7 +13,7 @@ import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LoggingSanitizer;
 import com.linlay.agentplatform.tool.BaseTool;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -361,7 +361,7 @@ public class ToolExecutionService {
         if (!enabledToolsByName.containsKey(toolName)) {
             return new InvokeResult(errorResult(toolName, "Tool is not enabled for this agent: " + toolName), null);
         }
-        if (toolRegistry.capability(toolName).isEmpty()) {
+        if (toolRegistry.descriptor(toolName).isEmpty()) {
             return new InvokeResult(
                     errorResult(toolName, TOOL_NOT_REGISTERED_CODE, "Tool is not registered: " + toolName),
                     null
@@ -809,8 +809,8 @@ public class ToolExecutionService {
     }
 
     private boolean isBackendTool(String toolName) {
-        return toolRegistry.capability(toolName)
-                .map(descriptor -> descriptor.kind() == CapabilityKind.BACKEND)
+        return toolRegistry.descriptor(toolName)
+                .map(descriptor -> descriptor.kind() == ToolKind.BACKEND)
                 .orElse(true);
     }
 

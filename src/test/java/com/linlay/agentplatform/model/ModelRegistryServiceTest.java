@@ -172,8 +172,8 @@ class ModelRegistryServiceTest {
         assertThat(diff.changedKeys()).contains("model-b");
     }
 
-    private ModelCatalogProperties modelProperties(Path modelsDir) {
-        ModelCatalogProperties properties = new ModelCatalogProperties();
+    private ModelProperties modelProperties(Path modelsDir) {
+        ModelProperties properties = new ModelProperties();
         properties.setExternalDir(modelsDir.toString());
         return properties;
     }

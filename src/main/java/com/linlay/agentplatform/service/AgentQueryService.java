@@ -17,7 +17,7 @@ import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.team.TeamDescriptor;
 import com.linlay.agentplatform.team.TeamRegistryService;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -341,8 +341,8 @@ public class AgentQueryService {
             return false;
         }
 
-        return toolRegistry.capability(toolName)
-                .filter(descriptor -> descriptor.kind() == CapabilityKind.FRONTEND)
+        return toolRegistry.descriptor(toolName)
+                .filter(descriptor -> descriptor.kind() == ToolKind.FRONTEND)
                 .map(descriptor -> {
                     String toolKey = StringUtils.hasText(descriptor.viewportKey())
                             ? descriptor.viewportKey().trim()
@@ -365,7 +365,7 @@ public class AgentQueryService {
         if ("tool.start".equals(eventType) || "tool.snapshot".equals(eventType)) {
             String toolName = root.path("toolName").asText(null);
             String toolId = root.path("toolId").asText(null);
-            boolean hidden = toolRegistry.capability(toolName)
+            boolean hidden = toolRegistry.descriptor(toolName)
                     .map(descriptor -> Boolean.FALSE.equals(descriptor.clientVisible()))
                     .orElse(false);
             if (hidden && StringUtils.hasText(toolId)) {

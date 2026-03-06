@@ -5,8 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.api.QueryRequest;
-import com.linlay.agentplatform.service.McpCapabilitySyncService;
-import com.linlay.agentplatform.config.ViewportCatalogProperties;
+import com.linlay.agentplatform.service.McpToolSyncService;
+import com.linlay.agentplatform.config.ToolProperties;
+import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
@@ -14,10 +15,11 @@ import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.service.ViewportRegistryService;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.service.SseFlushWriter;
-import com.linlay.agentplatform.team.TeamCatalogProperties;
+import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolFileRegistryService;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -89,7 +91,7 @@ class AgentControllerTest {
     @Autowired
     private FrontendSubmitCoordinator frontendSubmitCoordinator;
     @Autowired
-    private ViewportCatalogProperties viewportCatalogProperties;
+    private ViewportProperties viewportProperties;
     @Autowired
     private ViewportRegistryService viewportRegistryService;
     @Autowired
@@ -97,15 +99,19 @@ class AgentControllerTest {
     @Autowired
     private ChatRecordStore chatRecordStore;
     @Autowired
-    private TeamCatalogProperties teamCatalogProperties;
+    private ToolFileRegistryService toolFileRegistryService;
+    @Autowired
+    private ToolProperties toolProperties;
+    @Autowired
+    private TeamProperties teamProperties;
     @Autowired
     private TeamRegistryService teamRegistryService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
-    void seedTeamFixtures() throws Exception {
-        Path teamsDir = Path.of(teamCatalogProperties.getExternalDir()).toAbsolutePath().normalize();
+    void seedFixtures() throws Exception {
+        Path teamsDir = Path.of(teamProperties.getExternalDir()).toAbsolutePath().normalize();
         Files.createDirectories(teamsDir);
         Files.writeString(teamsDir.resolve("a1b2c3d4e5f6.json"), """
                 {
@@ -115,6 +121,32 @@ class AgentControllerTest {
                 }
                 """);
         teamRegistryService.refreshTeams();
+
+        Path toolsDir = Path.of(toolProperties.getExternalDir()).toAbsolutePath().normalize();
+        Files.createDirectories(toolsDir);
+        Files.writeString(toolsDir.resolve("switch_theme.action"), """
+                {
+                  "tools": [
+                    {
+                      "type": "function",
+                      "name": "switch_theme",
+                      "description": "切换主题",
+                      "parameters": {
+                        "type": "object",
+                        "properties": {
+                          "theme": {
+                            "type": "string",
+                            "enum": ["light", "dark"]
+                          }
+                        },
+                        "required": ["theme"],
+                        "additionalProperties": false
+                      }
+                    }
+                  ]
+                }
+                """, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        toolFileRegistryService.refreshTools();
     }
 
     @TestConfiguration
@@ -184,9 +216,9 @@ class AgentControllerTest {
 
         @Bean
         @Primary
-        McpCapabilitySyncService mcpCapabilitySyncService() {
-            McpCapabilitySyncService service = mock(McpCapabilitySyncService.class);
-            CapabilityDescriptor descriptor = new CapabilityDescriptor(
+        McpToolSyncService mcpToolSyncService() {
+            McpToolSyncService service = mock(McpToolSyncService.class);
+            ToolDescriptor descriptor = new ToolDescriptor(
                     "mock.weather.query",
                     "[MOCK] query weather",
                     "",
@@ -200,7 +232,7 @@ class AgentControllerTest {
                     ),
                     false,
                     true,
-                    CapabilityKind.BACKEND,
+                    ToolKind.BACKEND,
                     "function",
                     "mcp://mock/mock.weather.query",
                     "mcp",
@@ -268,7 +300,7 @@ class AgentControllerTest {
                 .jsonPath("$.data[0].meta.defaultAgentKey").isEqualTo("demoModeReact")
                 .jsonPath("$.data[0].meta.defaultAgentKeyValid").isEqualTo(true);
 
-        Path teamsDir = Path.of(teamCatalogProperties.getExternalDir()).toAbsolutePath().normalize();
+        Path teamsDir = Path.of(teamProperties.getExternalDir()).toAbsolutePath().normalize();
         Files.createDirectories(teamsDir);
         Files.writeString(teamsDir.resolve("bbccddeeff00.json"), """
                 {
@@ -783,7 +815,7 @@ class AgentControllerTest {
 
     @Test
     void viewportShouldReturnHtmlData() throws Exception {
-        Path viewportDir = Path.of(viewportCatalogProperties.getExternalDir());
+        Path viewportDir = Path.of(viewportProperties.getExternalDir());
         Files.createDirectories(viewportDir);
         Files.writeString(viewportDir.resolve("weather_card.html"), "<div>sunny</div>");
         viewportRegistryService.refreshViewports();
@@ -802,7 +834,7 @@ class AgentControllerTest {
 
     @Test
     void viewportShouldReturnQlcJsonData() throws Exception {
-        Path viewportDir = Path.of(viewportCatalogProperties.getExternalDir());
+        Path viewportDir = Path.of(viewportProperties.getExternalDir());
         Files.createDirectories(viewportDir);
         Files.writeString(viewportDir.resolve("flight_form.qlc"), "{\"schema\":{\"type\":\"object\"},\"packages\":[\"pkg-a\"]}");
         viewportRegistryService.refreshViewports();

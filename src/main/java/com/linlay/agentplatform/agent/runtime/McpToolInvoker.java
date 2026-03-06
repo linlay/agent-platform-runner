@@ -7,7 +7,7 @@ import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.service.McpServerAvailabilityGate;
 import com.linlay.agentplatform.service.McpServerRegistryService;
 import com.linlay.agentplatform.service.McpStreamableHttpClient;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
+import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -46,11 +46,11 @@ public class McpToolInvoker implements ToolInvoker {
         if (!properties.isEnabled()) {
             return error(toolName, "mcp_disabled", "MCP is disabled");
         }
-        Optional<CapabilityDescriptor> capabilityOptional = toolRegistry.capability(toolName);
+        Optional<ToolDescriptor> capabilityOptional = toolRegistry.descriptor(toolName);
         if (capabilityOptional.isEmpty()) {
             return error(toolName, "mcp_capability_missing", "MCP capability not found");
         }
-        CapabilityDescriptor capability = capabilityOptional.get();
+        ToolDescriptor capability = capabilityOptional.get();
         if (!"mcp".equalsIgnoreCase(capability.sourceType())) {
             return error(toolName, "mcp_source_mismatch", "Tool is not routed to MCP");
         }

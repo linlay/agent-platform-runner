@@ -2,8 +2,8 @@ package com.linlay.agentplatform.agent.runtime;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
@@ -23,14 +23,14 @@ class ToolInvokerRouterTest {
     @Test
     void shouldRouteLocalToolsToLocalInvoker() {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        when(toolRegistry.capability("city_datetime")).thenReturn(Optional.of(new CapabilityDescriptor(
+        when(toolRegistry.descriptor("city_datetime")).thenReturn(Optional.of(new ToolDescriptor(
                 "city_datetime",
                 "local",
                 "",
                 Map.of("type", "object"),
                 false,
                 true,
-                CapabilityKind.BACKEND,
+                ToolKind.BACKEND,
                 "function",
                 null,
                 "local",
@@ -56,14 +56,14 @@ class ToolInvokerRouterTest {
     @Test
     void shouldRouteMcpToolsToMcpInvoker() {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        when(toolRegistry.capability("mock.weather.query")).thenReturn(Optional.of(new CapabilityDescriptor(
+        when(toolRegistry.descriptor("mock.weather.query")).thenReturn(Optional.of(new ToolDescriptor(
                 "mock.weather.query",
                 "mcp",
                 "",
                 Map.of("type", "object"),
                 false,
                 true,
-                CapabilityKind.BACKEND,
+                ToolKind.BACKEND,
                 "function",
                 "mcp://mock/mock.weather.query",
                 "mcp",

@@ -30,12 +30,12 @@ public class TeamRegistryService {
     private static final Pattern TEAM_ID_PATTERN = Pattern.compile("^[0-9a-f]{12}$");
 
     private final ObjectMapper objectMapper;
-    private final TeamCatalogProperties properties;
+    private final TeamProperties properties;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, TeamDescriptor> byId = Map.of();
 
-    public TeamRegistryService(ObjectMapper objectMapper, TeamCatalogProperties properties) {
+    public TeamRegistryService(ObjectMapper objectMapper, TeamProperties properties) {
         this.objectMapper = objectMapper;
         this.properties = properties;
         refreshTeams();

@@ -31,14 +31,14 @@ public class ScheduledQueryRegistryService {
     };
 
     private final ObjectMapper objectMapper;
-    private final ScheduleCatalogProperties properties;
+    private final ScheduleProperties properties;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, ScheduledQueryDescriptor> byId = Map.of();
 
     public ScheduledQueryRegistryService(
             ObjectMapper objectMapper,
-            ScheduleCatalogProperties properties
+            ScheduleProperties properties
     ) {
         this.objectMapper = objectMapper;
         this.properties = properties;

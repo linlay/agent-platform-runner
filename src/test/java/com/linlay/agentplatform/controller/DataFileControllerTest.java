@@ -48,7 +48,7 @@ class DataFileControllerTest {
     private WebTestClient webTestClient;
 
     @Autowired
-    private com.linlay.agentplatform.config.DataCatalogProperties dataCatalogProperties;
+    private com.linlay.agentplatform.config.DataProperties dataProperties;
 
     @TestConfiguration
     static class TestLlmServiceConfig {
@@ -81,13 +81,13 @@ class DataFileControllerTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         Files.createDirectories(dataDir);
     }
 
     @Test
     void shouldServePngImageInline() throws Exception {
-        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         // Minimal 1x1 PNG
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("aaa.jpg"), png);
@@ -103,7 +103,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageFromDataPrefixedPath() throws Exception {
-        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.createDirectories(dataDir.resolve("data"));
         Files.write(dataDir.resolve("data").resolve("sample_photo.jpg"), png);
@@ -119,7 +119,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageWithEncodedFileParam() throws Exception {
-        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.createDirectories(dataDir.resolve("data"));
         Files.write(dataDir.resolve("data").resolve("encoded_photo.jpg"), png);
@@ -133,7 +133,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServePdfAsAttachment() throws Exception {
-        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         Files.writeString(dataDir.resolve("report.pdf"), "%PDF-1.4 minimal");
 
         webTestClient.get()
@@ -178,7 +178,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageFromSubDirectoryPath() throws Exception {
-        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.createDirectories(dataDir.resolve("data").resolve("sub"));
         Files.write(dataDir.resolve("data").resolve("sub").resolve("a.png"), png);
@@ -212,7 +212,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldForceDownloadWhenParameterIsTrue() throws Exception {
-        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("sample_photo.jpg"), png);
 
@@ -230,7 +230,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeCsvAsAttachment() throws Exception {
-        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         Files.writeString(dataDir.resolve("data.csv"), "name,value\nfoo,1\nbar,2\n");
 
         webTestClient.get()
@@ -244,7 +244,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldReturn404ForLegacyApiPath() throws Exception {
-        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("legacy_image.png"), png);
 
@@ -256,7 +256,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldReturn404ForDeprecatedDataPath() throws Exception {
-        Path dataDir = Path.of(dataCatalogProperties.getExternalDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("legacy_path_image.png"), png);
 

@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.ViewportCatalogProperties;
+import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.model.ViewportType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,14 +30,14 @@ public class ViewportRegistryService {
     private static final Set<String> SUPPORTED_SUFFIXES = Set.of(".html", ".qlc");
 
     private final ObjectMapper objectMapper;
-    private final ViewportCatalogProperties properties;
+    private final ViewportProperties properties;
 
     private final Object refreshLock = new Object();
     private volatile Map<String, ViewportEntry> byKey = Map.of();
 
     public ViewportRegistryService(
             ObjectMapper objectMapper,
-            ViewportCatalogProperties properties
+            ViewportProperties properties
     ) {
         this.objectMapper = objectMapper;
         this.properties = properties;

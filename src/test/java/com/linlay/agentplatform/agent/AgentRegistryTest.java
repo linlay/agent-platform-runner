@@ -50,7 +50,7 @@ class AgentRegistryTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(agentsDir.toString());
 
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
@@ -237,7 +237,7 @@ class AgentRegistryTest {
     }
 
     private AgentRegistry createRegistry(Path agentsDir) {
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(agentsDir.toString());
 
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);

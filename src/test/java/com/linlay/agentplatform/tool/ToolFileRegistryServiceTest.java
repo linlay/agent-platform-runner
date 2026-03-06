@@ -9,10 +9,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.service.CatalogDiff;
 
-class CapabilityRegistryServiceTest {
+class ToolFileRegistryServiceTest {
 
     @TempDir
     Path tempDir;
@@ -51,30 +51,30 @@ class CapabilityRegistryServiceTest {
                 }
                 """);
 
-        CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
+        ToolProperties properties = new ToolProperties();
         properties.setExternalDir(toolsDir.toString());
 
-        CapabilityRegistryService service = new CapabilityRegistryService(
+        ToolFileRegistryService service = new ToolFileRegistryService(
                 new ObjectMapper(),
                 properties
         );
 
-        CapabilityDescriptor backend = service.find("bash").orElseThrow();
-        CapabilityDescriptor action = service.find("switch_theme").orElseThrow();
-        CapabilityDescriptor fireworks = service.find("launch_fireworks").orElseThrow();
-        CapabilityDescriptor modal = service.find("show_modal").orElseThrow();
+        ToolDescriptor backend = service.find("bash").orElseThrow();
+        ToolDescriptor action = service.find("switch_theme").orElseThrow();
+        ToolDescriptor fireworks = service.find("launch_fireworks").orElseThrow();
+        ToolDescriptor modal = service.find("show_modal").orElseThrow();
 
-        assertThat(backend.kind()).isEqualTo(CapabilityKind.BACKEND);
+        assertThat(backend.kind()).isEqualTo(ToolKind.BACKEND);
         assertThat(backend.toolType()).isEqualTo("function");
         assertThat(backend.afterCallHint()).isEqualTo("bash prompt");
         assertThat(backend.clientVisible()).isTrue();
         assertThat(service.find("show_weather_card")).isEmpty();
 
-        assertThat(action.kind()).isEqualTo(CapabilityKind.ACTION);
+        assertThat(action.kind()).isEqualTo(ToolKind.ACTION);
         assertThat(action.toolType()).isEqualTo("action");
-        assertThat(fireworks.kind()).isEqualTo(CapabilityKind.ACTION);
+        assertThat(fireworks.kind()).isEqualTo(ToolKind.ACTION);
         assertThat(fireworks.toolType()).isEqualTo("action");
-        assertThat(modal.kind()).isEqualTo(CapabilityKind.ACTION);
+        assertThat(modal.kind()).isEqualTo(ToolKind.ACTION);
         assertThat(modal.toolType()).isEqualTo("action");
     }
 
@@ -98,10 +98,10 @@ class CapabilityRegistryServiceTest {
                 }
                 """);
 
-        CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
+        ToolProperties properties = new ToolProperties();
         properties.setExternalDir(toolsDir.toString());
 
-        CapabilityRegistryService service = new CapabilityRegistryService(
+        ToolFileRegistryService service = new ToolFileRegistryService(
                 new ObjectMapper(),
                 properties
         );
@@ -129,16 +129,16 @@ class CapabilityRegistryServiceTest {
                 }
                 """);
 
-        CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
+        ToolProperties properties = new ToolProperties();
         properties.setExternalDir(toolsDir.toString());
 
-        CapabilityRegistryService service = new CapabilityRegistryService(
+        ToolFileRegistryService service = new ToolFileRegistryService(
                 new ObjectMapper(),
                 properties
         );
 
-        CapabilityDescriptor frontend = service.find("show_form_frontend").orElseThrow();
-        assertThat(frontend.kind()).isEqualTo(CapabilityKind.FRONTEND);
+        ToolDescriptor frontend = service.find("show_form_frontend").orElseThrow();
+        assertThat(frontend.kind()).isEqualTo(ToolKind.FRONTEND);
         assertThat(frontend.toolType()).isEqualTo("frontend");
         assertThat(frontend.viewportKey()).isEqualTo("show_form");
 
@@ -160,16 +160,16 @@ class CapabilityRegistryServiceTest {
                       type: object
                 """);
 
-        CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
+        ToolProperties properties = new ToolProperties();
         properties.setExternalDir(toolsDir.toString());
 
-        CapabilityRegistryService service = new CapabilityRegistryService(
+        ToolFileRegistryService service = new ToolFileRegistryService(
                 new ObjectMapper(),
                 properties
         );
 
-        CapabilityDescriptor descriptor = service.find("hidden_yaml_tool").orElseThrow();
-        assertThat(descriptor.kind()).isEqualTo(CapabilityKind.BACKEND);
+        ToolDescriptor descriptor = service.find("hidden_yaml_tool").orElseThrow();
+        assertThat(descriptor.kind()).isEqualTo(ToolKind.BACKEND);
         assertThat(descriptor.clientVisible()).isFalse();
     }
 
@@ -181,14 +181,14 @@ class CapabilityRegistryServiceTest {
                 { "tools": [ {"type":"function", "name":"a_tool", "description":"a", "parameters":{"type":"object"}} ] }
                 """);
 
-        CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
+        ToolProperties properties = new ToolProperties();
         properties.setExternalDir(toolsDir.toString());
-        CapabilityRegistryService service = new CapabilityRegistryService(new ObjectMapper(), properties);
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties);
 
         Files.writeString(toolsDir.resolve("b.backend"), """
                 { "tools": [ {"type":"function", "name":"b_tool", "description":"b", "parameters":{"type":"object"}} ] }
                 """);
-        CatalogDiff diff = service.refreshCapabilities();
+        CatalogDiff diff = service.refreshTools();
 
         assertThat(diff.addedKeys()).contains("b_tool");
         assertThat(diff.changedKeys()).contains("b_tool");

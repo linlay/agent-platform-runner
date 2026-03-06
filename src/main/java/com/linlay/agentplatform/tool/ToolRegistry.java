@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.linlay.agentplatform.service.McpCapabilitySyncService;
+import com.linlay.agentplatform.service.McpToolSyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -25,35 +25,35 @@ public class ToolRegistry {
     private static final Logger log = LoggerFactory.getLogger(ToolRegistry.class);
 
     private final Map<String, BaseTool> nativeToolsByName;
-    private final CapabilityRegistryService capabilityRegistryService;
-    private final McpCapabilitySyncService mcpCapabilitySyncService;
+    private final ToolFileRegistryService toolFileRegistryService;
+    private final McpToolSyncService mcpToolSyncService;
     private final Set<String> missingBackendWarnings = ConcurrentHashMap.newKeySet();
     private final Set<String> localPriorityConflictWarnings = ConcurrentHashMap.newKeySet();
 
     public ToolRegistry(List<BaseTool> tools) {
         this.nativeToolsByName = buildNativeToolsByName(tools);
-        this.capabilityRegistryService = null;
-        this.mcpCapabilitySyncService = null;
+        this.toolFileRegistryService = null;
+        this.mcpToolSyncService = null;
     }
 
     @Autowired
     public ToolRegistry(
             List<BaseTool> tools,
-            ObjectProvider<CapabilityRegistryService> capabilityRegistryServiceProvider,
-            ObjectProvider<McpCapabilitySyncService> mcpCapabilitySyncServiceProvider
+            ObjectProvider<ToolFileRegistryService> toolFileRegistryServiceProvider,
+            ObjectProvider<McpToolSyncService> mcpToolSyncServiceProvider
     ) {
         this.nativeToolsByName = buildNativeToolsByName(tools);
-        this.capabilityRegistryService = capabilityRegistryServiceProvider.getIfAvailable();
-        this.mcpCapabilitySyncService = mcpCapabilitySyncServiceProvider.getIfAvailable();
+        this.toolFileRegistryService = toolFileRegistryServiceProvider.getIfAvailable();
+        this.mcpToolSyncService = mcpToolSyncServiceProvider.getIfAvailable();
     }
 
     public ToolRegistry(
             List<BaseTool> tools,
-            ObjectProvider<CapabilityRegistryService> capabilityRegistryServiceProvider
+            ObjectProvider<ToolFileRegistryService> toolFileRegistryServiceProvider
     ) {
         this.nativeToolsByName = buildNativeToolsByName(tools);
-        this.capabilityRegistryService = capabilityRegistryServiceProvider.getIfAvailable();
-        this.mcpCapabilitySyncService = null;
+        this.toolFileRegistryService = toolFileRegistryServiceProvider.getIfAvailable();
+        this.mcpToolSyncService = null;
     }
 
     public JsonNode invoke(String toolName, Map<String, Object> args) {
@@ -70,14 +70,14 @@ public class ToolRegistry {
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> merged.put(entry.getKey(), entry.getValue()));
 
-        if (capabilityRegistryService != null) {
-            for (CapabilityDescriptor descriptor : capabilityRegistryService.list()) {
+        if (toolFileRegistryService != null) {
+            for (ToolDescriptor descriptor : toolFileRegistryService.list()) {
                 String name = normalizeName(descriptor.name());
-                if (descriptor.kind() == CapabilityKind.BACKEND) {
+                if (descriptor.kind() == ToolKind.BACKEND) {
                     BaseTool nativeTool = nativeToolsByName.get(name);
                     if (nativeTool == null) {
                         if (missingBackendWarnings.add(name)) {
-                            log.warn("Skip backend capability '{}' because no Java tool implementation is found", name);
+                            log.warn("Skip backend tool '{}' because no Java tool implementation is found", name);
                         }
                         continue;
                     }
@@ -91,12 +91,12 @@ public class ToolRegistry {
             }
         }
 
-        if (mcpCapabilitySyncService != null) {
-            for (CapabilityDescriptor descriptor : mcpCapabilitySyncService.list()) {
+        if (mcpToolSyncService != null) {
+            for (ToolDescriptor descriptor : mcpToolSyncService.list()) {
                 String name = normalizeName(descriptor.name());
                 if (merged.containsKey(name)) {
                     if (localPriorityConflictWarnings.add(name)) {
-                        log.warn("MCP capability '{}' conflicts with local tool/capability, local one keeps effective", name);
+                        log.warn("MCP tool '{}' conflicts with a local tool, local one keeps effective", name);
                     }
                     continue;
                 }
@@ -107,7 +107,7 @@ public class ToolRegistry {
     }
 
     public String toolCallType(String toolName) {
-        CapabilityDescriptor descriptor = capability(toolName).orElse(null);
+        ToolDescriptor descriptor = descriptor(toolName).orElse(null);
         if (descriptor == null) {
             return "function";
         }
@@ -118,32 +118,32 @@ public class ToolRegistry {
         };
     }
 
-    public Optional<CapabilityDescriptor> capability(String toolName) {
+    public Optional<ToolDescriptor> descriptor(String toolName) {
         String normalizedName = normalizeName(toolName);
         if (normalizedName.isBlank()) {
             return Optional.empty();
         }
-        if (capabilityRegistryService != null) {
-            Optional<CapabilityDescriptor> dynamic = capabilityRegistryService.find(normalizedName);
+        if (toolFileRegistryService != null) {
+            Optional<ToolDescriptor> dynamic = toolFileRegistryService.find(normalizedName);
             if (dynamic.isPresent()) {
                 return dynamic;
             }
         }
         BaseTool nativeTool = nativeToolsByName.get(normalizedName);
         if (nativeTool == null) {
-            if (mcpCapabilitySyncService == null) {
+            if (mcpToolSyncService == null) {
                 return Optional.empty();
             }
-            return mcpCapabilitySyncService.find(normalizedName);
+            return mcpToolSyncService.find(normalizedName);
         }
-        return Optional.of(new CapabilityDescriptor(
+        return Optional.of(new ToolDescriptor(
                 normalizedName,
                 nativeTool.description(),
                 nativeTool.afterCallHint(),
                 nativeTool.parametersSchema(),
                 false,
                 true,
-                CapabilityKind.BACKEND,
+                ToolKind.BACKEND,
                 "function",
                 null,
                 "local",
@@ -163,7 +163,7 @@ public class ToolRegistry {
     }
 
     public String description(String toolName) {
-        return capability(toolName).map(CapabilityDescriptor::description).orElse("");
+        return descriptor(toolName).map(ToolDescriptor::description).orElse("");
     }
 
     private String normalizeName(String raw) {
@@ -184,9 +184,9 @@ public class ToolRegistry {
     }
 
     private static final class VirtualTool implements BaseTool {
-        private final CapabilityDescriptor descriptor;
+        private final ToolDescriptor descriptor;
 
-        private VirtualTool(CapabilityDescriptor descriptor) {
+        private VirtualTool(ToolDescriptor descriptor) {
             this.descriptor = descriptor;
         }
 
@@ -218,9 +218,9 @@ public class ToolRegistry {
 
     private static final class BackendMetadataTool implements BaseTool {
         private final BaseTool delegate;
-        private final CapabilityDescriptor descriptor;
+        private final ToolDescriptor descriptor;
 
-        private BackendMetadataTool(BaseTool delegate, CapabilityDescriptor descriptor) {
+        private BackendMetadataTool(BaseTool delegate, ToolDescriptor descriptor) {
             this.delegate = delegate;
             this.descriptor = descriptor;
         }

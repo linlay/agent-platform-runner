@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.controller;
 
-import com.linlay.agentplatform.config.DataCatalogProperties;
+import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.service.LlmService;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -67,7 +67,7 @@ class DataApiTokenValidationToggleIntegrationTest {
     @Autowired
     private WebTestClient webTestClient;
     @Autowired
-    private DataCatalogProperties dataCatalogProperties;
+    private DataProperties dataProperties;
 
     @TestConfiguration
     static class TestLlmServiceConfig {
@@ -121,7 +121,7 @@ class DataApiTokenValidationToggleIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        Files.createDirectories(Path.of(dataCatalogProperties.getExternalDir()));
+        Files.createDirectories(Path.of(dataProperties.getExternalDir()));
     }
 
     @Test
@@ -138,7 +138,7 @@ class DataApiTokenValidationToggleIntegrationTest {
 
     @Test
     void dataApiShouldIgnoreTokenQueryValidationWhenDisabled() throws Exception {
-        Files.write(Path.of(dataCatalogProperties.getExternalDir()).resolve("sample_photo.jpg"), createMinimalPng());
+        Files.write(Path.of(dataProperties.getExternalDir()).resolve("sample_photo.jpg"), createMinimalPng());
         String authToken = issueAuthToken("user-data-token-toggle");
 
         webTestClient.get()

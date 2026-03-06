@@ -24,7 +24,7 @@ class TeamRegistryServiceTest {
                 }
                 """);
 
-        TeamCatalogProperties properties = new TeamCatalogProperties();
+        TeamProperties properties = new TeamProperties();
         properties.setExternalDir(tempDir.toString());
         TeamRegistryService service = new TeamRegistryService(new ObjectMapper(), properties);
 

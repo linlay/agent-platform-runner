@@ -9,7 +9,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 public class ScheduledQueryConfiguration {
 
     @Bean(name = "scheduledQueryTaskScheduler")
-    public TaskScheduler scheduledQueryTaskScheduler(ScheduleCatalogProperties properties) {
+    public TaskScheduler scheduledQueryTaskScheduler(ScheduleProperties properties) {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(Math.max(1, properties.getPoolSize()));
         scheduler.setThreadNamePrefix("scheduled-query-");

@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.controller;
 
 import com.linlay.agentplatform.config.ChatImageTokenProperties;
-import com.linlay.agentplatform.config.DataCatalogProperties;
+import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.security.ChatImageTokenService;
@@ -63,7 +63,7 @@ public class DataFileController {
     private final LoggingAgentProperties loggingAgentProperties;
 
     public DataFileController(
-            DataCatalogProperties properties,
+            DataProperties properties,
             ChatImageTokenProperties chatImageTokenProperties,
             ChatImageTokenService chatImageTokenService,
             ChatAssetAccessService chatAssetAccessService,

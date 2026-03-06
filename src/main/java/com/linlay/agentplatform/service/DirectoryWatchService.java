@@ -1,19 +1,19 @@
 package com.linlay.agentplatform.service;
 
-import com.linlay.agentplatform.agent.AgentCatalogProperties;
+import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.agent.AgentRegistry;
-import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.McpProperties;
-import com.linlay.agentplatform.config.ViewportCatalogProperties;
-import com.linlay.agentplatform.model.ModelCatalogProperties;
+import com.linlay.agentplatform.config.ViewportProperties;
+import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
-import com.linlay.agentplatform.schedule.ScheduleCatalogProperties;
+import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.schedule.ScheduledQueryOrchestrator;
-import com.linlay.agentplatform.skill.SkillCatalogProperties;
+import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
-import com.linlay.agentplatform.team.TeamCatalogProperties;
+import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
-import com.linlay.agentplatform.tool.CapabilityRegistryService;
+import com.linlay.agentplatform.tool.ToolFileRegistryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
@@ -49,35 +49,35 @@ public class DirectoryWatchService implements DisposableBean {
     public DirectoryWatchService(
             AgentRegistry agentRegistry,
             ViewportRegistryService viewportRegistryService,
-            CapabilityRegistryService capabilityRegistryService,
+            ToolFileRegistryService toolFileRegistryService,
             ModelRegistryService modelRegistryService,
             SkillRegistryService skillRegistryService,
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
-            McpCapabilitySyncService mcpCapabilitySyncService,
+            McpToolSyncService mcpToolSyncService,
             ScheduledQueryOrchestrator scheduledQueryOrchestrator,
-            AgentCatalogProperties agentCatalogProperties,
-            ViewportCatalogProperties viewportCatalogProperties,
-            CapabilityCatalogProperties capabilityCatalogProperties,
+            AgentProperties agentProperties,
+            ViewportProperties viewportProperties,
+            ToolProperties toolProperties,
             McpProperties mcpProperties,
-            ModelCatalogProperties modelCatalogProperties,
-            SkillCatalogProperties skillCatalogProperties,
-            TeamCatalogProperties teamCatalogProperties,
-            ScheduleCatalogProperties scheduleCatalogProperties
+            ModelProperties modelProperties,
+            SkillProperties skillProperties,
+            TeamProperties teamProperties,
+            ScheduleProperties scheduleProperties
     ) {
         this.watchedDirs = new LinkedHashMap<>();
         watchedDirs.put(
-                Path.of(agentCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(agentProperties.getExternalDir()).toAbsolutePath().normalize(),
                 agentRegistry::refreshAgents
         );
         watchedDirs.put(
-                Path.of(viewportCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(viewportProperties.getExternalDir()).toAbsolutePath().normalize(),
                 viewportRegistryService::refreshViewports
         );
         watchedDirs.put(
-                Path.of(capabilityCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(toolProperties.getExternalDir()).toAbsolutePath().normalize(),
                 () -> {
-                    CatalogDiff diff = capabilityRegistryService.refreshCapabilities();
+                    CatalogDiff diff = toolFileRegistryService.refreshTools();
                     if (diff.isEmpty()) {
                         return;
                     }
@@ -86,15 +86,15 @@ public class DirectoryWatchService implements DisposableBean {
                 }
         );
         watchedDirs.put(
-                Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(skillProperties.getExternalDir()).toAbsolutePath().normalize(),
                 skillRegistryService::refreshSkills
         );
         watchedDirs.put(
-                Path.of(teamCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(teamProperties.getExternalDir()).toAbsolutePath().normalize(),
                 teamRegistryService::refreshTeams
         );
         watchedDirs.put(
-                Path.of(modelCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(modelProperties.getExternalDir()).toAbsolutePath().normalize(),
                 () -> {
                     CatalogDiff diff = modelRegistryService.refreshModels();
                     if (diff.isEmpty()) {
@@ -108,7 +108,7 @@ public class DirectoryWatchService implements DisposableBean {
                 Path.of(mcpProperties.getRegistry().getExternalDir()).toAbsolutePath().normalize(),
                 () -> {
                     mcpServerRegistryService.refreshServers();
-                    CatalogDiff diff = mcpCapabilitySyncService.refreshCapabilities();
+                    CatalogDiff diff = mcpToolSyncService.refreshTools();
                     if (diff.isEmpty()) {
                         return;
                     }
@@ -117,7 +117,7 @@ public class DirectoryWatchService implements DisposableBean {
                 }
         );
         watchedDirs.put(
-                Path.of(scheduleCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(scheduleProperties.getExternalDir()).toAbsolutePath().normalize(),
                 scheduledQueryOrchestrator::refreshAndReconcile
         );
 
@@ -128,7 +128,7 @@ public class DirectoryWatchService implements DisposableBean {
     DirectoryWatchService(
             AgentRegistry agentRegistry,
             ViewportRegistryService viewportRegistryService,
-            CapabilityRegistryService capabilityRegistryService,
+            ToolFileRegistryService toolFileRegistryService,
             SkillRegistryService skillRegistryService,
             Map<Path, Runnable> watchedDirs
     ) {

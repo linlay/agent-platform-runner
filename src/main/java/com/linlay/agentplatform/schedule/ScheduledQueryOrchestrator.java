@@ -24,7 +24,7 @@ public class ScheduledQueryOrchestrator implements DisposableBean {
 
     private final ScheduledQueryRegistryService registryService;
     private final ScheduledQueryDispatchService dispatchService;
-    private final ScheduleCatalogProperties properties;
+    private final ScheduleProperties properties;
     private final TaskScheduler taskScheduler;
 
     private final Object lock = new Object();
@@ -33,7 +33,7 @@ public class ScheduledQueryOrchestrator implements DisposableBean {
     public ScheduledQueryOrchestrator(
             ScheduledQueryRegistryService registryService,
             ScheduledQueryDispatchService dispatchService,
-            ScheduleCatalogProperties properties,
+            ScheduleProperties properties,
             @Qualifier("scheduledQueryTaskScheduler") TaskScheduler taskScheduler
     ) {
         this.registryService = registryService;

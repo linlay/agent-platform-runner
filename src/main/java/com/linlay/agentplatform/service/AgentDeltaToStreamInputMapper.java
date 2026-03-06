@@ -335,7 +335,7 @@ public class AgentDeltaToStreamInputMapper {
         if (toolRegistry == null || !hasText(toolName)) {
             return null;
         }
-        return toolRegistry.capability(toolName)
+        return toolRegistry.descriptor(toolName)
                 .map(descriptor -> hasText(descriptor.toolApi()) ? descriptor.toolApi() : null)
                 .orElse(null);
     }

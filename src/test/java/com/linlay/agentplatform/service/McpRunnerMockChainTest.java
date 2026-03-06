@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.McpToolInvoker;
 import com.linlay.agentplatform.config.McpProperties;
-import com.linlay.agentplatform.tool.CapabilityRegistryService;
+import com.linlay.agentplatform.tool.ToolFileRegistryService;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -62,14 +62,14 @@ class McpRunnerMockChainTest {
         );
         McpServerAvailabilityGate availabilityGate = new McpServerAvailabilityGate();
 
-        McpCapabilitySyncService capabilitySyncService = new McpCapabilitySyncService(
+        McpToolSyncService capabilitySyncService = new McpToolSyncService(
                 properties,
                 serverRegistryService,
                 availabilityGate,
                 streamableHttpClient,
                 objectMapper
         );
-        capabilitySyncService.refreshCapabilities();
+        capabilitySyncService.refreshTools();
 
         assertThat(capabilitySyncService.find("mock.weather.query"))
                 .isPresent()
@@ -83,11 +83,11 @@ class McpRunnerMockChainTest {
                 .isEqualTo("Use viewport key=show_weather_card");
 
         DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
-        beanFactory.registerSingleton("mcpCapabilitySyncService", capabilitySyncService);
+        beanFactory.registerSingleton("mcpToolSyncService", capabilitySyncService);
         ToolRegistry toolRegistry = new ToolRegistry(
                 List.of(),
-                beanFactory.getBeanProvider(CapabilityRegistryService.class),
-                beanFactory.getBeanProvider(McpCapabilitySyncService.class)
+                beanFactory.getBeanProvider(ToolFileRegistryService.class),
+                beanFactory.getBeanProvider(McpToolSyncService.class)
         );
 
         McpToolInvoker mcpToolInvoker = new McpToolInvoker(

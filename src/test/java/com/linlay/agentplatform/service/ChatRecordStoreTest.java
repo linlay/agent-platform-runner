@@ -4,8 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -197,8 +197,8 @@ class ChatRecordStoreTest {
                 )));
 
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        when(toolRegistry.capability("_plan_add_tasks_")).thenReturn(Optional.of(capability("_plan_add_tasks_", false)));
-        when(toolRegistry.capability("bash")).thenReturn(Optional.of(capability("bash", true)));
+        when(toolRegistry.descriptor("_plan_add_tasks_")).thenReturn(Optional.of(descriptor("_plan_add_tasks_", false)));
+        when(toolRegistry.descriptor("bash")).thenReturn(Optional.of(descriptor("bash", true)));
 
         ChatRecordStore store = newStore(toolRegistry);
         ChatDetailResponse detail = store.loadChat(chatId, true);
@@ -594,15 +594,15 @@ class ChatRecordStoreTest {
         return store;
     }
 
-    private CapabilityDescriptor capability(String name, boolean clientVisible) {
-        return new CapabilityDescriptor(
+    private ToolDescriptor descriptor(String name, boolean clientVisible) {
+        return new ToolDescriptor(
                 name,
                 name + " desc",
                 "",
                 Map.of("type", "object"),
                 false,
                 clientVisible,
-                CapabilityKind.BACKEND,
+                ToolKind.BACKEND,
                 "function",
                 null,
                 "local",

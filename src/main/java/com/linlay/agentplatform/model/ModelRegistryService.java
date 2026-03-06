@@ -30,7 +30,7 @@ public class ModelRegistryService {
     private static final Logger log = LoggerFactory.getLogger(ModelRegistryService.class);
 
     private final ObjectMapper objectMapper;
-    private final ModelCatalogProperties properties;
+    private final ModelProperties properties;
     private final AgentProviderProperties providerProperties;
 
     private final Object reloadLock = new Object();
@@ -38,7 +38,7 @@ public class ModelRegistryService {
 
     public ModelRegistryService(
             ObjectMapper objectMapper,
-            ModelCatalogProperties properties,
+            ModelProperties properties,
             AgentProviderProperties providerProperties
     ) {
         this.objectMapper = objectMapper;

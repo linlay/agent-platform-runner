@@ -81,7 +81,11 @@ class ChatImageTokenServiceTest {
     void verifyShouldRejectTamperedToken() {
         String token = service.issueToken(UID, CHAT_ID);
         assertThat(token).isNotBlank();
-        String tampered = token.substring(0, token.length() - 1) + (token.endsWith("a") ? "b" : "a");
+        String[] parts = token.split("\\.");
+        assertThat(parts).hasSize(3);
+        String signature = parts[2];
+        String tamperedSignature = (signature.startsWith("a") ? "b" : "a") + signature.substring(1);
+        String tampered = parts[0] + "." + parts[1] + "." + tamperedSignature;
 
         ChatImageTokenService.VerifyResult verifyResult = service.verify(tampered);
         assertThat(verifyResult.valid()).isFalse();

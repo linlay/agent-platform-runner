@@ -1,12 +1,12 @@
-package com.linlay.agentplatform.agent;
+package com.linlay.agentplatform.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "agent.agents")
-public class AgentCatalogProperties {
+@ConfigurationProperties(prefix = "agent.viewports")
+public class ViewportProperties {
 
-    private String externalDir = "agents";
-    private long refreshIntervalMs = 10_000L;
+    private String externalDir = "viewports";
+    private long refreshIntervalMs = 30_000L;
 
     public String getExternalDir() {
         return externalDir;

@@ -1,12 +1,12 @@
-package com.linlay.agentplatform.team;
+package com.linlay.agentplatform.agent;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "agent.teams")
-public class TeamCatalogProperties {
+@ConfigurationProperties(prefix = "agent.agents")
+public class AgentProperties {
 
-    private String externalDir = "teams";
-    private long refreshIntervalMs = 30_000L;
+    private String externalDir = "agents";
+    private long refreshIntervalMs = 10_000L;
 
     public String getExternalDir() {
         return externalDir;

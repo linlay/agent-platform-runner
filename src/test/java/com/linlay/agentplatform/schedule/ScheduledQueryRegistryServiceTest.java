@@ -29,7 +29,7 @@ class ScheduledQueryRegistryServiceTest {
                 }
                 """);
 
-        ScheduleCatalogProperties properties = new ScheduleCatalogProperties();
+        ScheduleProperties properties = new ScheduleProperties();
         properties.setExternalDir(tempDir.toString());
         ScheduledQueryRegistryService service = new ScheduledQueryRegistryService(new ObjectMapper(), properties);
 
@@ -60,7 +60,7 @@ class ScheduledQueryRegistryServiceTest {
                 }
                 """);
 
-        ScheduleCatalogProperties properties = new ScheduleCatalogProperties();
+        ScheduleProperties properties = new ScheduleProperties();
         properties.setExternalDir(tempDir.toString());
         ScheduledQueryRegistryService service = new ScheduledQueryRegistryService(new ObjectMapper(), properties);
 

@@ -30,7 +30,7 @@
 
 ## 5. 任务拆解（带任务 ID）
 - [x] T1 基线与文档目录准备：创建 `.doc/plans`，登记计划与 `[DOC-GAP]`。
-- [x] T2 Team 领域模型与加载：新增 `TeamCatalogProperties`、`TeamRegistryService`、Team descriptor。
+- [x] T2 Team 领域模型与加载：新增 `TeamProperties`、`TeamRegistryService`、Team descriptor。
 - [x] T3 运行时资源同步与热加载接入：`RuntimeResourceSyncService` / `DirectoryWatchService` 接入 teams。
 - [x] T4 API 控制器改造：新增 `/api/ap/teams`，移除 `/agent` `/skill` `/tool`。
 - [x] T5 Chat 索引结构扩展：`CHATS.TEAM_ID_` 与 `ChatSummaryResponse.teamId`。

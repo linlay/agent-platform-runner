@@ -5,7 +5,7 @@
 - `DirectoryWatchService`
 - `AgentRegistry`
 - `ModelRegistryService`
-- `CapabilityRegistryService`
+- `ToolFileRegistryService`
 - `SkillRegistryService`
 - `TeamRegistryService`
 - `ViewportRegistryService`

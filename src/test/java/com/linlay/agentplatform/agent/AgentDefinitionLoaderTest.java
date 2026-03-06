@@ -45,7 +45,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -88,7 +88,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -116,7 +116,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
@@ -140,7 +140,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
@@ -167,7 +167,7 @@ class AgentDefinitionLoaderTest {
                 + "  }\n"
                 + "}\n");
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -209,7 +209,7 @@ class AgentDefinitionLoaderTest {
                 + "  }\n"
                 + "}\n");
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -265,7 +265,7 @@ class AgentDefinitionLoaderTest {
                     systemPrompt: 总结结果
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -311,7 +311,7 @@ class AgentDefinitionLoaderTest {
                   systemPrompt: yaml prompt
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -342,7 +342,7 @@ class AgentDefinitionLoaderTest {
                   systemPrompt: yaml prompt
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -376,7 +376,7 @@ class AgentDefinitionLoaderTest {
                   systemPrompt: yaml duplicate
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -435,7 +435,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
@@ -464,7 +464,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -494,7 +494,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -528,7 +528,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -558,7 +558,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -588,7 +588,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
@@ -621,7 +621,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -669,7 +669,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -733,7 +733,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -867,7 +867,7 @@ class AgentDefinitionLoaderTest {
                 }
                 """);
 
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
 
@@ -879,7 +879,7 @@ class AgentDefinitionLoaderTest {
     }
 
     private Map<String, AgentDefinition> loadById() {
-        AgentCatalogProperties properties = new AgentCatalogProperties();
+        AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
         return loader.loadAll().stream()

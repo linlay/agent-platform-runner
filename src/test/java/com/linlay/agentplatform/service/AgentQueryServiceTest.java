@@ -11,8 +11,8 @@ import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.model.ViewportType;
 import com.linlay.agentplatform.team.TeamRegistryService;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.codec.ServerSentEvent;
@@ -109,7 +109,7 @@ class AgentQueryServiceTest {
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
         frontendToolProperties.setSubmitTimeoutMs(120_000);
 
-        when(toolRegistry.capability("confirm_dialog")).thenReturn(Optional.of(frontendCapability()));
+        when(toolRegistry.descriptor("confirm_dialog")).thenReturn(Optional.of(frontendCapability()));
         when(viewportRegistryService.find("confirm_dialog")).thenReturn(Optional.of(
                 new ViewportRegistryService.ViewportEntry("confirm_dialog", ViewportType.HTML, "<div>ok</div>")
         ));
@@ -144,7 +144,7 @@ class AgentQueryServiceTest {
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
         frontendToolProperties.setSubmitTimeoutMs(30_000);
 
-        when(toolRegistry.capability("confirm_dialog")).thenReturn(Optional.of(frontendCapability()));
+        when(toolRegistry.descriptor("confirm_dialog")).thenReturn(Optional.of(frontendCapability()));
         when(viewportRegistryService.find("confirm_dialog")).thenReturn(Optional.of(
                 new ViewportRegistryService.ViewportEntry("confirm_dialog", ViewportType.QLC, Map.of("schema", Map.of()))
         ));
@@ -246,7 +246,7 @@ class AgentQueryServiceTest {
         when(agent.stream(any(AgentRequest.class))).thenReturn(Flux.<AgentDelta>empty());
 
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        when(toolRegistry.capability("_plan_add_tasks_")).thenReturn(Optional.of(hiddenCapability("_plan_add_tasks_")));
+        when(toolRegistry.descriptor("_plan_add_tasks_")).thenReturn(Optional.of(hiddenCapability("_plan_add_tasks_")));
 
         com.linlay.agentplatform.stream.service.StreamSseStreamer streamer = mock(com.linlay.agentplatform.stream.service.StreamSseStreamer.class);
         when(streamer.stream(any(StreamRequest.class), any())).thenReturn(Flux.just(
@@ -284,15 +284,15 @@ class AgentQueryServiceTest {
         verify(chatRecordStore, times(2)).appendEvent(any(String.class), any(String.class));
     }
 
-    private CapabilityDescriptor frontendCapability() {
-        return new CapabilityDescriptor(
+    private ToolDescriptor frontendCapability() {
+        return new ToolDescriptor(
                 "confirm_dialog",
                 "confirm",
                 "",
                 Map.of("type", "object"),
                 false,
                 true,
-                CapabilityKind.FRONTEND,
+                ToolKind.FRONTEND,
                 "frontend",
                 null,
                 "local",
@@ -302,15 +302,15 @@ class AgentQueryServiceTest {
         );
     }
 
-    private CapabilityDescriptor hiddenCapability(String toolName) {
-        return new CapabilityDescriptor(
+    private ToolDescriptor hiddenCapability(String toolName) {
+        return new ToolDescriptor(
                 toolName,
                 "hidden",
                 "",
                 Map.of("type", "object"),
                 false,
                 false,
-                CapabilityKind.BACKEND,
+                ToolKind.BACKEND,
                 "function",
                 null,
                 "local",

@@ -1009,7 +1009,7 @@ public class ChatRecordStore {
         if (!StringUtils.hasText(toolName) || toolRegistry == null) {
             return true;
         }
-        return toolRegistry.capability(toolName)
+        return toolRegistry.descriptor(toolName)
                 .map(descriptor -> !Boolean.FALSE.equals(descriptor.clientVisible()))
                 .orElse(true);
     }

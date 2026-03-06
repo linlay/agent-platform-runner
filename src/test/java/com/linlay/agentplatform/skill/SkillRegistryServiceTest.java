@@ -31,7 +31,7 @@ class SkillRegistryServiceTest {
                 do this
                 """);
 
-        SkillCatalogProperties properties = new SkillCatalogProperties();
+        SkillProperties properties = new SkillProperties();
         properties.setExternalDir(tempDir.toString());
         SkillRegistryService service = new SkillRegistryService(properties);
 
@@ -48,7 +48,7 @@ class SkillRegistryServiceTest {
         Files.createDirectories(skillFile.getParent());
         Files.writeString(skillFile, "name: doc\n".repeat(1000));
 
-        SkillCatalogProperties properties = new SkillCatalogProperties();
+        SkillProperties properties = new SkillProperties();
         properties.setExternalDir(tempDir.toString());
         properties.setMaxPromptChars(32);
         SkillRegistryService service = new SkillRegistryService(properties);
@@ -72,7 +72,7 @@ class SkillRegistryServiceTest {
                 run script
                 """);
 
-        SkillCatalogProperties properties = new SkillCatalogProperties();
+        SkillProperties properties = new SkillProperties();
         properties.setExternalDir(tempDir.toString());
         SkillRegistryService service = new SkillRegistryService(properties);
 
@@ -89,7 +89,7 @@ class SkillRegistryServiceTest {
         writeSkill("math_stats", "Math Stats", "stats operations");
         writeSkill("text_utils", "Text Utils", "text metrics");
 
-        SkillCatalogProperties properties = new SkillCatalogProperties();
+        SkillProperties properties = new SkillProperties();
         properties.setExternalDir(tempDir.toString());
         SkillRegistryService service = new SkillRegistryService(properties);
 
@@ -105,7 +105,7 @@ class SkillRegistryServiceTest {
     void shouldReturnCatalogDiffWhenSkillsChanged() throws Exception {
         writeSkill("math_basic", "Math Basic", "basic arithmetic");
 
-        SkillCatalogProperties properties = new SkillCatalogProperties();
+        SkillProperties properties = new SkillProperties();
         properties.setExternalDir(tempDir.toString());
         SkillRegistryService service = new SkillRegistryService(properties);
 

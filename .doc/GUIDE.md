@@ -58,7 +58,7 @@
 | `agentKey` | 来自 agent 定义 `key`（文件名与配置共同约束），会话可绑定并优先复用 | `AgentDefinitionLoader.tryLoadExternal`，`AgentQueryService.prepare` |
 | `teamId` | 12 位 hex（来源：`teams/<teamId>.json` 文件名） | `TeamRegistryService.tryLoad` |
 | `skillId` | 取 `skills/<skill-id>/` 目录名并做小写归一 | `SkillRegistryService.normalizeSkillId` |
-| `toolName` | capability/tool 名字归一为小写用于索引与匹配 | `CapabilityRegistryService.normalizeName`，`ToolExecutionService.normalizeToolName` |
+| `toolName` | capability/tool 名字归一为小写用于索引与匹配 | `ToolFileRegistryService.normalizeName`，`ToolExecutionService.normalizeToolName` |
 | `modelKey` | 来自 agent `modelConfig.modelKey`（含 stage 继承），解析时归一并在模型注册中心查找 | `AgentDefinitionLoader.resolvePrimaryModelKey/resolveModelByKey` |
 
 ## 禁止行为

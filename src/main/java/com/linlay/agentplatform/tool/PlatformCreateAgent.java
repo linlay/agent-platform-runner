@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
-import com.linlay.agentplatform.agent.AgentCatalogProperties;
+import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.config.AgentFileCreateToolProperties;
 import com.linlay.agentplatform.config.AgentProviderProperties;
@@ -41,7 +41,7 @@ public class PlatformCreateAgent extends AbstractDeterministicTool {
 
     @Autowired
     public PlatformCreateAgent(
-            AgentCatalogProperties properties,
+            AgentProperties properties,
             AgentFileCreateToolProperties toolProperties,
             AgentProviderProperties providerProperties,
             ModelRegistryService modelRegistryService

@@ -1,13 +1,12 @@
-package com.linlay.agentplatform.skill;
+package com.linlay.agentplatform.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "agent.skills")
-public class SkillCatalogProperties {
+@ConfigurationProperties(prefix = "agent.tools")
+public class ToolProperties {
 
-    private String externalDir = "skills";
+    private String externalDir = "tools";
     private long refreshIntervalMs = 30_000L;
-    private int maxPromptChars = 8_000;
 
     public String getExternalDir() {
         return externalDir;
@@ -23,13 +22,5 @@ public class SkillCatalogProperties {
 
     public void setRefreshIntervalMs(long refreshIntervalMs) {
         this.refreshIntervalMs = refreshIntervalMs;
-    }
-
-    public int getMaxPromptChars() {
-        return maxPromptChars;
-    }
-
-    public void setMaxPromptChars(int maxPromptChars) {
-        this.maxPromptChars = maxPromptChars;
     }
 }

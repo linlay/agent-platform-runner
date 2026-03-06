@@ -2,7 +2,7 @@
 
 ## 关键类
 - `ToolRegistry`
-- `CapabilityRegistryService`
+- `ToolFileRegistryService`
 - `ToolExecutionService`
 - `FrontendSubmitCoordinator`
 

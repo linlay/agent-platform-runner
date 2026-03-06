@@ -34,8 +34,8 @@ import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.team.TeamDescriptor;
 import com.linlay.agentplatform.team.TeamRegistryService;
 import com.linlay.agentplatform.tool.BaseTool;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -146,9 +146,9 @@ public class AgentController {
             @RequestParam(required = false) String tag,
             @RequestParam(required = false) String kind
     ) {
-        CapabilityKind kindFilter = parseToolKind(kind);
+        ToolKind kindFilter = parseToolKind(kind);
         List<ToolListResponse.ToolSummary> items = toolRegistry.list().stream()
-                .map(this::resolveCapability)
+                .map(this::resolveDescriptor)
                 .filter(descriptor -> matchesToolKind(descriptor, kindFilter))
                 .filter(descriptor -> matchesToolTag(descriptor, tag))
                 .map(this::toToolSummary)
@@ -373,15 +373,15 @@ public class AgentController {
         return Map.of("promptTruncated", skill.promptTruncated());
     }
 
-    private CapabilityDescriptor resolveCapability(BaseTool tool) {
-        return toolRegistry.capability(tool.name()).orElseGet(() -> new CapabilityDescriptor(
+    private ToolDescriptor resolveDescriptor(BaseTool tool) {
+        return toolRegistry.descriptor(tool.name()).orElseGet(() -> new ToolDescriptor(
                 tool.name(),
                 tool.description(),
                 tool.afterCallHint(),
                 tool.parametersSchema(),
                 false,
                 true,
-                CapabilityKind.BACKEND,
+                ToolKind.BACKEND,
                 "function",
                 null,
                 "local",
@@ -391,26 +391,26 @@ public class AgentController {
         ));
     }
 
-    private CapabilityKind parseToolKind(String kind) {
+    private ToolKind parseToolKind(String kind) {
         if (!StringUtils.hasText(kind)) {
             return null;
         }
         String normalized = kind.trim().toUpperCase(Locale.ROOT);
         try {
-            return CapabilityKind.valueOf(normalized);
+            return ToolKind.valueOf(normalized);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("Invalid kind: " + kind + ". Use backend|frontend|action");
         }
     }
 
-    private boolean matchesToolKind(CapabilityDescriptor descriptor, CapabilityKind kindFilter) {
+    private boolean matchesToolKind(ToolDescriptor descriptor, ToolKind kindFilter) {
         if (kindFilter == null) {
             return true;
         }
         return descriptor != null && descriptor.kind() == kindFilter;
     }
 
-    private boolean matchesToolTag(CapabilityDescriptor descriptor, String tag) {
+    private boolean matchesToolTag(ToolDescriptor descriptor, String tag) {
         if (!StringUtils.hasText(tag)) {
             return true;
         }
@@ -427,7 +427,7 @@ public class AgentController {
                 || (descriptor.kind() != null && descriptor.kind().name().toLowerCase(Locale.ROOT).contains(normalized));
     }
 
-    private ToolListResponse.ToolSummary toToolSummary(CapabilityDescriptor descriptor) {
+    private ToolListResponse.ToolSummary toToolSummary(ToolDescriptor descriptor) {
         return new ToolListResponse.ToolSummary(
                 descriptor.name(),
                 descriptor.name(),
@@ -436,7 +436,7 @@ public class AgentController {
         );
     }
 
-    private Map<String, Object> buildToolMeta(CapabilityDescriptor descriptor) {
+    private Map<String, Object> buildToolMeta(ToolDescriptor descriptor) {
         Map<String, Object> meta = new java.util.LinkedHashMap<>();
         meta.put("kind", descriptor.kind() == null ? "" : descriptor.kind().name().toLowerCase(Locale.ROOT));
         meta.put("toolType", descriptor.toolType());
