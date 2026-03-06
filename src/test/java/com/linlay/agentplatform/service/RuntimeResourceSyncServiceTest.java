@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
-import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.config.ToolCatalogProperties;
 import com.linlay.agentplatform.schedule.ScheduleCatalogProperties;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
 
@@ -87,8 +87,8 @@ class RuntimeResourceSyncServiceTest {
         Path configuredSchedulesDir = tempDir.resolve("configured").resolve("schedules");
         Path legacyUserDir = tempDir.resolve("legacy-user-dir");
 
-        CapabilityCatalogProperties capabilityProperties = new CapabilityCatalogProperties();
-        capabilityProperties.setExternalDir(configuredToolsDir.toString());
+        ToolCatalogProperties toolProperties = new ToolCatalogProperties();
+        toolProperties.setExternalDir(configuredToolsDir.toString());
         SkillCatalogProperties skillProperties = new SkillCatalogProperties();
         skillProperties.setExternalDir(configuredSkillsDir.toString());
         ScheduleCatalogProperties scheduleProperties = new ScheduleCatalogProperties();
@@ -98,7 +98,7 @@ class RuntimeResourceSyncServiceTest {
         try {
             System.setProperty("user.dir", legacyUserDir.toString());
             RuntimeResourceSyncService service = new RuntimeResourceSyncService(
-                    capabilityProperties,
+                    toolProperties,
                     skillProperties,
                     scheduleProperties
             );

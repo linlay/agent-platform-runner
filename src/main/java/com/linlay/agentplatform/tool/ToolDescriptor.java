@@ -2,13 +2,13 @@ package com.linlay.agentplatform.tool;
 
 import java.util.Map;
 
-public record CapabilityDescriptor(
+public record ToolDescriptor(
         String name,
         String description,
         String afterCallHint,
         Map<String, Object> parameters,
         Boolean strict,
-        CapabilityKind kind,
+        ToolKind kind,
         String toolType,
         String toolApi,
         String sourceType,
@@ -16,7 +16,7 @@ public record CapabilityDescriptor(
         String viewportKey,
         String sourceFile
 ) {
-    public CapabilityDescriptor {
+    public ToolDescriptor {
         if (parameters == null || parameters.isEmpty()) {
             parameters = Map.of(
                     "type", "object",

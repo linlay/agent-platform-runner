@@ -16,7 +16,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class McpCapabilitySyncServiceTest {
+class McpToolSyncServiceTest {
 
     @Test
     void shouldRefreshCapabilitiesWithoutLegacyAliases() {
@@ -54,14 +54,14 @@ class McpCapabilitySyncServiceTest {
                 )
         ));
 
-        McpCapabilitySyncService service = new McpCapabilitySyncService(
+        McpToolSyncService service = new McpToolSyncService(
                 properties,
                 registryService,
                 new McpServerAvailabilityGate(),
                 client,
                 new ObjectMapper()
         );
-        CatalogDiff diff = service.refreshCapabilities();
+        CatalogDiff diff = service.refreshTools();
 
         assertThat(service.find("mock.weather.query")).isPresent();
         assertThat(service.find("mock_city_weather")).isEmpty();
@@ -75,7 +75,7 @@ class McpCapabilitySyncServiceTest {
     void shouldBeEmptyWhenMcpDisabled() {
         McpProperties properties = new McpProperties();
         properties.setEnabled(false);
-        McpCapabilitySyncService service = new McpCapabilitySyncService(
+        McpToolSyncService service = new McpToolSyncService(
                 properties,
                 mock(McpServerRegistryService.class),
                 new McpServerAvailabilityGate(),
@@ -83,7 +83,7 @@ class McpCapabilitySyncServiceTest {
                 new ObjectMapper()
         );
 
-        CatalogDiff diff = service.refreshCapabilities();
+        CatalogDiff diff = service.refreshTools();
         assertThat(service.list()).isEmpty();
         assertThat(service.find("any.tool")).isEmpty();
         assertThat(diff.isEmpty()).isTrue();
@@ -129,7 +129,7 @@ class McpCapabilitySyncServiceTest {
                 )
         ));
 
-        McpCapabilitySyncService service = new McpCapabilitySyncService(
+        McpToolSyncService service = new McpToolSyncService(
                 properties,
                 registryService,
                 new McpServerAvailabilityGate(),
@@ -137,16 +137,16 @@ class McpCapabilitySyncServiceTest {
                 new ObjectMapper()
         );
 
-        service.refreshCapabilities();
+        service.refreshTools();
         assertThat(service.find("mock.weather.query")).isPresent();
 
-        service.refreshCapabilities();
+        service.refreshTools();
         assertThat(service.find("mock.weather.query")).isPresent();
 
-        service.refreshCapabilities();
+        service.refreshTools();
         assertThat(service.find("mock.weather.query")).isPresent();
 
-        service.refreshCapabilities();
+        service.refreshTools();
         assertThat(service.find("mock.weather.query")).isPresent();
 
         verify(client, times(3)).initialize(server, "2025-06");

@@ -2,7 +2,7 @@ package com.linlay.agentplatform.service;
 
 import com.linlay.agentplatform.agent.AgentCatalogProperties;
 import com.linlay.agentplatform.agent.AgentRegistry;
-import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.config.ToolCatalogProperties;
 import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
@@ -13,7 +13,7 @@ import com.linlay.agentplatform.skill.SkillCatalogProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.team.TeamCatalogProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
-import com.linlay.agentplatform.tool.CapabilityRegistryService;
+import com.linlay.agentplatform.tool.ToolRegistryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -38,28 +38,28 @@ class DirectoryWatchServiceReloadRoutingTest {
     @Test
     void shouldRefreshOnlyAffectedAgentsWhenToolsChanged() throws Exception {
         AgentRegistry agentRegistry = mock(AgentRegistry.class);
-        CapabilityRegistryService capabilityRegistryService = mock(CapabilityRegistryService.class);
+        ToolRegistryService toolRegistryService = mock(ToolRegistryService.class);
 
         Set<String> changedTools = Set.of("tool.alpha");
         Set<String> affectedAgents = Set.of("agent.alpha");
-        when(capabilityRegistryService.refreshCapabilities())
+        when(toolRegistryService.refreshTools())
                 .thenReturn(new CatalogDiff(changedTools, Set.of(), Set.of()));
         when(agentRegistry.findAgentIdsByTools(changedTools)).thenReturn(affectedAgents);
 
         DirectoryWatchService service = createService(
                 agentRegistry,
                 mock(ViewportRegistryService.class),
-                capabilityRegistryService,
+                toolRegistryService,
                 mock(ModelRegistryService.class),
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
-                mock(McpCapabilitySyncService.class)
+                mock(McpToolSyncService.class)
         );
         try {
             callbackFor(service, tempDir.resolve("tools")).run();
 
-            verify(capabilityRegistryService).refreshCapabilities();
+            verify(toolRegistryService).refreshTools();
             verify(agentRegistry).findAgentIdsByTools(changedTools);
             verify(agentRegistry).refreshAgentsByIds(affectedAgents, "tools-directory");
             verify(agentRegistry, never()).refreshAgents();
@@ -82,12 +82,12 @@ class DirectoryWatchServiceReloadRoutingTest {
         DirectoryWatchService service = createService(
                 agentRegistry,
                 mock(ViewportRegistryService.class),
-                mock(CapabilityRegistryService.class),
+                mock(ToolRegistryService.class),
                 modelRegistryService,
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
-                mock(McpCapabilitySyncService.class)
+                mock(McpToolSyncService.class)
         );
         try {
             callbackFor(service, tempDir.resolve("models")).run();
@@ -105,29 +105,29 @@ class DirectoryWatchServiceReloadRoutingTest {
     void shouldRefreshOnlyAffectedAgentsWhenMcpToolsChanged() throws Exception {
         AgentRegistry agentRegistry = mock(AgentRegistry.class);
         McpServerRegistryService mcpServerRegistryService = mock(McpServerRegistryService.class);
-        McpCapabilitySyncService mcpCapabilitySyncService = mock(McpCapabilitySyncService.class);
+        McpToolSyncService mcpToolSyncService = mock(McpToolSyncService.class);
 
         Set<String> changedTools = Set.of("mock.weather.query");
         Set<String> affectedAgents = Set.of("agent.gamma");
-        when(mcpCapabilitySyncService.refreshCapabilities())
+        when(mcpToolSyncService.refreshTools())
                 .thenReturn(new CatalogDiff(Set.of(), changedTools, Set.of()));
         when(agentRegistry.findAgentIdsByTools(changedTools)).thenReturn(affectedAgents);
 
         DirectoryWatchService service = createService(
                 agentRegistry,
                 mock(ViewportRegistryService.class),
-                mock(CapabilityRegistryService.class),
+                mock(ToolRegistryService.class),
                 mock(ModelRegistryService.class),
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mcpServerRegistryService,
-                mcpCapabilitySyncService
+                mcpToolSyncService
         );
         try {
             callbackFor(service, tempDir.resolve("mcp-servers")).run();
 
             verify(mcpServerRegistryService).refreshServers();
-            verify(mcpCapabilitySyncService).refreshCapabilities();
+            verify(mcpToolSyncService).refreshTools();
             verify(agentRegistry).findAgentIdsByTools(changedTools);
             verify(agentRegistry).refreshAgentsByIds(affectedAgents, "mcp-registry-directory");
             verify(agentRegistry, never()).refreshAgents();
@@ -145,12 +145,12 @@ class DirectoryWatchServiceReloadRoutingTest {
         DirectoryWatchService service = createService(
                 agentRegistry,
                 mock(ViewportRegistryService.class),
-                mock(CapabilityRegistryService.class),
+                mock(ToolRegistryService.class),
                 mock(ModelRegistryService.class),
                 skillRegistryService,
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
-                mock(McpCapabilitySyncService.class)
+                mock(McpToolSyncService.class)
         );
         try {
             callbackFor(service, tempDir.resolve("skills")).run();
@@ -169,12 +169,12 @@ class DirectoryWatchServiceReloadRoutingTest {
         DirectoryWatchService service = createService(
                 mock(AgentRegistry.class),
                 mock(ViewportRegistryService.class),
-                mock(CapabilityRegistryService.class),
+                mock(ToolRegistryService.class),
                 mock(ModelRegistryService.class),
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
-                mock(McpCapabilitySyncService.class),
+                mock(McpToolSyncService.class),
                 orchestrator
         );
         try {
@@ -188,22 +188,22 @@ class DirectoryWatchServiceReloadRoutingTest {
     private DirectoryWatchService createService(
             AgentRegistry agentRegistry,
             ViewportRegistryService viewportRegistryService,
-            CapabilityRegistryService capabilityRegistryService,
+            ToolRegistryService toolRegistryService,
             ModelRegistryService modelRegistryService,
             SkillRegistryService skillRegistryService,
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
-            McpCapabilitySyncService mcpCapabilitySyncService
+            McpToolSyncService mcpToolSyncService
     ) {
         return createService(
                 agentRegistry,
                 viewportRegistryService,
-                capabilityRegistryService,
+                toolRegistryService,
                 modelRegistryService,
                 skillRegistryService,
                 teamRegistryService,
                 mcpServerRegistryService,
-                mcpCapabilitySyncService,
+                mcpToolSyncService,
                 mock(ScheduledQueryOrchestrator.class)
         );
     }
@@ -211,12 +211,12 @@ class DirectoryWatchServiceReloadRoutingTest {
     private DirectoryWatchService createService(
             AgentRegistry agentRegistry,
             ViewportRegistryService viewportRegistryService,
-            CapabilityRegistryService capabilityRegistryService,
+            ToolRegistryService toolRegistryService,
             ModelRegistryService modelRegistryService,
             SkillRegistryService skillRegistryService,
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
-            McpCapabilitySyncService mcpCapabilitySyncService,
+            McpToolSyncService mcpToolSyncService,
             ScheduledQueryOrchestrator scheduledQueryOrchestrator
     ) {
         AgentCatalogProperties agentCatalogProperties = new AgentCatalogProperties();
@@ -225,8 +225,8 @@ class DirectoryWatchServiceReloadRoutingTest {
         ViewportCatalogProperties viewportCatalogProperties = new ViewportCatalogProperties();
         viewportCatalogProperties.setExternalDir(tempDir.resolve("viewports").toString());
 
-        CapabilityCatalogProperties capabilityCatalogProperties = new CapabilityCatalogProperties();
-        capabilityCatalogProperties.setExternalDir(tempDir.resolve("tools").toString());
+        ToolCatalogProperties toolCatalogProperties = new ToolCatalogProperties();
+        toolCatalogProperties.setExternalDir(tempDir.resolve("tools").toString());
 
         ModelCatalogProperties modelCatalogProperties = new ModelCatalogProperties();
         modelCatalogProperties.setExternalDir(tempDir.resolve("models").toString());
@@ -246,16 +246,16 @@ class DirectoryWatchServiceReloadRoutingTest {
         return new DirectoryWatchService(
                 agentRegistry,
                 viewportRegistryService,
-                capabilityRegistryService,
+                toolRegistryService,
                 modelRegistryService,
                 skillRegistryService,
                 teamRegistryService,
                 mcpServerRegistryService,
-                mcpCapabilitySyncService,
+                mcpToolSyncService,
                 scheduledQueryOrchestrator,
                 agentCatalogProperties,
                 viewportCatalogProperties,
-                capabilityCatalogProperties,
+                toolCatalogProperties,
                 mcpProperties,
                 modelCatalogProperties,
                 skillCatalogProperties,

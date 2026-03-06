@@ -17,7 +17,7 @@ import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.team.TeamDescriptor;
 import com.linlay.agentplatform.team.TeamRegistryService;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -322,8 +322,8 @@ public class AgentQueryService {
             return false;
         }
 
-        return toolRegistry.capability(toolName)
-                .filter(descriptor -> descriptor.kind() == CapabilityKind.FRONTEND)
+        return toolRegistry.toolDescriptor(toolName)
+                .filter(descriptor -> descriptor.kind() == ToolKind.FRONTEND)
                 .map(descriptor -> {
                     String toolKey = StringUtils.hasText(descriptor.viewportKey())
                             ? descriptor.viewportKey().trim()

@@ -6,8 +6,8 @@ import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.service.McpServerAvailabilityGate;
 import com.linlay.agentplatform.service.McpServerRegistryService;
 import com.linlay.agentplatform.service.McpStreamableHttpClient;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 
@@ -42,13 +42,13 @@ class McpToolInvokerTest {
     @Test
     void shouldReturnStructuredContentOnSuccessfulCall() {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        CapabilityDescriptor descriptor = new CapabilityDescriptor(
+        ToolDescriptor descriptor = new ToolDescriptor(
                 "mock.weather.query",
                 "weather",
                 "",
                 Map.of("type", "object"),
                 false,
-                CapabilityKind.BACKEND,
+                ToolKind.BACKEND,
                 "function",
                 "mcp://mock/mock.weather.query",
                 "mcp",
@@ -56,7 +56,7 @@ class McpToolInvokerTest {
                 null,
                 "mcp://mock"
         );
-        when(toolRegistry.capability("mock.weather.query")).thenReturn(Optional.of(descriptor));
+        when(toolRegistry.toolDescriptor("mock.weather.query")).thenReturn(Optional.of(descriptor));
 
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
         McpServerRegistryService.RegisteredServer server = new McpServerRegistryService.RegisteredServer(
@@ -98,13 +98,13 @@ class McpToolInvokerTest {
     @Test
     void shouldQuickFailWhenServerIsBlockedAtCurrentVersion() {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        CapabilityDescriptor descriptor = new CapabilityDescriptor(
+        ToolDescriptor descriptor = new ToolDescriptor(
                 "mock.weather.query",
                 "weather",
                 "",
                 Map.of("type", "object"),
                 false,
-                CapabilityKind.BACKEND,
+                ToolKind.BACKEND,
                 "function",
                 "mcp://mock/mock.weather.query",
                 "mcp",
@@ -112,7 +112,7 @@ class McpToolInvokerTest {
                 null,
                 "mcp://mock"
         );
-        when(toolRegistry.capability("mock.weather.query")).thenReturn(Optional.of(descriptor));
+        when(toolRegistry.toolDescriptor("mock.weather.query")).thenReturn(Optional.of(descriptor));
 
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
         McpServerRegistryService.RegisteredServer server = new McpServerRegistryService.RegisteredServer(
@@ -152,13 +152,13 @@ class McpToolInvokerTest {
     @Test
     void shouldMarkServerUnavailableAndSkipSubsequentCallsAtSameVersion() {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        CapabilityDescriptor descriptor = new CapabilityDescriptor(
+        ToolDescriptor descriptor = new ToolDescriptor(
                 "mock.weather.query",
                 "weather",
                 "",
                 Map.of("type", "object"),
                 false,
-                CapabilityKind.BACKEND,
+                ToolKind.BACKEND,
                 "function",
                 "mcp://mock/mock.weather.query",
                 "mcp",
@@ -166,7 +166,7 @@ class McpToolInvokerTest {
                 null,
                 "mcp://mock"
         );
-        when(toolRegistry.capability("mock.weather.query")).thenReturn(Optional.of(descriptor));
+        when(toolRegistry.toolDescriptor("mock.weather.query")).thenReturn(Optional.of(descriptor));
 
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
         McpServerRegistryService.RegisteredServer server = new McpServerRegistryService.RegisteredServer(

@@ -13,7 +13,7 @@ import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LoggingSanitizer;
 import com.linlay.agentplatform.tool.BaseTool;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -791,8 +791,8 @@ public class ToolExecutionService {
     }
 
     private boolean isBackendTool(String toolName) {
-        return toolRegistry.capability(toolName)
-                .map(descriptor -> descriptor.kind() == CapabilityKind.BACKEND)
+        return toolRegistry.toolDescriptor(toolName)
+                .map(descriptor -> descriptor.kind() == ToolKind.BACKEND)
                 .orElse(true);
     }
 

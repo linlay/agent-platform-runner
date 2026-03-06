@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.agent.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
+import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
@@ -27,7 +27,7 @@ public class ToolInvokerRouter implements ToolInvoker {
 
     @Override
     public JsonNode invoke(String toolName, Map<String, Object> args, ExecutionContext context) {
-        CapabilityDescriptor descriptor = toolRegistry.capability(toolName).orElse(null);
+        ToolDescriptor descriptor = toolRegistry.toolDescriptor(toolName).orElse(null);
         if (descriptor != null && "mcp".equalsIgnoreCase(descriptor.sourceType())) {
             if (mcpToolInvoker == null) {
                 throw new IllegalStateException("MCP tool invoker is not available");

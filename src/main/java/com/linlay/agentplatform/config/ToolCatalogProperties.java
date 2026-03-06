@@ -3,7 +3,7 @@ package com.linlay.agentplatform.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "agent.tools")
-public class CapabilityCatalogProperties {
+public class ToolCatalogProperties {
 
     private String externalDir = "tools";
     private long refreshIntervalMs = 30_000L;

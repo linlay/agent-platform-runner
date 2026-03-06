@@ -7,7 +7,7 @@ import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.service.McpServerAvailabilityGate;
 import com.linlay.agentplatform.service.McpServerRegistryService;
 import com.linlay.agentplatform.service.McpStreamableHttpClient;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
+import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -46,20 +46,20 @@ public class McpToolInvoker implements ToolInvoker {
         if (!properties.isEnabled()) {
             return error(toolName, "mcp_disabled", "MCP is disabled");
         }
-        Optional<CapabilityDescriptor> capabilityOptional = toolRegistry.capability(toolName);
-        if (capabilityOptional.isEmpty()) {
-            return error(toolName, "mcp_capability_missing", "MCP capability not found");
+        Optional<ToolDescriptor> toolOptional = toolRegistry.toolDescriptor(toolName);
+        if (toolOptional.isEmpty()) {
+            return error(toolName, "mcp_tool_missing", "MCP tool not found");
         }
-        CapabilityDescriptor capability = capabilityOptional.get();
-        if (!"mcp".equalsIgnoreCase(capability.sourceType())) {
+        ToolDescriptor toolDescriptor = toolOptional.get();
+        if (!"mcp".equalsIgnoreCase(toolDescriptor.sourceType())) {
             return error(toolName, "mcp_source_mismatch", "Tool is not routed to MCP");
         }
-        if (!StringUtils.hasText(capability.sourceKey())) {
+        if (!StringUtils.hasText(toolDescriptor.sourceKey())) {
             return error(toolName, "mcp_source_key_missing", "MCP server key is missing");
         }
-        Optional<McpServerRegistryService.RegisteredServer> serverOptional = serverRegistryService.find(capability.sourceKey());
+        Optional<McpServerRegistryService.RegisteredServer> serverOptional = serverRegistryService.find(toolDescriptor.sourceKey());
         if (serverOptional.isEmpty()) {
-            return error(toolName, "mcp_server_not_found", "MCP server is not registered: " + capability.sourceKey());
+            return error(toolName, "mcp_server_not_found", "MCP server is not registered: " + toolDescriptor.sourceKey());
         }
         McpServerRegistryService.RegisteredServer server = serverOptional.get();
         long registryVersion = serverRegistryService.currentVersion();
@@ -74,7 +74,7 @@ public class McpToolInvoker implements ToolInvoker {
         try {
             JsonNode result = streamableHttpClient.callTool(
                     server,
-                    capability.name(),
+                    toolDescriptor.name(),
                     args == null ? Map.of() : args
             );
             availabilityGate.markSuccess(server.serverKey());

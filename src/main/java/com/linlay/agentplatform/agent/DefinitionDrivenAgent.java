@@ -25,8 +25,8 @@ import com.linlay.agentplatform.service.RunIdGenerator;
 import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.BaseTool;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -604,13 +604,13 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     private String resolveToolGroup(String toolName) {
-        CapabilityDescriptor descriptor = toolRegistry.capability(toolName).orElse(null);
+        ToolDescriptor descriptor = toolRegistry.toolDescriptor(toolName).orElse(null);
         if (descriptor != null && descriptor.kind() != null) {
-            CapabilityKind kind = descriptor.kind();
-            if (kind == CapabilityKind.ACTION) {
+            ToolKind kind = descriptor.kind();
+            if (kind == ToolKind.ACTION) {
                 return "action";
             }
-            if (kind == CapabilityKind.FRONTEND) {
+            if (kind == ToolKind.FRONTEND) {
                 return "frontend";
             }
             return "backend";

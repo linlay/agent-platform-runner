@@ -4,8 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.McpProperties;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolKind;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,9 +23,9 @@ import java.util.Optional;
 import java.util.Set;
 
 @Service
-public class McpCapabilitySyncService {
+public class McpToolSyncService {
 
-    private static final Logger log = LoggerFactory.getLogger(McpCapabilitySyncService.class);
+    private static final Logger log = LoggerFactory.getLogger(McpToolSyncService.class);
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
 
@@ -36,11 +36,11 @@ public class McpCapabilitySyncService {
     private final ObjectMapper objectMapper;
     private final Object refreshLock = new Object();
 
-    private volatile Map<String, CapabilityDescriptor> capabilitiesByName = Map.of();
+    private volatile Map<String, ToolDescriptor> toolsByName = Map.of();
     private volatile Map<String, String> aliasToCanonical = Map.of();
-    private volatile Map<String, ServerCapabilitySnapshot> snapshotsByServerKey = Map.of();
+    private volatile Map<String, ServerToolSnapshot> snapshotsByServerKey = Map.of();
 
-    public McpCapabilitySyncService(
+    public McpToolSyncService(
             McpProperties properties,
             McpServerRegistryService serverRegistryService,
             McpServerAvailabilityGate availabilityGate,
@@ -56,18 +56,18 @@ public class McpCapabilitySyncService {
 
     @PostConstruct
     public void initialize() {
-        refreshCapabilities();
+        refreshTools();
     }
 
-    public CatalogDiff refreshCapabilities() {
+    public CatalogDiff refreshTools() {
         synchronized (refreshLock) {
-            Map<String, CapabilityDescriptor> before = capabilitiesByName;
+            Map<String, ToolDescriptor> before = toolsByName;
             if (!properties.isEnabled()) {
-                capabilitiesByName = Map.of();
+                toolsByName = Map.of();
                 aliasToCanonical = Map.of();
                 snapshotsByServerKey = Map.of();
                 availabilityGate.prune(Set.of());
-                return CatalogDiff.between(before, capabilitiesByName);
+                return CatalogDiff.between(before, toolsByName);
             }
 
             List<McpServerRegistryService.RegisteredServer> servers = serverRegistryService.list();
@@ -79,12 +79,12 @@ public class McpCapabilitySyncService {
             }
             availabilityGate.prune(activeServerKeys);
 
-            Map<String, ServerCapabilitySnapshot> nextSnapshots = new LinkedHashMap<>(snapshotsByServerKey);
+            Map<String, ServerToolSnapshot> nextSnapshots = new LinkedHashMap<>(snapshotsByServerKey);
 
             for (McpServerRegistryService.RegisteredServer server : servers) {
                 String serverKey = normalize(server.serverKey());
                 if (availabilityGate.isBlocked(serverKey, registryVersion)) {
-                    log.debug("Skip MCP capability sync for blocked server '{}' at version={}", serverKey, registryVersion);
+                    log.debug("Skip MCP tool sync for blocked server '{}' at version={}", serverKey, registryVersion);
                     continue;
                 }
                 try {
@@ -94,22 +94,22 @@ public class McpCapabilitySyncService {
                     availabilityGate.markSuccess(serverKey);
                 } catch (Exception ex) {
                     availabilityGate.markFailure(serverKey, registryVersion);
-                    log.warn("Failed to sync MCP capabilities from server '{}': {}",
+                    log.warn("Failed to sync MCP tools from server '{}': {}",
                             server.serverKey(),
                             summarizeException(ex));
                     if (log.isDebugEnabled()) {
-                        log.debug("MCP capability sync stack server='{}'", server.serverKey(), ex);
+                        log.debug("MCP tool sync stack server='{}'", server.serverKey(), ex);
                     }
                 }
             }
 
             nextSnapshots.keySet().removeIf(serverKey -> !activeServerKeys.contains(serverKey));
 
-            Map<String, CapabilityDescriptor> loaded = new LinkedHashMap<>();
+            Map<String, ToolDescriptor> loaded = new LinkedHashMap<>();
             Map<String, String> loadedAlias = new LinkedHashMap<>();
             Set<String> conflicts = new HashSet<>();
             for (McpServerRegistryService.RegisteredServer server : servers) {
-                ServerCapabilitySnapshot snapshot = nextSnapshots.get(normalize(server.serverKey()));
+                ServerToolSnapshot snapshot = nextSnapshots.get(normalize(server.serverKey()));
                 if (snapshot == null) {
                     continue;
                 }
@@ -117,12 +117,12 @@ public class McpCapabilitySyncService {
             }
 
             snapshotsByServerKey = Map.copyOf(nextSnapshots);
-            capabilitiesByName = Map.copyOf(loaded);
+            toolsByName = Map.copyOf(loaded);
             aliasToCanonical = Map.copyOf(loadedAlias);
-            CatalogDiff diff = CatalogDiff.between(before, capabilitiesByName);
+            CatalogDiff diff = CatalogDiff.between(before, toolsByName);
             log.debug(
-                    "Refreshed MCP capability cache, size={}, aliases={}, changed={}",
-                    capabilitiesByName.size(),
+                    "Refreshed MCP tool cache, size={}, aliases={}, changed={}",
+                    toolsByName.size(),
                     aliasToCanonical.size(),
                     diff.changedKeys().size()
             );
@@ -130,18 +130,18 @@ public class McpCapabilitySyncService {
         }
     }
 
-    public List<CapabilityDescriptor> list() {
-        return capabilitiesByName.values().stream()
-                .sorted(java.util.Comparator.comparing(CapabilityDescriptor::name))
+    public List<ToolDescriptor> list() {
+        return toolsByName.values().stream()
+                .sorted(java.util.Comparator.comparing(ToolDescriptor::name))
                 .toList();
     }
 
-    public Optional<CapabilityDescriptor> find(String toolName) {
+    public Optional<ToolDescriptor> find(String toolName) {
         if (!StringUtils.hasText(toolName)) {
             return Optional.empty();
         }
         String normalized = normalize(toolName);
-        CapabilityDescriptor direct = capabilitiesByName.get(normalized);
+        ToolDescriptor direct = toolsByName.get(normalized);
         if (direct != null) {
             return Optional.of(direct);
         }
@@ -149,7 +149,7 @@ public class McpCapabilitySyncService {
         if (!StringUtils.hasText(canonical)) {
             return Optional.empty();
         }
-        return Optional.ofNullable(capabilitiesByName.get(canonical));
+        return Optional.ofNullable(toolsByName.get(canonical));
     }
 
     public Optional<String> resolveAlias(String maybeAlias) {
@@ -160,15 +160,15 @@ public class McpCapabilitySyncService {
         return StringUtils.hasText(canonical) ? Optional.of(canonical) : Optional.empty();
     }
 
-    private ServerCapabilitySnapshot buildServerSnapshot(
+    private ServerToolSnapshot buildServerSnapshot(
             McpServerRegistryService.RegisteredServer server,
             List<McpStreamableHttpClient.McpToolDefinition> tools
     ) {
-        Map<String, CapabilityDescriptor> descriptors = new LinkedHashMap<>();
+        Map<String, ToolDescriptor> descriptors = new LinkedHashMap<>();
         Map<String, String> aliasToCanonical = new LinkedHashMap<>();
 
         if (tools == null) {
-            return new ServerCapabilitySnapshot(Map.copyOf(descriptors), Map.copyOf(aliasToCanonical));
+            return new ServerToolSnapshot(Map.copyOf(descriptors), Map.copyOf(aliasToCanonical));
         }
 
         for (McpStreamableHttpClient.McpToolDefinition tool : tools) {
@@ -177,18 +177,18 @@ public class McpCapabilitySyncService {
                 continue;
             }
             if (descriptors.containsKey(toolName)) {
-                log.warn("Duplicate MCP capability '{}' from server '{}', keep first", toolName, server.serverKey());
+                log.warn("Duplicate MCP tool '{}' from server '{}', keep first", toolName, server.serverKey());
                 continue;
             }
             String afterCallHint = normalizeText(tool.afterCallHint());
 
-            CapabilityDescriptor descriptor = new CapabilityDescriptor(
+            ToolDescriptor descriptor = new ToolDescriptor(
                     toolName,
                     StringUtils.hasText(tool.description()) ? tool.description().trim() : "",
                     afterCallHint,
                     toParameters(tool.inputSchema()),
                     false,
-                    CapabilityKind.BACKEND,
+                    ToolKind.BACKEND,
                     "function",
                     "mcp://" + server.serverKey() + "/" + toolName,
                     "mcp",
@@ -199,28 +199,28 @@ public class McpCapabilitySyncService {
             descriptors.put(toolName, descriptor);
             registerAliases(server, toolName, tool.aliases(), aliasToCanonical);
         }
-        return new ServerCapabilitySnapshot(Map.copyOf(descriptors), Map.copyOf(aliasToCanonical));
+        return new ServerToolSnapshot(Map.copyOf(descriptors), Map.copyOf(aliasToCanonical));
     }
 
     private void mergeSnapshot(
-            ServerCapabilitySnapshot snapshot,
-            Map<String, CapabilityDescriptor> loaded,
+            ServerToolSnapshot snapshot,
+            Map<String, ToolDescriptor> loaded,
             Map<String, String> loadedAlias,
             Set<String> conflicts
     ) {
-        List<Map.Entry<String, CapabilityDescriptor>> descriptorEntries = new ArrayList<>(snapshot.capabilitiesByName().entrySet());
+        List<Map.Entry<String, ToolDescriptor>> descriptorEntries = new ArrayList<>(snapshot.toolsByName().entrySet());
         descriptorEntries.sort(Map.Entry.comparingByKey(Comparator.naturalOrder()));
-        for (Map.Entry<String, CapabilityDescriptor> entry : descriptorEntries) {
+        for (Map.Entry<String, ToolDescriptor> entry : descriptorEntries) {
             String toolName = entry.getKey();
             if (!StringUtils.hasText(toolName) || conflicts.contains(toolName)) {
                 continue;
             }
-            CapabilityDescriptor descriptor = entry.getValue();
-            CapabilityDescriptor existing = loaded.putIfAbsent(toolName, descriptor);
+            ToolDescriptor descriptor = entry.getValue();
+            ToolDescriptor existing = loaded.putIfAbsent(toolName, descriptor);
             if (existing != null) {
                 loaded.remove(toolName);
                 conflicts.add(toolName);
-                log.warn("Duplicate MCP capability '{}' from '{}' and '{}', both skipped",
+                log.warn("Duplicate MCP tool '{}' from '{}' and '{}', both skipped",
                         toolName,
                         existing.sourceKey(),
                         descriptor.sourceKey());
@@ -324,8 +324,8 @@ public class McpCapabilitySyncService {
         return type + ": " + message;
     }
 
-    private record ServerCapabilitySnapshot(
-            Map<String, CapabilityDescriptor> capabilitiesByName,
+    private record ServerToolSnapshot(
+            Map<String, ToolDescriptor> toolsByName,
             Map<String, String> aliasToCanonical
     ) {
     }

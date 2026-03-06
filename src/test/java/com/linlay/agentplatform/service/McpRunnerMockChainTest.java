@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.McpToolInvoker;
 import com.linlay.agentplatform.config.McpProperties;
-import com.linlay.agentplatform.tool.CapabilityRegistryService;
+import com.linlay.agentplatform.tool.ToolRegistryService;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -62,32 +62,32 @@ class McpRunnerMockChainTest {
         );
         McpServerAvailabilityGate availabilityGate = new McpServerAvailabilityGate();
 
-        McpCapabilitySyncService capabilitySyncService = new McpCapabilitySyncService(
+        McpToolSyncService toolSyncService = new McpToolSyncService(
                 properties,
                 serverRegistryService,
                 availabilityGate,
                 streamableHttpClient,
                 objectMapper
         );
-        capabilitySyncService.refreshCapabilities();
+        toolSyncService.refreshTools();
 
-        assertThat(capabilitySyncService.find("mock.weather.query"))
+        assertThat(toolSyncService.find("mock.weather.query"))
                 .isPresent()
                 .get()
                 .extracting(descriptor -> descriptor.sourceType(), descriptor -> descriptor.sourceKey())
                 .containsExactly("mcp", "mock");
-        assertThat(capabilitySyncService.find("mock.weather.query"))
+        assertThat(toolSyncService.find("mock.weather.query"))
                 .isPresent()
                 .get()
                 .extracting(descriptor -> descriptor.afterCallHint())
                 .isEqualTo("Use viewport key=show_weather_card");
 
         DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
-        beanFactory.registerSingleton("mcpCapabilitySyncService", capabilitySyncService);
+        beanFactory.registerSingleton("mcpToolSyncService", toolSyncService);
         ToolRegistry toolRegistry = new ToolRegistry(
                 List.of(),
-                beanFactory.getBeanProvider(CapabilityRegistryService.class),
-                beanFactory.getBeanProvider(McpCapabilitySyncService.class)
+                beanFactory.getBeanProvider(ToolRegistryService.class),
+                beanFactory.getBeanProvider(McpToolSyncService.class)
         );
 
         McpToolInvoker mcpToolInvoker = new McpToolInvoker(

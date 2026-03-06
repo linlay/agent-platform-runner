@@ -2,7 +2,7 @@ package com.linlay.agentplatform.service;
 
 import com.linlay.agentplatform.agent.AgentCatalogProperties;
 import com.linlay.agentplatform.agent.AgentRegistry;
-import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.config.ToolCatalogProperties;
 import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
@@ -13,7 +13,7 @@ import com.linlay.agentplatform.skill.SkillCatalogProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.team.TeamCatalogProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
-import com.linlay.agentplatform.tool.CapabilityRegistryService;
+import com.linlay.agentplatform.tool.ToolRegistryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
@@ -49,16 +49,16 @@ public class DirectoryWatchService implements DisposableBean {
     public DirectoryWatchService(
             AgentRegistry agentRegistry,
             ViewportRegistryService viewportRegistryService,
-            CapabilityRegistryService capabilityRegistryService,
+            ToolRegistryService toolRegistryService,
             ModelRegistryService modelRegistryService,
             SkillRegistryService skillRegistryService,
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
-            McpCapabilitySyncService mcpCapabilitySyncService,
+            McpToolSyncService mcpToolSyncService,
             ScheduledQueryOrchestrator scheduledQueryOrchestrator,
             AgentCatalogProperties agentCatalogProperties,
             ViewportCatalogProperties viewportCatalogProperties,
-            CapabilityCatalogProperties capabilityCatalogProperties,
+            ToolCatalogProperties toolCatalogProperties,
             McpProperties mcpProperties,
             ModelCatalogProperties modelCatalogProperties,
             SkillCatalogProperties skillCatalogProperties,
@@ -75,9 +75,9 @@ public class DirectoryWatchService implements DisposableBean {
                 viewportRegistryService::refreshViewports
         );
         watchedDirs.put(
-                Path.of(capabilityCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(toolCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 () -> {
-                    CatalogDiff diff = capabilityRegistryService.refreshCapabilities();
+                    CatalogDiff diff = toolRegistryService.refreshTools();
                     if (diff.isEmpty()) {
                         return;
                     }
@@ -108,7 +108,7 @@ public class DirectoryWatchService implements DisposableBean {
                 Path.of(mcpProperties.getRegistry().getExternalDir()).toAbsolutePath().normalize(),
                 () -> {
                     mcpServerRegistryService.refreshServers();
-                    CatalogDiff diff = mcpCapabilitySyncService.refreshCapabilities();
+                    CatalogDiff diff = mcpToolSyncService.refreshTools();
                     if (diff.isEmpty()) {
                         return;
                     }
@@ -128,7 +128,7 @@ public class DirectoryWatchService implements DisposableBean {
     DirectoryWatchService(
             AgentRegistry agentRegistry,
             ViewportRegistryService viewportRegistryService,
-            CapabilityRegistryService capabilityRegistryService,
+            ToolRegistryService toolRegistryService,
             SkillRegistryService skillRegistryService,
             Map<Path, Runnable> watchedDirs
     ) {

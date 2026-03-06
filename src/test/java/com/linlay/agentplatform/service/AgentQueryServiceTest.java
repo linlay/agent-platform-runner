@@ -11,8 +11,8 @@ import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.model.ViewportType;
 import com.linlay.agentplatform.team.TeamRegistryService;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.codec.ServerSentEvent;
@@ -87,7 +87,7 @@ class AgentQueryServiceTest {
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
         frontendToolProperties.setSubmitTimeoutMs(120_000);
 
-        when(toolRegistry.capability("confirm_dialog")).thenReturn(Optional.of(frontendCapability()));
+        when(toolRegistry.toolDescriptor("confirm_dialog")).thenReturn(Optional.of(frontendToolDescriptor()));
         when(viewportRegistryService.find("confirm_dialog")).thenReturn(Optional.of(
                 new ViewportRegistryService.ViewportEntry("confirm_dialog", ViewportType.HTML, "<div>ok</div>")
         ));
@@ -122,7 +122,7 @@ class AgentQueryServiceTest {
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
         frontendToolProperties.setSubmitTimeoutMs(30_000);
 
-        when(toolRegistry.capability("confirm_dialog")).thenReturn(Optional.of(frontendCapability()));
+        when(toolRegistry.toolDescriptor("confirm_dialog")).thenReturn(Optional.of(frontendToolDescriptor()));
         when(viewportRegistryService.find("confirm_dialog")).thenReturn(Optional.of(
                 new ViewportRegistryService.ViewportEntry("confirm_dialog", ViewportType.QLC, Map.of("schema", Map.of()))
         ));
@@ -218,14 +218,14 @@ class AgentQueryServiceTest {
         verify(chatRecordStore).onRunCompleted(any(ChatRecordStore.RunCompletion.class));
     }
 
-    private CapabilityDescriptor frontendCapability() {
-        return new CapabilityDescriptor(
+    private ToolDescriptor frontendToolDescriptor() {
+        return new ToolDescriptor(
                 "confirm_dialog",
                 "confirm",
                 "",
                 Map.of("type", "object"),
                 false,
-                CapabilityKind.FRONTEND,
+                ToolKind.FRONTEND,
                 "frontend",
                 null,
                 "local",

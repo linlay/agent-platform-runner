@@ -19,10 +19,10 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentCatalogProperties;
-import com.linlay.agentplatform.service.McpCapabilitySyncService;
+import com.linlay.agentplatform.service.McpToolSyncService;
 import com.linlay.agentplatform.config.AgentFileCreateToolProperties;
 import com.linlay.agentplatform.config.AgentProviderProperties;
-import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.config.ToolCatalogProperties;
 import com.linlay.agentplatform.model.ModelCatalogProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
 import static org.mockito.Mockito.mock;
@@ -50,7 +50,7 @@ class ToolRegistryTest {
     }
 
     @Test
-    void backendCapabilityMetadataShouldOverrideNativeToolDefinition(@TempDir Path tempDir) throws IOException {
+    void backendToolMetadataShouldOverrideNativeToolDefinition(@TempDir Path tempDir) throws IOException {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
         Files.writeString(toolsDir.resolve("city_datetime.backend"), """
@@ -74,18 +74,18 @@ class ToolRegistryTest {
                 }
                 """);
 
-        CapabilityCatalogProperties properties = new CapabilityCatalogProperties();
+        ToolCatalogProperties properties = new ToolCatalogProperties();
         properties.setExternalDir(toolsDir.toString());
-        CapabilityRegistryService capabilityRegistryService = new CapabilityRegistryService(
+        ToolRegistryService toolRegistryService = new ToolRegistryService(
                 new ObjectMapper(),
                 properties
         );
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
-        beanFactory.addBean("capabilityRegistryService", capabilityRegistryService);
+        beanFactory.addBean("toolRegistryService", toolRegistryService);
         ToolRegistry toolRegistry = new ToolRegistry(
                 List.of(new CityDateTime()),
-                beanFactory.getBeanProvider(CapabilityRegistryService.class)
+                beanFactory.getBeanProvider(ToolRegistryService.class)
         );
 
         BaseTool cityTool = toolRegistry.list().stream()
@@ -101,14 +101,14 @@ class ToolRegistryTest {
     }
 
     @Test
-    void mcpCapabilityShouldAppearAsVirtualTool() {
-        CapabilityDescriptor mcpDescriptor = new CapabilityDescriptor(
+    void mcpToolShouldAppearAsVirtualTool() {
+        ToolDescriptor mcpDescriptor = new ToolDescriptor(
                 "mock.weather.query",
                 "mock weather",
                 "use weather viewport card",
                 Map.of("type", "object"),
                 false,
-                CapabilityKind.BACKEND,
+                ToolKind.BACKEND,
                 "function",
                 "mcp://mock/mock.weather.query",
                 "mcp",
@@ -116,16 +116,16 @@ class ToolRegistryTest {
                 null,
                 "mcp://mock"
         );
-        McpCapabilitySyncService mcpCapabilitySyncService = mock(McpCapabilitySyncService.class);
-        when(mcpCapabilitySyncService.list()).thenReturn(List.of(mcpDescriptor));
-        when(mcpCapabilitySyncService.find("mock.weather.query")).thenReturn(java.util.Optional.of(mcpDescriptor));
+        McpToolSyncService mcpToolSyncService = mock(McpToolSyncService.class);
+        when(mcpToolSyncService.list()).thenReturn(List.of(mcpDescriptor));
+        when(mcpToolSyncService.find("mock.weather.query")).thenReturn(java.util.Optional.of(mcpDescriptor));
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
-        beanFactory.addBean("mcpCapabilitySyncService", mcpCapabilitySyncService);
+        beanFactory.addBean("mcpToolSyncService", mcpToolSyncService);
         ToolRegistry toolRegistry = new ToolRegistry(
                 List.of(new CityDateTime()),
-                beanFactory.getBeanProvider(CapabilityRegistryService.class),
-                beanFactory.getBeanProvider(McpCapabilitySyncService.class)
+                beanFactory.getBeanProvider(ToolRegistryService.class),
+                beanFactory.getBeanProvider(McpToolSyncService.class)
         );
 
         assertThat(toolRegistry.list().stream().map(BaseTool::name))
@@ -135,22 +135,22 @@ class ToolRegistryTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(mcpTool.afterCallHint()).isEqualTo("use weather viewport card");
-        assertThat(toolRegistry.capability("mock.weather.query"))
+        assertThat(toolRegistry.toolDescriptor("mock.weather.query"))
                 .isPresent()
                 .get()
-                .extracting(CapabilityDescriptor::sourceType)
+                .extracting(ToolDescriptor::sourceType)
                 .isEqualTo("mcp");
     }
 
     @Test
     void localToolShouldWinWhenMcpToolNameConflicts() {
-        CapabilityDescriptor conflictDescriptor = new CapabilityDescriptor(
+        ToolDescriptor conflictDescriptor = new ToolDescriptor(
                 "city_datetime",
                 "remote city time",
                 "",
                 Map.of("type", "object"),
                 false,
-                CapabilityKind.BACKEND,
+                ToolKind.BACKEND,
                 "function",
                 "mcp://mock/city_datetime",
                 "mcp",
@@ -158,22 +158,22 @@ class ToolRegistryTest {
                 null,
                 "mcp://mock"
         );
-        McpCapabilitySyncService mcpCapabilitySyncService = mock(McpCapabilitySyncService.class);
-        when(mcpCapabilitySyncService.list()).thenReturn(List.of(conflictDescriptor));
-        when(mcpCapabilitySyncService.find("city_datetime")).thenReturn(java.util.Optional.of(conflictDescriptor));
+        McpToolSyncService mcpToolSyncService = mock(McpToolSyncService.class);
+        when(mcpToolSyncService.list()).thenReturn(List.of(conflictDescriptor));
+        when(mcpToolSyncService.find("city_datetime")).thenReturn(java.util.Optional.of(conflictDescriptor));
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
-        beanFactory.addBean("mcpCapabilitySyncService", mcpCapabilitySyncService);
+        beanFactory.addBean("mcpToolSyncService", mcpToolSyncService);
         ToolRegistry toolRegistry = new ToolRegistry(
                 List.of(new CityDateTime()),
-                beanFactory.getBeanProvider(CapabilityRegistryService.class),
-                beanFactory.getBeanProvider(McpCapabilitySyncService.class)
+                beanFactory.getBeanProvider(ToolRegistryService.class),
+                beanFactory.getBeanProvider(McpToolSyncService.class)
         );
 
-        assertThat(toolRegistry.capability("city_datetime"))
+        assertThat(toolRegistry.toolDescriptor("city_datetime"))
                 .isPresent()
                 .get()
-                .extracting(CapabilityDescriptor::sourceType)
+                .extracting(ToolDescriptor::sourceType)
                 .isEqualTo("local");
         assertThat(toolRegistry.invoke("city_datetime", Map.of("city", "Shanghai")).path("timezone").asText())
                 .isEqualTo("UTC+8");

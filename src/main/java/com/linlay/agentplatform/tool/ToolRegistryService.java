@@ -23,14 +23,14 @@ import org.springframework.util.StringUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.config.ToolCatalogProperties;
 import com.linlay.agentplatform.service.CatalogDiff;
 
 @Service
 @DependsOn("runtimeResourceSyncService")
-public class CapabilityRegistryService {
+public class ToolRegistryService {
 
-    private static final Logger log = LoggerFactory.getLogger(CapabilityRegistryService.class);
+    private static final Logger log = LoggerFactory.getLogger(ToolRegistryService.class);
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
     private static final String BACKEND_SUFFIX = ".backend";
@@ -38,49 +38,49 @@ public class CapabilityRegistryService {
     private static final Set<String> FRONTEND_SUFFIXES = Set.of(".frontend");
 
     private final ObjectMapper objectMapper;
-    private final CapabilityCatalogProperties properties;
+    private final ToolCatalogProperties properties;
 
     private final Object reloadLock = new Object();
-    private volatile Map<String, CapabilityDescriptor> byName = Map.of();
+    private volatile Map<String, ToolDescriptor> byName = Map.of();
 
-    public CapabilityRegistryService(
+    public ToolRegistryService(
             ObjectMapper objectMapper,
-            CapabilityCatalogProperties properties
+            ToolCatalogProperties properties
     ) {
         this.objectMapper = objectMapper;
         this.properties = properties;
-        refreshCapabilities();
+        refreshTools();
     }
 
-    public List<CapabilityDescriptor> list() {
+    public List<ToolDescriptor> list() {
         return byName.values().stream()
-                .sorted(Comparator.comparing(CapabilityDescriptor::name))
+                .sorted(Comparator.comparing(ToolDescriptor::name))
                 .toList();
     }
 
-    public Optional<CapabilityDescriptor> find(String toolName) {
+    public Optional<ToolDescriptor> find(String toolName) {
         if (!StringUtils.hasText(toolName)) {
             return Optional.empty();
         }
         return Optional.ofNullable(byName.get(normalizeName(toolName)));
     }
 
-    public CatalogDiff refreshCapabilities() {
+    public CatalogDiff refreshTools() {
         synchronized (reloadLock) {
-            Map<String, CapabilityDescriptor> before = byName;
-            Map<String, CapabilityDescriptor> loaded = new LinkedHashMap<>();
+            Map<String, ToolDescriptor> before = byName;
+            Map<String, ToolDescriptor> loaded = new LinkedHashMap<>();
             Set<String> conflicts = new HashSet<>();
 
             loadToolsDirectory(Path.of(properties.getExternalDir()).toAbsolutePath().normalize(), loaded, conflicts);
 
             byName = Map.copyOf(loaded);
             CatalogDiff diff = CatalogDiff.between(before, byName);
-            log.debug("Refreshed capability registry, size={}, changed={}", loaded.size(), diff.changedKeys().size());
+            log.debug("Refreshed tool registry, size={}, changed={}", loaded.size(), diff.changedKeys().size());
             return diff;
         }
     }
 
-    private void loadToolsDirectory(Path dir, Map<String, CapabilityDescriptor> loaded, Set<String> conflicts) {
+    private void loadToolsDirectory(Path dir, Map<String, ToolDescriptor> loaded, Set<String> conflicts) {
         if (!Files.exists(dir)) {
             return;
         }
@@ -92,11 +92,11 @@ public class CapabilityRegistryService {
             String fileName = file.getFileName().toString();
             String lower = fileName.toLowerCase(Locale.ROOT);
             if (lower.endsWith(BACKEND_SUFFIX)) {
-                parseFile(file, CapabilityKind.BACKEND, "function", null, loaded, conflicts);
+                parseFile(file, ToolKind.BACKEND, "function", null, loaded, conflicts);
                 continue;
             }
             if (lower.endsWith(ACTION_SUFFIX)) {
-                parseFile(file, CapabilityKind.ACTION, "action", null, loaded, conflicts);
+                parseFile(file, ToolKind.ACTION, "action", null, loaded, conflicts);
                 continue;
             }
             String frontendSuffix = resolveFrontendSuffix(lower);
@@ -104,29 +104,29 @@ public class CapabilityRegistryService {
                 continue;
             }
             String viewportKey = fileName.substring(0, fileName.length() - frontendSuffix.length()).toLowerCase(Locale.ROOT);
-            parseFile(file, CapabilityKind.FRONTEND, frontendSuffix.substring(1), viewportKey, loaded, conflicts);
+            parseFile(file, ToolKind.FRONTEND, frontendSuffix.substring(1), viewportKey, loaded, conflicts);
         }
     }
 
     private void parseFile(
             Path file,
-            CapabilityKind kind,
+            ToolKind kind,
             String toolType,
             String viewportKey,
-            Map<String, CapabilityDescriptor> loaded,
+            Map<String, ToolDescriptor> loaded,
             Set<String> conflicts
     ) {
         JsonNode root;
         try {
             root = objectMapper.readTree(Files.readString(file));
         } catch (Exception ex) {
-            log.warn("Skip invalid capability file: {}", file, ex);
+            log.warn("Skip invalid tool file: {}", file, ex);
             return;
         }
 
         JsonNode tools = root.path("tools");
         if (!tools.isArray()) {
-            log.warn("Skip capability file without tools[]: {}", file);
+            log.warn("Skip tool file without tools[]: {}", file);
             return;
         }
 
@@ -154,7 +154,7 @@ public class CapabilityRegistryService {
                     ? node.get("toolApi").asText()
                     : null;
 
-            CapabilityDescriptor descriptor = new CapabilityDescriptor(
+            ToolDescriptor descriptor = new ToolDescriptor(
                     name,
                     description,
                     afterCallHint,
@@ -169,11 +169,11 @@ public class CapabilityRegistryService {
                     file.toString()
             );
 
-            CapabilityDescriptor old = loaded.putIfAbsent(name, descriptor);
+            ToolDescriptor old = loaded.putIfAbsent(name, descriptor);
             if (old != null) {
                 loaded.remove(name);
                 conflicts.add(name);
-                log.warn("Duplicate capability name '{}' found in {} and {}, both skipped", name, old.sourceFile(), file);
+                log.warn("Duplicate tool name '{}' found in {} and {}, both skipped", name, old.sourceFile(), file);
             }
         }
     }
@@ -185,7 +185,7 @@ public class CapabilityRegistryService {
                     .sorted(Comparator.comparing(path -> path.getFileName().toString()))
                     .forEach(files::add);
         } catch (IOException ex) {
-            log.warn("Cannot list capability files from {}", dir, ex);
+            log.warn("Cannot list tool files from {}", dir, ex);
         }
         return files;
     }

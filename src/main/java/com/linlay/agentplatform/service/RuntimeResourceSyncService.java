@@ -15,7 +15,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
-import com.linlay.agentplatform.config.CapabilityCatalogProperties;
+import com.linlay.agentplatform.config.ToolCatalogProperties;
 import com.linlay.agentplatform.schedule.ScheduleCatalogProperties;
 import com.linlay.agentplatform.skill.SkillCatalogProperties;
 
@@ -32,21 +32,21 @@ public class RuntimeResourceSyncService {
     private final Path schedulesDir;
 
     public RuntimeResourceSyncService(
-            CapabilityCatalogProperties capabilityCatalogProperties,
+            ToolCatalogProperties toolCatalogProperties,
             SkillCatalogProperties skillCatalogProperties
     ) {
-        this(capabilityCatalogProperties, skillCatalogProperties, new ScheduleCatalogProperties());
+        this(toolCatalogProperties, skillCatalogProperties, new ScheduleCatalogProperties());
     }
 
     @Autowired
     public RuntimeResourceSyncService(
-            CapabilityCatalogProperties capabilityCatalogProperties,
+            ToolCatalogProperties toolCatalogProperties,
             SkillCatalogProperties skillCatalogProperties,
             ScheduleCatalogProperties scheduleCatalogProperties
     ) {
         this(
                 new PathMatchingResourcePatternResolver(),
-                Path.of(capabilityCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
+                Path.of(toolCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 Path.of(skillCatalogProperties.getExternalDir()).toAbsolutePath().normalize(),
                 Path.of(scheduleCatalogProperties.getExternalDir()).toAbsolutePath().normalize()
         );

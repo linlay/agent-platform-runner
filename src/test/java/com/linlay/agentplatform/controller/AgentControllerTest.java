@@ -3,7 +3,7 @@ package com.linlay.agentplatform.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
-import com.linlay.agentplatform.service.McpCapabilitySyncService;
+import com.linlay.agentplatform.service.McpToolSyncService;
 import com.linlay.agentplatform.config.ViewportCatalogProperties;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
@@ -13,8 +13,8 @@ import com.linlay.agentplatform.service.ViewportRegistryService;
 import com.linlay.agentplatform.team.TeamCatalogProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
 import com.linlay.agentplatform.testsupport.StubLlmService;
-import com.linlay.agentplatform.tool.CapabilityDescriptor;
-import com.linlay.agentplatform.tool.CapabilityKind;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolKind;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -139,9 +139,9 @@ class AgentControllerTest {
 
         @Bean
         @Primary
-        McpCapabilitySyncService mcpCapabilitySyncService() {
-            McpCapabilitySyncService service = mock(McpCapabilitySyncService.class);
-            CapabilityDescriptor descriptor = new CapabilityDescriptor(
+        McpToolSyncService mcpToolSyncService() {
+            McpToolSyncService service = mock(McpToolSyncService.class);
+            ToolDescriptor descriptor = new ToolDescriptor(
                     "mock.weather.query",
                     "[MOCK] query weather",
                     "",
@@ -154,7 +154,7 @@ class AgentControllerTest {
                             "additionalProperties", true
                     ),
                     false,
-                    CapabilityKind.BACKEND,
+                    ToolKind.BACKEND,
                     "function",
                     "mcp://mock/mock.weather.query",
                     "mcp",
@@ -342,7 +342,7 @@ class AgentControllerTest {
     }
 
     @Test
-    void toolsShouldExposeMcpSourceMetaWhenMcpCapabilityExists() throws Exception {
+    void toolsShouldExposeMcpSourceMetaWhenMcpToolExists() throws Exception {
         String body = webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/ap/tools")
                         .queryParam("kind", "backend")

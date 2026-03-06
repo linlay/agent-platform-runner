@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.tool;
 
-public enum CapabilityKind {
+public enum ToolKind {
     BACKEND,
     FRONTEND,
     ACTION
