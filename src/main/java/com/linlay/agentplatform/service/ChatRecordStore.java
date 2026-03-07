@@ -86,6 +86,9 @@ public class ChatRecordStore {
     private final ChatWindowMemoryProperties properties;
     private final ToolRegistry toolRegistry;
     private final Object lock = new Object();
+    private final ChatIndexRepository chatIndexRepository;
+    private final ChatHistoryFileReader chatHistoryFileReader;
+    private final ChatEventSnapshotBuilder chatEventSnapshotBuilder;
 
     public ChatRecordStore(ObjectMapper objectMapper, ChatWindowMemoryProperties properties) {
         this(objectMapper, properties, null);
@@ -96,30 +99,14 @@ public class ChatRecordStore {
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.toolRegistry = toolRegistry;
+        this.chatIndexRepository = new ChatIndexRepository(properties, lock);
+        this.chatHistoryFileReader = new ChatHistoryFileReader(objectMapper, this::resolveCharset);
+        this.chatEventSnapshotBuilder = new ChatEventSnapshotBuilder(objectMapper, toolRegistry);
     }
 
     @PostConstruct
     public void initializeDatabase() {
-        synchronized (lock) {
-            Path dbPath = resolveSqlitePath();
-            Path parent = dbPath.getParent();
-            try {
-                if (parent != null) {
-                    Files.createDirectories(parent);
-                }
-            } catch (IOException ex) {
-                throw new IllegalStateException("Cannot create sqlite directory for " + dbPath, ex);
-            }
-
-            try {
-                initializeOrValidateSchema();
-            } catch (IncompatibleChatsSchemaException ex) {
-                if (!isAutoRebuildOnIncompatibleSchema()) {
-                    throw ex;
-                }
-                rebuildIncompatibleSchema(dbPath, ex);
-            }
-        }
+        chatIndexRepository.initializeDatabase();
     }
 
     private void initializeOrValidateSchema() {
@@ -190,63 +177,7 @@ public class ChatRecordStore {
     }
 
     public ChatSummary ensureChat(String chatId, String firstAgentKey, String firstAgentName, String firstTeamId, String firstMessage) {
-        requireValidChatId(chatId);
-        String normalizedAgentKey = nullable(firstAgentKey);
-        String normalizedTeamId = nullable(firstTeamId);
-        validateChatBinding(normalizedAgentKey, normalizedTeamId);
-        String normalizedChatName = deriveChatName(firstMessage);
-        long now = System.currentTimeMillis();
-        synchronized (lock) {
-            try (Connection connection = openConnection()) {
-                connection.setAutoCommit(false);
-                ChatIndexRecord existing = findChatRecordById(connection, chatId);
-                boolean created = existing == null;
-                ChatIndexRecord record = created ? new ChatIndexRecord() : existing;
-                if (created) {
-                    record.chatId = chatId;
-                    record.chatName = normalizedChatName;
-                    record.agentKey = normalizedAgentKey;
-                    record.teamId = normalizedTeamId;
-                    record.createdAt = now;
-                    record.updatedAt = now;
-                    record.lastRunContent = StringUtils.hasText(firstMessage) ? firstMessage.trim() : "";
-                    record.lastRunId = "";
-                    record.readStatus = 1;
-                    record.readAt = now;
-                } else {
-                    validateBindingDrift(record, normalizedAgentKey, normalizedTeamId);
-                    if (!StringUtils.hasText(record.chatName)) {
-                        record.chatName = normalizedChatName;
-                    }
-                    if (!StringUtils.hasText(record.agentKey) && !StringUtils.hasText(record.teamId)) {
-                        record.agentKey = normalizedAgentKey;
-                        record.teamId = normalizedTeamId;
-                    } else if (StringUtils.hasText(record.agentKey)) {
-                        record.teamId = null;
-                    } else if (StringUtils.hasText(record.teamId)) {
-                        record.agentKey = null;
-                    }
-                    if (record.createdAt <= 0) {
-                        record.createdAt = now;
-                    }
-                    record.updatedAt = now;
-                    if (!StringUtils.hasText(record.lastRunId)) {
-                        record.lastRunId = "";
-                    }
-                    if (!StringUtils.hasText(record.lastRunContent) && StringUtils.hasText(firstMessage)) {
-                        record.lastRunContent = firstMessage.trim();
-                    }
-                    if (record.readStatus != 0 && record.readStatus != 1) {
-                        record.readStatus = 1;
-                    }
-                }
-                upsertChatIndex(connection, record);
-                connection.commit();
-                return toChatSummary(record, created);
-            } catch (SQLException ex) {
-                throw new IllegalStateException("Cannot upsert chat index for chatId=" + chatId, ex);
-            }
-        }
+        return chatIndexRepository.ensureChat(chatId, firstAgentKey, firstAgentName, firstTeamId, firstMessage);
     }
 
     public void appendEvent(String chatId, String eventData) {
@@ -286,75 +217,15 @@ public class ChatRecordStore {
     }
 
     public Optional<String> findBoundAgentKey(String chatId) {
-        if (!isValidChatId(chatId)) {
-            return Optional.empty();
-        }
-        synchronized (lock) {
-            try (Connection connection = openConnection()) {
-                ChatIndexRecord record = findChatRecordById(connection, chatId);
-                if (record == null || StringUtils.hasText(record.teamId) || !StringUtils.hasText(record.agentKey)) {
-                    return Optional.empty();
-                }
-                return Optional.of(record.agentKey);
-            } catch (SQLException ex) {
-                log.warn("Cannot query bound agent for chatId={}", chatId, ex);
-                return Optional.empty();
-            }
-        }
+        return chatIndexRepository.findBoundAgentKey(chatId);
     }
 
     public Optional<String> findBoundTeamId(String chatId) {
-        if (!isValidChatId(chatId)) {
-            return Optional.empty();
-        }
-        synchronized (lock) {
-            try (Connection connection = openConnection()) {
-                ChatIndexRecord record = findChatRecordById(connection, chatId);
-                if (record == null || StringUtils.hasText(record.agentKey) || !StringUtils.hasText(record.teamId)) {
-                    return Optional.empty();
-                }
-                return Optional.of(record.teamId);
-            } catch (SQLException ex) {
-                log.warn("Cannot query bound team for chatId={}", chatId, ex);
-                return Optional.empty();
-            }
-        }
+        return chatIndexRepository.findBoundTeamId(chatId);
     }
 
     public void onRunCompleted(RunCompletion completion) {
-        if (completion == null || !isValidChatId(completion.chatId()) || !StringUtils.hasText(completion.runId())) {
-            return;
-        }
-        synchronized (lock) {
-            try (Connection connection = openConnection()) {
-                connection.setAutoCommit(false);
-                ChatIndexRecord record = findChatRecordById(connection, completion.chatId());
-                if (record == null) {
-                    connection.rollback();
-                    return;
-                }
-
-                long eventAt = completion.completedAt() > 0 ? completion.completedAt() : System.currentTimeMillis();
-                String assistantContent = nullable(completion.assistantContent());
-                String fallbackUserMessage = nullable(completion.fallbackUserMessage());
-                String mergedContent = assistantContent != null
-                        ? assistantContent
-                        : (fallbackUserMessage != null ? fallbackUserMessage : nullable(record.lastRunContent));
-                if (mergedContent == null) {
-                    mergedContent = "";
-                }
-
-                record.lastRunId = completion.runId().trim();
-                record.updatedAt = eventAt;
-                record.lastRunContent = mergedContent;
-                record.readStatus = 0;
-                record.readAt = null;
-                upsertChatIndex(connection, record);
-                connection.commit();
-            } catch (Exception ex) {
-                log.warn("Cannot update run completion index chatId={}, runId={}", completion.chatId(), completion.runId(), ex);
-            }
-        }
+        chatIndexRepository.onRunCompleted(completion);
     }
 
     public List<ChatSummaryResponse> listChats() {
@@ -362,91 +233,18 @@ public class ChatRecordStore {
     }
 
     public List<ChatSummaryResponse> listChats(String lastRunId) {
-        boolean incremental = StringUtils.hasText(lastRunId);
-        String sql = incremental
-                ? """
-                SELECT CHAT_ID_, CHAT_NAME_, AGENT_KEY_, TEAM_ID_,
-                       CREATED_AT_, UPDATED_AT_, LAST_RUN_ID_, LAST_RUN_CONTENT_, READ_STATUS_, READ_AT_
-                FROM CHATS
-                WHERE LAST_RUN_ID_ > ?
-                ORDER BY LAST_RUN_ID_ ASC
-                """
-                : """
-                SELECT CHAT_ID_, CHAT_NAME_, AGENT_KEY_, TEAM_ID_,
-                       CREATED_AT_, UPDATED_AT_, LAST_RUN_ID_, LAST_RUN_CONTENT_, READ_STATUS_, READ_AT_
-                FROM CHATS
-                ORDER BY LAST_RUN_ID_ DESC, UPDATED_AT_ DESC
-                """;
-        synchronized (lock) {
-            try (Connection connection = openConnection();
-                 PreparedStatement statement = connection.prepareStatement(sql)) {
-                if (incremental) {
-                    statement.setString(1, lastRunId.trim());
-                }
-                try (ResultSet resultSet = statement.executeQuery()) {
-                    List<ChatSummaryResponse> responses = new ArrayList<>();
-                    while (resultSet.next()) {
-                        ChatIndexRecord record = mapChatIndexRecord(resultSet);
-                        ChatSummary summary = toChatSummary(record);
-                        responses.add(new ChatSummaryResponse(
-                                summary.chatId(),
-                                summary.chatName(),
-                                summary.agentKey(),
-                                summary.teamId(),
-                                summary.createdAt(),
-                                summary.updatedAt(),
-                                summary.lastRunId(),
-                                summary.lastRunContent(),
-                                summary.readStatus(),
-                                summary.readAt()
-                        ));
-                    }
-                    return List.copyOf(responses);
-                }
-            } catch (SQLException ex) {
-                throw new IllegalStateException("Cannot list chats from sqlite", ex);
-            }
-        }
+        return chatIndexRepository.listChats(lastRunId);
     }
 
     public MarkChatReadResult markChatRead(String chatId) {
-        requireValidChatId(chatId);
-        synchronized (lock) {
-            try (Connection connection = openConnection()) {
-                connection.setAutoCommit(false);
-                ChatIndexRecord record = findChatRecordById(connection, chatId);
-                if (record == null) {
-                    connection.rollback();
-                    throw new ChatNotFoundException(chatId);
-                }
-                long readAt = System.currentTimeMillis();
-                try (PreparedStatement statement = connection.prepareStatement("""
-                        UPDATE CHATS
-                        SET READ_STATUS_ = 1, READ_AT_ = ?
-                        WHERE CHAT_ID_ = ?
-                        """)) {
-                    statement.setLong(1, readAt);
-                    statement.setString(2, chatId);
-                    statement.executeUpdate();
-                }
-                connection.commit();
-                return new MarkChatReadResult(chatId, 1, readAt);
-            } catch (SQLException ex) {
-                throw new IllegalStateException("Cannot mark chat as read for " + chatId, ex);
-            }
-        }
+        return chatIndexRepository.markChatRead(chatId);
     }
 
     public ChatDetailResponse loadChat(String chatId, boolean includeRawMessages) {
         requireValidChatId(chatId);
         Path historyPath = resolveHistoryPath(chatId);
         synchronized (lock) {
-            ChatIndexRecord indexRecord;
-            try (Connection connection = openConnection()) {
-                indexRecord = findChatRecordById(connection, chatId);
-            } catch (SQLException ex) {
-                throw new IllegalStateException("Cannot query chat index for chatId=" + chatId, ex);
-            }
+            com.linlay.agentplatform.service.ChatIndexRecord indexRecord = chatIndexRepository.loadChatRecord(chatId);
 
             if (indexRecord == null && !Files.exists(historyPath)) {
                 throw new ChatNotFoundException(chatId);
@@ -462,7 +260,8 @@ public class ChatRecordStore {
             ParsedChatContent content = readChatContent(
                     historyPath,
                     summary.chatId,
-                    summary.chatName
+                    summary.chatName,
+                    summary.agentKey
             );
 
             List<Map<String, Object>> events = List.copyOf(content.events);
@@ -487,25 +286,28 @@ public class ChatRecordStore {
     private ParsedChatContent readChatContent(
             Path historyPath,
             String chatId,
-            String chatName
+            String chatName,
+            String boundAgentKey
     ) {
         ParsedChatContent content = new ParsedChatContent();
-        readHistoryLines(historyPath, content);
+        ChatHistoryReadResult history = chatHistoryFileReader.read(historyPath);
+        content.runs.addAll(history.runs());
+        content.references.putAll(history.references());
 
         content.runs.sort(
                 Comparator.comparingLong(this::sortByUpdatedAt)
-                        .thenComparingInt(RunSnapshot::lineIndex)
+                        .thenComparingInt(ChatHistoryRunSnapshot::lineIndex)
         );
 
-        for (RunSnapshot run : content.runs) {
-            for (ChatWindowMemoryStore.StoredMessage message : run.messages) {
-                Map<String, Object> raw = toRawMessageMap(run.runId, message);
+        for (ChatHistoryRunSnapshot run : content.runs) {
+            for (ChatWindowMemoryStore.StoredMessage message : run.messages()) {
+                Map<String, Object> raw = toRawMessageMap(run.runId(), message);
                 if (!raw.isEmpty()) {
                     content.rawMessages.add(raw);
                 }
             }
         }
-        content.events.addAll(buildSnapshotEvents(chatId, chatName, content.runs));
+        content.events.addAll(chatEventSnapshotBuilder.buildSnapshotEvents(chatId, chatName, boundAgentKey, content.runs));
         return content;
     }
 
@@ -518,7 +320,7 @@ public class ChatRecordStore {
             // Intermediate structures to group by runId
             LinkedHashMap<String, Map<String, Object>> queryByRunId = new LinkedHashMap<>();
             LinkedHashMap<String, List<StepEntry>> stepsByRunId = new LinkedHashMap<>();
-            LinkedHashMap<String, List<PersistedEvent>> eventsByRunId = new LinkedHashMap<>();
+            LinkedHashMap<String, List<PersistedChatEvent>> eventsByRunId = new LinkedHashMap<>();
             int lineIndex = 0;
 
             for (String line : lines) {
@@ -613,7 +415,7 @@ public class ChatRecordStore {
                     }
                     stepsByRunId.computeIfAbsent(runId, k -> new ArrayList<>());
                     eventsByRunId.computeIfAbsent(runId, k -> new ArrayList<>())
-                            .add(new PersistedEvent(eventType, eventTs, eventPayload, lineIndex));
+                            .add(new PersistedChatEvent(eventType, eventTs, eventPayload, lineIndex));
                 }
                 lineIndex++;
             }
@@ -623,7 +425,7 @@ public class ChatRecordStore {
             for (Map.Entry<String, List<StepEntry>> entry : stepsByRunId.entrySet()) {
                 String runId = entry.getKey();
                 List<StepEntry> steps = entry.getValue();
-                List<PersistedEvent> persistedEvents = eventsByRunId.getOrDefault(runId, List.of());
+                List<PersistedChatEvent> persistedEvents = eventsByRunId.getOrDefault(runId, List.of());
                 if (steps.isEmpty() && persistedEvents.isEmpty()) {
                     runIndex++;
                     continue;
@@ -636,7 +438,7 @@ public class ChatRecordStore {
                 Map<String, Object> query = queryByRunId.getOrDefault(runId, Map.of());
                 long updatedAt = Math.max(
                         steps.stream().mapToLong(s -> s.updatedAt).max().orElse(0),
-                        persistedEvents.stream().mapToLong(PersistedEvent::timestamp).max().orElse(0)
+                        persistedEvents.stream().mapToLong(PersistedChatEvent::timestamp).max().orElse(0)
                 );
 
                 // Flatten all step messages
@@ -655,8 +457,8 @@ public class ChatRecordStore {
 
                 int firstLineIndex = !steps.isEmpty()
                         ? steps.getFirst().lineIndex
-                        : persistedEvents.stream().mapToInt(PersistedEvent::lineIndex).min().orElse(lineIndex);
-                content.runs.add(new RunSnapshot(
+                        : persistedEvents.stream().mapToInt(PersistedChatEvent::lineIndex).min().orElse(lineIndex);
+                content.runs.add(new ChatHistoryRunSnapshot(
                         runId,
                         updatedAt,
                         query,
@@ -1092,11 +894,11 @@ public class ChatRecordStore {
         return Math.max(candidate, previous + 1);
     }
 
-    private long sortByUpdatedAt(RunSnapshot run) {
-        if (run == null || run.updatedAt <= 0) {
+    private long sortByUpdatedAt(ChatHistoryRunSnapshot run) {
+        if (run == null || run.updatedAt() <= 0) {
             return Long.MAX_VALUE;
         }
-        return run.updatedAt;
+        return run.updatedAt();
     }
 
     private Map<String, Object> event(String type, long timestamp, long seq, Map<String, Object> payload) {
@@ -1419,11 +1221,11 @@ public class ChatRecordStore {
         return StringUtils.hasText(text) ? text.trim() : null;
     }
 
-    private ChatSummary toChatSummary(ChatIndexRecord record) {
+    private ChatSummary toChatSummary(com.linlay.agentplatform.service.ChatIndexRecord record) {
         return toChatSummary(record, false);
     }
 
-    private ChatSummary toChatSummary(ChatIndexRecord record, boolean created) {
+    private ChatSummary toChatSummary(com.linlay.agentplatform.service.ChatIndexRecord record, boolean created) {
         long createdAt = record.createdAt > 0 ? record.createdAt : record.updatedAt;
         long updatedAt = record.updatedAt > 0 ? record.updatedAt : createdAt;
         return new ChatSummary(
@@ -1490,7 +1292,7 @@ public class ChatRecordStore {
     }
 
     private static final class ParsedChatContent {
-        private final List<RunSnapshot> runs = new ArrayList<>();
+        private final List<ChatHistoryRunSnapshot> runs = new ArrayList<>();
         private final List<Map<String, Object>> rawMessages = new ArrayList<>();
         private final List<Map<String, Object>> events = new ArrayList<>();
         private final LinkedHashMap<String, QueryRequest.Reference> references = new LinkedHashMap<>();
