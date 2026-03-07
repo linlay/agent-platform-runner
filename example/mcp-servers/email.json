@@ -1,14 +1,15 @@
 {
   "serverKey": "email",
-  "baseUrl": "http://127.0.0.1:8080",
+  "baseUrl": "http://127.0.0.1:11967",
   "endpointPath": "/mcp",
   "enabled": true,
   "toolPrefix": "email",
-  "readTimeoutMs": 20000,
+  "readTimeoutMs": 60000,
   "aliasMap": {
-    "email.mail_list_folders": "mail_list_folders",
-    "email.mail_search": "mail_search",
-    "email.mail_get_message": "mail_get_message",
-    "email.mail_send": "mail_send"
+    "email.list_accounts": "mail_list_accounts",
+    "email.list_folders": "mail_list_folders",
+    "email.search": "mail_search",
+    "email.get_message": "mail_get_message",
+    "email.send": "mail_send"
   }
 }

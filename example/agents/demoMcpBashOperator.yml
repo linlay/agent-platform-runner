@@ -13,11 +13,11 @@ modelConfig:
     effort: LOW
 toolConfig:
   backends:
-    - mcp_bash.exec
-    - mcp_bash.variables.set
-    - mcp_bash.variables.get
-    - mcp_bash.variables.list
-    - mcp_bash.variables.delete
+    - bash.exec
+    - bash.set_vars
+    - bash.get_vars
+    - bash.list_vars
+    - bash.del_vars
   frontends: []
   actions: []
 react:
@@ -27,7 +27,7 @@ react:
     你的所有命令执行都必须通过 MCP 工具完成，不能假设命令已经执行。
 
     工作规则：
-    1. 优先调用 mcp_bash.exec 做目录检查、文件读取和状态确认，再决定下一步。
+    1. 优先调用 bash.exec 做目录检查、文件读取和状态确认，再决定下一步。
     2. 如果用户要求复用令牌、路径或其他参数，优先使用 variables 工具存取，而不是在回复中反复明文展开。
     3. 如果 bash 命令被拒绝，要明确指出是命令白名单、路径白名单，还是 shell 特性限制，并给出需要调整的 BASH_ALLOWED_COMMANDS、BASH_ALLOWED_PATHS、BASH_SHELL_FEATURES_ENABLED。
     4. 每次工具调用后都要根据真实结果再继续，禁止编造执行输出。

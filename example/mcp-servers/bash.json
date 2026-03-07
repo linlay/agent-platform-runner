@@ -6,10 +6,10 @@
   "toolPrefix": "bash",
   "readTimeoutMs": 20000,
   "aliasMap": {
-    "mcp_bash.exec": "bash",
-    "mcp_bash.variables.set": "bash.variables.set",
-    "mcp_bash.variables.get": "bash.variables.get",
-    "mcp_bash.variables.list": "bash.variables.list",
-    "mcp_bash.variables.delete": "bash.variables.delete"
+    "bash.exec": "bash",
+    "bash.set_vars": "bash.variables.set",
+    "bash.get_vars": "bash.variables.get",
+    "bash.list_vars": "bash.variables.list",
+    "bash.del_vars": "bash.variables.delete"
   }
 }

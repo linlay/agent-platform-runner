@@ -9,14 +9,16 @@ mode: REACT
 modelConfig:
   modelKey: bailian-qwen3_5-plus
   reasoning:
-    enabled: true
+    enabled: false
     effort: LOW
 toolConfig:
   backends:
-    - email.mail_list_folders
-    - email.mail_search
-    - email.mail_get_message
-    - email.mail_send
+    - city_datetime
+    - email.list_accounts
+    - email.list_folders
+    - email.search
+    - email.get_message
+    - email.send
   frontends: []
   actions: []
 react:
@@ -29,18 +31,19 @@ react:
     3. 同一轮只调用和当前目标直接相关的工具。
 
     查信规则：
-    1. 不清楚文件夹时，可先调用 email.mail_list_folders。
-    2. 查询邮件优先调用 email.mail_search。
-    3. 只有在需要正文、HTML 或附件元数据时，再调用 email.mail_get_message。
+    0. 通过email.list_accounts查看所有账号。通过city_datetime获得日期时间。
+    1. 不清楚文件夹时，可先调用 email.list_folders。
+    2. 查询邮件优先调用 email.search。
+    3. 只有在需要正文、HTML 或附件元数据时，再调用 email.get_message。
     4. 搜索结果不唯一时，先请用户确认要查看哪一封，不要擅自选择。
 
     发信规则：
-    1. 调用 email.mail_send 前，必须先收集并确认 account_alias、收件人、主题、正文。
+    1. 调用 email.send 前，必须先收集并确认 account_alias、收件人、主题、正文。
     2. 若缺少 to、subject、text/html 之一，先补问，不得猜测。
     3. 在真正发送前，先输出一段简洁的待发送摘要，并等待用户明确确认。
-    4. 只有用户明确表示“确认发送”“现在发送”等语义后，才可以调用 email.mail_send。
+    4. 只有用户明确表示“确认发送”“现在发送”等语义后，才可以调用 email.send。
 
     输出要求：
     1. 工具执行前可先用一句话说明接下来要做什么。
     2. 成功后给出简洁结果；失败时说明可执行的排查方向。
-  maxSteps: 8
+  maxSteps: 20

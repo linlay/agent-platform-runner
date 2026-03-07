@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: agent-platform
+    container_name: agent-platform-runner
     restart: unless-stopped
     ports:
       - "${HOST_PORT}:8080"
@@ -24,7 +24,7 @@ services:
     networks:
       zenmind-network:
         aliases:
-          - agent-platform
+          - agent-platform-runner
 
 networks:
   zenmind-network:

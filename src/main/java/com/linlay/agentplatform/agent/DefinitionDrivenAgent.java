@@ -316,11 +316,6 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     private Map<String, BaseTool> resolveConfiguredTools(List<String> configuredTools) {
-        Map<String, BaseTool> allToolsByName = new LinkedHashMap<>();
-        for (BaseTool tool : toolRegistry.list()) {
-            allToolsByName.put(normalizeToolName(tool.name()), tool);
-        }
-
         List<String> requested = configuredTools == null ? List.of() : configuredTools;
         Map<String, BaseTool> resolved = new LinkedHashMap<>();
         for (String rawName : requested) {
@@ -328,12 +323,12 @@ public class DefinitionDrivenAgent implements Agent {
             if (name.isBlank()) {
                 continue;
             }
-            BaseTool tool = allToolsByName.get(name);
-            if (tool == null) {
-                log.info("[agent:{}] configured tool currently not registered, keep runtime placeholder: {}", id(), name);
+            ToolDescriptor descriptor = toolRegistry.descriptor(name).orElse(null);
+            if (descriptor == null) {
+                log.warn("[agent:{}] configured tool currently not registered, keep runtime placeholder: {}", id(), name);
                 resolved.put(name, new DeclaredToolPlaceholder(name));
             } else {
-                resolved.put(name, tool);
+                resolved.put(name, new ResolvedConfiguredTool(name, descriptor));
             }
         }
         return Map.copyOf(resolved);
@@ -742,6 +737,41 @@ public class DefinitionDrivenAgent implements Agent {
         @Override
         public JsonNode invoke(Map<String, Object> args) {
             throw new IllegalStateException("Declared tool placeholder cannot be invoked directly: " + name);
+        }
+    }
+
+    private static final class ResolvedConfiguredTool implements BaseTool {
+        private final String configuredName;
+        private final ToolDescriptor descriptor;
+
+        private ResolvedConfiguredTool(String configuredName, ToolDescriptor descriptor) {
+            this.configuredName = configuredName;
+            this.descriptor = descriptor;
+        }
+
+        @Override
+        public String name() {
+            return configuredName;
+        }
+
+        @Override
+        public String description() {
+            return descriptor.description();
+        }
+
+        @Override
+        public String afterCallHint() {
+            return descriptor.afterCallHint();
+        }
+
+        @Override
+        public Map<String, Object> parametersSchema() {
+            return descriptor.parameters();
+        }
+
+        @Override
+        public JsonNode invoke(Map<String, Object> args) {
+            throw new IllegalStateException("Resolved configured tool cannot be invoked directly: " + configuredName);
         }
     }
 }

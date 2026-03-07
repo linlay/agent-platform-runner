@@ -33,6 +33,8 @@ import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.SystemPlanAddTasks;
 import com.linlay.agentplatform.tool.SystemPlanGetTasks;
 import com.linlay.agentplatform.tool.SystemPlanUpdateTask;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +48,7 @@ import java.util.ArrayList;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -55,7 +58,9 @@ import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(OutputCaptureExtension.class)
 class DefinitionDrivenAgentTest {
@@ -257,7 +262,84 @@ class DefinitionDrivenAgentTest {
     }
 
     @Test
-    void missingConfiguredToolShouldStillBeExposedAndTerminateRunAtInvocation() throws Exception {
+    void configuredMcpAliasToolShouldExposeResolvedDescriptorSchema() {
+        AgentDefinition definition = definition(
+                "demoMcpAliasTool",
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
+                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("email.mail_search"), false, ComputePolicy.MEDIUM), null, null),
+                List.of("email.mail_search")
+        );
+
+        ToolDescriptor descriptor = new ToolDescriptor(
+                "mail_search",
+                "Search messages in a folder by sender/recipient/subject/date/unread filters.",
+                "",
+                Map.of(
+                        "type", "object",
+                        "properties", Map.of(
+                                "account_alias", Map.of("type", "string"),
+                                "query", Map.of(
+                                        "type", "object",
+                                        "properties", Map.of(
+                                                "since", Map.of("type", "string"),
+                                                "unread", Map.of("type", "boolean")
+                                        ),
+                                        "additionalProperties", false
+                                )
+                        ),
+                        "required", List.of("account_alias"),
+                        "additionalProperties", false
+                ),
+                false,
+                true,
+                ToolKind.BACKEND,
+                "function",
+                "mcp://email/mail_search",
+                "mcp",
+                "email",
+                null,
+                "mcp://email"
+        );
+
+        ToolRegistry toolRegistry = mock(ToolRegistry.class);
+        when(toolRegistry.descriptor("email.mail_search")).thenReturn(Optional.of(descriptor));
+        when(toolRegistry.toolCallType("email.mail_search")).thenReturn("function");
+
+        AtomicReference<LlmCallSpec> captured = new AtomicReference<>();
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                captured.set(spec);
+                return Flux.just(new LlmDelta("完成", null, "stop"));
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                null,
+                null
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("最近三天的邮件", null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(captured.get()).isNotNull();
+        assertThat(captured.get().tools()).singleElement().satisfies(tool -> {
+            assertThat(tool.name()).isEqualTo("email.mail_search");
+            assertThat(tool.description()).isEqualTo(descriptor.description());
+            assertThat(tool.parameters()).isEqualTo(descriptor.parameters());
+            assertThat(tool.description()).doesNotContain("Configured tool placeholder");
+        });
+    }
+
+    @Test
+    void missingConfiguredToolShouldStillBeExposedAndTerminateRunAtInvocation(CapturedOutput output) throws Exception {
         AgentDefinition definition = definition(
                 "demoMissingTool",
                 AgentRuntimeMode.ONESHOT,
@@ -315,6 +397,9 @@ class DefinitionDrivenAgentTest {
                 .filter(text -> text != null && !text.isBlank())
                 .anyMatch(text -> text.contains("Tool is not registered"))).isTrue();
         assertThat(deltas.getLast().finishReason()).isEqualTo("tool_error");
+        String logs = output.getOut() + output.getErr();
+        assertThat(logs).contains("WARN");
+        assertThat(logs).contains("configured tool currently not registered, keep runtime placeholder: missing_tool");
     }
 
     @Test
