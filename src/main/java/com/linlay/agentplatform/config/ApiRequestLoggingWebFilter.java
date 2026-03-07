@@ -23,6 +23,7 @@ public class ApiRequestLoggingWebFilter implements WebFilter {
     public static final String ATTR_REQUEST_ID = "API_REQUEST_LOG_REQUEST_ID";
     public static final String ATTR_RUN_ID = "API_REQUEST_LOG_RUN_ID";
     public static final String ATTR_BODY_SUMMARY = "API_REQUEST_LOG_BODY_SUMMARY";
+    public static final String ATTR_AUTH_REJECT_REASON = "API_REQUEST_LOG_AUTH_REJECT_REASON";
 
     private static final Logger log = LoggerFactory.getLogger("api.req");
 
@@ -54,6 +55,7 @@ public class ApiRequestLoggingWebFilter implements WebFilter {
         String path = request.getPath().value();
         String requestId = resolveRequestId(exchange);
         String runId = resolveRunId(exchange);
+        String authRejectReason = resolveAuthRejectReason(exchange);
         int status = exchange.getResponse().getStatusCode() == null
                 ? (ex == null ? 200 : 500)
                 : exchange.getResponse().getStatusCode().value();
@@ -71,6 +73,20 @@ public class ApiRequestLoggingWebFilter implements WebFilter {
 
         String target = query.isBlank() ? path : path + "?" + query;
         if (!bodySummary.isEmpty()) {
+            if (StringUtils.hasText(authRejectReason)) {
+                log.info(
+                        "{} {} -> {} {}ms rid={} run={} auth={} body={}",
+                        method,
+                        target,
+                        status,
+                        latencyMs,
+                        requestId,
+                        runId,
+                        authRejectReason,
+                        bodySummary
+                );
+                return;
+            }
             log.info(
                     "{} {} -> {} {}ms rid={} run={} body={}",
                     method,
@@ -80,6 +96,19 @@ public class ApiRequestLoggingWebFilter implements WebFilter {
                     requestId,
                     runId,
                     bodySummary
+            );
+            return;
+        }
+        if (StringUtils.hasText(authRejectReason)) {
+            log.info(
+                    "{} {} -> {} {}ms rid={} run={} auth={}",
+                    method,
+                    target,
+                    status,
+                    latencyMs,
+                    requestId,
+                    runId,
+                    authRejectReason
             );
             return;
         }
@@ -144,5 +173,13 @@ public class ApiRequestLoggingWebFilter implements WebFilter {
         }
         String fromQuery = exchange.getRequest().getQueryParams().getFirst("runId");
         return StringUtils.hasText(fromQuery) ? LoggingSanitizer.sanitizeText(fromQuery) : "-";
+    }
+
+    private String resolveAuthRejectReason(ServerWebExchange exchange) {
+        Object attr = exchange.getAttribute(ATTR_AUTH_REJECT_REASON);
+        if (attr == null) {
+            return "";
+        }
+        return LoggingSanitizer.sanitizeText(String.valueOf(attr));
     }
 }

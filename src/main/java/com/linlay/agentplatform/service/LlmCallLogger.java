@@ -12,6 +12,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * LLM 调用日志工具：traceId 生成、delta 日志追加、耗时计算。
@@ -19,6 +20,7 @@ import java.util.Locale;
 class LlmCallLogger {
 
     private static final Logger log = LoggerFactory.getLogger(LlmCallLogger.class);
+    private static final Pattern STAGE_TOKEN_SPLITTER = Pattern.compile("[^a-zA-Z0-9]+");
 
     private final boolean enabled;
     private final boolean maskSensitive;
@@ -51,6 +53,25 @@ class LlmCallLogger {
 
     String sanitizeText(String text) {
         return LlmLogSanitizer.maskText(text, maskSensitive);
+    }
+
+    String context(String traceId, String stage) {
+        return "[" + compactTraceId(traceId) + "][" + compactStage(stage) + "]";
+    }
+
+    String context(String traceId, String stage, String tag) {
+        if (!StringUtils.hasText(tag)) {
+            return context(traceId, stage);
+        }
+        return context(traceId, stage) + "[" + tag.trim() + "]";
+    }
+
+    String message(String traceId, String stage, String pattern) {
+        return context(traceId, stage) + " " + pattern;
+    }
+
+    String message(String traceId, String stage, String tag, String pattern) {
+        return context(traceId, stage, tag) + " " + pattern;
     }
 
     void info(Logger logger, String pattern, Object... arguments) {
@@ -95,7 +116,7 @@ class LlmCallLogger {
         if (builder.length() == 0) {
             return;
         }
-        logger.info("[{}][{}] LLM stream history messages detail:\n{}", traceId, stage, builder);
+        logger.info(message(traceId, stage, "LLM stream history messages detail:\n{}"), builder);
     }
 
     void appendDeltaLog(StringBuilder buffer, LlmDelta delta, String traceId, String stage) {
@@ -105,12 +126,12 @@ class LlmCallLogger {
         if (delta.reasoning() != null && !delta.reasoning().isEmpty()) {
             String reasoning = sanitizeText(delta.reasoning());
             buffer.append("[reasoning] ").append(reasoning);
-            log.debug("[{}][{}][delta] reasoning: {}", traceId, stage, reasoning);
+            log.debug(message(traceId, stage, "delta", "reasoning: {}"), reasoning);
         }
         if (delta.content() != null && !delta.content().isEmpty()) {
             String content = sanitizeText(delta.content());
             buffer.append(content);
-            log.debug("[{}][{}][delta] content: {}", traceId, stage, content);
+            log.debug(message(traceId, stage, "delta", "content: {}"), content);
         }
         if (delta.toolCalls() != null && !delta.toolCalls().isEmpty()) {
             for (ToolCallDelta call : delta.toolCalls()) {
@@ -123,14 +144,46 @@ class LlmCallLogger {
                 buffer.append("\n[tool_call] id=").append(call.id())
                         .append(", name=").append(toolName)
                         .append(", args=").append(arguments);
-                log.debug("[{}][{}][delta] tool_call id={}, name={}, args={}", traceId, stage,
+                log.debug(message(traceId, stage, "delta", "tool_call id={}, name={}, args={}"),
                         toolId, toolName, arguments);
             }
         }
         if (StringUtils.hasText(delta.finishReason())) {
             String finishReason = sanitizeText(delta.finishReason());
             buffer.append("\n[finish_reason] ").append(finishReason);
-            log.debug("[{}][{}][delta] finish_reason={}", traceId, stage, finishReason);
+            log.debug(message(traceId, stage, "delta", "finish_reason={}"), finishReason);
         }
+    }
+
+    String compactTraceId(String traceId) {
+        String raw = StringUtils.hasText(traceId) ? traceId.trim() : "unknown";
+        if (raw.startsWith("llm-")) {
+            raw = raw.substring(4);
+        }
+        if (raw.length() > 8) {
+            raw = raw.substring(0, 8);
+        }
+        return "llm:" + raw;
+    }
+
+    String compactStage(String stage) {
+        if (!StringUtils.hasText(stage)) {
+            return "default";
+        }
+        String[] rawTokens = STAGE_TOKEN_SPLITTER.split(stage.trim().toLowerCase(Locale.ROOT));
+        StringBuilder builder = new StringBuilder();
+        for (String token : rawTokens) {
+            if (!StringUtils.hasText(token)) {
+                continue;
+            }
+            if (builder.length() == 0 && "agent".equals(token)) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append('.');
+            }
+            builder.append(token);
+        }
+        return builder.length() == 0 ? "default" : builder.toString();
     }
 }

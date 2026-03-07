@@ -181,8 +181,8 @@ public class LlmService {
             long startNanos = System.nanoTime();
             StringBuilder responseBuffer = new StringBuilder();
 
-            callLogger.info(log, "[{}][{}] LLM stream request start provider={}, model={}", traceId, spec.stage(), spec.providerKey(), spec.model());
-            callLogger.info(log, "[{}][{}] LLM stream request body:\n{}", traceId, spec.stage(), safeJson(openAiCompatibleSseClient.buildRequestBody(
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM stream request start provider={}, model={}"), spec.providerKey(), spec.model());
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM stream request body:\n{}"), safeJson(openAiCompatibleSseClient.buildRequestBody(
                     spec.providerKey(),
                     spec.model(),
                     spec.systemPrompt(),
@@ -196,10 +196,10 @@ public class LlmService {
                     false,
                     null
             )));
-            callLogger.info(log, "[{}][{}] LLM stream system prompt:\n{}", traceId, spec.stage(), callLogger.normalizePrompt(spec.systemPrompt()));
-            callLogger.info(log, "[{}][{}] LLM stream history messages count={}", traceId, spec.stage(), spec.messages().size());
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM stream system prompt:\n{}"), callLogger.normalizePrompt(spec.systemPrompt()));
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM stream history messages count={}"), spec.messages().size());
             callLogger.logHistoryMessages(log, traceId, spec.stage(), spec.messages());
-            callLogger.info(log, "[{}][{}] LLM stream user prompt:\n{}", traceId, spec.stage(), callLogger.normalizePrompt(spec.userPrompt()));
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM stream user prompt:\n{}"), callLogger.normalizePrompt(spec.userPrompt()));
 
             OpenAiChatOptions options = OpenAiChatOptions.builder().model(spec.model()).build();
             ChatClient.ChatClientRequestSpec prompt = chatClient.prompt().options(options);
@@ -217,30 +217,24 @@ public class LlmService {
                         if (chunk != null) {
                             String safeChunk = callLogger.sanitizeText(chunk);
                             responseBuffer.append(safeChunk);
-                            callLogger.debug(log, "[{}][{}][delta] content: {}", traceId, spec.stage(), safeChunk);
+                            callLogger.debug(log, callLogger.message(traceId, spec.stage(), "delta", "content: {}"), safeChunk);
                         }
                     })
                     .doOnComplete(() -> callLogger.info(
                             log,
-                            "[{}][{}] LLM stream response finished in {} ms:\n{}",
-                            traceId,
-                            spec.stage(),
+                            callLogger.message(traceId, spec.stage(), "LLM stream response finished in {} ms:\n{}"),
                             callLogger.elapsedMs(startNanos),
                             responseBuffer
                     ))
                     .doOnError(ex -> log.error(
-                            "[{}][{}] LLM stream failed in {} ms, partial response:\n{}",
-                            traceId,
-                            spec.stage(),
+                            callLogger.message(traceId, spec.stage(), "LLM stream failed in {} ms, partial response:\n{}"),
                             callLogger.elapsedMs(startNanos),
                             responseBuffer,
                             ex
                     ))
                     .doOnCancel(() -> callLogger.info(
                             log,
-                            "[{}][{}] LLM stream canceled in {} ms, partial response:\n{}",
-                            traceId,
-                            spec.stage(),
+                            callLogger.message(traceId, spec.stage(), "LLM stream canceled in {} ms, partial response:\n{}"),
                             callLogger.elapsedMs(startNanos),
                             responseBuffer
                     ))
@@ -272,14 +266,14 @@ public class LlmService {
                     spec.maxTokens()
             );
 
-            callLogger.info(log, "[{}][{}] LLM delta stream request start provider={}, model={}, tools={}",
-                    traceId, spec.stage(), spec.providerKey(), spec.model(), hasTools ? spec.tools().size() : 0);
-            callLogger.info(log, "[{}][{}] LLM delta stream request body:\n{}",
-                    traceId, spec.stage(), safeJson(requestBody));
-            callLogger.info(log, "[{}][{}] LLM delta stream system prompt:\n{}", traceId, spec.stage(), callLogger.normalizePrompt(spec.systemPrompt()));
-            callLogger.info(log, "[{}][{}] LLM delta stream history messages count={}", traceId, spec.stage(), spec.messages().size());
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream request start provider={}, model={}, tools={}"),
+                    spec.providerKey(), spec.model(), hasTools ? spec.tools().size() : 0);
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream request body:\n{}"),
+                    safeJson(requestBody));
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream system prompt:\n{}"), callLogger.normalizePrompt(spec.systemPrompt()));
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream history messages count={}"), spec.messages().size());
             callLogger.logHistoryMessages(log, traceId, spec.stage(), spec.messages());
-            callLogger.info(log, "[{}][{}] LLM delta stream user prompt:\n{}", traceId, spec.stage(), callLogger.normalizePrompt(spec.userPrompt()));
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream user prompt:\n{}"), callLogger.normalizePrompt(spec.userPrompt()));
 
             if (chatClient == null) {
                 return Flux.error(new IllegalStateException("No ChatClient registered for provider key: " + spec.providerKey()));
@@ -342,14 +336,12 @@ public class LlmService {
                         .onErrorResume(ex -> {
                             if (rawDeltaEmitted.get()) {
                                 log.warn(
-                                        "[{}][{}] raw delta stream failed after partial output, skip fallback to avoid duplicate stream events",
-                                        traceId,
-                                        spec.stage(),
+                                        callLogger.message(traceId, spec.stage(), "raw delta stream failed after partial output, skip fallback to avoid duplicate stream events"),
                                         ex
                                 );
                                 return Flux.error(ex);
                             }
-                            log.warn("[{}][{}] raw delta stream failed, fallback to ChatClient stream", traceId, spec.stage(), ex);
+                            log.warn(callLogger.message(traceId, spec.stage(), "raw delta stream failed, fallback to ChatClient stream"), ex);
                             return streamDeltasByChatClient(
                                     chatClient,
                                     spec.model(),
@@ -386,25 +378,19 @@ public class LlmService {
                     .doOnNext(delta -> callLogger.appendDeltaLog(responseBuffer, delta, traceId, spec.stage()))
                     .doOnComplete(() -> callLogger.info(
                             log,
-                            "[{}][{}] LLM delta stream response finished in {} ms:\n{}",
-                            traceId,
-                            spec.stage(),
+                            callLogger.message(traceId, spec.stage(), "LLM delta stream response finished in {} ms:\n{}"),
                             callLogger.elapsedMs(startNanos),
                             responseBuffer
                     ))
                     .doOnError(ex -> log.error(
-                            "[{}][{}] LLM delta stream failed in {} ms, partial response:\n{}",
-                            traceId,
-                            spec.stage(),
+                            callLogger.message(traceId, spec.stage(), "LLM delta stream failed in {} ms, partial response:\n{}"),
                             callLogger.elapsedMs(startNanos),
                             responseBuffer,
                             ex
                     ))
                     .doOnCancel(() -> callLogger.info(
                             log,
-                            "[{}][{}] LLM delta stream canceled in {} ms, partial response:\n{}",
-                            traceId,
-                            spec.stage(),
+                            callLogger.message(traceId, spec.stage(), "LLM delta stream canceled in {} ms, partial response:\n{}"),
                             callLogger.elapsedMs(startNanos),
                             responseBuffer
                     ))
@@ -450,8 +436,8 @@ public class LlmService {
                     String traceId = callLogger.generateTraceId();
                     long startNanos = System.nanoTime();
 
-                    callLogger.info(log, "[{}][{}] LLM call request start provider={}, model={}", traceId, stage, providerKey, model);
-                    callLogger.info(log, "[{}][{}] LLM call request body:\n{}", traceId, stage, safeJson(openAiCompatibleSseClient.buildRequestBody(
+                    callLogger.info(log, callLogger.message(traceId, stage, "LLM call request start provider={}, model={}"), providerKey, model);
+                    callLogger.info(log, callLogger.message(traceId, stage, "LLM call request body:\n{}"), safeJson(openAiCompatibleSseClient.buildRequestBody(
                             providerKey,
                             model,
                             systemPrompt,
@@ -465,8 +451,8 @@ public class LlmService {
                             false,
                             null
                     )));
-                    callLogger.info(log, "[{}][{}] LLM call system prompt:\n{}", traceId, stage, callLogger.normalizePrompt(systemPrompt));
-                    callLogger.info(log, "[{}][{}] LLM call user prompt:\n{}", traceId, stage, callLogger.normalizePrompt(userPrompt));
+                    callLogger.info(log, callLogger.message(traceId, stage, "LLM call system prompt:\n{}"), callLogger.normalizePrompt(systemPrompt));
+                    callLogger.info(log, callLogger.message(traceId, stage, "LLM call user prompt:\n{}"), callLogger.normalizePrompt(userPrompt));
 
                     OpenAiChatOptions options = OpenAiChatOptions.builder().model(model).build();
                     ChatClient.ChatClientRequestSpec prompt = chatClient.prompt().options(options);
@@ -481,15 +467,13 @@ public class LlmService {
 
                     callLogger.info(
                             log,
-                            "[{}][{}] LLM call response finished in {} ms:\n{}",
-                            traceId,
-                            stage,
+                            callLogger.message(traceId, stage, "LLM call response finished in {} ms:\n{}"),
                             callLogger.elapsedMs(startNanos),
                             callLogger.sanitizeText(normalized)
                     );
                     return normalized;
                 })
-                .doOnError(ex -> log.error("LLM call failed provider={}, stage={}", providerKey, stage, ex))
+                .doOnError(ex -> log.error(callLogger.message(null, stage, "LLM call failed provider={}, stage={}"), providerKey, stage, ex))
                 .subscribeOn(Schedulers.boundedElastic())
                 .onErrorReturn("");
     }
