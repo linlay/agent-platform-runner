@@ -1,0 +1,15 @@
+{
+  "serverKey": "bash",
+  "baseUrl": "http://127.0.0.1:11963",
+  "endpointPath": "/mcp",
+  "enabled": true,
+  "toolPrefix": "bash",
+  "readTimeoutMs": 20000,
+  "aliasMap": {
+    "mcp_bash.exec": "bash",
+    "mcp_bash.variables.set": "bash.variables.set",
+    "mcp_bash.variables.get": "bash.variables.get",
+    "mcp_bash.variables.list": "bash.variables.list",
+    "mcp_bash.variables.delete": "bash.variables.delete"
+  }
+}

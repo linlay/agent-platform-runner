@@ -1,0 +1,14 @@
+{
+  "serverKey": "email",
+  "baseUrl": "http://127.0.0.1:8080",
+  "endpointPath": "/mcp",
+  "enabled": true,
+  "toolPrefix": "email",
+  "readTimeoutMs": 20000,
+  "aliasMap": {
+    "email.mail_list_folders": "mail_list_folders",
+    "email.mail_search": "mail_search",
+    "email.mail_get_message": "mail_get_message",
+    "email.mail_send": "mail_send"
+  }
+}
