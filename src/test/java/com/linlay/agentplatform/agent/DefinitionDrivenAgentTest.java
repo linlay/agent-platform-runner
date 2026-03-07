@@ -13,6 +13,7 @@ import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
+import com.linlay.agentplatform.config.ChatClientRegistry;
 import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
@@ -391,7 +392,7 @@ class DefinitionDrivenAgentTest {
         );
 
         AtomicReference<LlmCallSpec> captured = new AtomicReference<>();
-        LlmService llmService = new LlmService(null, null) {
+        LlmService llmService = new LlmService((ChatClientRegistry) null) {
             @Override
             public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
                 captured.set(spec);
@@ -2069,7 +2070,7 @@ class DefinitionDrivenAgentTest {
     private abstract static class StubLlmService extends LlmService {
 
         protected StubLlmService() {
-            super(null, null);
+            super((ChatClientRegistry) null);
         }
 
         @Override

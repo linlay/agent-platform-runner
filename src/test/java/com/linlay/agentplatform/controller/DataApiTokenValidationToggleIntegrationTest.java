@@ -1,7 +1,10 @@
 package com.linlay.agentplatform.controller;
 
+import com.linlay.agentplatform.config.ChatClientRegistry;
 import com.linlay.agentplatform.config.DataProperties;
+import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -74,15 +77,15 @@ class DataApiTokenValidationToggleIntegrationTest {
         @Bean
         @Primary
         LlmService llmService() {
-            return new LlmService(null, null) {
+            return new LlmService((ChatClientRegistry) null) {
                 @Override
-                public Flux<String> streamContent(String providerKey, String model, String systemPrompt, String userPrompt) {
+                public Flux<String> streamContent(LlmCallSpec spec) {
                     return Flux.just("test");
                 }
 
                 @Override
-                public Flux<String> streamContent(String providerKey, String model, String systemPrompt, String userPrompt, String stage) {
-                    return streamContent(providerKey, model, systemPrompt, userPrompt);
+                public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                    return streamContent(spec).map(content -> new LlmDelta(content, null, null));
                 }
 
                 @Override

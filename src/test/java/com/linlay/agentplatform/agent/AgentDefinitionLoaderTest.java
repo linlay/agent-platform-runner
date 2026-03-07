@@ -887,7 +887,7 @@ class AgentDefinitionLoaderTest {
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
     }
 
-    private AgentDefinitionLoader newLoader(AgentCatalogProperties properties) {
+    private AgentDefinitionLoader newLoader(AgentProperties properties) {
         return new AgentDefinitionLoader(new ObjectMapper(), properties, TestModelRegistryServices.standardRegistry());
     }
 

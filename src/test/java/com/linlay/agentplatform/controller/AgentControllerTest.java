@@ -2,6 +2,7 @@ package com.linlay.agentplatform.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.config.ChatClientRegistry;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.api.QueryRequest;
@@ -11,8 +12,10 @@ import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.service.ViewportRegistryService;
+import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.service.SseFlushWriter;
 import com.linlay.agentplatform.team.TeamProperties;
@@ -33,7 +36,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
-import org.springframework.ai.chat.messages.Message;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.test.web.reactive.server.FluxExchangeResult;
@@ -154,26 +156,12 @@ class AgentControllerTest {
         @Bean
         @Primary
         LlmService llmService() {
-            return new LlmService(null, null) {
+            return new LlmService((ChatClientRegistry) null) {
                 @Override
-                public Flux<String> streamContent(String providerKey, String model, String systemPrompt, String userPrompt) {
-                    if (userPrompt != null && userPrompt.contains("__force_stream_error__")) {
-                        return Flux.error(new IllegalStateException("forced stream error"));
-                    }
-                    return Flux.just("这是", "测试", "输出");
-                }
-
-                @Override
-                public Flux<String> streamContent(
-                        String providerKey,
-                        String model,
-                        String systemPrompt,
-                        List<Message> historyMessages,
-                        String userPrompt,
-                        String stage
-                ) {
+                public Flux<String> streamContent(LlmCallSpec spec) {
+                    String userPrompt = spec == null ? null : spec.userPrompt();
                     boolean forcedError = (userPrompt != null && userPrompt.contains("__force_stream_error__"))
-                            || (historyMessages != null && historyMessages.stream()
+                            || (spec != null && spec.messages().stream()
                             .anyMatch(message -> message != null && message.getText() != null
                                     && message.getText().contains("__force_stream_error__")));
                     if (forcedError) {
@@ -183,14 +171,8 @@ class AgentControllerTest {
                 }
 
                 @Override
-                public Flux<String> streamContent(
-                        String providerKey,
-                        String model,
-                        String systemPrompt,
-                        String userPrompt,
-                        String stage
-                ) {
-                    return streamContent(providerKey, model, systemPrompt, userPrompt);
+                public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                    return streamContent(spec).map(content -> new LlmDelta(content, null, null));
                 }
 
                 @Override
