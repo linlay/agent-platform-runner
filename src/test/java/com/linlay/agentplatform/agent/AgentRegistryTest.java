@@ -139,7 +139,7 @@ class AgentRegistryTest {
                   "description": "beta",
                   "key": "agent_beta",
                   "modelConfig": { "modelKey": "siliconflow-deepseek-v3_2" },
-                  "toolConfig": { "backends": ["city_datetime"], "frontends": [], "actions": [] },
+                  "toolConfig": { "backends": ["datetime"], "frontends": [], "actions": [] },
                   "mode": "ONESHOT",
                   "plain": { "systemPrompt": "beta" }
                 }
@@ -148,7 +148,7 @@ class AgentRegistryTest {
         AgentRegistry registry = createRegistry(agentsDir);
 
         assertThat(registry.findAgentIdsByTools(Set.of("_bash_"))).containsExactly("agent_alpha");
-        assertThat(registry.findAgentIdsByTools(Set.of("city_datetime"))).containsExactly("agent_beta");
+        assertThat(registry.findAgentIdsByTools(Set.of("datetime"))).containsExactly("agent_beta");
         assertThat(registry.findAgentIdsByModels(Set.of("bailian-qwen3-max"))).containsExactly("agent_alpha");
         assertThat(registry.findAgentIdsByModels(Set.of("siliconflow-deepseek-v3_2"))).containsExactly("agent_beta");
     }

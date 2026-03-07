@@ -609,7 +609,7 @@ class AgentDefinitionLoaderTest {
                     "reasoning": { "enabled": true, "effort": "HIGH" }
                   },
                   "toolConfig": {
-                    "backends": ["_bash_", "city_datetime"],
+                    "backends": ["_bash_", "datetime"],
                     "frontends": [],
                     "actions": []
                   },
@@ -635,7 +635,7 @@ class AgentDefinitionLoaderTest {
         assertThat(mode.planStage().providerKey()).isEqualTo("bailian");
         assertThat(mode.planStage().model()).isEqualTo("qwen3-max");
         assertThat(mode.planStage().deepThinking()).isFalse();
-        assertThat(mode.planStage().tools()).containsExactlyInAnyOrder("_bash_", "city_datetime", "_plan_add_tasks_");
+        assertThat(mode.planStage().tools()).containsExactlyInAnyOrder("_bash_", "datetime", "_plan_add_tasks_");
 
         assertThat(mode.executeStage().providerKey()).isEqualTo("bailian");
         assertThat(mode.executeStage().model()).isEqualTo("qwen3-max");
@@ -643,7 +643,7 @@ class AgentDefinitionLoaderTest {
 
         assertThat(mode.summaryStage().providerKey()).isEqualTo("bailian");
         assertThat(mode.summaryStage().model()).isEqualTo("qwen3-max");
-        assertThat(mode.summaryStage().tools()).containsExactlyInAnyOrder("_bash_", "city_datetime");
+        assertThat(mode.summaryStage().tools()).containsExactlyInAnyOrder("_bash_", "datetime");
         assertThat(definition.tools()).contains("_plan_add_tasks_", "_plan_update_task_");
     }
 
@@ -657,7 +657,7 @@ class AgentDefinitionLoaderTest {
                     "modelKey": "bailian-qwen3-max"
                   },
                   "toolConfig": {
-                    "backends": ["city_datetime"],
+                    "backends": ["datetime"],
                     "frontends": [],
                     "actions": []
                   },

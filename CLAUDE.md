@@ -61,7 +61,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 | `model.api` | REST 契约：`ApiResponse`、`QueryRequest`、`SubmitRequest`、`ChatDetailResponse` 等 |
 | `model.stream` | 流式类型：`AgentDelta` |
 | `service` | `LlmService`（WebClient SSE + ChatClient 双路径）、`AgentQueryService`（流编排）、`ChatRecordStore`、`DirectoryWatchService` |
-| `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册、`ToolFileRegistryService`（外部工具），内置 bash/city_datetime/mock_city_weather 等 |
+| `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册、`ToolFileRegistryService`（外部工具），内置 bash/datetime/mock_city_weather 等 |
 | `skill` | `SkillRegistryService`（技能注册与热刷新）、`SkillDescriptor`、`SkillProperties` |
 | `controller` | REST API：`/api/ap/agents`、`/api/ap/agent`、`/api/ap/skills`、`/api/ap/skill`、`/api/ap/tools`、`/api/ap/tool`、`/api/ap/chats`、`/api/ap/chat`、`/api/ap/query`（SSE）、`/api/ap/submit`、`/api/ap/viewport` |
 | `memory` | 滑动窗口聊天记忆（k=20），文件存储于 `chats/` |
@@ -97,7 +97,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
     "max_tokens": 4096
   },
   "toolConfig": {
-    "backends": ["_bash_", "city_datetime"],
+    "backends": ["_bash_", "datetime"],
     "frontends": ["show_weather_card"],
     "actions": ["switch_theme"]
   },
@@ -158,7 +158,7 @@ modelConfig:
     enabled: true
     effort: MEDIUM
 toolConfig:
-  backends: ["_bash_", "city_datetime"]
+  backends: ["_bash_", "datetime"]
   frontends: ["show_weather_card"]
   actions: ["switch_theme"]
 mode: ONESHOT
@@ -284,7 +284,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 - `_skill_run_script_`：执行 `skills/<skill>/` 目录下脚本或临时 Python 脚本。`script` 与 `pythonCode` 二选一；支持 `.py` / `.sh`；内联 Python 写入 `/tmp/agent-platform-skill-inline/`，执行后清理。
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
-- `city_datetime`：获取城市当前日期时间。
+- `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。
 - `mock_city_weather`：模拟城市天气数据。
 - `agent_file_create`：创建/更新 agent JSON 文件。
 

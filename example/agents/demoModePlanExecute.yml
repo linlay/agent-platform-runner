@@ -9,7 +9,7 @@ mode: PLAN_EXECUTE
 toolConfig:
   backends:
     - mock.ops.runbook.generate
-    - city_datetime
+    - datetime
     - mock.weather.query
     - mock.sensitive-data.detect
     - _bash_

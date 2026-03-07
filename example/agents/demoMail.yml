@@ -13,11 +13,12 @@ modelConfig:
     effort: LOW
 toolConfig:
   backends:
-    - city_datetime
+    - datetime
     - email.list_accounts
     - email.list_folders
     - email.search
     - email.get_message
+    - email.get_attachment
     - email.send
   frontends: []
   actions: []
@@ -31,7 +32,7 @@ react:
     3. 同一轮只调用和当前目标直接相关的工具。
 
     查信规则：
-    0. 通过email.list_accounts查看所有账号。通过city_datetime获得日期时间。
+    0. 通过email.list_accounts查看所有账号。通过datetime获得当前日期时间；需要相对时间时传 offset，需要指定时区时传 timezone。
     1. 不清楚文件夹时，可先调用 email.list_folders。
     2. 查询邮件优先调用 email.search。
     3. 只有在需要正文、HTML 或附件元数据时，再调用 email.get_message。

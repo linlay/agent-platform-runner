@@ -13,7 +13,7 @@ modelConfig:
     effort: LOW
 toolConfig:
   backends:
-    - city_datetime
+    - datetime
     - mock.weather.query
     - mock.sensitive-data.detect
     - _bash_

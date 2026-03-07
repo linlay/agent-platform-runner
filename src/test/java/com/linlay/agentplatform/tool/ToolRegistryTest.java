@@ -2,10 +2,13 @@ package com.linlay.agentplatform.tool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,16 +34,16 @@ import static org.mockito.Mockito.when;
 class ToolRegistryTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final CityDateTime cityDateTimeTool = new CityDateTime();
+    private final DateTimeTool dateTimeTool = new DateTimeTool();
     private final SystemBash bashTool = TestSystemBashFactory.defaultBash();
 
     @Test
-    void cityDateTimeShouldReturnRealtimeTimeWithTimezone() {
-        Map<String, Object> args = Map.of("city", "Shanghai");
+    void dateTimeShouldDefaultToSystemTimezone() {
+        JsonNode result = dateTimeTool.invoke(Map.of());
 
-        JsonNode result = cityDateTimeTool.invoke(args);
-
-        assertThat(result.path("timezone").asText()).isEqualTo("UTC+8");
+        assertThat(result.path("timezone").asText()).isEqualTo(ZoneId.systemDefault().getId());
+        assertThat(result.path("timezoneOffset").asText()).isNotBlank();
+        assertThat(result.path("offset").asText()).isEqualTo("0");
         assertThat(result.path("source").asText()).isEqualTo("system-clock");
         assertThat(result.path("date").asText()).isNotBlank();
         assertThat(result.path("weekday").asText()).startsWith("星期");
@@ -50,23 +53,63 @@ class ToolRegistryTest {
     }
 
     @Test
+    void dateTimeShouldSupportExplicitTimezoneAndOffset() {
+        JsonNode result = dateTimeTool.invoke(Map.of(
+                "timezone", "UTC+8",
+                "offset", "+1D-3H+20M"
+        ));
+
+        assertThat(result.path("timezone").asText()).isEqualTo("+08:00");
+        assertThat(result.path("timezoneOffset").asText()).isEqualTo("UTC+8");
+        assertThat(result.path("offset").asText()).isEqualTo("+1D-3H+20M");
+        assertThat(result.path("lunarDate").asText()).isNotBlank();
+        assertThatCode(() -> ZonedDateTime.parse(result.path("iso").asText())).doesNotThrowAnyException();
+    }
+
+    @Test
+    void dateTimeShouldApplyChainedOffsetInOrder() {
+        ZonedDateTime base = ZonedDateTime.parse(dateTimeTool.invoke(Map.of(
+                "timezone", "UTC",
+                "offset", "0"
+        )).path("iso").asText());
+        ZonedDateTime shifted = ZonedDateTime.parse(dateTimeTool.invoke(Map.of(
+                "timezone", "UTC",
+                "offset", "+1D-3H+20M"
+        )).path("iso").asText());
+
+        ZonedDateTime expected = base.plusDays(1).minusHours(3).plusMinutes(20);
+        assertThat(Duration.between(expected.toInstant(), shifted.toInstant()).abs().toSeconds()).isLessThanOrEqualTo(2);
+    }
+
+    @Test
+    void dateTimeShouldRejectInvalidTimezoneOrOffset() {
+        assertThatThrownBy(() -> dateTimeTool.invoke(Map.of("timezone", "Mars/Base")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid timezone");
+        assertThatThrownBy(() -> dateTimeTool.invoke(Map.of("offset", "1D")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid offset");
+    }
+
+    @Test
     void backendToolMetadataShouldOverrideNativeToolDefinition(@TempDir Path tempDir) throws IOException {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("city_datetime.backend"), """
+        Files.writeString(toolsDir.resolve("datetime.backend"), """
                 {
                   "tools": [
                     {
                       "type": "function",
-                      "name": "city_datetime",
+                      "name": "datetime",
                       "description": "city datetime from backend",
                       "afterCallHint": "use city datetime prompt",
                       "parameters": {
                         "type": "object",
                         "properties": {
-                          "city": {"type": "string"}
+                          "timezone": {"type": "string"},
+                          "offset": {"type": "string"}
                         },
-                        "required": ["city"],
+                        "required": ["timezone"],
                         "additionalProperties": false
                       }
                     }
@@ -84,20 +127,21 @@ class ToolRegistryTest {
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("toolFileRegistryService", toolFileRegistryService);
         ToolRegistry toolRegistry = new ToolRegistry(
-                List.of(new CityDateTime()),
+                List.of(new DateTimeTool()),
                 beanFactory.getBeanProvider(ToolFileRegistryService.class)
         );
 
-        BaseTool cityTool = toolRegistry.list().stream()
-                .filter(tool -> "city_datetime".equals(tool.name()))
+        BaseTool dateTimeMetadataTool = toolRegistry.list().stream()
+                .filter(tool -> "datetime".equals(tool.name()))
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(cityTool.description()).isEqualTo("city datetime from backend");
-        assertThat(cityTool.afterCallHint()).isEqualTo("use city datetime prompt");
-        assertThat(cityTool.parametersSchema().get("required")).isEqualTo(List.of("city"));
-        assertThat(toolRegistry.invoke("city_datetime", Map.of("city", "Shanghai")).path("timezone").asText())
-                .isEqualTo("UTC+8");
+        assertThat(dateTimeMetadataTool.description()).isEqualTo("city datetime from backend");
+        assertThat(dateTimeMetadataTool.afterCallHint()).isEqualTo("use city datetime prompt");
+        assertThat(dateTimeMetadataTool.parametersSchema().get("required")).isEqualTo(List.of("timezone"));
+        JsonNode result = toolRegistry.invoke("datetime", Map.of("timezone", "Asia/Shanghai"));
+        assertThat(result.path("timezone").asText()).isEqualTo("Asia/Shanghai");
+        assertThat(result.path("timezoneOffset").asText()).isEqualTo("UTC+8");
     }
 
     @Test
@@ -124,7 +168,7 @@ class ToolRegistryTest {
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("mcpToolSyncService", mcpToolSyncService);
         ToolRegistry toolRegistry = new ToolRegistry(
-                List.of(new CityDateTime()),
+                List.of(new DateTimeTool()),
                 beanFactory.getBeanProvider(ToolFileRegistryService.class),
                 beanFactory.getBeanProvider(McpToolSyncService.class)
         );
@@ -146,7 +190,7 @@ class ToolRegistryTest {
     @Test
     void localToolShouldWinWhenMcpToolNameConflicts() {
         ToolDescriptor conflictDescriptor = new ToolDescriptor(
-                "city_datetime",
+                "datetime",
                 "remote city time",
                 "",
                 Map.of("type", "object"),
@@ -154,7 +198,7 @@ class ToolRegistryTest {
                 true,
                 ToolKind.BACKEND,
                 "function",
-                "mcp://mock/city_datetime",
+                "mcp://mock/datetime",
                 "mcp",
                 "mock",
                 null,
@@ -162,23 +206,24 @@ class ToolRegistryTest {
         );
         McpToolSyncService mcpToolSyncService = mock(McpToolSyncService.class);
         when(mcpToolSyncService.list()).thenReturn(List.of(conflictDescriptor));
-        when(mcpToolSyncService.find("city_datetime")).thenReturn(java.util.Optional.of(conflictDescriptor));
+        when(mcpToolSyncService.find("datetime")).thenReturn(java.util.Optional.of(conflictDescriptor));
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("mcpToolSyncService", mcpToolSyncService);
         ToolRegistry toolRegistry = new ToolRegistry(
-                List.of(new CityDateTime()),
+                List.of(new DateTimeTool()),
                 beanFactory.getBeanProvider(ToolFileRegistryService.class),
                 beanFactory.getBeanProvider(McpToolSyncService.class)
         );
 
-        assertThat(toolRegistry.descriptor("city_datetime"))
+        assertThat(toolRegistry.descriptor("datetime"))
                 .isPresent()
                 .get()
                 .extracting(ToolDescriptor::sourceType)
                 .isEqualTo("local");
-        assertThat(toolRegistry.invoke("city_datetime", Map.of("city", "Shanghai")).path("timezone").asText())
-                .isEqualTo("UTC+8");
+        JsonNode result = toolRegistry.invoke("datetime", Map.of("timezone", "Asia/Shanghai"));
+        assertThat(result.path("timezone").asText()).isEqualTo("Asia/Shanghai");
+        assertThat(result.path("timezoneOffset").asText()).isEqualTo("UTC+8");
     }
 
     @Test

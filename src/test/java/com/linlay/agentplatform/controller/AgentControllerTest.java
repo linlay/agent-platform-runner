@@ -371,7 +371,7 @@ class AgentControllerTest {
                 .jsonPath("$.data[0].key").exists()
                 .jsonPath("$.data[0].meta.kind").exists()
                 .jsonPath("$.data[0].meta.sourceType").exists()
-                .jsonPath("$.data[?(@.key=='city_datetime')]").exists()
+                .jsonPath("$.data[?(@.key=='datetime')]").exists()
                 .jsonPath("$.data[?(@.key=='confirm_dialog')]").exists()
                 .jsonPath("$.data[?(@.key=='switch_theme')]").exists();
 
@@ -382,7 +382,7 @@ class AgentControllerTest {
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data[?(@.key=='confirm_dialog')]").exists()
-                .jsonPath("$.data[?(@.key=='city_datetime')]").doesNotExist();
+                .jsonPath("$.data[?(@.key=='datetime')]").doesNotExist();
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/ap/tools")

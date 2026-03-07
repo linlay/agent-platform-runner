@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
 
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -13,33 +14,143 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
-public class CityDateTime extends AbstractDeterministicTool {
+public class DateTimeTool extends AbstractDeterministicTool {
+
+    private static final Pattern OFFSET_TOKEN_PATTERN = Pattern.compile("([+-])(\\d+)([ymwDHMS])");
 
     @Override
     public String name() {
-        return "city_datetime";
+        return "datetime";
     }
 
     @Override
     public JsonNode invoke(Map<String, Object> args) {
-        String city = String.valueOf(args.getOrDefault("city", "Shanghai"));
-        ZoneId zoneId = zoneIdOf(city);
-        ZonedDateTime dateTime = ZonedDateTime.now(zoneId);
+        ZoneId zoneId = parseZoneId(args.get("timezone"));
+        String normalizedOffset = normalizeOffset(args.get("offset"));
+        ZonedDateTime dateTime = applyOffset(ZonedDateTime.ofInstant(Instant.now(CLOCK), zoneId), normalizedOffset);
         LocalDate date = dateTime.toLocalDate();
 
         ObjectNode root = OBJECT_MAPPER.createObjectNode();
-        // root.put("tool", name()); // 不需要返回tool name
-        root.put("city", city);
-        root.put("timezone", utcOffsetOf(dateTime.getOffset()));
+        root.put("timezone", zoneId.getId());
+        root.put("timezoneOffset", utcOffsetOf(dateTime.getOffset()));
+        root.put("offset", normalizedOffset);
         root.put("date", date.toString());
         root.put("weekday", weekdayOf(date.getDayOfWeek()));
         root.put("lunarDate", lunarDateOf(date));
-        root.put("time", dateTime.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
-        root.put("iso", dateTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        root.put("time", dateTime.toLocalTime().truncatedTo(ChronoUnit.SECONDS)
+                .format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        root.put("iso", dateTime.truncatedTo(ChronoUnit.SECONDS).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
         root.put("source", "system-clock");
         return root;
+    }
+
+    private ZoneId parseZoneId(Object rawTimezone) {
+        String timezone = rawTimezone == null ? "" : String.valueOf(rawTimezone).trim();
+        if (timezone.isEmpty()) {
+            return ZoneId.systemDefault();
+        }
+
+        String normalized = timezone.toUpperCase(Locale.ROOT);
+        if ("Z".equals(normalized) || "UTC".equals(normalized) || "GMT".equals(normalized)) {
+            return ZoneOffset.UTC;
+        }
+        if (normalized.startsWith("UTC") || normalized.startsWith("GMT") || normalized.matches("[+-].*")) {
+            if (normalized.startsWith("UTC") || normalized.startsWith("GMT")) {
+                normalized = normalized.substring(3);
+            }
+            normalized = normalizeOffsetTimezone(normalized);
+            try {
+                return ZoneOffset.of(normalized);
+            } catch (Exception ex) {
+                throw new IllegalArgumentException(
+                        "Invalid timezone: " + timezone + ". Use an IANA zone like Asia/Shanghai or an offset like UTC+8/+08:00/Z."
+                );
+            }
+        }
+
+        try {
+            return ZoneId.of(timezone);
+        } catch (Exception ex) {
+            throw new IllegalArgumentException(
+                    "Invalid timezone: " + timezone + ". Use an IANA zone like Asia/Shanghai or an offset like UTC+8/+08:00/Z."
+            );
+        }
+    }
+
+    private String normalizeOffsetTimezone(String timezoneOffset) {
+        if (timezoneOffset.matches("[+-]\\d{1,2}")) {
+            String sign = timezoneOffset.substring(0, 1);
+            int hours = Integer.parseInt(timezoneOffset.substring(1));
+            return String.format(Locale.ROOT, "%s%02d:00", sign, hours);
+        }
+        if (timezoneOffset.matches("[+-]\\d{1,2}:\\d{2}")) {
+            String sign = timezoneOffset.substring(0, 1);
+            String[] parts = timezoneOffset.substring(1).split(":");
+            int hours = Integer.parseInt(parts[0]);
+            return String.format(Locale.ROOT, "%s%02d:%s", sign, hours, parts[1]);
+        }
+        return timezoneOffset;
+    }
+
+    private String normalizeOffset(Object rawOffset) {
+        String offset = rawOffset == null ? "" : String.valueOf(rawOffset).trim();
+        if (offset.isEmpty() || "0".equals(offset)) {
+            return "0";
+        }
+
+        String compact = offset.replaceAll("\\s+", "");
+        Matcher matcher = OFFSET_TOKEN_PATTERN.matcher(compact);
+        StringBuilder normalized = new StringBuilder();
+        int index = 0;
+        while (matcher.find()) {
+            if (matcher.start() != index) {
+                throw invalidOffset(offset);
+            }
+            normalized.append(matcher.group(1))
+                    .append(matcher.group(2))
+                    .append(matcher.group(3));
+            index = matcher.end();
+        }
+        if (index != compact.length() || normalized.length() == 0) {
+            throw invalidOffset(offset);
+        }
+        return normalized.toString();
+    }
+
+    private ZonedDateTime applyOffset(ZonedDateTime dateTime, String normalizedOffset) {
+        if ("0".equals(normalizedOffset)) {
+            return dateTime;
+        }
+
+        Matcher matcher = OFFSET_TOKEN_PATTERN.matcher(normalizedOffset);
+        ZonedDateTime result = dateTime;
+        while (matcher.find()) {
+            long amount = Long.parseLong(matcher.group(2));
+            if ("-".equals(matcher.group(1))) {
+                amount = -amount;
+            }
+            result = switch (matcher.group(3).charAt(0)) {
+                case 'y' -> result.plusYears(amount);
+                case 'm' -> result.plusMonths(amount);
+                case 'w' -> result.plusWeeks(amount);
+                case 'D' -> result.plusDays(amount);
+                case 'H' -> result.plusHours(amount);
+                case 'M' -> result.plusMinutes(amount);
+                case 'S' -> result.plusSeconds(amount);
+                default -> throw invalidOffset(normalizedOffset);
+            };
+        }
+        return result;
+    }
+
+    private IllegalArgumentException invalidOffset(String rawOffset) {
+        return new IllegalArgumentException(
+                "Invalid offset: " + rawOffset + ". Use tokens like +1D, -2y, +3w or chained forms like +1D-3H+20M."
+        );
     }
 
     private String utcOffsetOf(ZoneOffset offset) {
@@ -238,25 +349,5 @@ public class CityDateTime extends AbstractDeterministicTool {
             int branchIndex = Math.floorMod(year - 4, 12);
             return HEAVENLY_STEMS[stemIndex] + EARTHLY_BRANCHES[branchIndex];
         }
-    }
-
-    private ZoneId zoneIdOf(String city) {
-        String lower = city.toLowerCase(Locale.ROOT);
-        if (lower.contains("beijing") || lower.contains("shanghai") || lower.contains("guangzhou") || lower.contains("shenzhen") || lower.contains("hangzhou") || lower.contains("chengdu") || lower.contains("wuhan") || lower.contains("xian") || lower.contains("中国") || lower.contains("上海") || lower.contains("北京")) {
-            return ZoneId.of("Asia/Shanghai");
-        }
-        if (lower.contains("tokyo") || lower.contains("东京")) {
-            return ZoneId.of("Asia/Tokyo");
-        }
-        if (lower.contains("singapore") || lower.contains("新加坡")) {
-            return ZoneId.of("Asia/Singapore");
-        }
-        if (lower.contains("new york") || lower.contains("nyc") || lower.contains("纽约")) {
-            return ZoneId.of("America/New_York");
-        }
-        if (lower.contains("san francisco") || lower.contains("sf")) {
-            return ZoneId.of("America/Los_Angeles");
-        }
-        return ZoneId.of("UTC");
     }
 }

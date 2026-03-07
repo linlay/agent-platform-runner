@@ -65,7 +65,7 @@
       "meta": {
         "model": "qwen3-max",
         "mode": "REACT",
-        "tools": ["city_datetime", "mock_city_weather", "confirm_dialog"],
+        "tools": ["datetime", "mock_city_weather", "confirm_dialog"],
         "skills": []
       }
     }
@@ -410,7 +410,7 @@ plain:
     "reasoning": { "enabled": true, "effort": "MEDIUM" }
   },
   "toolConfig": {
-    "backends": ["_bash_", "city_datetime"],
+    "backends": ["_bash_", "datetime"],
     "frontends": [],
     "actions": []
   },
@@ -436,7 +436,7 @@ plain:
     "reasoning": { "enabled": true, "effort": "HIGH" }
   },
   "toolConfig": {
-    "backends": ["_bash_", "city_datetime", "mock_city_weather"],
+    "backends": ["_bash_", "datetime", "mock_city_weather"],
     "frontends": [],
     "actions": []
   },
@@ -570,7 +570,7 @@ plain:
 
 - `_skill_run_script_`：执行 skills 目录下脚本或临时 Python 脚本。
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
-- `city_datetime`：获取城市当前日期时间。
+- `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。
 - `mock_city_weather`：模拟城市天气数据。
 - `agent_file_create`：创建/更新 agent JSON 文件（校验 key 仅允许 `A-Za-z0-9_-`，最长 64）。
 

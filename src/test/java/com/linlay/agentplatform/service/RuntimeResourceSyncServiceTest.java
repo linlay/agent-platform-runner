@@ -30,7 +30,7 @@ class RuntimeResourceSyncServiceTest {
         Files.createDirectories(schedulesDir);
 
         Path modePlainAgent = agentsDir.resolve("demoModePlain.json");
-        Path weatherTool = toolsDir.resolve("city_datetime.backend");
+        Path weatherTool = toolsDir.resolve("datetime.backend");
         Path skillScriptTool = toolsDir.resolve("_skill_run_script_.backend");
         Path extraAgent = agentsDir.resolve("custom_agent.json");
         Path extraTool = toolsDir.resolve("custom.backend");
@@ -64,7 +64,7 @@ class RuntimeResourceSyncServiceTest {
         String syncedSkill = Files.readString(mathBasicSkillFile);
         String syncedSchedule = Files.readString(builtInSchedule);
 
-        assertThat(syncedTool).contains("\"name\": \"city_datetime\"");
+        assertThat(syncedTool).contains("\"name\": \"datetime\"");
         assertThat(syncedSkillScriptTool).contains("\"name\": \"_skill_run_script_\"");
         assertThat(syncedSkill).contains("name: \"math_basic\"");
         assertThat(syncedSchedule).contains("\"cron\": \"0 0 9 * * *\"");
@@ -111,7 +111,7 @@ class RuntimeResourceSyncServiceTest {
             }
         }
 
-        assertThat(configuredToolsDir.resolve("city_datetime.backend")).exists();
+        assertThat(configuredToolsDir.resolve("datetime.backend")).exists();
         assertThat(configuredSkillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
         assertThat(configuredSkillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
         assertThat(configuredSkillsDir.resolve("text_utils").resolve("SKILL.md")).exists();

@@ -17,7 +17,7 @@
   },
   "toolConfig": {
     "backends": [
-      "city_datetime",
+      "datetime",
       "mock.weather.query",
       "mock.logistics.status",
       "mock.sensitive-data.detect",
