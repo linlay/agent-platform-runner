@@ -8,8 +8,6 @@ import com.linlay.agentplatform.config.AppAuthProperties;
 import com.linlay.agentplatform.config.ChatImageTokenProperties;
 import com.linlay.agentplatform.config.VoiceWsProperties;
 import com.linlay.agentplatform.security.JwksJwtVerifier.JwtPrincipal;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -27,7 +25,6 @@ public class ApiJwtAuthWebFilter implements WebFilter {
 
     private static final String AUTH_PREFIX = "Bearer ";
     private static final String VOICE_WS_QUERY_TOKEN_PARAM = "access_token";
-    private static final Logger log = LoggerFactory.getLogger(ApiJwtAuthWebFilter.class);
 
     private final AppAuthProperties authProperties;
     private final ChatImageTokenProperties chatImageTokenProperties;
@@ -77,13 +74,13 @@ public class ApiJwtAuthWebFilter implements WebFilter {
             tokenResolution = resolveBearerToken(exchange);
         }
         if (!StringUtils.hasText(tokenResolution.token())) {
-            logAuthReject(exchange, tokenResolution.reasonCode());
+            attachAuthRejectReason(exchange, tokenResolution.reasonCode());
             return writeUnauthorized(exchange);
         }
         JwksJwtVerifier.VerifyResult verifyResult = jwtVerifier.verifyDetailed(tokenResolution.token());
         JwtPrincipal principal = verifyResult.principal();
         if (principal == null) {
-            logAuthReject(exchange, mapVerifyFailure(verifyResult.reasonCode()));
+            attachAuthRejectReason(exchange, mapVerifyFailure(verifyResult.reasonCode()));
             return writeUnauthorized(exchange);
         }
 
@@ -149,16 +146,12 @@ public class ApiJwtAuthWebFilter implements WebFilter {
         return "jwt_verify_failed";
     }
 
-    private void logAuthReject(ServerWebExchange exchange, String reasonCode) {
+    private void attachAuthRejectReason(ServerWebExchange exchange, String reasonCode) {
         if (loggingAgentProperties == null || !loggingAgentProperties.getAuth().isEnabled()) {
             return;
         }
-        String method = exchange.getRequest().getMethod() == null ? "UNKNOWN" : exchange.getRequest().getMethod().name();
-        String path = exchange.getRequest().getPath().value();
-        log.warn(
-                "api.auth.reject method={}, path={}, reason={}",
-                method,
-                path,
+        exchange.getAttributes().put(
+                com.linlay.agentplatform.config.ApiRequestLoggingWebFilter.ATTR_AUTH_REJECT_REASON,
                 LoggingSanitizer.sanitizeText(reasonCode)
         );
     }

@@ -18,7 +18,7 @@ class SystemBashAdvancedTest {
     @Test
     void shouldSupportPipelineWhenShellFeaturesEnabled(@TempDir Path tempDir) throws IOException {
         Files.writeString(tempDir.resolve("a.txt"), "foo\nbar\n");
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(tempDir),
                 Set.of("cat", "rg"),
@@ -38,7 +38,7 @@ class SystemBashAdvancedTest {
 
     @Test
     void shouldSupportHereDocWhenShellFeaturesEnabled(@TempDir Path tempDir) {
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(tempDir),
                 Set.of("cat"),
@@ -65,7 +65,7 @@ class SystemBashAdvancedTest {
 
     @Test
     void shouldSupportLogicalOperatorsWhenShellFeaturesEnabled(@TempDir Path tempDir) {
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(tempDir),
                 Set.of("cat", "echo"),
@@ -84,7 +84,7 @@ class SystemBashAdvancedTest {
 
     @Test
     void shouldRejectDisallowedCommandInsideCommandSubstitution(@TempDir Path tempDir) {
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(tempDir),
                 Set.of("echo"),
@@ -103,7 +103,7 @@ class SystemBashAdvancedTest {
 
     @Test
     void shouldRejectRedirectOutsideAllowedPaths(@TempDir Path tempDir) {
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(tempDir),
                 Set.of("echo"),
@@ -122,7 +122,7 @@ class SystemBashAdvancedTest {
 
     @Test
     void shouldRejectUnsupportedSourceSyntax(@TempDir Path tempDir) {
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(tempDir),
                 Set.of("echo", "source"),
@@ -142,7 +142,7 @@ class SystemBashAdvancedTest {
     @Test
     void shouldKeepStrictModeWhenShellFeaturesDisabled(@TempDir Path tempDir) throws IOException {
         Files.writeString(tempDir.resolve("a.txt"), "foo\nbar\n");
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(tempDir),
                 Set.of("cat", "rg"),
@@ -164,7 +164,7 @@ class SystemBashAdvancedTest {
     void shouldAllowGitSubcommandAfterPathOptionInStrictMode(@TempDir Path tempDir) throws IOException {
         Path repo = tempDir.resolve("repo");
         Files.createDirectories(repo);
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(repo),
                 Set.of("git"),
@@ -185,7 +185,7 @@ class SystemBashAdvancedTest {
     void shouldAllowGitSubcommandAfterPathOptionInShellMode(@TempDir Path tempDir) throws IOException {
         Path repo = tempDir.resolve("repo");
         Files.createDirectories(repo);
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(repo),
                 Set.of("git", "echo"),
@@ -206,7 +206,7 @@ class SystemBashAdvancedTest {
     void shouldRejectGitPathOptionOutsideAllowedRoots(@TempDir Path tempDir) throws IOException {
         Path repo = tempDir.resolve("repo");
         Files.createDirectories(repo);
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(repo),
                 Set.of("git"),
@@ -227,7 +227,7 @@ class SystemBashAdvancedTest {
     void shouldAllowGitPathOptionOutsideAllowedRootsWhenBypassEnabled(@TempDir Path tempDir) throws IOException {
         Path repo = tempDir.resolve("repo");
         Files.createDirectories(repo);
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(repo),
                 Set.of("git"),
@@ -249,7 +249,7 @@ class SystemBashAdvancedTest {
     void shouldAllowCurlRedirectOutsideAllowedPathsWhenBypassEnabled(@TempDir Path tempDir) throws IOException {
         Path outsideFile = tempDir.getParent().resolve("outside-bypass-curl.txt");
         Files.deleteIfExists(outsideFile);
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(tempDir),
                 Set.of("curl"),
@@ -270,7 +270,7 @@ class SystemBashAdvancedTest {
 
     @Test
     void shouldRejectCurlRedirectOutsideAllowedPathsWhenBypassDisabled(@TempDir Path tempDir) {
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(tempDir),
                 Set.of("curl"),
@@ -289,7 +289,7 @@ class SystemBashAdvancedTest {
 
     @Test
     void shouldKeepNonBypassCommandPathChecksWhenBypassConfigured(@TempDir Path tempDir) {
-        SystemBash bash = new SystemBash(
+        SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(tempDir),
                 Set.of("cat", "curl"),

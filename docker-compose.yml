@@ -21,3 +21,11 @@ services:
       - ./application.yml:/opt/application.yml:ro
     env_file:
       - .env
+    networks:
+      zenmind-network:
+        aliases:
+          - agent-platform
+
+networks:
+  zenmind-network:
+    external: true

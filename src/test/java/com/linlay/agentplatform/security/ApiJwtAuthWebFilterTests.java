@@ -19,12 +19,17 @@ import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.MOCK,
@@ -45,6 +50,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
     }
 )
 @AutoConfigureWebTestClient
+@ExtendWith(OutputCaptureExtension.class)
 class ApiJwtAuthWebFilterTests {
 
     @Autowired
@@ -75,11 +81,17 @@ class ApiJwtAuthWebFilterTests {
     }
 
     @Test
-    void shouldRejectApiRequestWithoutToken() {
+    void shouldRejectApiRequestWithoutTokenWithSingleRequestLog(CapturedOutput output) {
         webTestClient.get()
             .uri("/api/ap/agents")
             .exchange()
             .expectStatus().isUnauthorized();
+
+        String logs = output.getOut() + output.getErr();
+        assertThat(logs).contains("GET /api/ap/agents -> 401");
+        assertThat(logs).contains("auth=missing_auth_header");
+        assertThat(logs).doesNotContain("api.auth.reject");
+        assertThat(logs.lines().filter(line -> line.contains("GET /api/ap/agents -> 401")).count()).isEqualTo(1);
     }
 
     @Test

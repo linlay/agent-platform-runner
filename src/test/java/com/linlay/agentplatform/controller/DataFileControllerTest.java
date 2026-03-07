@@ -1,6 +1,8 @@
 package com.linlay.agentplatform.controller;
 
+import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.testsupport.StubLlmService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,15 +57,10 @@ class DataFileControllerTest {
         @Bean
         @Primary
         LlmService llmService() {
-            return new LlmService(null, null) {
+            return new StubLlmService() {
                 @Override
-                public Flux<String> streamContent(String providerKey, String model, String systemPrompt, String userPrompt) {
+                protected Flux<String> contentBySpec(LlmCallSpec spec) {
                     return Flux.just("test");
-                }
-
-                @Override
-                public Flux<String> streamContent(String providerKey, String model, String systemPrompt, String userPrompt, String stage) {
-                    return streamContent(providerKey, model, systemPrompt, userPrompt);
                 }
 
                 @Override

@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: springai-agent-platform
+  output:
+    ansi:
+      enabled: always
   config:
     import:
       - optional:file:./application.yml
@@ -150,6 +153,9 @@ memory:
       auto-rebuild-on-incompatible-schema: ${MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA:true}
 
 logging:
+  pattern:
+    # Compact colored console format: keep hour/min/sec timestamp, level, shortened logger, and message only.
+    console: "%clr(%d{HH:mm:ss}){faint} %clr(%-5level) %clr(%logger{24}){cyan} %clr(:){faint} %msg%n"
   agent:
     request:
       # API 请求摘要日志（覆盖 /api/ap/**）

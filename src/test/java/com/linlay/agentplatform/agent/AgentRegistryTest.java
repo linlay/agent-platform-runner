@@ -9,7 +9,10 @@ import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.tool.PlatformCreateAgent;
 import com.linlay.agentplatform.tool.SystemBash;
+import com.linlay.agentplatform.tool.TestSystemBashFactory;
 import com.linlay.agentplatform.tool.ToolRegistry;
+import com.linlay.agentplatform.testsupport.StubLlmService;
+import com.linlay.agentplatform.testsupport.TestModelRegistryServices;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
@@ -53,10 +56,11 @@ class AgentRegistryTest {
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(agentsDir.toString());
 
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
-        LlmService llmService = new LlmService(null, null);
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, TestModelRegistryServices.standardRegistry());
+        LlmService llmService = new StubLlmService() {
+        };
         ToolRegistry toolRegistry = new ToolRegistry(List.of(
-                new SystemBash(),
+                TestSystemBashFactory.defaultBash(),
                 new PlatformCreateAgent(agentsDir)
         ));
         ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
@@ -240,10 +244,11 @@ class AgentRegistryTest {
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(agentsDir.toString());
 
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
-        LlmService llmService = new LlmService(null, null);
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, TestModelRegistryServices.standardRegistry());
+        LlmService llmService = new StubLlmService() {
+        };
         ToolRegistry toolRegistry = new ToolRegistry(List.of(
-                new SystemBash(),
+                TestSystemBashFactory.defaultBash(),
                 new PlatformCreateAgent(agentsDir)
         ));
         ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();

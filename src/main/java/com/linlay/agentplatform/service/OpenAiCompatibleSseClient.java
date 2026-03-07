@@ -129,8 +129,8 @@ class OpenAiCompatibleSseClient {
             AtomicInteger rawChunkIndex = new AtomicInteger(0);
             long rawStartNanos = System.nanoTime();
 
-            callLogger.info(log, "[{}][{}] LLM raw SSE delta stream request start provider={}, model={}, tools={}",
-                    traceId, stage, providerKey, model, tools == null ? 0 : tools.size());
+            callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE delta stream request start provider={}, model={}, tools={}"),
+                    providerKey, model, tools == null ? 0 : tools.size());
 
             AtomicBoolean firstChunkReceived = new AtomicBoolean(false);
 
@@ -146,22 +146,14 @@ class OpenAiCompatibleSseClient {
                     .doOnNext(rawChunk -> {
                         callLogger.debug(
                                 log,
-                                "[{}][{}][raw-delta] {}",
-                                traceId,
-                                stage,
+                                callLogger.message(traceId, stage, "raw", "{}"),
                                 callLogger.sanitizeText(rawChunk)
                         );
                         if (planStageRawLogging) {
                             int chunk = rawChunkIndex.getAndIncrement();
                             long elapsedMs = elapsedMs(rawStartNanos);
-                            log.info(
-                                    "[{}][{}][raw-plan][chunkIndex={}][elapsedMs={}] {}",
-                                    traceId,
-                                    stage,
-                                    chunk,
-                                    elapsedMs,
-                                    rawChunk
-                            );
+                            callLogger.info(log, callLogger.message(traceId, stage, "raw-plan", "[chunkIndex={}][elapsedMs={}] {}"),
+                                    chunk, elapsedMs, rawChunk);
                         }
                     })
                     .handle((rawChunk, sink) -> {
@@ -198,11 +190,11 @@ class OpenAiCompatibleSseClient {
             long startNanos = System.nanoTime();
             StringBuilder responseBuffer = new StringBuilder();
 
-            callLogger.info(log, "[{}][{}] LLM raw SSE content stream request start provider={}, model={}", traceId, stage, providerKey, model);
-            callLogger.info(log, "[{}][{}] LLM raw SSE content stream system prompt:\n{}", traceId, stage, callLogger.normalizePrompt(systemPrompt));
-            callLogger.info(log, "[{}][{}] LLM raw SSE content stream history messages count={}", traceId, stage, historyMessages == null ? 0 : historyMessages.size());
+            callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream request start provider={}, model={}"), providerKey, model);
+            callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream system prompt:\n{}"), callLogger.normalizePrompt(systemPrompt));
+            callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream history messages count={}"), historyMessages == null ? 0 : historyMessages.size());
             callLogger.logHistoryMessages(log, traceId, stage, historyMessages);
-            callLogger.info(log, "[{}][{}] LLM raw SSE content stream user prompt:\n{}", traceId, stage, callLogger.normalizePrompt(userPrompt));
+            callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream user prompt:\n{}"), callLogger.normalizePrompt(userPrompt));
 
             AgentProviderProperties.ProviderConfig config = resolveProviderConfig(providerKey);
             WebClient webClient = buildRawWebClient(config);
@@ -239,19 +231,19 @@ class OpenAiCompatibleSseClient {
                     .doOnNext(chunk -> {
                         String safeChunk = callLogger.sanitizeText(chunk);
                         responseBuffer.append(safeChunk);
-                        callLogger.debug(log, "[{}][{}][delta] content: {}", traceId, stage, safeChunk);
+                        callLogger.debug(log, callLogger.message(traceId, stage, "delta", "content: {}"), safeChunk);
                     })
                     .doOnComplete(() -> callLogger.info(
                             log,
-                            "[{}][{}] LLM raw SSE content stream finished in {} ms:\n{}",
-                            traceId, stage, elapsedMs(startNanos), responseBuffer
+                            callLogger.message(traceId, stage, "LLM raw SSE content stream finished in {} ms:\n{}"),
+                            elapsedMs(startNanos), responseBuffer
                     ))
-                    .doOnError(ex -> log.error("[{}][{}] LLM raw SSE content stream failed in {} ms, partial response:\n{}",
-                            traceId, stage, elapsedMs(startNanos), responseBuffer, ex))
+                    .doOnError(ex -> log.error(callLogger.message(traceId, stage, "LLM raw SSE content stream failed in {} ms, partial response:\n{}"),
+                            elapsedMs(startNanos), responseBuffer, ex))
                     .doOnCancel(() -> callLogger.info(
                             log,
-                            "[{}][{}] LLM raw SSE content stream canceled in {} ms, partial response:\n{}",
-                            traceId, stage, elapsedMs(startNanos), responseBuffer
+                            callLogger.message(traceId, stage, "LLM raw SSE content stream canceled in {} ms, partial response:\n{}"),
+                            elapsedMs(startNanos), responseBuffer
                     ))
                     .timeout(Duration.ofMillis(DEFAULT_STREAM_TIMEOUT_MS));
         });

@@ -7,8 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -134,8 +132,8 @@ public class SystemSkillRunScript extends AbstractDeterministicTool {
                 return result;
             }
 
-            StreamCollector stdoutCollector = new StreamCollector(process.getInputStream(), MAX_OUTPUT_CHARS);
-            StreamCollector stderrCollector = new StreamCollector(process.getErrorStream(), MAX_OUTPUT_CHARS);
+        ProcessStreamCollector stdoutCollector = new ProcessStreamCollector(process.getInputStream(), MAX_OUTPUT_CHARS);
+        ProcessStreamCollector stderrCollector = new ProcessStreamCollector(process.getErrorStream(), MAX_OUTPUT_CHARS);
             Thread stdoutThread = new Thread(stdoutCollector, "skill-script-stdout");
             Thread stderrThread = new Thread(stderrCollector, "skill-script-stderr");
             stdoutThread.setDaemon(true);
@@ -365,55 +363,4 @@ public class SystemSkillRunScript extends AbstractDeterministicTool {
     ) {
     }
 
-    private static final class StreamCollector implements Runnable {
-
-        private final InputStream stream;
-        private final int maxChars;
-        private final StringBuilder out = new StringBuilder();
-        private boolean truncated;
-
-        private StreamCollector(InputStream stream, int maxChars) {
-            this.stream = stream;
-            this.maxChars = Math.max(256, maxChars);
-        }
-
-        @Override
-        public void run() {
-            if (stream == null) {
-                return;
-            }
-            try (InputStream input = stream; InputStreamReader reader = new InputStreamReader(input, StandardCharsets.UTF_8)) {
-                char[] buffer = new char[1024];
-                int len;
-                while ((len = reader.read(buffer)) >= 0) {
-                    append(buffer, len);
-                }
-            } catch (IOException ignored) {
-                // swallow stream read errors to avoid masking tool execution result.
-            }
-        }
-
-        private void append(char[] chars, int len) {
-            if (len <= 0) {
-                return;
-            }
-            if (out.length() >= maxChars) {
-                truncated = true;
-                return;
-            }
-            int remain = maxChars - out.length();
-            int toWrite = Math.min(remain, len);
-            out.append(chars, 0, toWrite);
-            if (toWrite < len) {
-                truncated = true;
-            }
-        }
-
-        private String text() {
-            if (!truncated) {
-                return out.toString();
-            }
-            return out + "\n[TRUNCATED]";
-        }
-    }
 }
