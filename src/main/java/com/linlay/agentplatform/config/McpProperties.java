@@ -12,6 +12,7 @@ public class McpProperties {
     private String protocolVersion = "2025-06";
     private int connectTimeoutMs = 3_000;
     private int retry = 1;
+    private long reconnectIntervalMs = 60_000;
     private Registry registry = new Registry();
 
     public boolean isEnabled() {
@@ -44,6 +45,14 @@ public class McpProperties {
 
     public void setRetry(int retry) {
         this.retry = retry;
+    }
+
+    public long getReconnectIntervalMs() {
+        return reconnectIntervalMs;
+    }
+
+    public void setReconnectIntervalMs(long reconnectIntervalMs) {
+        this.reconnectIntervalMs = reconnectIntervalMs;
     }
 
     public Registry getRegistry() {

@@ -60,7 +60,7 @@ class McpRunnerMockChainTest {
                 objectMapper,
                 WebClient.builder().exchangeFunction(exchangeFunction)
         );
-        McpServerAvailabilityGate availabilityGate = new McpServerAvailabilityGate();
+        McpServerAvailabilityGate availabilityGate = new McpServerAvailabilityGate(properties);
 
         McpToolSyncService toolSyncService = new McpToolSyncService(
                 properties,

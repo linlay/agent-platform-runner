@@ -11,6 +11,9 @@ import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Optional;
 
@@ -30,7 +33,7 @@ class McpToolInvokerTest {
                 mock(ToolRegistry.class),
                 properties,
                 mock(McpServerRegistryService.class),
-                new McpServerAvailabilityGate(),
+                new McpServerAvailabilityGate(properties),
                 mock(McpStreamableHttpClient.class),
                 new ObjectMapper()
         );
@@ -42,37 +45,12 @@ class McpToolInvokerTest {
     @Test
     void shouldReturnStructuredContentOnSuccessfulCall() {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        ToolDescriptor descriptor = new ToolDescriptor(
-                "mock.weather.query",
-                "weather",
-                "",
-                Map.of("type", "object"),
-                false,
-                true,
-                ToolKind.BACKEND,
-                "function",
-                "mcp://mock/mock.weather.query",
-                "mcp",
-                "mock",
-                null,
-                "mcp://mock"
-        );
+        ToolDescriptor descriptor = descriptor();
         when(toolRegistry.descriptor("mock.weather.query")).thenReturn(Optional.of(descriptor));
 
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
-        McpServerRegistryService.RegisteredServer server = new McpServerRegistryService.RegisteredServer(
-                "mock",
-                "http://localhost:18080",
-                "/mcp",
-                "mock",
-                Map.of(),
-                Map.of(),
-                3000,
-                15000,
-                0
-        );
+        McpServerRegistryService.RegisteredServer server = server();
         when(registryService.find("mock")).thenReturn(Optional.of(server));
-        when(registryService.currentVersion()).thenReturn(1L);
 
         ObjectNode result = new ObjectMapper().createObjectNode();
         result.put("isError", false);
@@ -87,7 +65,7 @@ class McpToolInvokerTest {
                 toolRegistry,
                 properties,
                 registryService,
-                new McpServerAvailabilityGate(),
+                new McpServerAvailabilityGate(properties),
                 client,
                 new ObjectMapper()
         );
@@ -97,46 +75,23 @@ class McpToolInvokerTest {
     }
 
     @Test
-    void shouldQuickFailWhenServerIsBlockedAtCurrentVersion() {
+    void shouldQuickFailWhenServerIsBlockedDuringReconnectCooldown() {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        ToolDescriptor descriptor = new ToolDescriptor(
-                "mock.weather.query",
-                "weather",
-                "",
-                Map.of("type", "object"),
-                false,
-                true,
-                ToolKind.BACKEND,
-                "function",
-                "mcp://mock/mock.weather.query",
-                "mcp",
-                "mock",
-                null,
-                "mcp://mock"
-        );
+        ToolDescriptor descriptor = descriptor();
         when(toolRegistry.descriptor("mock.weather.query")).thenReturn(Optional.of(descriptor));
 
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
-        McpServerRegistryService.RegisteredServer server = new McpServerRegistryService.RegisteredServer(
-                "mock",
-                "http://localhost:18080",
-                "/mcp",
-                "mock",
-                Map.of(),
-                Map.of(),
-                3000,
-                15000,
-                0
-        );
+        McpServerRegistryService.RegisteredServer server = server();
         when(registryService.find("mock")).thenReturn(Optional.of(server));
-        when(registryService.currentVersion()).thenReturn(9L);
 
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
-        McpServerAvailabilityGate gate = new McpServerAvailabilityGate();
-        gate.markFailure("mock", 9L);
+        MutableClock clock = new MutableClock(Instant.parse("2026-03-07T00:00:00Z"), ZoneId.of("UTC"));
+        McpServerAvailabilityGate gate = new McpServerAvailabilityGate(clock, 60_000);
+        gate.markFailure("mock");
 
         McpProperties properties = new McpProperties();
         properties.setEnabled(true);
+        properties.setReconnectIntervalMs(60_000);
         McpToolInvoker invoker = new McpToolInvoker(
                 toolRegistry,
                 properties,
@@ -148,13 +103,58 @@ class McpToolInvokerTest {
 
         assertThat(invoker.invoke("mock.weather.query", Map.of("city", "Shanghai"), null).path("code").asText())
                 .isEqualTo("mcp_server_unavailable");
+        assertThat(invoker.invoke("mock.weather.query", Map.of("city", "Shanghai"), null).path("error").asText())
+                .contains("scheduled reconnect");
         verify(client, times(0)).callTool(server, "mock.weather.query", Map.of("city", "Shanghai"));
     }
 
     @Test
-    void shouldMarkServerUnavailableAndSkipSubsequentCallsAtSameVersion() {
+    void shouldRecoverCallsAfterReconnectCooldownExpires() {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        ToolDescriptor descriptor = new ToolDescriptor(
+        ToolDescriptor descriptor = descriptor();
+        when(toolRegistry.descriptor("mock.weather.query")).thenReturn(Optional.of(descriptor));
+
+        McpServerRegistryService registryService = mock(McpServerRegistryService.class);
+        McpServerRegistryService.RegisteredServer server = server();
+        when(registryService.find("mock")).thenReturn(Optional.of(server));
+
+        ObjectNode success = new ObjectMapper().createObjectNode();
+        success.put("isError", false);
+        success.set("structuredContent", new ObjectMapper().createObjectNode().put("temperatureC", 18));
+
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        when(client.callTool(server, "mock.weather.query", Map.of("city", "Shanghai")))
+                .thenThrow(new IllegalStateException("connection refused"))
+                .thenReturn(success);
+
+        MutableClock clock = new MutableClock(Instant.parse("2026-03-07T00:00:00Z"), ZoneId.of("UTC"));
+        McpProperties properties = new McpProperties();
+        properties.setEnabled(true);
+        properties.setReconnectIntervalMs(60_000);
+        McpServerAvailabilityGate gate = new McpServerAvailabilityGate(clock, properties.getReconnectIntervalMs());
+        McpToolInvoker invoker = new McpToolInvoker(
+                toolRegistry,
+                properties,
+                registryService,
+                gate,
+                client,
+                new ObjectMapper()
+        );
+
+        assertThat(invoker.invoke("mock.weather.query", Map.of("city", "Shanghai"), null).path("code").asText())
+                .isEqualTo("mcp_server_unavailable");
+        assertThat(invoker.invoke("mock.weather.query", Map.of("city", "Shanghai"), null).path("code").asText())
+                .isEqualTo("mcp_server_unavailable");
+
+        clock.advanceSeconds(60);
+        assertThat(invoker.invoke("mock.weather.query", Map.of("city", "Shanghai"), null)
+                .path("temperatureC").asInt()).isEqualTo(18);
+
+        verify(client, times(2)).callTool(server, "mock.weather.query", Map.of("city", "Shanghai"));
+    }
+
+    private static ToolDescriptor descriptor() {
+        return new ToolDescriptor(
                 "mock.weather.query",
                 "weather",
                 "",
@@ -169,10 +169,10 @@ class McpToolInvokerTest {
                 null,
                 "mcp://mock"
         );
-        when(toolRegistry.descriptor("mock.weather.query")).thenReturn(Optional.of(descriptor));
+    }
 
-        McpServerRegistryService registryService = mock(McpServerRegistryService.class);
-        McpServerRegistryService.RegisteredServer server = new McpServerRegistryService.RegisteredServer(
+    private static McpServerRegistryService.RegisteredServer server() {
+        return new McpServerRegistryService.RegisteredServer(
                 "mock",
                 "http://localhost:18080",
                 "/mcp",
@@ -183,28 +183,34 @@ class McpToolInvokerTest {
                 15000,
                 0
         );
-        when(registryService.find("mock")).thenReturn(Optional.of(server));
-        when(registryService.currentVersion()).thenReturn(3L);
+    }
 
-        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
-        when(client.callTool(server, "mock.weather.query", Map.of("city", "Shanghai")))
-                .thenThrow(new IllegalStateException("connection refused"));
+    private static final class MutableClock extends Clock {
+        private Instant instant;
+        private final ZoneId zoneId;
 
-        McpProperties properties = new McpProperties();
-        properties.setEnabled(true);
-        McpToolInvoker invoker = new McpToolInvoker(
-                toolRegistry,
-                properties,
-                registryService,
-                new McpServerAvailabilityGate(),
-                client,
-                new ObjectMapper()
-        );
+        private MutableClock(Instant instant, ZoneId zoneId) {
+            this.instant = instant;
+            this.zoneId = zoneId;
+        }
 
-        assertThat(invoker.invoke("mock.weather.query", Map.of("city", "Shanghai"), null).path("code").asText())
-                .isEqualTo("mcp_server_unavailable");
-        assertThat(invoker.invoke("mock.weather.query", Map.of("city", "Shanghai"), null).path("code").asText())
-                .isEqualTo("mcp_server_unavailable");
-        verify(client, times(1)).callTool(server, "mock.weather.query", Map.of("city", "Shanghai"));
+        @Override
+        public ZoneId getZone() {
+            return zoneId;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return new MutableClock(instant, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
+
+        private void advanceSeconds(long seconds) {
+            instant = instant.plusSeconds(seconds);
+        }
     }
 }

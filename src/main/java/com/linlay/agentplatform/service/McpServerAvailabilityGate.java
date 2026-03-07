@@ -1,33 +1,72 @@
 package com.linlay.agentplatform.service;
 
+import com.linlay.agentplatform.config.McpProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Component
 public class McpServerAvailabilityGate {
 
-    private final Map<String, Long> blockedServerVersion = new ConcurrentHashMap<>();
+    private final Clock clock;
+    private final long reconnectIntervalMs;
+    private final Map<String, FailureState> failureStates = new ConcurrentHashMap<>();
 
-    public boolean isBlocked(String serverKey, long registryVersion) {
+    @Autowired
+    public McpServerAvailabilityGate(McpProperties properties) {
+        this(Clock.systemUTC(), properties == null ? 60_000L : properties.getReconnectIntervalMs());
+    }
+
+    public McpServerAvailabilityGate(Clock clock, long reconnectIntervalMs) {
+        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.reconnectIntervalMs = Math.max(1L, reconnectIntervalMs);
+    }
+
+    public boolean isBlocked(String serverKey) {
         String normalizedKey = normalize(serverKey);
         if (!StringUtils.hasText(normalizedKey)) {
             return false;
         }
-        Long blockedVersion = blockedServerVersion.get(normalizedKey);
-        return blockedVersion != null && blockedVersion == registryVersion;
+        FailureState failureState = failureStates.get(normalizedKey);
+        return failureState != null && Instant.now(clock).isBefore(failureState.nextRetryAt());
     }
 
-    public void markFailure(String serverKey, long registryVersion) {
+    public Set<String> readyToRetry(Collection<String> serverKeys) {
+        if (serverKeys == null || serverKeys.isEmpty()) {
+            return Set.of();
+        }
+        Instant now = Instant.now(clock);
+        Set<String> ready = new LinkedHashSet<>();
+        for (String serverKey : serverKeys) {
+            String normalizedKey = normalize(serverKey);
+            if (!StringUtils.hasText(normalizedKey)) {
+                continue;
+            }
+            FailureState failureState = failureStates.get(normalizedKey);
+            if (failureState != null && !now.isBefore(failureState.nextRetryAt())) {
+                ready.add(normalizedKey);
+            }
+        }
+        return Set.copyOf(ready);
+    }
+
+    public void markFailure(String serverKey) {
         String normalizedKey = normalize(serverKey);
         if (!StringUtils.hasText(normalizedKey)) {
             return;
         }
-        blockedServerVersion.put(normalizedKey, registryVersion);
+        Instant nextRetryAt = Instant.now(clock).plusMillis(reconnectIntervalMs);
+        failureStates.put(normalizedKey, new FailureState(nextRetryAt));
     }
 
     public void markSuccess(String serverKey) {
@@ -35,19 +74,19 @@ public class McpServerAvailabilityGate {
         if (!StringUtils.hasText(normalizedKey)) {
             return;
         }
-        blockedServerVersion.remove(normalizedKey);
+        failureStates.remove(normalizedKey);
     }
 
     public void prune(Set<String> activeServerKeys) {
         if (activeServerKeys == null || activeServerKeys.isEmpty()) {
-            blockedServerVersion.clear();
+            failureStates.clear();
             return;
         }
         Set<String> normalizedActiveKeys = activeServerKeys.stream()
                 .map(this::normalize)
                 .filter(StringUtils::hasText)
-                .collect(java.util.stream.Collectors.toSet());
-        blockedServerVersion.keySet().removeIf(key -> !normalizedActiveKeys.contains(key));
+                .collect(Collectors.toSet());
+        failureStates.keySet().removeIf(key -> !normalizedActiveKeys.contains(key));
     }
 
     private String normalize(String raw) {
@@ -55,5 +94,8 @@ public class McpServerAvailabilityGate {
             return "";
         }
         return raw.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private record FailureState(Instant nextRetryAt) {
     }
 }

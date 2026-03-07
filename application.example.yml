@@ -87,6 +87,7 @@ agent:
     protocol-version: 2025-06
     connect-timeout-ms: 3000
     retry: 1
+    reconnect-interval-ms: 60000
     servers: []
   tools:
     external-dir: tools

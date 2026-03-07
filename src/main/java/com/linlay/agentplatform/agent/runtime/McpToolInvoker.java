@@ -62,12 +62,11 @@ public class McpToolInvoker implements ToolInvoker {
             return error(toolName, "mcp_server_not_found", "MCP server is not registered: " + tool.sourceKey());
         }
         McpServerRegistryService.RegisteredServer server = serverOptional.get();
-        long registryVersion = serverRegistryService.currentVersion();
-        if (availabilityGate.isBlocked(server.serverKey(), registryVersion)) {
+        if (availabilityGate.isBlocked(server.serverKey())) {
             return error(
                     toolName,
                     "mcp_server_unavailable",
-                    "MCP server is unavailable, waiting for mcp-servers refresh: " + server.serverKey()
+                    "MCP server is unavailable, waiting for scheduled reconnect: " + server.serverKey()
             );
         }
 
@@ -80,7 +79,7 @@ public class McpToolInvoker implements ToolInvoker {
             availabilityGate.markSuccess(server.serverKey());
             return normalizeCallResult(toolName, result);
         } catch (Exception ex) {
-            availabilityGate.markFailure(server.serverKey(), registryVersion);
+            availabilityGate.markFailure(server.serverKey());
             String message = resolveErrorMessage(ex);
             if (StringUtils.hasText(message)) {
                 return error(toolName, "mcp_server_unavailable", message);

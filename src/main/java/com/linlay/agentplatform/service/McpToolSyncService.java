@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -60,6 +61,27 @@ public class McpToolSyncService {
     }
 
     public CatalogDiff refreshTools() {
+        return refreshToolsInternal(null);
+    }
+
+    public CatalogDiff refreshToolsForServers(Collection<String> serverKeys) {
+        if (serverKeys == null || serverKeys.isEmpty()) {
+            return new CatalogDiff(Set.of(), Set.of(), Set.of());
+        }
+        Set<String> normalizedKeys = new HashSet<>();
+        for (String serverKey : serverKeys) {
+            String normalized = normalize(serverKey);
+            if (StringUtils.hasText(normalized)) {
+                normalizedKeys.add(normalized);
+            }
+        }
+        if (normalizedKeys.isEmpty()) {
+            return new CatalogDiff(Set.of(), Set.of(), Set.of());
+        }
+        return refreshToolsInternal(Set.copyOf(normalizedKeys));
+    }
+
+    private CatalogDiff refreshToolsInternal(Set<String> targetServerKeys) {
         synchronized (refreshLock) {
             Map<String, ToolDescriptor> before = toolsByName;
             if (!properties.isEnabled()) {
@@ -71,8 +93,6 @@ public class McpToolSyncService {
             }
 
             List<McpServerRegistryService.RegisteredServer> servers = serverRegistryService.list();
-            long registryVersion = serverRegistryService.currentVersion();
-
             Set<String> activeServerKeys = new HashSet<>();
             for (McpServerRegistryService.RegisteredServer server : servers) {
                 activeServerKeys.add(normalize(server.serverKey()));
@@ -80,11 +100,15 @@ public class McpToolSyncService {
             availabilityGate.prune(activeServerKeys);
 
             Map<String, ServerToolSnapshot> nextSnapshots = new LinkedHashMap<>(snapshotsByServerKey);
+            Set<String> selectedServerKeys = targetServerKeys == null
+                    ? activeServerKeys
+                    : activeServerKeys.stream()
+                            .filter(targetServerKeys::contains)
+                            .collect(java.util.stream.Collectors.toSet());
 
             for (McpServerRegistryService.RegisteredServer server : servers) {
                 String serverKey = normalize(server.serverKey());
-                if (availabilityGate.isBlocked(serverKey, registryVersion)) {
-                    log.debug("Skip MCP tool sync for blocked server '{}' at version={}", serverKey, registryVersion);
+                if (!selectedServerKeys.contains(serverKey)) {
                     continue;
                 }
                 try {
@@ -93,7 +117,7 @@ public class McpToolSyncService {
                     nextSnapshots.put(serverKey, buildServerSnapshot(server, tools));
                     availabilityGate.markSuccess(serverKey);
                 } catch (Exception ex) {
-                    availabilityGate.markFailure(serverKey, registryVersion);
+                    availabilityGate.markFailure(serverKey);
                     log.warn("Failed to sync MCP capabilities from server '{}': {}",
                             server.serverKey(),
                             summarizeException(ex));
@@ -104,29 +128,7 @@ public class McpToolSyncService {
             }
 
             nextSnapshots.keySet().removeIf(serverKey -> !activeServerKeys.contains(serverKey));
-
-            Map<String, ToolDescriptor> loaded = new LinkedHashMap<>();
-            Map<String, String> loadedAlias = new LinkedHashMap<>();
-            Set<String> conflicts = new HashSet<>();
-            for (McpServerRegistryService.RegisteredServer server : servers) {
-                ServerToolSnapshot snapshot = nextSnapshots.get(normalize(server.serverKey()));
-                if (snapshot == null) {
-                    continue;
-                }
-                mergeSnapshot(snapshot, loaded, loadedAlias, conflicts);
-            }
-
-            snapshotsByServerKey = Map.copyOf(nextSnapshots);
-            toolsByName = Map.copyOf(loaded);
-            aliasToCanonical = Map.copyOf(loadedAlias);
-            CatalogDiff diff = CatalogDiff.between(before, toolsByName);
-            log.debug(
-                    "Refreshed MCP tool cache, size={}, aliases={}, changed={}",
-                    toolsByName.size(),
-                    aliasToCanonical.size(),
-                    diff.changedKeys().size()
-            );
-            return diff;
+            return publishSnapshots(before, servers, nextSnapshots);
         }
     }
 
@@ -158,6 +160,35 @@ public class McpToolSyncService {
         }
         String canonical = aliasToCanonical.get(normalize(maybeAlias));
         return StringUtils.hasText(canonical) ? Optional.of(canonical) : Optional.empty();
+    }
+
+    private CatalogDiff publishSnapshots(
+            Map<String, ToolDescriptor> before,
+            List<McpServerRegistryService.RegisteredServer> servers,
+            Map<String, ServerToolSnapshot> nextSnapshots
+    ) {
+        Map<String, ToolDescriptor> loaded = new LinkedHashMap<>();
+        Map<String, String> loadedAlias = new LinkedHashMap<>();
+        Set<String> conflicts = new HashSet<>();
+        for (McpServerRegistryService.RegisteredServer server : servers) {
+            ServerToolSnapshot snapshot = nextSnapshots.get(normalize(server.serverKey()));
+            if (snapshot == null) {
+                continue;
+            }
+            mergeSnapshot(snapshot, loaded, loadedAlias, conflicts);
+        }
+
+        snapshotsByServerKey = Map.copyOf(nextSnapshots);
+        toolsByName = Map.copyOf(loaded);
+        aliasToCanonical = Map.copyOf(loadedAlias);
+        CatalogDiff diff = CatalogDiff.between(before, toolsByName);
+        log.debug(
+                "Refreshed MCP tool cache, size={}, aliases={}, changed={}",
+                toolsByName.size(),
+                aliasToCanonical.size(),
+                diff.changedKeys().size()
+        );
+        return diff;
     }
 
     private ServerToolSnapshot buildServerSnapshot(

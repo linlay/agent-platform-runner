@@ -5,8 +5,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.config.McpProperties;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doNothing;
@@ -36,7 +40,6 @@ class McpToolSyncServiceTest {
         );
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
         when(registryService.list()).thenReturn(List.of(server));
-        when(registryService.currentVersion()).thenReturn(1L);
 
         ObjectNode schema = new ObjectMapper().createObjectNode();
         schema.put("type", "object");
@@ -57,7 +60,7 @@ class McpToolSyncServiceTest {
         McpToolSyncService service = new McpToolSyncService(
                 properties,
                 registryService,
-                new McpServerAvailabilityGate(),
+                new McpServerAvailabilityGate(properties),
                 client,
                 new ObjectMapper()
         );
@@ -78,7 +81,7 @@ class McpToolSyncServiceTest {
         McpToolSyncService service = new McpToolSyncService(
                 properties,
                 mock(McpServerRegistryService.class),
-                new McpServerAvailabilityGate(),
+                new McpServerAvailabilityGate(properties),
                 mock(McpStreamableHttpClient.class),
                 new ObjectMapper()
         );
@@ -90,9 +93,10 @@ class McpToolSyncServiceTest {
     }
 
     @Test
-    void shouldFreezeFailedServerUntilRegistryVersionChanges() {
+    void shouldRetryFailedServerOnlyAfterReconnectInterval() {
         McpProperties properties = new McpProperties();
         properties.setEnabled(true);
+        properties.setReconnectIntervalMs(60_000);
 
         McpServerRegistryService.RegisteredServer server = new McpServerRegistryService.RegisteredServer(
                 "mock",
@@ -107,7 +111,6 @@ class McpToolSyncServiceTest {
         );
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
         when(registryService.list()).thenReturn(List.of(server));
-        when(registryService.currentVersion()).thenReturn(1L, 1L, 1L, 2L);
 
         ObjectNode schema = new ObjectMapper().createObjectNode();
         schema.put("type", "object");
@@ -129,10 +132,12 @@ class McpToolSyncServiceTest {
                 )
         ));
 
+        MutableClock clock = new MutableClock(Instant.parse("2026-03-07T00:00:00Z"), ZoneId.of("UTC"));
+        McpServerAvailabilityGate gate = new McpServerAvailabilityGate(clock, properties.getReconnectIntervalMs());
         McpToolSyncService service = new McpToolSyncService(
                 properties,
                 registryService,
-                new McpServerAvailabilityGate(),
+                gate,
                 client,
                 new ObjectMapper()
         );
@@ -140,16 +145,50 @@ class McpToolSyncServiceTest {
         service.refreshTools();
         assertThat(service.find("mock.weather.query")).isPresent();
 
-        service.refreshTools();
+        service.refreshToolsForServers(Set.of("mock"));
+        assertThat(service.find("mock.weather.query")).isPresent();
+        assertThat(gate.isBlocked("mock")).isTrue();
+
+        CatalogDiff skipped = service.refreshToolsForServers(gate.readyToRetry(Set.of("mock")));
+        assertThat(skipped.isEmpty()).isTrue();
         assertThat(service.find("mock.weather.query")).isPresent();
 
-        service.refreshTools();
+        clock.advanceSeconds(60);
+        CatalogDiff diff = service.refreshToolsForServers(gate.readyToRetry(Set.of("mock")));
+        assertThat(diff.isEmpty()).isTrue();
         assertThat(service.find("mock.weather.query")).isPresent();
-
-        service.refreshTools();
-        assertThat(service.find("mock.weather.query")).isPresent();
+        assertThat(gate.isBlocked("mock")).isFalse();
 
         verify(client, times(3)).initialize(server, "2025-06");
         verify(client, times(2)).listTools(server);
+    }
+
+    private static final class MutableClock extends Clock {
+        private Instant instant;
+        private final ZoneId zoneId;
+
+        private MutableClock(Instant instant, ZoneId zoneId) {
+            this.instant = instant;
+            this.zoneId = zoneId;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zoneId;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return new MutableClock(instant, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
+
+        private void advanceSeconds(long seconds) {
+            instant = instant.plusSeconds(seconds);
+        }
     }
 }

@@ -23,6 +23,7 @@ class McpPropertiesBindingTest {
                         "agent.mcp-servers.protocol-version=2025-06",
                         "agent.mcp-servers.connect-timeout-ms=2100",
                         "agent.mcp-servers.retry=2",
+                        "agent.mcp-servers.reconnect-interval-ms=45000",
                         "agent.mcp-servers.registry.external-dir=/tmp/mcp-servers"
                 )
                 .run(context -> {
@@ -31,6 +32,7 @@ class McpPropertiesBindingTest {
                     assertThat(properties.getProtocolVersion()).isEqualTo("2025-06");
                     assertThat(properties.getConnectTimeoutMs()).isEqualTo(2100);
                     assertThat(properties.getRetry()).isEqualTo(2);
+                    assertThat(properties.getReconnectIntervalMs()).isEqualTo(45000);
                     assertThat(properties.getRegistry().getExternalDir()).isEqualTo("/tmp/mcp-servers");
                 });
     }
