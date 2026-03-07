@@ -18,7 +18,7 @@ class ToolFileRegistryServiceTest {
     Path tempDir;
 
     @Test
-    void shouldLoadBackendAndActionCapabilitiesFromToolsDirectory() throws Exception {
+    void shouldLoadBackendAndActionToolsFromToolsDirectory() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
 
@@ -79,7 +79,7 @@ class ToolFileRegistryServiceTest {
     }
 
     @Test
-    void shouldSkipConflictedCapabilityNames() throws Exception {
+    void shouldSkipConflictedToolNames() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
 
@@ -146,7 +146,7 @@ class ToolFileRegistryServiceTest {
     }
 
     @Test
-    void shouldLoadYamlCapabilityContentAndClientVisibleFlag() throws Exception {
+    void shouldLoadYamlToolContentAndClientVisibleFlag() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
 

@@ -30,6 +30,8 @@ import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
+import com.linlay.agentplatform.util.IdGenerators;
+import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.Message;
@@ -44,7 +46,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 
 public class DefinitionDrivenAgent implements Agent {
 
@@ -501,23 +502,15 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     private String generateToolCallId() {
-        return "call_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        return IdGenerators.toolCallId();
     }
 
     private String normalize(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value;
+        return StringHelpers.normalize(value, fallback);
     }
 
     private String normalizeStatus(String raw) {
-        if (!StringUtils.hasText(raw)) {
-            return "init";
-        }
-        String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "in_progress" -> "init";
-            case "init", "completed", "failed", "canceled" -> normalized;
-            default -> "init";
-        };
+        return AgentDelta.normalizePlanTaskStatus(raw);
     }
 
     private void logRunSnapshot(AgentRequest request) {
@@ -1023,7 +1016,7 @@ public class DefinitionDrivenAgent implements Agent {
         }
 
         private static String generateMsgId() {
-            return "m_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+            return IdGenerators.shortHexId("m");
         }
 
         private boolean isEmpty() {

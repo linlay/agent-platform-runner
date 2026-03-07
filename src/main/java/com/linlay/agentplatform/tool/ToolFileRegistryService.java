@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.util.StringHelpers;
 
 @Service
 @DependsOn("runtimeResourceSyncService")
@@ -230,6 +231,6 @@ public class ToolFileRegistryService {
     }
 
     private String normalize(String value) {
-        return value == null ? "" : value.trim();
+        return StringHelpers.trimToEmpty(value);
     }
 }

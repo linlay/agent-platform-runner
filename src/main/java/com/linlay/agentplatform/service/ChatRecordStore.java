@@ -4,10 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.tool.ToolRegistry;
+import com.linlay.agentplatform.util.StringHelpers;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * 会话记录读取与快照回放服务。
@@ -566,6 +567,7 @@ public class ChatRecordStore {
                     }
 
                     ChatWindowMemoryStore.PlanSnapshot plan = null;
+                    // COMPAT(V3): Keep reading legacy `planSnapshot` until historical JSONL chat records are migrated or dropped.
                     JsonNode planNode = node.has("plan") && !node.get("plan").isNull()
                             ? node.get("plan")
                             : (node.has("planSnapshot") && !node.get("planSnapshot").isNull() ? node.get("planSnapshot") : null);
@@ -939,14 +941,13 @@ public class ChatRecordStore {
             int toolIndex,
             int actionIndex
     ) {
-        // First check outer-level message fields (V3.1)
+        // COMPAT(V3): Prefer V3.1 outer ids, but keep V3 inner fallback until historical stored tool-call payloads are no longer read.
         if (StringUtils.hasText(message.actionId)) {
             return new IdBinding(message.actionId.trim(), true);
         }
         if (StringUtils.hasText(message.toolId)) {
             return new IdBinding(message.toolId.trim(), false);
         }
-        // Fallback to inner toolCall fields (V3 compat)
         boolean actionByType = StringUtils.hasText(toolCall.type)
                 && "action".equalsIgnoreCase(toolCall.type.trim());
         if (StringUtils.hasText(toolCall.actionId)) {
@@ -980,6 +981,7 @@ public class ChatRecordStore {
         if (StringUtils.hasText(message.toolId)) {
             return new IdBinding(message.toolId.trim(), false);
         }
+        // COMPAT(V3): Keep toolCallId lookup fallback until V3 stored tool result payloads are no longer read.
         if (StringUtils.hasText(message.toolCallId)) {
             IdBinding binding = bindingByCallId.get(message.toolCallId.trim());
             if (binding != null) {
@@ -1142,15 +1144,7 @@ public class ChatRecordStore {
     }
 
     private String normalizeStatus(String raw) {
-        if (!StringUtils.hasText(raw)) {
-            return "init";
-        }
-        String normalized = raw.trim().toLowerCase();
-        return switch (normalized) {
-            case "in_progress" -> "init";
-            case "init", "completed", "failed", "canceled" -> normalized;
-            default -> "init";
-        };
+        return AgentDelta.normalizePlanTaskStatus(raw);
     }
 
     private Map<String, Object> toRawMessageMap(String runId, ChatWindowMemoryStore.StoredMessage message) {
@@ -1363,15 +1357,7 @@ public class ChatRecordStore {
     }
 
     private boolean isValidChatId(String chatId) {
-        if (!StringUtils.hasText(chatId)) {
-            return false;
-        }
-        try {
-            UUID.fromString(chatId.trim());
-            return true;
-        } catch (IllegalArgumentException ex) {
-            return false;
-        }
+        return StringHelpers.isValidChatId(chatId);
     }
 
     private String deriveChatName(String message) {
@@ -1456,7 +1442,7 @@ public class ChatRecordStore {
     }
 
     private String nullable(String value) {
-        return StringUtils.hasText(value) ? value.trim() : null;
+        return StringHelpers.nullable(value);
     }
 
     private void putIfNonNull(Map<String, Object> node, String key, Object value) {
@@ -1583,7 +1569,7 @@ public class ChatRecordStore {
         }
 
         private static String nullable(String value) {
-            return value == null ? null : value.trim();
+            return StringHelpers.nullable(value);
         }
     }
 

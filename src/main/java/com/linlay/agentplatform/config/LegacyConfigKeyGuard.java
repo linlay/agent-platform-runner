@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 
 @Component
 public class LegacyConfigKeyGuard {
+    // TODO(remove-after: 2026-06-30): Drop fail-fast guard after legacy key migration window closes.
 
     private static final Map<String, String> LEGACY_PROPERTY_PREFIX_MAPPINGS = Map.ofEntries(
             Map.entry("agent.catalog.", "agent.agents."),

@@ -402,7 +402,7 @@ class AgentControllerTest {
     }
 
     @Test
-    void toolsShouldExposeMcpSourceMetaWhenMcpCapabilityExists() throws Exception {
+    void toolsShouldExposeMcpSourceMetaWhenMcpToolExists() throws Exception {
         String body = webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/ap/tools")
                         .queryParam("kind", "backend")

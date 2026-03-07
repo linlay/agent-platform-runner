@@ -268,7 +268,7 @@ class AgentDefinitionLoaderTest {
 
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
@@ -314,7 +314,7 @@ class AgentDefinitionLoaderTest {
 
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         Map<String, AgentDefinition> byId = loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
@@ -345,7 +345,7 @@ class AgentDefinitionLoaderTest {
 
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         AgentDefinition definition = loader.loadAll().stream()
                 .filter(item -> "conflict_agent".equals(item.id()))
@@ -379,7 +379,7 @@ class AgentDefinitionLoaderTest {
 
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, null);
+        AgentDefinitionLoader loader = newLoader(properties);
 
         AgentDefinition definition = loader.loadAll().stream()
                 .filter(item -> "dup_agent".equals(item.id()))

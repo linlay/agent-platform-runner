@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.agent.PlannedToolCall;
+import com.linlay.agentplatform.agent.PlanToolConstants;
 import com.linlay.agentplatform.agent.ToolAppend;
 import com.linlay.agentplatform.agent.ToolArgumentResolver;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
@@ -15,6 +16,9 @@ import com.linlay.agentplatform.service.LoggingSanitizer;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
+import com.linlay.agentplatform.util.IdGenerators;
+import com.linlay.agentplatform.util.MapReaders;
+import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
@@ -26,7 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,7 +44,7 @@ public class ToolExecutionService {
     public static final String TOOL_NOT_REGISTERED_CODE = "tool_not_registered";
     public static final Set<String> FATAL_TOOL_ERROR_CODES = Set.of(
             TOOL_NOT_REGISTERED_CODE,
-            "mcp_capability_missing",
+            "mcp_tool_missing",
             "mcp_server_not_found",
             "mcp_server_unavailable"
     );
@@ -368,7 +371,7 @@ public class ToolExecutionService {
             );
         }
 
-        if ("_plan_get_tasks_".equals(toolName)) {
+        if (PlanToolConstants.PLAN_GET_TASKS_TOOL.equals(toolName)) {
             return new InvokeResult(planGetResult(planSnapshot(context)), null);
         }
 
@@ -686,11 +689,11 @@ public class ToolExecutionService {
     }
 
     private String normalize(String value) {
-        return value == null ? "" : value.trim();
+        return StringHelpers.trimToEmpty(value);
     }
 
     private String shortId() {
-        return UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        return IdGenerators.shortHexId();
     }
 
     private AgentDelta planUpdateDelta(
@@ -703,7 +706,7 @@ public class ToolExecutionService {
             return null;
         }
         String normalizedName = toolName.trim().toLowerCase(Locale.ROOT);
-        if ("_plan_add_tasks_".equals(normalizedName)) {
+        if (PlanToolConstants.PLAN_ADD_TASKS_TOOL.equals(normalizedName)) {
             String resultText = toResultText(resultNode);
             if (isFailedPlanToolResult(resultText)) {
                 return null;
@@ -715,7 +718,7 @@ public class ToolExecutionService {
             context.appendPlanTasks(created);
             return AgentDelta.planUpdate(context.planId(), context.request().chatId(), context.planTasks());
         }
-        if ("_plan_update_task_".equals(normalizedName)) {
+        if (PlanToolConstants.PLAN_UPDATE_TASK_TOOL.equals(normalizedName)) {
             String resultText = toResultText(resultNode);
             if (!isSuccessfulPlanUpdateResult(resultText, resultNode)) {
                 return null;
@@ -762,15 +765,7 @@ public class ToolExecutionService {
     }
 
     private String asString(Map<String, Object> args, String key) {
-        if (args == null || key == null) {
-            return null;
-        }
-        Object value = args.get(key);
-        if (value == null) {
-            return null;
-        }
-        String text = value.toString();
-        return text == null || text.isBlank() ? null : text;
+        return MapReaders.readString(args, key);
     }
 
     private String normalizeStatus(String raw) {

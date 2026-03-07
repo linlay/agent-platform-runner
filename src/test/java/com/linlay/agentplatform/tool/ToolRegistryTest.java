@@ -50,7 +50,7 @@ class ToolRegistryTest {
     }
 
     @Test
-    void backendCapabilityMetadataShouldOverrideNativeToolDefinition(@TempDir Path tempDir) throws IOException {
+    void backendToolMetadataShouldOverrideNativeToolDefinition(@TempDir Path tempDir) throws IOException {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
         Files.writeString(toolsDir.resolve("city_datetime.backend"), """
@@ -101,7 +101,7 @@ class ToolRegistryTest {
     }
 
     @Test
-    void mcpCapabilityShouldAppearAsVirtualTool() {
+    void mcpToolShouldAppearAsVirtualTool() {
         ToolDescriptor mcpDescriptor = new ToolDescriptor(
                 "mock.weather.query",
                 "mock weather",

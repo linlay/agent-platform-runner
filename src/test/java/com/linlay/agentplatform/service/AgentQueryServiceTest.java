@@ -109,7 +109,7 @@ class AgentQueryServiceTest {
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
         frontendToolProperties.setSubmitTimeoutMs(120_000);
 
-        when(toolRegistry.descriptor("confirm_dialog")).thenReturn(Optional.of(frontendCapability()));
+        when(toolRegistry.descriptor("confirm_dialog")).thenReturn(Optional.of(frontendTool()));
         when(viewportRegistryService.find("confirm_dialog")).thenReturn(Optional.of(
                 new ViewportRegistryService.ViewportEntry("confirm_dialog", ViewportType.HTML, "<div>ok</div>")
         ));
@@ -144,7 +144,7 @@ class AgentQueryServiceTest {
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
         frontendToolProperties.setSubmitTimeoutMs(30_000);
 
-        when(toolRegistry.descriptor("confirm_dialog")).thenReturn(Optional.of(frontendCapability()));
+        when(toolRegistry.descriptor("confirm_dialog")).thenReturn(Optional.of(frontendTool()));
         when(viewportRegistryService.find("confirm_dialog")).thenReturn(Optional.of(
                 new ViewportRegistryService.ViewportEntry("confirm_dialog", ViewportType.QLC, Map.of("schema", Map.of()))
         ));
@@ -246,7 +246,7 @@ class AgentQueryServiceTest {
         when(agent.stream(any(AgentRequest.class))).thenReturn(Flux.<AgentDelta>empty());
 
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        when(toolRegistry.descriptor("_plan_add_tasks_")).thenReturn(Optional.of(hiddenCapability("_plan_add_tasks_")));
+        when(toolRegistry.descriptor("_plan_add_tasks_")).thenReturn(Optional.of(hiddenTool("_plan_add_tasks_")));
 
         com.linlay.agentplatform.stream.service.StreamSseStreamer streamer = mock(com.linlay.agentplatform.stream.service.StreamSseStreamer.class);
         when(streamer.stream(any(StreamRequest.class), any())).thenReturn(Flux.just(
@@ -284,7 +284,7 @@ class AgentQueryServiceTest {
         verify(chatRecordStore, times(2)).appendEvent(any(String.class), any(String.class));
     }
 
-    private ToolDescriptor frontendCapability() {
+    private ToolDescriptor frontendTool() {
         return new ToolDescriptor(
                 "confirm_dialog",
                 "confirm",
@@ -302,7 +302,7 @@ class AgentQueryServiceTest {
         );
     }
 
-    private ToolDescriptor hiddenCapability(String toolName) {
+    private ToolDescriptor hiddenTool(String toolName) {
         return new ToolDescriptor(
                 toolName,
                 "hidden",

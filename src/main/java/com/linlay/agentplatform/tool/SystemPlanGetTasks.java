@@ -2,6 +2,7 @@ package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.linlay.agentplatform.agent.PlanToolConstants;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -11,7 +12,7 @@ public class SystemPlanGetTasks extends AbstractDeterministicTool {
 
     @Override
     public String name() {
-        return "_plan_get_tasks_";
+        return PlanToolConstants.PLAN_GET_TASKS_TOOL;
     }
 
     @Override

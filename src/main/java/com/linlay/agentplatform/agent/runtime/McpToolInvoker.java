@@ -46,20 +46,20 @@ public class McpToolInvoker implements ToolInvoker {
         if (!properties.isEnabled()) {
             return error(toolName, "mcp_disabled", "MCP is disabled");
         }
-        Optional<ToolDescriptor> capabilityOptional = toolRegistry.descriptor(toolName);
-        if (capabilityOptional.isEmpty()) {
-            return error(toolName, "mcp_capability_missing", "MCP capability not found");
+        Optional<ToolDescriptor> toolOptional = toolRegistry.descriptor(toolName);
+        if (toolOptional.isEmpty()) {
+            return error(toolName, "mcp_tool_missing", "MCP tool not found");
         }
-        ToolDescriptor capability = capabilityOptional.get();
-        if (!"mcp".equalsIgnoreCase(capability.sourceType())) {
+        ToolDescriptor tool = toolOptional.get();
+        if (!"mcp".equalsIgnoreCase(tool.sourceType())) {
             return error(toolName, "mcp_source_mismatch", "Tool is not routed to MCP");
         }
-        if (!StringUtils.hasText(capability.sourceKey())) {
+        if (!StringUtils.hasText(tool.sourceKey())) {
             return error(toolName, "mcp_source_key_missing", "MCP server key is missing");
         }
-        Optional<McpServerRegistryService.RegisteredServer> serverOptional = serverRegistryService.find(capability.sourceKey());
+        Optional<McpServerRegistryService.RegisteredServer> serverOptional = serverRegistryService.find(tool.sourceKey());
         if (serverOptional.isEmpty()) {
-            return error(toolName, "mcp_server_not_found", "MCP server is not registered: " + capability.sourceKey());
+            return error(toolName, "mcp_server_not_found", "MCP server is not registered: " + tool.sourceKey());
         }
         McpServerRegistryService.RegisteredServer server = serverOptional.get();
         long registryVersion = serverRegistryService.currentVersion();
@@ -74,7 +74,7 @@ public class McpToolInvoker implements ToolInvoker {
         try {
             JsonNode result = streamableHttpClient.callTool(
                     server,
-                    capability.name(),
+                    tool.name(),
                     args == null ? Map.of() : args
             );
             availabilityGate.markSuccess(server.serverKey());

@@ -7,9 +7,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 class McpServerRegistryServiceTest {
@@ -18,7 +15,7 @@ class McpServerRegistryServiceTest {
     Path tempDir;
 
     @Test
-    void deprecatedServersPropertyShouldBeIgnored() throws Exception {
+    void shouldLoadServerFromRegistryFile() throws Exception {
         Path registryDir = tempDir.resolve("mcp-servers");
         Files.createDirectories(registryDir);
         Files.writeString(registryDir.resolve("mock.json"), """
@@ -34,12 +31,6 @@ class McpServerRegistryServiceTest {
 
         McpProperties properties = new McpProperties();
         properties.getRegistry().setExternalDir(registryDir.toString());
-        McpProperties.Server staticServer = new McpProperties.Server();
-        staticServer.setServerKey("mock");
-        staticServer.setBaseUrl("http://static-host:28080");
-        staticServer.setEndpointPath("/mcp");
-        staticServer.setHeaders(Map.of("x-static", "1"));
-        properties.setServers(List.of(staticServer));
 
         McpServerRegistryService service = new McpServerRegistryService(new ObjectMapper(), properties);
         service.refreshServers();
@@ -47,7 +38,6 @@ class McpServerRegistryServiceTest {
         McpServerRegistryService.RegisteredServer server = service.find("mock").orElseThrow();
         assertThat(server.baseUrl()).isEqualTo("http://dynamic-host:18080");
         assertThat(server.headers()).containsEntry("x-dynamic", "1");
-        assertThat(server.headers()).doesNotContainKey("x-static");
     }
 
     @Test

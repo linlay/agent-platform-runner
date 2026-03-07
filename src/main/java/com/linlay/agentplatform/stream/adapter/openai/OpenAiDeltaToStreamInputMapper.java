@@ -3,6 +3,7 @@ package com.linlay.agentplatform.stream.adapter.openai;
 import com.linlay.agentplatform.stream.model.StreamInput;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
+import com.linlay.agentplatform.util.StringHelpers;
 import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
@@ -86,6 +87,6 @@ public class OpenAiDeltaToStreamInputMapper {
     }
 
     private boolean hasText(String value) {
-        return value != null && !value.isBlank();
+        return StringHelpers.hasText(value);
     }
 }

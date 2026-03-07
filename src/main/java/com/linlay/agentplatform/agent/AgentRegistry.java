@@ -8,6 +8,7 @@ import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.ToolRegistry;
+import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -250,10 +251,7 @@ public class AgentRegistry {
     }
 
     private String normalize(String raw, String fallback) {
-        if (!StringUtils.hasText(raw)) {
-            return fallback;
-        }
-        return raw.trim();
+        return StringHelpers.trimOrDefault(raw, fallback);
     }
 
     private static final class AgentDependencyIndex {

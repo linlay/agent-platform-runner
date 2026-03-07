@@ -2,6 +2,7 @@ package com.linlay.agentplatform.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.util.StringHelpers;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -151,6 +152,6 @@ public class ToolArgumentResolver {
     }
 
     static String normalize(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value;
+        return StringHelpers.normalize(value, fallback);
     }
 }

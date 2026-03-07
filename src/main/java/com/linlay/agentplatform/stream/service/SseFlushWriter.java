@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.stream.service;
 
+import com.linlay.agentplatform.util.StringHelpers;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -52,6 +53,6 @@ public class SseFlushWriter {
     }
 
     private boolean hasText(String value) {
-        return value != null && !value.isBlank();
+        return StringHelpers.hasText(value);
     }
 }

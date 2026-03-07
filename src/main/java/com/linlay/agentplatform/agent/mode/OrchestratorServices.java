@@ -17,6 +17,7 @@ import com.linlay.agentplatform.model.ModelProtocol;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.tool.BaseTool;
+import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -379,7 +380,7 @@ public class OrchestratorServices {
     }
 
     public String normalize(String value) {
-        return value == null ? "" : value.trim();
+        return StringHelpers.trimToEmpty(value);
     }
 
     public List<PlanStep> parsePlanSteps(String raw) {

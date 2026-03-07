@@ -8,6 +8,7 @@ import com.linlay.agentplatform.agent.mode.AgentMode;
 import com.linlay.agentplatform.agent.mode.AgentModeFactory;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
+import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.model.ModelDefinition;
 import com.linlay.agentplatform.model.ModelProtocol;
 import com.linlay.agentplatform.model.ModelRegistryService;
@@ -36,8 +37,6 @@ import java.util.stream.Stream;
 public class AgentDefinitionLoader {
 
     private static final Logger log = LoggerFactory.getLogger(AgentDefinitionLoader.class);
-    private static final String PLAN_ADD_TASK_TOOL = "_plan_add_tasks_";
-    private static final String PLAN_UPDATE_TASK_TOOL = "_plan_update_task_";
     private static final Set<String> YAML_EXTENSIONS = Set.of(".yml", ".yaml");
     private static final Pattern MULTILINE_PROMPT_PATTERN =
             Pattern.compile("(\"[a-zA-Z0-9_]*systemPrompt\"\\s*:\\s*)\"\"\"([\\s\\S]*?)\"\"\"", Pattern.CASE_INSENSITIVE);
@@ -147,11 +146,11 @@ public class AgentDefinitionLoader {
 
         try {
             JsonNode root = parseConfig(file);
-            if (isLegacyConfig(root)) {
+            if (AgentDefinitionValidator.isLegacyConfig(root)) {
                 log.warn("Skip legacy agent config {}. Only Agent Definition v2 is supported.", file);
                 return Optional.empty();
             }
-            if (hasRemovedFields(root)) {
+            if (AgentDefinitionValidator.hasRemovedFields(root)) {
                 log.warn("Skip agent config {}. Removed fields are no longer supported.", file);
                 return Optional.empty();
             }
@@ -249,96 +248,6 @@ public class AgentDefinitionLoader {
         return fileName;
     }
 
-    private boolean isLegacyConfig(JsonNode root) {
-        if (root == null || !root.isObject()) {
-            return true;
-        }
-        if (root.has("deepThink")
-                || root.has("systemPrompt")
-                || root.has("providerKey")
-                || root.has("model")
-                || root.has("reasoning")
-                || root.has("tools")) {
-            return true;
-        }
-        return hasLegacyStageFields(root.path("plain"))
-                || hasLegacyStageFields(root.path("react"))
-                || hasLegacyPlanExecuteStageFields(root.path("planExecute"));
-    }
-
-    private boolean hasLegacyPlanExecuteStageFields(JsonNode node) {
-        if (node == null || !node.isObject()) {
-            return false;
-        }
-        return hasLegacyStageFields(node.path("plan"))
-                || hasLegacyStageFields(node.path("execute"))
-                || hasLegacyStageFields(node.path("summary"));
-    }
-
-    private boolean hasLegacyStageFields(JsonNode node) {
-        if (node == null || !node.isObject()) {
-            return false;
-        }
-        return node.has("providerKey")
-                || node.has("model")
-                || node.has("reasoning")
-                || node.has("tools");
-    }
-
-    private boolean hasRemovedFields(JsonNode root) {
-        if (root == null || !root.isObject()) {
-            return false;
-        }
-        if (hasLegacyModelConfigFields(root.path("modelConfig"))
-                || hasLegacyModelConfigFields(root.path("plain").path("modelConfig"))
-                || hasLegacyModelConfigFields(root.path("react").path("modelConfig"))
-                || hasLegacyModelConfigFields(root.path("planExecute").path("plan").path("modelConfig"))
-                || hasLegacyModelConfigFields(root.path("planExecute").path("execute").path("modelConfig"))
-                || hasLegacyModelConfigFields(root.path("planExecute").path("summary").path("modelConfig"))) {
-            return true;
-        }
-        if (root.has("verify") || root.has("output") || root.has("toolPolicy")) {
-            return true;
-        }
-        JsonNode budget = root.path("budget");
-        if (budget.isObject() && budget.has("maxSteps")) {
-            return true;
-        }
-        JsonNode runtimePrompts = root.path("runtimePrompts");
-        if (!runtimePrompts.isObject()) {
-            return false;
-        }
-        if (runtimePrompts.has("verify")
-                || runtimePrompts.has("finalAnswer")
-                || runtimePrompts.has("oneshot")
-                || runtimePrompts.has("react")) {
-            return true;
-        }
-        JsonNode planExecute = runtimePrompts.path("planExecute");
-        if (!planExecute.isObject()) {
-            return false;
-        }
-        return planExecute.has("executeToolsTitle")
-                || planExecute.has("planCallableToolsTitle")
-                || planExecute.has("draftInstructionBlock")
-                || planExecute.has("generateInstructionBlockFromDraft")
-                || planExecute.has("generateInstructionBlockDirect")
-                || planExecute.has("taskRequireToolUserPrompt")
-                || planExecute.has("taskMultipleToolsUserPrompt")
-                || planExecute.has("taskUpdateNoProgressUserPrompt")
-                || planExecute.has("taskContinueUserPrompt")
-                || planExecute.has("updateRoundPromptTemplate")
-                || planExecute.has("updateRoundMultipleToolsUserPrompt")
-                || planExecute.has("allStepsCompletedUserPrompt");
-    }
-
-    private boolean hasLegacyModelConfigFields(JsonNode modelConfig) {
-        if (modelConfig == null || !modelConfig.isObject()) {
-            return false;
-        }
-        return modelConfig.has("providerKey") || modelConfig.has("model");
-    }
-
     private String normalizeMultilinePrompts(String rawJson) throws IOException {
         Matcher matcher = MULTILINE_PROMPT_PATTERN.matcher(rawJson);
         if (!matcher.find()) {
@@ -367,7 +276,7 @@ public class AgentDefinitionLoader {
     }
 
     private String normalize(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value;
+        return StringHelpers.normalize(value, fallback);
     }
 
     private boolean hasAnyModelConfig(AgentConfigFile config) {
@@ -463,8 +372,8 @@ public class AgentDefinitionLoader {
         }
         AgentRuntimeMode mode = config == null ? null : config.getMode();
         if (mode == AgentRuntimeMode.PLAN_EXECUTE) {
-            merged.add(PLAN_ADD_TASK_TOOL);
-            merged.add(PLAN_UPDATE_TASK_TOOL);
+            merged.add(PlanToolConstants.PLAN_ADD_TASKS_TOOL);
+            merged.add(PlanToolConstants.PLAN_UPDATE_TASK_TOOL);
         }
         return merged.stream().distinct().toList();
     }

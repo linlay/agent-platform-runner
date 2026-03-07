@@ -7,6 +7,7 @@ import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.skill.SkillDescriptor;
+import com.linlay.agentplatform.util.IdGenerators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.Message;
@@ -374,7 +375,7 @@ public class ExecutionContext {
     }
 
     private String shortId() {
-        return UUID.randomUUID().toString().replace("-", "").substring(0, 8).toLowerCase(Locale.ROOT);
+        return IdGenerators.shortHexId();
     }
 
     private Map<String, SkillDescriptor> normalizeResolvedSkills(Map<String, SkillDescriptor> raw) {

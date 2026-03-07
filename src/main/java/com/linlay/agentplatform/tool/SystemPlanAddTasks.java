@@ -1,21 +1,22 @@
 package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.linlay.agentplatform.agent.PlanToolConstants;
+import com.linlay.agentplatform.util.IdGenerators;
+import com.linlay.agentplatform.util.MapReaders;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 
 @Component
 public class SystemPlanAddTasks extends AbstractDeterministicTool {
 
     @Override
     public String name() {
-        return "_plan_add_tasks_";
+        return PlanToolConstants.PLAN_ADD_TASKS_TOOL;
     }
 
     @Override
@@ -72,15 +73,7 @@ public class SystemPlanAddTasks extends AbstractDeterministicTool {
     }
 
     private String readString(Map<?, ?> map, String key) {
-        if (map == null || key == null) {
-            return null;
-        }
-        Object value = map.get(key);
-        if (value == null) {
-            return null;
-        }
-        String text = value.toString();
-        return text == null || text.isBlank() ? null : text;
+        return MapReaders.readString(map, key);
     }
 
     private String normalizeStatusStrict(String raw) {
@@ -95,22 +88,7 @@ public class SystemPlanAddTasks extends AbstractDeterministicTool {
     }
 
     private String shortId() {
-        Set<Character> allowed = Set.of('0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-                'a', 'b', 'c', 'd', 'e', 'f');
-        String raw = UUID.randomUUID().toString().replace("-", "").toLowerCase(Locale.ROOT);
-        StringBuilder id = new StringBuilder(8);
-        for (char c : raw.toCharArray()) {
-            if (allowed.contains(c)) {
-                id.append(c);
-                if (id.length() == 8) {
-                    break;
-                }
-            }
-        }
-        if (id.length() < 8) {
-            return (raw + "00000000").substring(0, 8);
-        }
-        return id.toString();
+        return IdGenerators.shortHexId();
     }
 
     private record TaskItem(

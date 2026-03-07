@@ -2,9 +2,7 @@ package com.linlay.agentplatform.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 @ConfigurationProperties(prefix = "agent.mcp-servers")
@@ -14,12 +12,6 @@ public class McpProperties {
     private String protocolVersion = "2025-06";
     private int connectTimeoutMs = 3_000;
     private int retry = 1;
-    /**
-     * @deprecated Runtime registration is now registry-only (agent.mcp-servers.registry.external-dir).
-     * This field is kept for backward-compatible configuration binding only.
-     */
-    @Deprecated
-    private List<Server> servers = new ArrayList<>();
     private Registry registry = new Registry();
 
     public boolean isEnabled() {
@@ -52,16 +44,6 @@ public class McpProperties {
 
     public void setRetry(int retry) {
         this.retry = retry;
-    }
-
-    @Deprecated
-    public List<Server> getServers() {
-        return servers;
-    }
-
-    @Deprecated
-    public void setServers(List<Server> servers) {
-        this.servers = servers == null ? new ArrayList<>() : new ArrayList<>(servers);
     }
 
     public Registry getRegistry() {

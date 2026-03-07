@@ -5,6 +5,7 @@ import com.linlay.agentplatform.stream.model.ToolCallDelta;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.tool.ToolRegistry;
+import com.linlay.agentplatform.util.StringHelpers;
 import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
@@ -341,6 +342,6 @@ public class AgentDeltaToStreamInputMapper {
     }
 
     private boolean hasText(String value) {
-        return value != null && !value.isBlank();
+        return StringHelpers.hasText(value);
     }
 }

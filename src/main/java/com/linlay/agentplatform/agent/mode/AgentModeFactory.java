@@ -1,10 +1,12 @@
 package com.linlay.agentplatform.agent.mode;
 
 import com.linlay.agentplatform.agent.AgentConfigFile;
+import com.linlay.agentplatform.agent.PlanToolConstants;
 import com.linlay.agentplatform.agent.SkillAppend;
 import com.linlay.agentplatform.agent.ToolAppend;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
+import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.model.ModelDefinition;
 import org.springframework.util.StringUtils;
 
@@ -15,9 +17,6 @@ import java.util.Locale;
 import java.util.function.Function;
 
 public final class AgentModeFactory {
-
-    private static final String PLAN_ADD_TASK_TOOL = "_plan_add_tasks_";
-    private static final String PLAN_UPDATE_TASK_TOOL = "_plan_update_task_";
 
     private AgentModeFactory() {
     }
@@ -57,13 +56,13 @@ public final class AgentModeFactory {
                 StageSettings planStage = stageSettings(
                         config,
                         pe == null ? null : pe.getPlan(),
-                        List.of(PLAN_ADD_TASK_TOOL),
+                        List.of(PlanToolConstants.PLAN_ADD_TASKS_TOOL),
                         modelResolver
                 );
                 StageSettings executeStage = stageSettings(
                         config,
                         pe == null ? null : pe.getExecute(),
-                        List.of(PLAN_UPDATE_TASK_TOOL),
+                        List.of(PlanToolConstants.PLAN_UPDATE_TASK_TOOL),
                         modelResolver
                 );
                 StageSettings summaryStage = stageSettings(
@@ -263,6 +262,6 @@ public final class AgentModeFactory {
     }
 
     private static String normalize(String value) {
-        return isBlank(value) ? null : value.trim();
+        return StringHelpers.nullable(value);
     }
 }

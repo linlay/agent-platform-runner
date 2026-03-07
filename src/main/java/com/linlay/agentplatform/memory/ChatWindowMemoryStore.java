@@ -6,6 +6,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.util.IdGenerators;
+import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -31,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
-import java.util.UUID;
 import java.util.Objects;
 
 @Service
@@ -459,6 +460,7 @@ public class ChatWindowMemoryStore {
             }
 
             PlanSnapshot plan = null;
+            // COMPAT(V3): Keep reading legacy `planSnapshot` until historical chat memory files are migrated or dropped.
             JsonNode planNode = node.has("plan") && !node.get("plan").isNull()
                     ? node.get("plan")
                     : (node.has("planSnapshot") && !node.get("planSnapshot").isNull() ? node.get("planSnapshot") : null);
@@ -770,16 +772,7 @@ public class ChatWindowMemoryStore {
     // ========= Utility =========
 
     private String shortId(String prefix, String seed) {
-        String shortPart;
-        if (hasText(seed)) {
-            shortPart = UUID.nameUUIDFromBytes(seed.getBytes(StandardCharsets.UTF_8))
-                    .toString()
-                    .replace("-", "")
-                    .substring(0, 8);
-        } else {
-            shortPart = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
-        }
-        return prefix + "_" + shortPart;
+        return IdGenerators.shortHexId(prefix, seed);
     }
 
     private Map<String, Object> usageOrNull(Map<String, Object> usage) {
@@ -848,7 +841,7 @@ public class ChatWindowMemoryStore {
     }
 
     private String nullable(String value) {
-        return hasText(value) ? value.trim() : null;
+        return StringHelpers.nullable(value);
     }
 
     private String defaultString(String value) {
@@ -881,19 +874,11 @@ public class ChatWindowMemoryStore {
     }
 
     private boolean hasText(String value) {
-        return StringUtils.hasText(value);
+        return StringHelpers.hasText(value);
     }
 
     private boolean isValidChatId(String chatId) {
-        if (!StringUtils.hasText(chatId)) {
-            return false;
-        }
-        try {
-            UUID.fromString(chatId.trim());
-            return true;
-        } catch (IllegalArgumentException ex) {
-            return false;
-        }
+        return StringHelpers.isValidChatId(chatId);
     }
 
     // ========= Inner Types =========
@@ -1103,6 +1088,7 @@ public class ChatWindowMemoryStore {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PlanSnapshot {
         public String planId;
+        // COMPAT(V3): Keep `plan` alias until stored V3 payloads are no longer read.
         @JsonProperty("tasks")
         @JsonAlias("plan")
         public List<PlanTaskSnapshot> tasks;
@@ -1134,6 +1120,7 @@ public class ChatWindowMemoryStore {
         public String contentId;
         @JsonProperty("_msgId")
         public String msgId;
+        // COMPAT(V3): Keep outer `_toolId`/`_actionId` fields while replay still supports V3/V3.1 stored message payloads.
         @JsonProperty("_toolId")
         public String toolId;
         @JsonProperty("_actionId")
@@ -1155,6 +1142,7 @@ public class ChatWindowMemoryStore {
         public String id;
         public String type;
         public FunctionCall function;
+        // COMPAT(V3): Keep inner `_toolId`/`_actionId` fields while replay still supports V3 stored tool-call payloads.
         @JsonProperty("_toolId")
         public String toolId;
         @JsonProperty("_actionId")

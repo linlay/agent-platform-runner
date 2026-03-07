@@ -1,6 +1,8 @@
 package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.linlay.agentplatform.agent.PlanToolConstants;
+import com.linlay.agentplatform.util.MapReaders;
 import org.springframework.stereotype.Component;
 
 import java.util.Locale;
@@ -11,7 +13,7 @@ public class SystemPlanUpdateTask extends AbstractDeterministicTool {
 
     @Override
     public String name() {
-        return "_plan_update_task_";
+        return PlanToolConstants.PLAN_UPDATE_TASK_TOOL;
     }
 
     @Override
@@ -33,15 +35,7 @@ public class SystemPlanUpdateTask extends AbstractDeterministicTool {
     }
 
     private String readString(Map<String, Object> args, String key) {
-        if (args == null || key == null) {
-            return null;
-        }
-        Object value = args.get(key);
-        if (value == null) {
-            return null;
-        }
-        String text = value.toString();
-        return text == null || text.isBlank() ? null : text;
+        return MapReaders.readString(args, key);
     }
 
     private String normalizeStatusStrict(String raw) {

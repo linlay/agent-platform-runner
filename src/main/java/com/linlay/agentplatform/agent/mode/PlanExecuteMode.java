@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.agent.mode;
 
 import com.linlay.agentplatform.agent.AgentConfigFile;
+import com.linlay.agentplatform.agent.PlanToolConstants;
 import com.linlay.agentplatform.agent.SkillAppend;
 import com.linlay.agentplatform.agent.ToolAppend;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
@@ -24,8 +25,6 @@ import java.util.regex.Pattern;
 
 public final class PlanExecuteMode extends AgentMode {
 
-    private static final String PLAN_ADD_TASK_TOOL = "_plan_add_tasks_";
-    private static final String PLAN_UPDATE_TASK_TOOL = "_plan_update_task_";
     private static final int MAX_WORK_ROUNDS_PER_TASK = 6;
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{\\s*([a-z0-9_]+)\\s*}}");
 
@@ -144,7 +143,7 @@ public final class PlanExecuteMode extends AgentMode {
                     enabledToolsByName::get
             );
             Map<String, BaseTool> planCallableTools = selectPlanCallableTools(planPromptTools);
-            if (!planCallableTools.containsKey(PLAN_ADD_TASK_TOOL)) {
+            if (!planCallableTools.containsKey(PlanToolConstants.PLAN_ADD_TASKS_TOOL)) {
                 throw new PlanExecutionStalledException("计划任务执行中断：缺少必需工具 _plan_add_tasks_，无法创建计划任务。");
             }
             Map<String, BaseTool> executeTools = services.selectTools(
@@ -401,7 +400,7 @@ public final class PlanExecuteMode extends AgentMode {
         if (call == null || call.arguments() == null || call.arguments().isEmpty()) {
             return false;
         }
-        if (!PLAN_UPDATE_TASK_TOOL.equals(str(call.name(), "").toLowerCase())) {
+        if (!PlanToolConstants.PLAN_UPDATE_TASK_TOOL.equals(str(call.name(), "").toLowerCase())) {
             return false;
         }
         Object value = call.arguments().get("taskId");
@@ -412,12 +411,12 @@ public final class PlanExecuteMode extends AgentMode {
         if (calls == null || calls.isEmpty()) {
             return false;
         }
-        return calls.stream().anyMatch(c -> c != null && PLAN_ADD_TASK_TOOL.equals(str(c.name(), "").toLowerCase()));
+        return calls.stream().anyMatch(c -> c != null && PlanToolConstants.PLAN_ADD_TASKS_TOOL.equals(str(c.name(), "").toLowerCase()));
     }
 
     private Map<String, BaseTool> selectPlanCallableTools(Map<String, BaseTool> planTools) {
-        BaseTool addTaskTool = planTools == null ? null : planTools.get(PLAN_ADD_TASK_TOOL);
-        return addTaskTool == null ? Map.of() : Map.of(PLAN_ADD_TASK_TOOL, addTaskTool);
+        BaseTool addTaskTool = planTools == null ? null : planTools.get(PlanToolConstants.PLAN_ADD_TASKS_TOOL);
+        return addTaskTool == null ? Map.of() : Map.of(PlanToolConstants.PLAN_ADD_TASKS_TOOL, addTaskTool);
     }
 
     private StageSettings withReasoning(StageSettings stage, boolean reasoningEnabled) {
@@ -510,14 +509,7 @@ public final class PlanExecuteMode extends AgentMode {
     }
 
     private String normalizeStatus(String status) {
-        if (status == null || status.isBlank()) {
-            return "init";
-        }
-        String normalized = status.trim().toLowerCase();
-        return switch (normalized) {
-            case "init", "completed", "failed", "canceled" -> normalized;
-            default -> "init";
-        };
+        return AgentDelta.normalizePlanTaskStatus(status);
     }
 
     private String str(String value, String fallback) {

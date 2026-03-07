@@ -2,6 +2,7 @@ package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.linlay.agentplatform.service.McpToolSyncService;
+import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -171,7 +172,7 @@ public class ToolRegistry {
     }
 
     private String normalize(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value.trim();
+        return StringHelpers.trimOrDefault(value, fallback);
     }
 
     private Map<String, BaseTool> buildNativeToolsByName(List<BaseTool> tools) {

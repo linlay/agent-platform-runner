@@ -62,28 +62,28 @@ class McpRunnerMockChainTest {
         );
         McpServerAvailabilityGate availabilityGate = new McpServerAvailabilityGate();
 
-        McpToolSyncService capabilitySyncService = new McpToolSyncService(
+        McpToolSyncService toolSyncService = new McpToolSyncService(
                 properties,
                 serverRegistryService,
                 availabilityGate,
                 streamableHttpClient,
                 objectMapper
         );
-        capabilitySyncService.refreshTools();
+        toolSyncService.refreshTools();
 
-        assertThat(capabilitySyncService.find("mock.weather.query"))
+        assertThat(toolSyncService.find("mock.weather.query"))
                 .isPresent()
                 .get()
                 .extracting(descriptor -> descriptor.sourceType(), descriptor -> descriptor.sourceKey())
                 .containsExactly("mcp", "mock");
-        assertThat(capabilitySyncService.find("mock.weather.query"))
+        assertThat(toolSyncService.find("mock.weather.query"))
                 .isPresent()
                 .get()
                 .extracting(descriptor -> descriptor.afterCallHint())
                 .isEqualTo("Use viewport key=show_weather_card");
 
         DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
-        beanFactory.registerSingleton("mcpToolSyncService", capabilitySyncService);
+        beanFactory.registerSingleton("mcpToolSyncService", toolSyncService);
         ToolRegistry toolRegistry = new ToolRegistry(
                 List.of(),
                 beanFactory.getBeanProvider(ToolFileRegistryService.class),

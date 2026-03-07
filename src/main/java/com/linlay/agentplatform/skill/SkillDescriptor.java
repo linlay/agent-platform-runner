@@ -1,5 +1,7 @@
 package com.linlay.agentplatform.skill;
 
+import com.linlay.agentplatform.util.StringHelpers;
+
 public record SkillDescriptor(
         String id,
         String name,
@@ -17,6 +19,6 @@ public record SkillDescriptor(
     }
 
     private static String normalize(String value) {
-        return value == null ? "" : value.trim();
+        return StringHelpers.trimToEmpty(value);
     }
 }

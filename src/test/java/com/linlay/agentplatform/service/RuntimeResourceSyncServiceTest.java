@@ -87,8 +87,8 @@ class RuntimeResourceSyncServiceTest {
         Path configuredSchedulesDir = tempDir.resolve("configured").resolve("schedules");
         Path legacyUserDir = tempDir.resolve("legacy-user-dir");
 
-        ToolProperties capabilityProperties = new ToolProperties();
-        capabilityProperties.setExternalDir(configuredToolsDir.toString());
+        ToolProperties toolProperties = new ToolProperties();
+        toolProperties.setExternalDir(configuredToolsDir.toString());
         SkillProperties skillProperties = new SkillProperties();
         skillProperties.setExternalDir(configuredSkillsDir.toString());
         ScheduleProperties scheduleProperties = new ScheduleProperties();
@@ -98,7 +98,7 @@ class RuntimeResourceSyncServiceTest {
         try {
             System.setProperty("user.dir", legacyUserDir.toString());
             RuntimeResourceSyncService service = new RuntimeResourceSyncService(
-                    capabilityProperties,
+                    toolProperties,
                     skillProperties,
                     scheduleProperties
             );

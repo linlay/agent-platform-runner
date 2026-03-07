@@ -4,6 +4,7 @@ import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -176,6 +177,6 @@ public class OpenAiSseDeltaParser {
     }
 
     private boolean hasText(String text) {
-        return text != null && !text.isBlank();
+        return StringHelpers.hasText(text);
     }
 }
