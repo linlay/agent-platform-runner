@@ -16,7 +16,7 @@ toolConfig:
     - datetime
     - mock.weather.query
     - mock.sensitive-data.detect
-    - _bash_
+    - bash.exec
   frontends: []
   actions: []
 react:

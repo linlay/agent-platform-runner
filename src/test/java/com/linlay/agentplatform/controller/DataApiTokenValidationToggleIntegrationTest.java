@@ -1,6 +1,5 @@
 package com.linlay.agentplatform.controller;
 
-import com.linlay.agentplatform.config.ChatClientRegistry;
 import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
@@ -77,7 +76,7 @@ class DataApiTokenValidationToggleIntegrationTest {
         @Bean
         @Primary
         LlmService llmService() {
-            return new LlmService((ChatClientRegistry) null) {
+            return new LlmService() {
                 @Override
                 public Flux<String> streamContent(LlmCallSpec spec) {
                     return Flux.just("test");

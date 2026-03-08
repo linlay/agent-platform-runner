@@ -11,8 +11,8 @@ import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.tool.BaseTool;
-import org.springframework.ai.chat.messages.UserMessage;
 import reactor.core.publisher.FluxSink;
 
 import java.util.List;
@@ -241,7 +241,7 @@ public final class PlanExecuteMode extends AgentMode {
                                     "task_description", str(step.description(), "no description")
                             )
                     );
-                    context.executeMessages().add(new UserMessage(taskPrompt));
+                    context.executeMessages().add(new ChatMessage.UserMsg(taskPrompt));
 
                     executeTaskRounds(context, services, executeTools, stepNo, step, sink);
 

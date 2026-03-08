@@ -11,9 +11,6 @@ spring:
     import:
       - optional:file:./application.yml
       - optional:file:/opt/application.yml
-  ai:
-    openai:
-      api-key: ${OPENAI_API_KEY:dummy-openai-key}
 
 agent:
   agents:

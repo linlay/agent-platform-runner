@@ -3,16 +3,12 @@ package com.linlay.agentplatform.service;
 import com.linlay.agentplatform.stream.adapter.openai.OpenAiSseDeltaParser;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.AgentProviderProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.ToolResponseMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -60,7 +56,7 @@ class OpenAiCompatibleSseClient {
             String providerKey,
             String model,
             String systemPrompt,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String userPrompt,
             List<LlmService.LlmFunctionTool> tools,
             boolean parallelToolCalls,
@@ -95,7 +91,7 @@ class OpenAiCompatibleSseClient {
             String providerKey,
             String model,
             String systemPrompt,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String userPrompt,
             List<LlmService.LlmFunctionTool> tools,
             boolean parallelToolCalls,
@@ -169,7 +165,7 @@ class OpenAiCompatibleSseClient {
             String providerKey,
             String model,
             String systemPrompt,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String userPrompt,
             String stage
     ) {
@@ -180,7 +176,7 @@ class OpenAiCompatibleSseClient {
             String providerKey,
             String model,
             String systemPrompt,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String userPrompt,
             String stage,
             String endpointPath
@@ -299,7 +295,7 @@ class OpenAiCompatibleSseClient {
             String providerKey,
             String model,
             String systemPrompt,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String userPrompt,
             List<LlmService.LlmFunctionTool> tools,
             boolean parallelToolCalls,
@@ -329,7 +325,7 @@ class OpenAiCompatibleSseClient {
             String providerKey,
             String model,
             String systemPrompt,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String userPrompt,
             List<LlmService.LlmFunctionTool> tools,
             boolean parallelToolCalls,
@@ -417,7 +413,7 @@ class OpenAiCompatibleSseClient {
 
     private List<Map<String, Object>> buildRawMessages(
             String systemPrompt,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String userPrompt
     ) {
         List<Map<String, Object>> messages = new ArrayList<>();
@@ -425,7 +421,7 @@ class OpenAiCompatibleSseClient {
             messages.add(rawTextMessage("system", systemPrompt));
         }
         if (historyMessages != null && !historyMessages.isEmpty()) {
-            for (Message message : historyMessages) {
+            for (ChatMessage message : historyMessages) {
                 messages.addAll(toRawMessages(message));
             }
         }
@@ -435,24 +431,24 @@ class OpenAiCompatibleSseClient {
         return messages;
     }
 
-    private List<Map<String, Object>> toRawMessages(Message message) {
+    private List<Map<String, Object>> toRawMessages(ChatMessage message) {
         if (message == null) {
             return List.of();
         }
-        if (message instanceof SystemMessage systemMessage) {
-            return List.of(rawTextMessage("system", systemMessage.getText()));
+        if (message instanceof ChatMessage.SystemMsg systemMsg) {
+            return List.of(rawTextMessage("system", systemMsg.text()));
         }
-        if (message instanceof UserMessage userMessage) {
-            return List.of(rawTextMessage("user", userMessage.getText()));
+        if (message instanceof ChatMessage.UserMsg userMsg) {
+            return List.of(rawTextMessage("user", userMsg.text()));
         }
-        if (message instanceof AssistantMessage assistantMessage) {
+        if (message instanceof ChatMessage.AssistantMsg assistantMsg) {
             Map<String, Object> assistant = new LinkedHashMap<>();
             assistant.put("role", "assistant");
-            String content = assistantMessage.getText();
+            String content = assistantMsg.text();
             assistant.put("content", content == null ? "" : content);
-            if (assistantMessage.getToolCalls() != null && !assistantMessage.getToolCalls().isEmpty()) {
+            if (assistantMsg.toolCalls() != null && !assistantMsg.toolCalls().isEmpty()) {
                 List<Map<String, Object>> toolCalls = new ArrayList<>();
-                for (AssistantMessage.ToolCall call : assistantMessage.getToolCalls()) {
+                for (ChatMessage.AssistantMsg.ToolCall call : assistantMsg.toolCalls()) {
                     if (call == null) {
                         continue;
                     }
@@ -471,12 +467,12 @@ class OpenAiCompatibleSseClient {
             }
             return List.of(assistant);
         }
-        if (message instanceof ToolResponseMessage toolResponseMessage) {
-            if (toolResponseMessage.getResponses() == null || toolResponseMessage.getResponses().isEmpty()) {
+        if (message instanceof ChatMessage.ToolResultMsg toolResultMsg) {
+            if (toolResultMsg.responses() == null || toolResultMsg.responses().isEmpty()) {
                 return List.of();
             }
             List<Map<String, Object>> toolMessages = new ArrayList<>();
-            for (ToolResponseMessage.ToolResponse response : toolResponseMessage.getResponses()) {
+            for (ChatMessage.ToolResultMsg.ToolResponse response : toolResultMsg.responses()) {
                 if (response == null) {
                     continue;
                 }
@@ -490,10 +486,7 @@ class OpenAiCompatibleSseClient {
             return toolMessages;
         }
 
-        String role = message.getMessageType() == null
-                ? "assistant"
-                : message.getMessageType().name().toLowerCase(Locale.ROOT);
-        return List.of(rawTextMessage(role, message.getText()));
+        return List.of(rawTextMessage(message.role(), message.text()));
     }
 
     private Map<String, Object> rawTextMessage(String role, String content) {

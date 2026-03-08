@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-Spring Boot + Spring AI agent gateway — 基于 WebFlux 的响应式 LLM Agent 编排服务，通过 JSON 配置定义 Agent，支持多种执行模式和原生 OpenAI Function Calling 协议。
+Spring Boot agent gateway — 基于 WebFlux 的响应式 LLM Agent 编排服务，通过 JSON 配置定义 Agent，支持多种执行模式和原生 OpenAI Function Calling 协议。
 
-**技术栈:** Java 21, Spring Boot 3.3.8, Spring AI 1.0.0, WebFlux (Reactor), Jackson
+**技术栈:** Java 21, Spring Boot 3.3.8, WebFlux (Reactor), Jackson
 
 **LLM 提供商:** Bailian (阿里云百炼/Qwen), SiliconFlow (DeepSeek), Babelark 等；provider 只承载连接配置，实际调用协议由模型定义决定。
 
@@ -60,7 +60,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 | `model` | `AgentRequest`、`ModelProperties`、`ModelDefinition`、`ModelProtocol`、`ViewportType` |
 | `model.api` | REST 契约：`ApiResponse`、`QueryRequest`、`SubmitRequest`、`ChatDetailResponse` 等 |
 | `model.stream` | 流式类型：`AgentDelta` |
-| `service` | `LlmService`（WebClient SSE + ChatClient 双路径）、`AgentQueryService`（流编排）、`ChatRecordStore`、`DirectoryWatchService` |
+| `service` | `LlmService`（WebClient 原生 SSE）、`AgentQueryService`（流编排）、`ChatRecordStore`、`DirectoryWatchService` |
 | `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册、`ToolFileRegistryService`（外部工具），内置 bash/datetime/mock_city_weather 等 |
 | `skill` | `SkillRegistryService`（技能注册与热刷新）、`SkillDescriptor`、`SkillProperties` |
 | `controller` | REST API：`/api/ap/agents`、`/api/ap/agent`、`/api/ap/skills`、`/api/ap/skill`、`/api/ap/tools`、`/api/ap/tool`、`/api/ap/chats`、`/api/ap/chat`、`/api/ap/query`（SSE）、`/api/ap/submit`、`/api/ap/viewport` |
@@ -74,7 +74,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 - **示例资源分发** — demo 资源统一放在 `example/`，可通过 `example/install-example-*` 覆盖复制到外层运行目录
 - **依赖感知热重载** — `tools/mcp/models` 变更按依赖精准刷新 agent；`skills` 仅刷新技能注册表
 - **工具参数模板** — `{{tool_name.field+Nd}}` 日期运算和链式引用
-- **双路径 LLM** — WebClient 原生 SSE 和 ChatClient，按需选择
+- **原生 SSE LLM** — WebClient 原生 SSE 直连 LLM Provider
 - **响应格式** — 非 SSE 接口统一 `{"code": 0, "msg": "success", "data": {}}`
 - **会话详情格式** — `GET /api/ap/chat` 的 `data` 字段固定为 `chatId/chatName/rawMessages/events/references`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回
 
@@ -541,7 +541,6 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `server.port` | `8080` | HTTP 端口（环境变量 `SERVER_PORT`） |
 | `spring.application.name` | `springai-agent-platform` | 服务名 |
 | `spring.config.import` | `optional:file:./application.yml, optional:file:/opt/application.yml` | 启动时按顺序加载本地和容器外部覆盖文件 |
-| `spring.ai.openai.api-key` | `${OPENAI_API_KEY:dummy-openai-key}` | Spring AI 占位 key；真实模型调用走 `agent.providers.*` |
 
 ### 环境变量完整列表
 

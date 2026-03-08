@@ -2,8 +2,8 @@ package com.linlay.agentplatform.service;
 
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
+import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.model.ModelProtocol;
-import org.springframework.ai.chat.messages.Message;
 
 import java.util.List;
 
@@ -12,7 +12,7 @@ public record LlmCallSpec(
         String model,
         ModelProtocol protocol,
         String systemPrompt,
-        List<Message> messages,
+        List<ChatMessage> messages,
         String userPrompt,
         List<LlmService.LlmFunctionTool> tools,
         ToolChoice toolChoice,

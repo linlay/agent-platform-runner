@@ -2,12 +2,9 @@ package com.linlay.agentplatform.memory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.model.ChatMessage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.ToolResponseMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -107,12 +104,12 @@ class ChatWindowMemoryStoreTest {
         assertThat(toolResult.path("_actionId").asText()).isEqualTo("call_tool_1");
 
         // Load history messages: reasoning excluded, others included
-        List<Message> historyMessages = store.loadHistoryMessages(chatId);
+        List<ChatMessage> historyMessages = store.loadHistoryMessages(chatId);
         assertThat(historyMessages).hasSize(4);
-        assertThat(historyMessages.get(0)).isInstanceOf(UserMessage.class);
-        assertThat(historyMessages.get(1)).isInstanceOf(AssistantMessage.class);
-        assertThat(historyMessages.get(2)).isInstanceOf(ToolResponseMessage.class);
-        assertThat(historyMessages.get(3)).isInstanceOf(AssistantMessage.class);
+        assertThat(historyMessages.get(0)).isInstanceOf(ChatMessage.UserMsg.class);
+        assertThat(historyMessages.get(1)).isInstanceOf(ChatMessage.AssistantMsg.class);
+        assertThat(historyMessages.get(2)).isInstanceOf(ChatMessage.ToolResultMsg.class);
+        assertThat(historyMessages.get(3)).isInstanceOf(ChatMessage.AssistantMsg.class);
     }
 
     @Test
@@ -266,12 +263,12 @@ class ChatWindowMemoryStoreTest {
         assertThat(objectMapper.readTree(lines.get(3)).path("runId").asText()).isEqualTo("run_003");
 
         // Load history: run_002 + run_003 messages (reasoning excluded)
-        List<Message> historyMessages = store.loadHistoryMessages(chatId);
+        List<ChatMessage> historyMessages = store.loadHistoryMessages(chatId);
         assertThat(historyMessages).hasSize(4);
-        assertThat(((UserMessage) historyMessages.get(0)).getText()).isEqualTo("u2");
-        assertThat(((AssistantMessage) historyMessages.get(1)).getText()).isEqualTo("a2");
-        assertThat(((UserMessage) historyMessages.get(2)).getText()).isEqualTo("u3");
-        assertThat(((AssistantMessage) historyMessages.get(3)).getText()).isEqualTo("a3");
+        assertThat(((ChatMessage.UserMsg) historyMessages.get(0)).text()).isEqualTo("u2");
+        assertThat(((ChatMessage.AssistantMsg) historyMessages.get(1)).text()).isEqualTo("a2");
+        assertThat(((ChatMessage.UserMsg) historyMessages.get(2)).text()).isEqualTo("u3");
+        assertThat(((ChatMessage.AssistantMsg) historyMessages.get(3)).text()).isEqualTo("a3");
     }
 
     @Test
@@ -403,14 +400,14 @@ class ChatWindowMemoryStoreTest {
                         ChatWindowMemoryStore.RunMessage.assistantContent("found file.txt", 2000L, 20L, null)
                 ));
 
-        List<Message> messages = store.loadHistoryMessages(chatId);
+        List<ChatMessage> messages = store.loadHistoryMessages(chatId);
         // user, assistantToolCall, toolResult, assistantContent
         assertThat(messages).hasSize(4);
-        assertThat(messages.get(0)).isInstanceOf(UserMessage.class);
-        assertThat(messages.get(1)).isInstanceOf(AssistantMessage.class);
-        assertThat(messages.get(2)).isInstanceOf(ToolResponseMessage.class);
-        assertThat(messages.get(3)).isInstanceOf(AssistantMessage.class);
-        assertThat(((AssistantMessage) messages.get(3)).getText()).isEqualTo("found file.txt");
+        assertThat(messages.get(0)).isInstanceOf(ChatMessage.UserMsg.class);
+        assertThat(messages.get(1)).isInstanceOf(ChatMessage.AssistantMsg.class);
+        assertThat(messages.get(2)).isInstanceOf(ChatMessage.ToolResultMsg.class);
+        assertThat(messages.get(3)).isInstanceOf(ChatMessage.AssistantMsg.class);
+        assertThat(((ChatMessage.AssistantMsg) messages.get(3)).text()).isEqualTo("found file.txt");
     }
 
     @Test

@@ -13,7 +13,6 @@ import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
-import com.linlay.agentplatform.config.ChatClientRegistry;
 import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
@@ -477,7 +476,7 @@ class DefinitionDrivenAgentTest {
         );
 
         AtomicReference<LlmCallSpec> captured = new AtomicReference<>();
-        LlmService llmService = new LlmService((ChatClientRegistry) null) {
+        LlmService llmService = new LlmService() {
             @Override
             public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
                 captured.set(spec);
@@ -1024,7 +1023,7 @@ class DefinitionDrivenAgentTest {
         List<String> step2Messages = stageSpecs.get("agent-react-step-2")
                 .messages()
                 .stream()
-                .map(message -> message.getText() == null ? "" : message.getText())
+                .map(message -> message.text() == null ? "" : message.text())
                 .toList();
         assertThat(step2Messages).containsExactly("测试 react 空回复重试");
         assertThat(step2Messages).noneMatch(text -> text.contains("请基于已有信息给出最终答案，或调用工具获取更多信息。"));
@@ -1173,7 +1172,7 @@ class DefinitionDrivenAgentTest {
         assertThat(stageSpecs.get("agent-plan-generate").reasoningEnabled()).isFalse();
         assertThat(stageSpecs.get("agent-plan-generate").toolChoice()).isEqualTo(ToolChoice.REQUIRED);
         assertThat(stageSpecs.get("agent-plan-generate").userPrompt()).isNull();
-        assertThat(stageSpecs.get("agent-plan-generate").messages().stream().map(message -> message.getText()).toList())
+        assertThat(stageSpecs.get("agent-plan-generate").messages().stream().map(message -> message.text()).toList())
                 .containsExactly("测试 plan execute");
         List<AgentDelta.TaskLifecycle> taskLifecycleEvents = deltas.stream()
                 .map(AgentDelta::taskLifecycle)
@@ -1263,14 +1262,14 @@ class DefinitionDrivenAgentTest {
         assertThat(stageSpecs.get("agent-plan-draft").toolChoice()).isEqualTo(ToolChoice.NONE);
         assertThat(stageSpecs.get("agent-plan-draft").reasoningEnabled()).isTrue();
         assertThat(stageSpecs.get("agent-plan-draft").userPrompt()).isNull();
-        assertThat(stageSpecs.get("agent-plan-draft").messages().stream().map(message -> message.getText()).toList())
+        assertThat(stageSpecs.get("agent-plan-draft").messages().stream().map(message -> message.text()).toList())
                 .containsExactly("测试 plan 公开回合");
         assertThat(stageSpecs.get("agent-plan-generate").tools().stream().map(LlmService.LlmFunctionTool::name).toList())
                 .containsExactly("_plan_add_tasks_");
         assertThat(stageSpecs.get("agent-plan-generate").toolChoice()).isEqualTo(ToolChoice.REQUIRED);
         assertThat(stageSpecs.get("agent-plan-generate").reasoningEnabled()).isFalse();
         assertThat(stageSpecs.get("agent-plan-generate").userPrompt()).isNull();
-        assertThat(stageSpecs.get("agent-plan-generate").messages().stream().map(message -> message.getText()).toList())
+        assertThat(stageSpecs.get("agent-plan-generate").messages().stream().map(message -> message.text()).toList())
                 .contains("测试 plan 公开回合", "先分析约束并输出规划正文")
                 .noneMatch(text -> text.contains("本回合必须调用 _plan_add_tasks_"));
         assertThat(deltas.stream().flatMap(delta -> delta.toolCalls().stream()).map(ToolCallDelta::id))
@@ -1490,7 +1489,7 @@ class DefinitionDrivenAgentTest {
                 if (spec.stage().startsWith("agent-plan-execute-step-")) {
                     executeStages.add(spec.stage());
                     if (spec.messages() != null && !spec.messages().isEmpty()) {
-                        executeUserMessages.add(spec.messages().get(spec.messages().size() - 1).getText());
+                        executeUserMessages.add(spec.messages().get(spec.messages().size() - 1).text());
                     }
                 }
                 if ("agent-plan-generate".equals(spec.stage())) {
@@ -1837,7 +1836,7 @@ class DefinitionDrivenAgentTest {
         LlmCallSpec finalSpec = stageSpecs.get("agent-oneshot-tool-final");
         assertThat(repairSpec).isNotNull();
         assertThat(repairSpec2).isNotNull();
-        assertThat(repairSpec.messages().stream().map(message -> message.getText()))
+        assertThat(repairSpec.messages().stream().map(message -> message.text()))
                 .noneMatch(text -> text != null && text.contains("必须调用至少一个工具"));
         assertThat(finalSpec).isNotNull();
         assertThat(finalSpec.userPrompt()).isNull();
@@ -1918,7 +1917,7 @@ class DefinitionDrivenAgentTest {
         assertThat(stageSpecs).containsKeys("agent-react-step-1", "agent-react-step-1-retry-1", "agent-react-final");
         LlmCallSpec retrySpec = stageSpecs.get("agent-react-step-2-retry-1");
         assertThat(retrySpec).isNotNull();
-        assertThat(retrySpec.messages().stream().map(message -> message.getText()))
+        assertThat(retrySpec.messages().stream().map(message -> message.text()))
                 .noneMatch(text -> text != null && text.contains("必须调用至少一个工具"));
     }
 
@@ -1994,7 +1993,7 @@ class DefinitionDrivenAgentTest {
 
         LlmCallSpec executeSpec = stageSpecs.get("agent-plan-execute-step-1");
         assertThat(executeSpec).isNotNull();
-        assertThat(executeSpec.messages().stream().map(message -> message.getText()))
+        assertThat(executeSpec.messages().stream().map(message -> message.text()))
                 .anyMatch(text -> text != null && text.contains("RUNTIME_TASK_PROMPT") && text.contains("当前任务描述: 任务A"));
         assertThat(verifyStage.get()).isNull();
     }
@@ -2113,7 +2112,7 @@ class DefinitionDrivenAgentTest {
             return "unknown";
         }
         for (int i = spec.messages().size() - 1; i >= 0; i--) {
-            String text = spec.messages().get(i).getText();
+            String text = spec.messages().get(i).text();
             if (text == null || text.isBlank()) {
                 continue;
             }
@@ -2155,7 +2154,7 @@ class DefinitionDrivenAgentTest {
     private abstract static class StubLlmService extends LlmService {
 
         protected StubLlmService() {
-            super((ChatClientRegistry) null);
+            super();
         }
 
         @Override

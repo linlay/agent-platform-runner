@@ -1,10 +1,10 @@
 package com.linlay.agentplatform.service;
 
+import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.AgentProviderProperties;
 import com.linlay.agentplatform.stream.model.LlmDelta;
-import org.springframework.ai.chat.messages.Message;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 
@@ -27,7 +27,7 @@ class NewApiOpenAiCompatibleSseClient {
             String providerKey,
             String model,
             String systemPrompt,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String userPrompt,
             List<LlmService.LlmFunctionTool> tools,
             boolean parallelToolCalls,
@@ -62,7 +62,7 @@ class NewApiOpenAiCompatibleSseClient {
             String providerKey,
             String model,
             String systemPrompt,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String userPrompt,
             String stage
     ) {

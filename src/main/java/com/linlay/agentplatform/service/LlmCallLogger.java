@@ -1,13 +1,11 @@
 package com.linlay.agentplatform.service;
 
+import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
 import com.linlay.agentplatform.config.LlmInteractionLogProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
@@ -86,30 +84,30 @@ class LlmCallLogger {
         }
     }
 
-    void logHistoryMessages(Logger logger, String traceId, String stage, List<Message> historyMessages) {
+    void logHistoryMessages(Logger logger, String traceId, String stage, List<ChatMessage> historyMessages) {
         if (!enabled || historyMessages == null || historyMessages.isEmpty()) {
             return;
         }
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < historyMessages.size(); i++) {
-            Message message = historyMessages.get(i);
+            ChatMessage message = historyMessages.get(i);
             if (message == null) {
                 continue;
             }
             builder.append('[').append(i).append("] role=")
-                    .append(message.getMessageType() == null ? "unknown" : message.getMessageType().name().toLowerCase(Locale.ROOT))
+                    .append(message.role())
                     .append(", text=")
-                    .append(sanitizeText(message.getText()));
+                    .append(sanitizeText(message.text()));
 
-            if (message instanceof AssistantMessage assistantMessage
-                    && assistantMessage.getToolCalls() != null
-                    && !assistantMessage.getToolCalls().isEmpty()) {
-                builder.append(", toolCalls=").append(assistantMessage.getToolCalls().size());
+            if (message instanceof ChatMessage.AssistantMsg assistantMsg
+                    && assistantMsg.toolCalls() != null
+                    && !assistantMsg.toolCalls().isEmpty()) {
+                builder.append(", toolCalls=").append(assistantMsg.toolCalls().size());
             }
-            if (message instanceof ToolResponseMessage toolResponseMessage
-                    && toolResponseMessage.getResponses() != null
-                    && !toolResponseMessage.getResponses().isEmpty()) {
-                builder.append(", toolResponses=").append(toolResponseMessage.getResponses().size());
+            if (message instanceof ChatMessage.ToolResultMsg toolResultMsg
+                    && toolResultMsg.responses() != null
+                    && !toolResultMsg.responses().isEmpty()) {
+                builder.append(", toolResponses=").append(toolResultMsg.responses().size());
             }
             builder.append('\n');
         }

@@ -6,12 +6,11 @@ import com.linlay.agentplatform.agent.SkillAppend;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.util.IdGenerators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -37,9 +36,9 @@ public class ExecutionContext {
     private final Map<String, SkillDescriptor> resolvedSkillsById;
     private final SkillAppend skillAppend;
 
-    private final List<Message> conversationMessages;
-    private final List<Message> planMessages;
-    private final List<Message> executeMessages;
+    private final List<ChatMessage> conversationMessages;
+    private final List<ChatMessage> planMessages;
+    private final List<ChatMessage> executeMessages;
     private final List<Map<String, Object>> toolRecords = new ArrayList<>();
     private final List<AgentDelta.PlanTask> planTasks = new ArrayList<>();
     private final Set<String> pendingSkillIds = new LinkedHashSet<>();
@@ -50,14 +49,14 @@ public class ExecutionContext {
     private int modelCalls;
     private int toolCalls;
 
-    public ExecutionContext(AgentDefinition definition, AgentRequest request, List<Message> historyMessages) {
+    public ExecutionContext(AgentDefinition definition, AgentRequest request, List<ChatMessage> historyMessages) {
         this(definition, request, historyMessages, "", Map.of());
     }
 
     public ExecutionContext(
             AgentDefinition definition,
             AgentRequest request,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String skillPrompt
     ) {
         this(definition, request, historyMessages, skillPrompt, Map.of());
@@ -66,7 +65,7 @@ public class ExecutionContext {
     public ExecutionContext(
             AgentDefinition definition,
             AgentRequest request,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String skillCatalogPrompt,
             Map<String, SkillDescriptor> resolvedSkillsById
     ) {
@@ -85,7 +84,7 @@ public class ExecutionContext {
     public ExecutionContext(
             AgentDefinition definition,
             AgentRequest request,
-            List<Message> historyMessages,
+            List<ChatMessage> historyMessages,
             String skillCatalogPrompt,
             Map<String, SkillDescriptor> resolvedSkillsById,
             SkillAppend skillAppend
@@ -102,19 +101,19 @@ public class ExecutionContext {
         if (historyMessages != null) {
             this.conversationMessages.addAll(historyMessages);
         }
-        this.conversationMessages.add(new UserMessage(request.message()));
+        this.conversationMessages.add(new ChatMessage.UserMsg(request.message()));
 
         this.planMessages = new ArrayList<>();
         if (historyMessages != null) {
             this.planMessages.addAll(historyMessages);
         }
-        this.planMessages.add(new UserMessage(request.message()));
+        this.planMessages.add(new ChatMessage.UserMsg(request.message()));
 
         this.executeMessages = new ArrayList<>();
         if (historyMessages != null) {
             this.executeMessages.addAll(historyMessages);
         }
-        this.executeMessages.add(new UserMessage(request.message()));
+        this.executeMessages.add(new ChatMessage.UserMsg(request.message()));
     }
 
     public AgentDefinition definition() {
@@ -145,15 +144,15 @@ public class ExecutionContext {
         return budget;
     }
 
-    public List<Message> conversationMessages() {
+    public List<ChatMessage> conversationMessages() {
         return conversationMessages;
     }
 
-    public List<Message> planMessages() {
+    public List<ChatMessage> planMessages() {
         return planMessages;
     }
 
-    public List<Message> executeMessages() {
+    public List<ChatMessage> executeMessages() {
         return executeMessages;
     }
 

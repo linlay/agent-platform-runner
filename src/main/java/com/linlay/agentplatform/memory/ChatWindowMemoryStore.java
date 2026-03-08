@@ -6,15 +6,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.util.IdGenerators;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.ToolResponseMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -50,7 +46,7 @@ public class ChatWindowMemoryStore {
 
     // ========= Public API =========
 
-    public List<Message> loadHistoryMessages(String chatId) {
+    public List<ChatMessage> loadHistoryMessages(String chatId) {
         if (!isValidChatId(chatId)) {
             return List.of();
         }
@@ -69,7 +65,7 @@ public class ChatWindowMemoryStore {
         int fromIndex = Math.max(0, runIds.size() - windowSize);
         List<String> recentRunIds = runIds.subList(fromIndex, runIds.size());
 
-        List<Message> messages = new ArrayList<>();
+        List<ChatMessage> messages = new ArrayList<>();
         for (String runId : recentRunIds) {
             List<ParsedStepLine> steps = stepsByRunId.get(runId);
             steps.sort(Comparator.comparingInt(ParsedStepLine::seq));
@@ -78,7 +74,7 @@ public class ChatWindowMemoryStore {
                     continue;
                 }
                 for (StoredMessage stored : step.messages()) {
-                    Message converted = toSpringMessage(stored);
+                    ChatMessage converted = toChatMessage(stored);
                     if (converted != null) {
                         messages.add(converted);
                     }
@@ -516,42 +512,42 @@ public class ChatWindowMemoryStore {
         }
     }
 
-    // ========= Spring Message Conversion =========
+    // ========= ChatMessage Conversion =========
 
-    private Message toSpringMessage(StoredMessage message) {
+    private ChatMessage toChatMessage(StoredMessage message) {
         if (message == null || !hasText(message.role)) {
             return null;
         }
         String role = message.role.trim().toLowerCase();
         return switch (role) {
-            case "user" -> toUserMessage(message);
-            case "assistant" -> toAssistantMessage(message);
-            case "tool" -> toToolMessage(message);
-            case "system" -> toSystemMessage(message);
+            case "user" -> toUserMsg(message);
+            case "assistant" -> toAssistantMsg(message);
+            case "tool" -> toToolMsg(message);
+            case "system" -> toSystemMsg(message);
             default -> null;
         };
     }
 
-    private Message toUserMessage(StoredMessage message) {
+    private ChatMessage toUserMsg(StoredMessage message) {
         String text = textFromContentParts(message.content);
-        return hasText(text) ? new UserMessage(text) : null;
+        return hasText(text) ? new ChatMessage.UserMsg(text) : null;
     }
 
-    private Message toSystemMessage(StoredMessage message) {
+    private ChatMessage toSystemMsg(StoredMessage message) {
         String text = textFromContentParts(message.content);
-        return hasText(text) ? new SystemMessage(text) : null;
+        return hasText(text) ? new ChatMessage.SystemMsg(text) : null;
     }
 
-    private Message toAssistantMessage(StoredMessage message) {
+    private ChatMessage toAssistantMsg(StoredMessage message) {
         if (message.toolCalls != null && !message.toolCalls.isEmpty()) {
-            List<AssistantMessage.ToolCall> toolCalls = new ArrayList<>();
+            List<ChatMessage.AssistantMsg.ToolCall> toolCalls = new ArrayList<>();
             for (StoredToolCall toolCall : message.toolCalls) {
                 if (toolCall == null || toolCall.function == null || !hasText(toolCall.id) || !hasText(toolCall.function.name)) {
                     continue;
                 }
                 String type = hasText(toolCall.type) ? toolCall.type : "function";
                 String arguments = hasText(toolCall.function.arguments) ? toolCall.function.arguments : "{}";
-                toolCalls.add(new AssistantMessage.ToolCall(
+                toolCalls.add(new ChatMessage.AssistantMsg.ToolCall(
                         toolCall.id,
                         type,
                         toolCall.function.name,
@@ -560,7 +556,7 @@ public class ChatWindowMemoryStore {
             }
             if (!toolCalls.isEmpty()) {
                 String content = textFromContentParts(message.content);
-                return new AssistantMessage(defaultString(content), Map.of(), toolCalls);
+                return new ChatMessage.AssistantMsg(defaultString(content), toolCalls);
             }
             return null;
         }
@@ -571,20 +567,20 @@ public class ChatWindowMemoryStore {
         }
 
         String text = textFromContentParts(message.content);
-        return hasText(text) ? new AssistantMessage(text) : null;
+        return hasText(text) ? new ChatMessage.AssistantMsg(text) : null;
     }
 
-    private Message toToolMessage(StoredMessage message) {
+    private ChatMessage toToolMsg(StoredMessage message) {
         if (!hasText(message.toolCallId) || !hasText(message.name)) {
             return null;
         }
         String responseData = textFromContentParts(message.content);
-        ToolResponseMessage.ToolResponse toolResponse = new ToolResponseMessage.ToolResponse(
+        ChatMessage.ToolResultMsg.ToolResponse toolResponse = new ChatMessage.ToolResultMsg.ToolResponse(
                 message.toolCallId,
                 message.name,
                 defaultString(responseData)
         );
-        return new ToolResponseMessage(List.of(toolResponse));
+        return new ChatMessage.ToolResultMsg(List.of(toolResponse));
     }
 
     private String textFromContentParts(List<ContentPart> contentParts) {

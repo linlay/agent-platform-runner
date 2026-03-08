@@ -2,7 +2,6 @@ package com.linlay.agentplatform.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.ChatClientRegistry;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.api.QueryRequest;
@@ -156,14 +155,14 @@ class AgentControllerTest {
         @Bean
         @Primary
         LlmService llmService() {
-            return new LlmService((ChatClientRegistry) null) {
+            return new LlmService() {
                 @Override
                 public Flux<String> streamContent(LlmCallSpec spec) {
                     String userPrompt = spec == null ? null : spec.userPrompt();
                     boolean forcedError = (userPrompt != null && userPrompt.contains("__force_stream_error__"))
                             || (spec != null && spec.messages().stream()
-                            .anyMatch(message -> message != null && message.getText() != null
-                                    && message.getText().contains("__force_stream_error__")));
+                            .anyMatch(message -> message != null && message.text() != null
+                                    && message.text().contains("__force_stream_error__")));
                     if (forcedError) {
                         return Flux.error(new IllegalStateException("forced stream error"));
                     }

@@ -1,6 +1,5 @@
 package com.linlay.agentplatform.testsupport;
 
-import com.linlay.agentplatform.config.ChatClientRegistry;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.stream.model.LlmDelta;
@@ -9,7 +8,7 @@ import reactor.core.publisher.Flux;
 public abstract class StubLlmService extends LlmService {
 
     protected StubLlmService() {
-        super((ChatClientRegistry) null);
+        super();
     }
 
     @Override

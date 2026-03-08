@@ -13,6 +13,7 @@ import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.model.ModelProtocol;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
@@ -20,9 +21,6 @@ import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.FluxSink;
 
@@ -82,7 +80,7 @@ public class OrchestratorServices {
     public ModelTurn callModelTurnStreaming(
             ExecutionContext context,
             StageSettings stageSettings,
-            List<Message> messages,
+            List<ChatMessage> messages,
             String userPrompt,
             Map<String, BaseTool> stageTools,
             List<LlmService.LlmFunctionTool> tools,
@@ -115,7 +113,7 @@ public class OrchestratorServices {
     public ModelTurn callModelTurnStreaming(
             ExecutionContext context,
             StageSettings stageSettings,
-            List<Message> messages,
+            List<ChatMessage> messages,
             String userPrompt,
             Map<String, BaseTool> stageTools,
             List<LlmService.LlmFunctionTool> tools,
@@ -383,10 +381,10 @@ public class OrchestratorServices {
         return configured > 0 ? configured : fallback;
     }
 
-    public void appendAssistantMessage(List<Message> messages, String text) {
+    public void appendAssistantMessage(List<ChatMessage> messages, String text) {
         String normalized = normalize(text);
         if (!normalized.isBlank()) {
-            messages.add(new AssistantMessage(normalized));
+            messages.add(new ChatMessage.AssistantMsg(normalized));
         }
     }
 
@@ -449,22 +447,22 @@ public class OrchestratorServices {
     ) {
     }
 
-    private void appendToolEvents(List<Message> messages, List<ToolExecutionService.ToolExecutionEvent> events) {
+    private void appendToolEvents(List<ChatMessage> messages, List<ToolExecutionService.ToolExecutionEvent> events) {
         for (ToolExecutionService.ToolExecutionEvent event : events) {
-            AssistantMessage.ToolCall toolCall = new AssistantMessage.ToolCall(
+            ChatMessage.AssistantMsg.ToolCall toolCall = new ChatMessage.AssistantMsg.ToolCall(
                     event.callId(),
                     event.toolType(),
                     event.toolName(),
                     event.argsJson()
             );
-            messages.add(new AssistantMessage("", Map.of(), List.of(toolCall)));
+            messages.add(new ChatMessage.AssistantMsg("", List.of(toolCall)));
 
-            ToolResponseMessage.ToolResponse toolResponse = new ToolResponseMessage.ToolResponse(
+            ChatMessage.ToolResultMsg.ToolResponse toolResponse = new ChatMessage.ToolResultMsg.ToolResponse(
                     event.callId(),
                     event.toolName(),
                     event.resultText()
             );
-            messages.add(new ToolResponseMessage(List.of(toolResponse)));
+            messages.add(new ChatMessage.ToolResultMsg(List.of(toolResponse)));
         }
     }
 

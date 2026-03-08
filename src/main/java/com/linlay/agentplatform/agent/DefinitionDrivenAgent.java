@@ -36,7 +36,7 @@ import com.linlay.agentplatform.tool.ToolRegistry;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.chat.messages.Message;
+import com.linlay.agentplatform.model.ChatMessage;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
@@ -232,7 +232,7 @@ public class DefinitionDrivenAgent implements Agent {
         logRunSnapshot(request);
 
         return Flux.defer(() -> {
-                    List<Message> historyMessages = loadHistoryMessages(request.chatId());
+                    List<ChatMessage> historyMessages = loadHistoryMessages(request.chatId());
                     ChatWindowMemoryStore.PlanSnapshot latestPlanSnapshot = loadLatestPlanSnapshot(request.chatId());
                     ChatWindowMemoryStore.SystemSnapshot latestSystem = loadLatestSystemSnapshot(request.chatId());
                     String runId = resolveRunId(request);
@@ -394,7 +394,7 @@ public class DefinitionDrivenAgent implements Agent {
         return new SkillPromptBundle(catalogPrompt, Map.copyOf(resolvedSkillsById));
     }
 
-    private List<Message> loadHistoryMessages(String chatId) {
+    private List<ChatMessage> loadHistoryMessages(String chatId) {
         if (chatWindowMemoryStore == null || !StringUtils.hasText(chatId)) {
             return List.of();
         }
