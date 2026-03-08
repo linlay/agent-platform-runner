@@ -11,6 +11,7 @@
     "email.search": "mail_search",
     "email.get_message": "mail_get_message",
     "email.get_attachment": "mail_get_attachment",
-    "email.send": "mail_send"
+    "email.send": "mail_send",
+    "email.forward": "mail_forward"
   }
 }
