@@ -279,6 +279,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 - Action 触发 `action.start` 后不等待提交，直接返回 `"OK"` 给模型。
 - 事件顺序：`action.start` → `action.args`（可多次）→ `action.end` → `action.result`。
+- `action.end` 必须紧跟该 action 的最后一个 `action.args`，不能延后到下一个 call 或 `action.result` 前补发。
 
 ### 内置工具
 
@@ -663,7 +664,8 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 - LLM 返回一个 delta，立刻推送一个 SSE 事件（零缓冲）
 - reasoning/content token 逐个流式输出
 - tool_calls delta 立刻输出，细分事件：`tool.start` → `tool.args`（多次）→ `tool.end` → `tool.result`
-- **1 个上游 delta 只允许 1 次下游发射（同语义块）**，禁止跨 delta 合并后再发
+- `tool.end` / `action.end` 必须紧跟各自最后一个 `args` 分片输出
+- 允许在 **同一个上游 delta 内按顺序拆分** 为多个下游事件，但禁止跨 delta 合并、缓冲后重排再发
 - 不再进行二次校验回合（无 `agent-verify`）；每次模型回合只输出一次真实流式内容，避免重复答案
 
 **实现机制：** `DefinitionDrivenAgent` 驱动 `AgentMode` 执行；模型轮次使用 `OrchestratorServices.callModelTurnStreaming` 逐 delta 透传。

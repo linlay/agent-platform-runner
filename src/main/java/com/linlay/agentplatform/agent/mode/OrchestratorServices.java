@@ -151,6 +151,7 @@ public class OrchestratorServices {
         int seq = 0;
         int deltaSeq = 0;
         boolean toolCallObserved = false;
+        String activeStreamedToolCallId = null;
         Map<String, Object> capturedUsage = null;
 
         for (LlmDelta delta : llmService.streamDeltas(new LlmCallSpec(
@@ -194,7 +195,6 @@ public class OrchestratorServices {
                 }
             }
 
-            List<ToolCallDelta> streamedCalls = new ArrayList<>();
             if (hasToolCalls) {
                 for (ToolCallDelta call : delta.toolCalls()) {
                     if (call == null) {
@@ -215,9 +215,15 @@ public class OrchestratorServices {
                     if (StringUtils.hasText(call.arguments())) {
                         acc.arguments.append(call.arguments());
                     }
-                    latest = acc;
                     String emittedName = StringUtils.hasText(call.name()) ? call.name() : acc.toolName;
                     String argumentsDelta = call.arguments();
+                    if (emitToolCalls
+                            && StringUtils.hasText(activeStreamedToolCallId)
+                            && !activeStreamedToolCallId.equals(callId)) {
+                        emit(sink, AgentDelta.toolEnd(activeStreamedToolCallId));
+                        activeStreamedToolCallId = null;
+                    }
+                    latest = acc;
                     if (isPlanGenerateStage(stage) && StringUtils.hasText(argumentsDelta)) {
                         log.info(
                                 "[plan-delta] runId={}, stage={}, deltaSeq={}, toolCallId={}, toolName={}, argumentsDelta={}",
@@ -236,17 +242,22 @@ public class OrchestratorServices {
                     String emittedType = StringUtils.hasText(call.type())
                             ? call.type()
                             : (StringUtils.hasText(acc.toolType) ? acc.toolType : "function");
-                    streamedCalls.add(new ToolCallDelta(callId, emittedType, emittedName, call.arguments()));
+                    emit(sink, AgentDelta.toolCalls(
+                            List.of(new ToolCallDelta(callId, emittedType, emittedName, call.arguments())),
+                            context.activeTaskId()
+                    ));
+                    activeStreamedToolCallId = callId;
                 }
-            }
-            if (!streamedCalls.isEmpty()) {
-                emit(sink, AgentDelta.toolCalls(streamedCalls, context.activeTaskId()));
             }
 
             if (delta.usage() != null && !delta.usage().isEmpty()) {
                 capturedUsage = delta.usage();
                 emit(sink, AgentDelta.usage(capturedUsage));
             }
+        }
+
+        if (emitToolCalls && StringUtils.hasText(activeStreamedToolCallId)) {
+            emit(sink, AgentDelta.toolEnd(activeStreamedToolCallId));
         }
 
         List<PlannedToolCall> plannedToolCalls = new ArrayList<>();

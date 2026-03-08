@@ -129,7 +129,7 @@ class ToolExecutionServiceTest {
     }
 
     @Test
-    void shouldEmitToolEndsBeforeAnyToolResultWhenEmitToolCallDeltaDisabled() {
+    void shouldNotEmitToolEndsWhenToolCallsWereAlreadyStreamed() {
         ConstantTool firstTool = new ConstantTool("first_tool", "FIRST_OK");
         ConstantTool secondTool = new ConstantTool("second_tool", "SECOND_OK");
         ToolRegistry toolRegistry = new ToolRegistry(List.of(firstTool, secondTool));
@@ -158,24 +158,13 @@ class ToolExecutionServiceTest {
                 false
         );
 
-        List<AgentDelta> deltas = batch.deltas();
-        int firstResultIndex = IntStream.range(0, deltas.size())
-                .filter(index -> !deltas.get(index).toolResults().isEmpty())
-                .findFirst()
-                .orElse(-1);
-
-        assertThat(firstResultIndex).isGreaterThan(0);
-        List<String> toolEndIdsBeforeResult = deltas.subList(0, firstResultIndex).stream()
-                .flatMap(delta -> delta.toolEnds().stream())
-                .toList();
-        assertThat(toolEndIdsBeforeResult).containsExactlyInAnyOrder("call_first", "call_second");
-        assertThat(deltas.subList(0, firstResultIndex)).allSatisfy(delta -> assertThat(delta.toolResults()).isEmpty());
+        assertThat(batch.deltas().stream().flatMap(delta -> delta.toolEnds().stream()).toList()).isEmpty();
         assertThat(singleToolResult(batch, "call_first")).isEqualTo("FIRST_OK");
         assertThat(singleToolResult(batch, "call_second")).isEqualTo("SECOND_OK");
     }
 
     @Test
-    void shouldFlushFrontendToolEndBeforeSubmitWaitWhenPreExecutionEmitterProvided() throws Exception {
+    void shouldWaitForFrontendSubmitWithoutPreExecutionToolEnd() throws Exception {
         ConstantTool frontendTool = new ConstantTool("confirm_dialog", "IGNORED");
         ToolRegistry toolRegistry = spy(new ToolRegistry(List.of(frontendTool)));
         doReturn("frontend").when(toolRegistry).toolCallType("confirm_dialog");
@@ -213,13 +202,8 @@ class ToolExecutionServiceTest {
                             preExecutionDeltas::add
                     ));
 
-            long deadline = System.currentTimeMillis() + 2_000L;
-            while (preExecutionDeltas.isEmpty() && System.currentTimeMillis() < deadline) {
-                Thread.sleep(20L);
-            }
-
-            assertThat(preExecutionDeltas).hasSize(1);
-            assertThat(preExecutionDeltas.getFirst().toolEnds()).containsExactly("call_frontend_1");
+            Thread.sleep(100L);
+            assertThat(preExecutionDeltas).isEmpty();
             assertThat(future.isDone()).isFalse();
 
             FrontendSubmitCoordinator.SubmitAck ack = submitCoordinator.submit(
@@ -231,6 +215,7 @@ class ToolExecutionServiceTest {
 
             ToolExecutionService.ToolExecutionBatch batch = future.get(2, TimeUnit.SECONDS);
             assertThat(batch.deltas().stream().flatMap(delta -> delta.toolEnds().stream()).toList()).isEmpty();
+            assertThat(preExecutionDeltas.stream().flatMap(delta -> delta.toolEnds().stream()).toList()).isEmpty();
             assertThat(singleToolResult(batch, "call_frontend_1")).isEqualTo("{\"choice\":\"自然风光\"}");
             assertThat(preExecutionDeltas.stream()
                     .map(AgentDelta::requestSubmit)

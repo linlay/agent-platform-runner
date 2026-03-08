@@ -33,6 +33,8 @@ public class AgentDeltaToStreamInputMapper {
     private final Map<String, AtomicInteger> toolArgChunkCounters = new HashMap<>();
     private final Map<String, StringBuilder> toolArgsBuffer = new HashMap<>();
     private final Set<String> actionToolIds = new HashSet<>();
+    private final Set<String> closedActionToolIds = new HashSet<>();
+    private final Set<String> closedToolIds = new HashSet<>();
     private final String runPrefix;
     private final ToolRegistry toolRegistry;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -100,6 +102,7 @@ public class AgentDeltaToStreamInputMapper {
 
                 if ("action".equalsIgnoreCase(normalizedType)) {
                     actionToolIds.add(toolId);
+                    closedActionToolIds.remove(toolId);
                     inputs.add(new StreamInput.ActionArgs(
                             toolId,
                             argsDelta,
@@ -129,10 +132,18 @@ public class AgentDeltaToStreamInputMapper {
 
         if (delta.toolEnds() != null && !delta.toolEnds().isEmpty()) {
             for (String toolId : delta.toolEnds()) {
-                if (!hasText(toolId) || actionToolIds.contains(toolId)) {
+                if (!hasText(toolId)) {
                     continue;
                 }
-                inputs.add(new StreamInput.ToolEnd(toolId));
+                if (actionToolIds.contains(toolId)) {
+                    if (closedActionToolIds.add(toolId)) {
+                        inputs.add(new StreamInput.ActionEnd(toolId));
+                    }
+                    continue;
+                }
+                if (closedToolIds.add(toolId)) {
+                    inputs.add(new StreamInput.ToolEnd(toolId));
+                }
             }
         }
 
@@ -142,20 +153,24 @@ public class AgentDeltaToStreamInputMapper {
                     continue;
                 }
                 if (actionToolIds.contains(toolResult.toolId())) {
-                    inputs.add(new StreamInput.ActionEnd(toolResult.toolId()));
+                    if (closedActionToolIds.add(toolResult.toolId())) {
+                        inputs.add(new StreamInput.ActionEnd(toolResult.toolId()));
+                    }
                     inputs.add(new StreamInput.ActionResult(
                             toolResult.toolId(),
                             parseResult(toolResult.result())
                     ));
                     actionToolIds.remove(toolResult.toolId());
-                    toolArgsBuffer.remove(toolResult.toolId());
+                    closedActionToolIds.remove(toolResult.toolId());
+                    cleanupToolState(toolResult.toolId());
                     continue;
                 }
                 inputs.add(new StreamInput.ToolResult(
                         toolResult.toolId(),
                         toolResult.result() == null ? "null" : toolResult.result()
                 ));
-                toolArgsBuffer.remove(toolResult.toolId());
+                closedToolIds.remove(toolResult.toolId());
+                cleanupToolState(toolResult.toolId());
             }
         }
 
@@ -322,6 +337,11 @@ public class AgentDeltaToStreamInputMapper {
         } catch (Exception ignored) {
             return value;
         }
+    }
+
+    private void cleanupToolState(String toolId) {
+        toolArgsBuffer.remove(toolId);
+        toolArgChunkCounters.remove(toolId);
     }
 
     private String resolveDescription(String toolName) {

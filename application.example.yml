@@ -78,6 +78,11 @@ agent:
       base-url: https://dashscope.aliyuncs.com/compatible-mode
       api-key: replace-with-your-bailian-api-key
       model: qwen3.5-plus
+    babelark:
+      base-url: https://api.babelark.com
+      api-key: replace-with-your-babelark-api-key
+      model: Qwen3.5-397B-A17B
+      new-api-path: /v1/chat/completions
     siliconflow:
       base-url: https://api.siliconflow.cn
       api-key: replace-with-your-siliconflow-api-key

@@ -172,20 +172,6 @@ public class ToolExecutionService {
             }
         }
 
-        if (!emitToolCallDelta) {
-            List<String> toolEnds = preparedCalls.stream()
-                    .filter(call -> !isActionType(call.toolType()))
-                    .map(PreparedToolCall::callId)
-                    .toList();
-            if (!toolEnds.isEmpty()) {
-                if (preExecutionEmitter != null) {
-                    preExecutionEmitter.accept(AgentDelta.toolEnds(toolEnds));
-                } else {
-                    deltas.add(AgentDelta.toolEnds(toolEnds));
-                }
-            }
-        }
-
         for (PreparedToolCall call : preparedCalls) {
             long invokeStartNanos = System.nanoTime();
             logInvocationStart(runId, taskId, call);

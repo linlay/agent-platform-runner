@@ -125,6 +125,76 @@ class AgentDeltaToStreamInputMapperTest {
     }
 
     @Test
+    void shouldMapExplicitToolEndForActionsWithoutDuplicatingActionEndOnResult() {
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        List<StreamEvent> events = assembleEvents(mapper, List.of(
+                AgentDelta.toolCalls(List.of(new ToolCallDelta(
+                        "action_1",
+                        "action",
+                        "show_modal",
+                        "{\"title\":\"马年诗\"}"
+                ))),
+                AgentDelta.toolEnd("action_1"),
+                AgentDelta.toolResult("action_1", "OK")
+        ));
+
+        int actionArgs = indexOfActionEvent(events, "action.args", "action_1");
+        int actionEnd = indexOfActionEvent(events, "action.end", "action_1");
+        int actionResult = indexOfActionEvent(events, "action.result", "action_1");
+
+        assertThat(actionArgs).isGreaterThanOrEqualTo(0);
+        assertThat(actionEnd).isGreaterThan(actionArgs);
+        assertThat(actionResult).isGreaterThan(actionEnd);
+        assertThat(countActionEvent(events, "action.end", "action_1")).isEqualTo(1);
+    }
+
+    @Test
+    void shouldKeepActionEndBeforeNextActionStartWhenEndsAreExplicit() {
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        List<StreamEvent> events = assembleEvents(mapper, List.of(
+                AgentDelta.toolCalls(List.of(new ToolCallDelta(
+                        "action_1",
+                        "action",
+                        "show_modal",
+                        "{\"title\":\"马年诗\"}"
+                ))),
+                AgentDelta.toolEnd("action_1"),
+                AgentDelta.toolCalls(List.of(new ToolCallDelta(
+                        "action_2",
+                        "action",
+                        "launch_fireworks",
+                        "{\"durationMs\":5000}"
+                ))),
+                AgentDelta.toolEnd("action_2"),
+                AgentDelta.toolCalls(List.of(new ToolCallDelta(
+                        "action_3",
+                        "action",
+                        "switch_theme",
+                        "{\"theme\":\"dark\"}"
+                ))),
+                AgentDelta.toolEnd("action_3"),
+                AgentDelta.toolResult("action_1", "OK"),
+                AgentDelta.toolResult("action_2", "OK"),
+                AgentDelta.toolResult("action_3", "OK")
+        ));
+
+        int action1End = indexOfActionEvent(events, "action.end", "action_1");
+        int action2Start = indexOfActionEvent(events, "action.start", "action_2");
+        int action2End = indexOfActionEvent(events, "action.end", "action_2");
+        int action3Start = indexOfActionEvent(events, "action.start", "action_3");
+        int action3End = indexOfActionEvent(events, "action.end", "action_3");
+        int action1Result = indexOfActionEvent(events, "action.result", "action_1");
+
+        assertThat(action1End).isGreaterThan(indexOfActionEvent(events, "action.args", "action_1"));
+        assertThat(action1End).isLessThan(action2Start);
+        assertThat(action2End).isLessThan(action3Start);
+        assertThat(action3End).isLessThan(action1Result);
+        assertThat(countActionEvent(events, "action.end", "action_1")).isEqualTo(1);
+        assertThat(countActionEvent(events, "action.end", "action_2")).isEqualTo(1);
+        assertThat(countActionEvent(events, "action.end", "action_3")).isEqualTo(1);
+    }
+
+    @Test
     void shouldAssignUniqueReasoningIdsAcrossBlocks() {
         AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
         List<StreamEvent> events = assembleEvents(mapper, List.of(

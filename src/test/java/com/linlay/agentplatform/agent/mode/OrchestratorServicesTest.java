@@ -14,6 +14,8 @@ import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.stream.model.LlmDelta;
+import com.linlay.agentplatform.stream.model.ToolCallDelta;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 
@@ -171,6 +173,80 @@ class OrchestratorServicesTest {
                 .flatMap(delta -> delta.toolResults().stream())
                 .map(AgentDelta.ToolResult::toolId)
                 .toList()).contains("call_missing_1");
+    }
+
+    @Test
+    void callModelTurnStreamingShouldEmitToolEndImmediatelyAfterLastArgs() {
+        LlmService llmService = mock(LlmService.class);
+        ToolExecutionService toolExecutionService = mock(ToolExecutionService.class);
+        OrchestratorServices services = new OrchestratorServices(llmService, toolExecutionService, new ObjectMapper());
+        ExecutionContext context = contextWithBudget(Budget.DEFAULT);
+
+        when(llmService.streamDeltas(any())).thenReturn(Flux.just(
+                new LlmDelta(
+                        null,
+                        null,
+                        List.of(new ToolCallDelta("action_1", "action", "show_modal", "{\"title\":\"马")),
+                        null
+                ),
+                new LlmDelta(
+                        null,
+                        null,
+                        List.of(new ToolCallDelta("action_1", null, null, "年诗\"}")),
+                        null
+                ),
+                new LlmDelta(
+                        null,
+                        null,
+                        List.of(new ToolCallDelta("action_2", "action", "launch_fireworks", "{\"durationMs\":5000}")),
+                        null
+                ),
+                new LlmDelta(
+                        null,
+                        null,
+                        List.of(new ToolCallDelta("action_3", "action", "switch_theme", "{\"theme\":\"dark\"}")),
+                        "tool_calls"
+                )
+        ));
+
+        List<AgentDelta> emitted = Flux.<AgentDelta>create(sink -> {
+            services.callModelTurnStreaming(
+                    context,
+                    new StageSettings("sys", null, null, List.of(), false, ComputePolicy.MEDIUM),
+                    List.of(),
+                    null,
+                    Map.of(),
+                    List.of(),
+                    ToolChoice.AUTO,
+                    "test-stage",
+                    false,
+                    false,
+                    false,
+                    true,
+                    sink
+            );
+            sink.complete();
+        }).collectList().block(Duration.ofSeconds(3));
+
+        assertThat(emitted).isNotNull();
+        List<String> sequence = emitted.stream()
+                .flatMap(delta -> {
+                    List<String> items = new ArrayList<>();
+                    delta.toolCalls().forEach(call -> items.add("args:" + call.id()));
+                    delta.toolEnds().forEach(toolId -> items.add("end:" + toolId));
+                    return items.stream();
+                })
+                .toList();
+
+        assertThat(sequence).containsExactly(
+                "args:action_1",
+                "args:action_1",
+                "end:action_1",
+                "args:action_2",
+                "end:action_2",
+                "args:action_3",
+                "end:action_3"
+        );
     }
 
     private ExecutionContext contextWithBudget(Budget budget) {
