@@ -9,7 +9,7 @@
   "description": "内置示例：REACT 模式 + 确认对话框（human-in-the-loop）",
   "mode": "REACT",
   "modelConfig": {
-    "modelKey": "bailian-qwen3-max",
+    "modelKey": "babelark-qwen3_5-397b-a17b",
     "reasoning": { "enabled": false }
   },
   "toolConfig": {

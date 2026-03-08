@@ -44,7 +44,7 @@ public final class OneshotMode extends AgentMode {
                 : ToolChoice.NONE;
         return new RunSpec(
                 config != null && config.getToolChoice() != null ? config.getToolChoice() : defaultChoice,
-                config != null && config.getBudget() != null ? config.getBudget().toBudget() : Budget.LIGHT
+                config != null && config.getBudget() != null ? config.getBudget().toBudget() : Budget.DEFAULT
         );
     }
 

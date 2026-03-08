@@ -8,6 +8,7 @@ import com.linlay.agentplatform.agent.mode.PlanExecuteMode;
 import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.agent.runtime.BudgetExceededException;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
@@ -287,6 +288,14 @@ public class DefinitionDrivenAgent implements Agent {
             if (!sink.isCancelled()) {
                 sink.complete();
             }
+        } catch (BudgetExceededException ex) {
+            log.warn("[agent:{}] budget exceeded kind={}, message={}", definition.id(), ex.kind(), ex.getMessage());
+            String budgetMessage = resolveBudgetExceededMessage(ex);
+            services.emit(sink, AgentDelta.content(budgetMessage));
+            services.emit(sink, AgentDelta.finish("budget_exceeded"));
+            if (!sink.isCancelled()) {
+                sink.complete();
+            }
         } catch (Exception ex) {
             log.warn("[agent:{}] orchestration failed", definition.id(), ex);
             services.emit(sink, AgentDelta.content("模型调用失败，请稍后重试。"));
@@ -306,6 +315,14 @@ public class DefinitionDrivenAgent implements Agent {
             return FRONTEND_TIMEOUT_FALLBACK_MESSAGE;
         }
         return raw;
+    }
+
+    private String resolveBudgetExceededMessage(BudgetExceededException ex) {
+        return switch (ex.kind()) {
+            case RUN_TIMEOUT -> "运行超时，本次执行已结束。请缩短问题范围或稍后重试。";
+            case MODEL_CALLS -> "模型调用次数已达上限，本次执行已结束。";
+            case TOOL_CALLS -> "工具调用次数已达上限，本次执行已结束。";
+        };
     }
 
     private String resolveFatalToolMessage(FatalToolExecutionException ex) {

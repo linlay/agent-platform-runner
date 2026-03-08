@@ -542,7 +542,6 @@ plain:
 - `demoModeThinking`（`ONESHOT`）：`Iris`，角色为“深度推理示例”。
 - `demoModePlainTooling`（`ONESHOT`）：`Nova`，角色为“单轮工具示例”。
 - `demoModeReact`（`REACT`）：`Luna`，角色为“REACT示例”。
-- `demoModeReactBabelark`（`REACT`）：`Luna Babelark`，角色为“REACT示例（Babelark）”。
 - `demoModePlanExecute`（`PLAN_EXECUTE`）：`星策`，角色为“规划执行示例”。
 - `demoViewport`（`REACT`）：`极光`，角色为“视图渲染示例”。
 - `demoAction`（`ONESHOT`）：`小焰`，角色为“UI动作示例”。
@@ -819,13 +818,6 @@ curl -N -X POST "$BASE_URL/api/ap/query" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"message":"我周日要搬迁机房到上海，检查下服务器(mac)的硬盘和CPU，然后决定下搬迁条件","agentKey":"demoModeReact"}'
-```
-
-```bash
-curl -N -X POST "$BASE_URL/api/ap/query" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"message":"我周日要搬迁机房到上海，检查下服务器(mac)的硬盘和CPU，然后决定下搬迁条件","agentKey":"demoModeReactBabelark"}'
 ```
 
 ```bash

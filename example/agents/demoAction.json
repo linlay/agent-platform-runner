@@ -8,7 +8,7 @@
   },
   "description": "内置示例：UI 动作智能体（主题/烟花/模态框）",
   "modelConfig": {
-    "modelKey": "bailian-qwen3-max",
+    "modelKey": "babelark-qwen3_5-397b-a17b",
     "reasoning": {
       "enabled": false
     }

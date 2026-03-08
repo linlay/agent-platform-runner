@@ -360,13 +360,22 @@ public class ExecutionContext {
 
     public void checkBudget() {
         if (modelCalls > budget.model().maxCalls()) {
-            throw new RuntimeException("Budget exceeded: model.maxCalls=" + budget.model().maxCalls());
+            throw new BudgetExceededException(
+                    BudgetExceededException.Kind.MODEL_CALLS,
+                    "Budget exceeded: model.maxCalls=" + budget.model().maxCalls()
+            );
         }
         if (toolCalls > budget.tool().maxCalls()) {
-            throw new RuntimeException("Budget exceeded: tool.maxCalls=" + budget.tool().maxCalls());
+            throw new BudgetExceededException(
+                    BudgetExceededException.Kind.TOOL_CALLS,
+                    "Budget exceeded: tool.maxCalls=" + budget.tool().maxCalls()
+            );
         }
         if (System.currentTimeMillis() - startedAtMs >= budget.runTimeoutMs()) {
-            throw new RuntimeException("Budget exceeded: runTimeoutMs=" + budget.runTimeoutMs());
+            throw new BudgetExceededException(
+                    BudgetExceededException.Kind.RUN_TIMEOUT,
+                    "Budget exceeded: runTimeoutMs=" + budget.runTimeoutMs()
+            );
         }
     }
 
