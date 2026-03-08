@@ -1,0 +1,22 @@
+agent:
+  voice:
+    tts:
+      provider: synthetic
+      aliyun:
+        endpoint: wss://dashscope.aliyuncs.com/api-ws/v1/realtime
+        api-key: replace-with-your-aliyun-tts-key
+        model: qwen3-tts-instruct-flash-realtime
+        voice: Cherry
+        language-type: Auto
+        mode: server_commit
+        format: pcm
+        sample-rate: 24000
+        speech-rate: 1.0
+        volume: 50
+        pitch-rate: 1.0
+        bit-rate: 128
+        response-format: PCM_24000HZ_MONO_16BIT
+        instructions:
+        optimize-instructions: false
+        session-finished-timeout-ms: 120000
+        log-sent-chunk-enabled: false

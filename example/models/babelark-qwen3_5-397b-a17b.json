@@ -1,7 +1,7 @@
 {
   "key": "babelark-qwen3_5-397b-a17b",
   "provider": "babelark",
-  "protocol": "NEWAPI_OPENAI_COMPATIBLE",
+  "protocol": "OPENAI",
   "modelId": "Qwen3.5-397B-A17B",
   "isReasoner": true,
   "isFunction": true,

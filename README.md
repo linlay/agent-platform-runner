@@ -192,6 +192,10 @@
 .
 ├── .dockerignore
 ├── .env.example
+├── configs/
+│   ├── *.example.yml
+│   ├── auth/
+│   └── providers/
 ├── docker-compose.yml
 ├── example/
 │   ├── agents/
@@ -211,7 +215,6 @@
 ├── release-scripts/
 │   ├── mac/
 │   └── windows/
-├── application.example.yml
 ├── nginx.conf
 ├── pom.xml
 ├── settings.xml
@@ -228,11 +231,15 @@
 
 ```bash
 mvn clean test
+set -a
+. ./.env
+set +a
 mvn spring-boot:run
 ```
 
 默认端口 `8080`（来自 `src/main/resources/application.yml` 的 `SERVER_PORT` 默认值）。
-若本地 `application.yml` 或环境变量覆盖了端口（例如开发常用 `11949`），则以覆盖值为准。
+若 `.env` 或环境变量覆盖了端口（例如开发常用 `11949`），则以覆盖值为准。
+注意：直接执行 `mvn spring-boot:run` 不会自动加载根目录 `.env`；若本地依赖 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE` 等环境变量，请先在当前 shell 导入 `.env`。
 
 ### 根目录 `.env` 与 Docker Compose（发布部署版）
 
@@ -248,7 +255,7 @@ docker compose up -d --build
 约定：
 
 - `.env` 负责简单环境开关与端口（如 `HOST_PORT`、`SERVER_PORT`、`AGENT_AUTH_ENABLED`）。
-- `application.yml` 负责结构化大配置，尤其是多 LLM 账号/多 provider（`agent.providers.*`）。
+- `configs/` 负责结构化大配置，尤其是 auth、公钥文件、bash、tts 与多 provider（`agent.providers.*`）。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
 - `docker-compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
@@ -258,7 +265,7 @@ docker compose up -d --build
 
 通过 hub 仓库 `setup-mac.sh` 的首次安装流程时，会先执行 `./release-scripts/mac/package-local.sh`，再在 `release-local/` 写入运行时配置：
 
-- `application.yml`：由根目录 `application.example.yml` 复制生成
+- `configs/*.yml`：由 `configs/*.example.yml` / `configs/**/*.example.*` 复制生成
 - `.env`：由安装流程按环境生成（若存在 `.env.example` 会优先复制）
 
 `release-scripts/mac/package-local.sh` 只负责构建产物，不负责生成运行时配置。
@@ -283,19 +290,19 @@ docker compose up -d --build
 - `release-scripts/` 仅放打包与运行脚本（按平台分目录），不放部署配置资产。
 - `Dockerfile` 与 `settings.xml` 保持在项目根目录，匹配 `docker build .` 常见上下文和当前打包脚本路径约定。
 - `.env.example` 与 `docker-compose.yml` 保持在项目根目录，作为容器运行基线模板。
-- `application.example.yml` 保持在项目根目录，作为开发初始化模板（复制为 `application.yml`）。
+- `configs/` 保持在项目根目录，作为结构化配置模板目录。
 - `nginx.conf` 当前保持在项目根目录，作为反向代理示例配置；若后续出现多环境部署资产，可统一迁移到 `deploy/nginx/`。
-- `.dockerignore` 需要保留：用于缩小 Docker build context，并避免将本地敏感配置（如 `application.yml`）带入构建上下文。
+- `.dockerignore` 需要保留：用于缩小 Docker build context，并避免将本地敏感配置（如 `configs/*.yml` / `configs/**/*.pem`）带入构建上下文。
 
 ### 默认配置基线
 
-- 主配置事实源为 `src/main/resources/application.yml`，本地可通过 `./application.yml` 覆盖。
-- 可先复制根目录示例：`cp application.example.yml application.yml`，再填写本地私有配置（如 API Key）。
+- 主配置事实源为 `src/main/resources/application.yml`，运行时结构化覆盖来自 `configs/`。
 - 可先复制环境变量示例：`cp .env.example .env`，再按环境调整端口与认证开关。
-- `spring.config.import` 默认加载：`./application.yml` 和 `/opt/application.yml`（均为 optional）。
+- 再复制需要的 `configs/*.example.yml` 与 `configs/**/*.example.*` 为真实配置文件。
+- 运行时默认读取 `./configs`；发布/容器默认读取 `/opt/configs`；可通过 `AGENT_CONFIG_DIR` 覆盖。
 - `agent.cors.enabled` 在主配置中默认是 `false`，即默认不启用 CORS 过滤器。
 - `agent.cors.allowed-origin-patterns` 仅匹配请求头 `Origin`，当前服务不读取/校验 `Referer`。
-- `spring.ai.openai.api-key` 默认 `dummy-openai-key`，仅作 Spring AI 占位；实际模型调用使用 `agent.providers.*`。
+- 实际模型调用统一使用 `agent.providers.*`；provider 负责基础地址、鉴权和协议级 endpoint 配置。
 
 ### settings.xml 说明
 
@@ -308,30 +315,23 @@ docker compose up -d --build
 - 当 `agent.auth.enabled=true` 时，`/api/ap/**`（除 `OPTIONS`）都需要 JWT。
 - Voice WebSocket（`/api/ap/ws/voice`）在 `agent.voice.ws.auth-required=true` 时仅接受 URL query token：`?access_token=<token>`，不会读取 `Authorization` 头。
 - 验签优先级：
-  - 若 `agent.auth.local-public-key` 已配置，先使用本地公钥验签；
+  - 若 `agent.auth.local-public-key-file` 或 `agent.auth.local-public-key` 已配置，先使用本地公钥验签；
   - 本地验签失败后，再回退到 `agent.auth.jwks-uri` 拉取的 JWKS 验签。
 - 本地公钥模式为启动期加载，更新密钥后需要重启服务生效。
 
-示例（`application.yml`）：
+示例（`.env`）：
 
-```yaml
-agent:
-  auth:
-    enabled: true
-    local-public-key: |
-      -----BEGIN PUBLIC KEY-----
-      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtesttesttesttesttest
-      testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
-      testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
-      -----END PUBLIC KEY-----
-    jwks-uri: https://auth.example.local/api/auth/jwks
-    issuer: https://auth.example.local
-    jwks-cache-seconds: 300
+```env
+AGENT_AUTH_ENABLED=true
+AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=auth/local-public-key.pem
+AGENT_AUTH_JWKS_URI=https://auth.example.local/api/auth/jwks
+AGENT_AUTH_ISSUER=https://auth.example.local
+AGENT_AUTH_JWKS_CACHE_SECONDS=300
 ```
 
 注意：
 
-- 当配置了空的 `local-public-key` 或非法 PEM 时，服务会在启动时失败（fail-fast）。
+- 当配置了空的 `local-public-key` / `local-public-key-file` 或非法 PEM 时，服务会在启动时失败（fail-fast）。
 - `jwks-uri` / `issuer` / `jwks-cache-seconds` 必须三者同时配置；只配部分会启动失败。
 - 当前仅支持 RSA 公钥（与 RS256 验签一致）。
 
@@ -505,7 +505,7 @@ plain:
 - `models`:
   - 目录结构：`models/<model-key>.json`
   - 关键字段：`key/provider/protocol/modelId/pricing`
-  - `protocol` 固定值：`OPENAI`、`ANTHROPIC`、`NEWAPI_OPENAI_COMPATIBLE`
+  - `protocol` 固定值：`OPENAI`、`ANTHROPIC`（当前 `ANTHROPIC` 仅预留，未实现时会在模型加载阶段拒绝）
 - `show_weather_card` 当前仅作为 viewport（`viewports/show_weather_card.html`），不是可调用 tool。
 
 ### 示例资源初始化

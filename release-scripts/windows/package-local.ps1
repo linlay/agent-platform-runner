@@ -80,7 +80,7 @@ if (-not $jar) {
 
 Copy-Item $jar.FullName (Join-Path $releaseDir "app.jar") -Force
 
-foreach ($dir in @("agents", "viewports", "tools", "skills", "data")) {
+foreach ($dir in @("agents", "viewports", "tools", "skills", "data", "configs")) {
     $sourceDir = Join-Path $rootDir $dir
     if (Test-Path $sourceDir) {
         Copy-Item $sourceDir (Join-Path $releaseDir $dir) -Recurse -Force
@@ -154,17 +154,9 @@ if (-not $env:AGENT_VIEWPORTS_EXTERNAL_DIR) { $env:AGENT_VIEWPORTS_EXTERNAL_DIR 
 if (-not $env:AGENT_TOOLS_EXTERNAL_DIR) { $env:AGENT_TOOLS_EXTERNAL_DIR = Join-Path $appDir "tools" }
 if (-not $env:AGENT_SKILLS_EXTERNAL_DIR) { $env:AGENT_SKILLS_EXTERNAL_DIR = Join-Path $appDir "skills" }
 if (-not $env:MEMORY_CHATS_DIR) { $env:MEMORY_CHATS_DIR = Join-Path $appDir "chats" }
-
-$springOpts = $null
-$runtimeConfig = Join-Path $appDir "application.yml"
-if (Test-Path $runtimeConfig) {
-    $springOpts = "--spring.config.additional-location=file:$runtimeConfig"
-}
+if (-not $env:AGENT_CONFIG_DIR) { $env:AGENT_CONFIG_DIR = Join-Path $appDir "configs" }
 
 $argLine = "$($env:JAVA_OPTS) -jar `"$jarFile`""
-if ($springOpts) {
-    $argLine = "$argLine $springOpts"
-}
 
 if ($Daemon) {
     Write-Host "[start] starting in background, log: $logFile, err: $errLogFile"
@@ -249,7 +241,7 @@ $deployMd = @'
 ## Quick Start (Windows PowerShell)
 
 ```powershell
-# 1. Prepare runtime .env and application.yml under release-local
+# 1. Prepare runtime .env and configs under release-local
 
 # 2. Create chat memory directory
 New-Item -ItemType Directory -Force chats | Out-Null
@@ -271,7 +263,7 @@ Write-Log "  $releaseDir/app.jar"
 Write-Log "  $releaseDir/start.ps1"
 Write-Log "  $releaseDir/stop.ps1"
 Write-Log "  $releaseDir/DEPLOY.md"
-foreach ($dir in @("agents", "viewports", "tools", "skills", "data")) {
+foreach ($dir in @("agents", "viewports", "tools", "skills", "data", "configs")) {
     if (Test-Path (Join-Path $releaseDir $dir)) {
         Write-Log "  $releaseDir/$dir/"
     }

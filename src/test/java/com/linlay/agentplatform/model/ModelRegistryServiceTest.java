@@ -140,6 +140,50 @@ class ModelRegistryServiceTest {
     }
 
     @Test
+    void shouldRejectLegacyNewApiCompatibleProtocol() throws Exception {
+        Path modelsDir = tempDir.resolve("models");
+        Files.createDirectories(modelsDir);
+        Files.writeString(modelsDir.resolve("legacy-protocol.json"), """
+                {
+                  "key": "legacy-protocol",
+                  "provider": "bailian",
+                  "protocol": "NEWAPI_OPENAI_COMPATIBLE",
+                  "modelId": "qwen3-max"
+                }
+                """);
+
+        ModelRegistryService service = new ModelRegistryService(
+                new ObjectMapper(),
+                modelProperties(modelsDir),
+                providerProperties(Map.of("bailian", provider()))
+        );
+
+        assertThat(service.find("legacy-protocol")).isEmpty();
+    }
+
+    @Test
+    void shouldRejectAnthropicProtocolUntilImplemented() throws Exception {
+        Path modelsDir = tempDir.resolve("models");
+        Files.createDirectories(modelsDir);
+        Files.writeString(modelsDir.resolve("anthropic.json"), """
+                {
+                  "key": "anthropic-model",
+                  "provider": "bailian",
+                  "protocol": "ANTHROPIC",
+                  "modelId": "claude-sonnet"
+                }
+                """);
+
+        ModelRegistryService service = new ModelRegistryService(
+                new ObjectMapper(),
+                modelProperties(modelsDir),
+                providerProperties(Map.of("bailian", provider()))
+        );
+
+        assertThat(service.find("anthropic-model")).isEmpty();
+    }
+
+    @Test
     void shouldReturnCatalogDiffWhenModelsChanged() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);

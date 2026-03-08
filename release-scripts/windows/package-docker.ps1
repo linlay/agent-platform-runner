@@ -86,7 +86,7 @@ Copy-Item $jar.FullName (Join-Path $releaseDir "app.jar") -Force
 Copy-Item $dockerfile (Join-Path $releaseDir "Dockerfile") -Force
 Copy-Item (Join-Path $rootDir "settings.xml") (Join-Path $releaseDir "settings.xml") -Force
 
-foreach ($dir in @("agents", "viewports", "tools", "skills")) {
+foreach ($dir in @("agents", "viewports", "tools", "skills", "configs")) {
     $sourceDir = Join-Path $rootDir $dir
     if (Test-Path $sourceDir) {
         Copy-Item $sourceDir (Join-Path $releaseDir $dir) -Recurse -Force
@@ -106,13 +106,14 @@ services:
       - "${HOST_PORT}:8080"
     environment:
       SERVER_PORT: 8080
+      AGENT_CONFIG_DIR: /opt/configs
     volumes:
       - ./agents:/opt/agents
       - ./viewports:/opt/viewports
       - ./tools:/opt/tools
       - ./skills:/opt/skills
+      - ./configs:/opt/configs:ro
       - ./chats:/opt/chats
-      - ./application.yml:/opt/application.yml:ro
     env_file:
       - .env
 '@
@@ -128,7 +129,7 @@ AGENT_AUTH_ENABLED=false
 # AGENT_AUTH_JWKS_URI=
 # AGENT_AUTH_ISSUER=
 
-# LLM provider keys (configure in application.yml)
+# Structured YAML config lives under ./configs
 
 # Bash tool security (explicit allowlists required)
 # AGENT_BASH_WORKING_DIRECTORY=/opt
@@ -147,8 +148,7 @@ $deployMd = @'
    cp .env.example .env
    # Edit .env with production values
 
-   # Create application.yml with LLM provider API keys
-   touch application.yml
+   # Copy configs/*.example.yml to real .yml files as needed
 
 3. Create data directory for chat memory:
 
@@ -167,7 +167,7 @@ Write-Log "  $releaseDir/settings.xml"
 Write-Log "  $releaseDir/docker-compose.yml"
 Write-Log "  $releaseDir/.env.example"
 Write-Log "  $releaseDir/DEPLOY.md"
-foreach ($dir in @("agents", "viewports", "tools", "skills")) {
+foreach ($dir in @("agents", "viewports", "tools", "skills", "configs")) {
     if (Test-Path (Join-Path $releaseDir $dir)) {
         Write-Log "  $releaseDir/$dir/"
     }

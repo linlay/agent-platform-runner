@@ -38,9 +38,9 @@ mvn test -Dtest=ClassName#methodName    # 运行单个测试方法
 
 - `release-scripts/` 只放打包/运行脚本，不放部署配置资产。
 - `Dockerfile` 与 `settings.xml` 保持在项目根目录，以匹配标准 `docker build .` 上下文和当前脚本路径约定。
-- `application.example.yml` 保持在项目根目录，作为本地初始化模板。
+- `configs/` 保持在项目根目录，作为结构化配置模板目录。
 - `nginx.conf` 当前保持在项目根目录，作为反向代理示例；若后续扩展多环境部署资产，可迁移到 `deploy/nginx/`。
-- `.dockerignore` 需要保留，用于缩小构建上下文并避免将本地敏感配置（如 `application.yml`）带入镜像构建上下文。
+- `.dockerignore` 需要保留，用于缩小构建上下文并避免将本地敏感配置（如 `configs/*.yml` / `configs/**/*.pem`）带入镜像构建上下文。
 
 ## Architecture
 
@@ -222,7 +222,7 @@ plain:
 - 必填字段：`key`、`provider`、`protocol`、`modelId`。
 - 常用字段：`isReasoner`、`isFunction`、`maxTokens`、`maxInputTokens`、`maxOutputTokens`。
 - 计费字段：`pricing.promptPointsPer1k`、`pricing.completionPointsPer1k`、`pricing.perCallPoints`、`pricing.priceRatio`、`pricing.tiers[]`。
-- 协议枚举：`OPENAI`、`ANTHROPIC`、`NEWAPI_OPENAI_COMPATIBLE`。
+- 协议枚举：`OPENAI`、`ANTHROPIC`（当前 `ANTHROPIC` 仅预留，未实现时会在模型加载阶段拒绝）。
 - 约定：`10000 积分 = 1 RMB`，按每 `1K tokens` 计价；运行时只做配置解析与透传，不内置财务结算逻辑。
 
 ## Agent 模式行为
@@ -532,7 +532,7 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 
 ## Configuration
 
-主配置事实源：`src/main/resources/application.yml`。本地覆盖：`application.yml`（可放私有 provider key）。
+主配置事实源：`src/main/resources/application.yml`。结构化覆盖配置来自 `configs/`，通过启动期扫描加载。
 
 ### Spring/Server
 
@@ -540,7 +540,7 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 |----|--------|------|
 | `server.port` | `8080` | HTTP 端口（环境变量 `SERVER_PORT`） |
 | `spring.application.name` | `springai-agent-platform` | 服务名 |
-| `spring.config.import` | `optional:file:./application.yml, optional:file:/opt/application.yml` | 启动时按顺序加载本地和容器外部覆盖文件 |
+| `AGENT_CONFIG_DIR` | `./configs` 或 `/opt/configs` | 结构化配置目录；显式设置时优先生效 |
 
 ### 环境变量完整列表
 
@@ -600,7 +600,7 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `LOGGING_AGENT_LLM_INTERACTION_ENABLED` | `logging.agent.llm.interaction.enabled` | `true` | LLM 交互日志开关 |
 | `LOGGING_AGENT_LLM_INTERACTION_MASK_SENSITIVE` | `logging.agent.llm.interaction.mask-sensitive` | `true` | 日志脱敏开关 |
 
-说明：`agent.auth.local-public-key` 仅支持在 YAML 中配置 PEM 文本，不提供环境变量映射。
+说明：`agent.auth.local-public-key` 仍支持 YAML 内嵌 PEM；推荐改用 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE` 或 `agent.auth.local-public-key-file` 指向独立 PEM 文件。
 
 迁移说明（Breaking Change）：
 
@@ -621,17 +621,17 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `agent.cors.allow-credentials` | `false` | 是否允许凭证 |
 | `agent.cors.max-age-seconds` | `3600` | 预检缓存秒数 |
 
-### Provider 配置（通常在 `application.yml`）
+### Provider 配置（通常在 `configs/providers/<provider>.yml`）
 
 `agent.providers.<providerKey>` 支持：
 - `base-url`
 - `api-key`
 - `model`（可选，作为 provider 默认 model）
-- `new-api-path`（可选，仅 `NEWAPI_OPENAI_COMPATIBLE` 协议使用）
+- `protocols.<PROTOCOL>.endpoint-path`（可选，按线协议覆盖请求 endpoint 路径）
 
 说明：
 - provider 不再绑定 protocol；协议由 `models/*.json` 中 `protocol` 字段决定。
-- `NEWAPI_OPENAI_COMPATIBLE` 首版请求/响应同 OpenAI SSE，仅 endpoint 路径取 `new-api-path`（默认 `/v1/chat/completions`）。
+- `OPENAI` 未显式配置 `protocols.OPENAI.endpoint-path` 时，会按 `base-url` 自动推导默认 completions 路径。
 
 ### Logging（主配置默认）
 

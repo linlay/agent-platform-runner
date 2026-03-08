@@ -7,6 +7,7 @@ import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.AgentProviderProperties;
+import com.linlay.agentplatform.model.ModelProtocol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -55,6 +56,7 @@ class OpenAiCompatibleSseClient {
     Flux<LlmDelta> streamDeltasRawSse(
             String providerKey,
             String model,
+            ModelProtocol protocol,
             String systemPrompt,
             List<ChatMessage> historyMessages,
             String userPrompt,
@@ -71,6 +73,7 @@ class OpenAiCompatibleSseClient {
         return streamDeltasRawSse(
                 providerKey,
                 model,
+                protocol,
                 systemPrompt,
                 historyMessages,
                 userPrompt,
@@ -90,6 +93,7 @@ class OpenAiCompatibleSseClient {
     Flux<LlmDelta> streamDeltasRawSse(
             String providerKey,
             String model,
+            ModelProtocol protocol,
             String systemPrompt,
             List<ChatMessage> historyMessages,
             String userPrompt,
@@ -131,7 +135,7 @@ class OpenAiCompatibleSseClient {
             AtomicBoolean firstChunkReceived = new AtomicBoolean(false);
 
             return webClient.post()
-                    .uri(resolveRawCompletionsUri(config.getBaseUrl(), endpointPath))
+                    .uri(resolveRawCompletionsUri(providerKey, protocol, config.getBaseUrl(), endpointPath))
                     .accept(MediaType.TEXT_EVENT_STREAM)
                     .bodyValue(request)
                     .retrieve()
@@ -164,17 +168,19 @@ class OpenAiCompatibleSseClient {
     Flux<String> streamContentRawSse(
             String providerKey,
             String model,
+            ModelProtocol protocol,
             String systemPrompt,
             List<ChatMessage> historyMessages,
             String userPrompt,
             String stage
     ) {
-        return streamContentRawSse(providerKey, model, systemPrompt, historyMessages, userPrompt, stage, null);
+        return streamContentRawSse(providerKey, model, protocol, systemPrompt, historyMessages, userPrompt, stage, null);
     }
 
     Flux<String> streamContentRawSse(
             String providerKey,
             String model,
+            ModelProtocol protocol,
             String systemPrompt,
             List<ChatMessage> historyMessages,
             String userPrompt,
@@ -210,7 +216,7 @@ class OpenAiCompatibleSseClient {
             );
             AtomicBoolean firstChunkReceived = new AtomicBoolean(false);
             return webClient.post()
-                    .uri(resolveRawCompletionsUri(config.getBaseUrl(), endpointPath))
+                    .uri(resolveRawCompletionsUri(providerKey, protocol, config.getBaseUrl(), endpointPath))
                     .accept(MediaType.TEXT_EVENT_STREAM)
                     .bodyValue(request)
                     .retrieve()
@@ -279,10 +285,20 @@ class OpenAiCompatibleSseClient {
                 .build();
     }
 
-    private String resolveRawCompletionsUri(String baseUrl, String endpointPath) {
+    String resolveRawCompletionsUri(String providerKey, ModelProtocol protocol) {
+        AgentProviderProperties.ProviderConfig config = resolveProviderConfig(providerKey);
+        AgentProviderProperties.ProtocolConfig protocolConfig = config.getProtocol(protocol);
+        String endpointPath = protocolConfig == null ? null : protocolConfig.getEndpointPath();
+        return resolveRawCompletionsUri(providerKey, protocol, config.getBaseUrl(), endpointPath);
+    }
+
+    private String resolveRawCompletionsUri(String providerKey, ModelProtocol protocol, String baseUrl, String endpointPath) {
         if (StringUtils.hasText(endpointPath)) {
             String path = endpointPath.trim();
             return path.startsWith("/") ? path : "/" + path;
+        }
+        if (protocol != ModelProtocol.OPENAI) {
+            throw new IllegalStateException("Missing endpoint-path for provider key '" + providerKey + "' and protocol '" + protocol + "'");
         }
         String normalized = baseUrl == null ? "" : baseUrl.trim().toLowerCase(Locale.ROOT);
         if (normalized.endsWith("/v1") || normalized.endsWith("/v1/")) {

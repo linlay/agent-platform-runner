@@ -6,8 +6,7 @@ import java.util.Locale;
 
 public enum ModelProtocol {
     OPENAI,
-    ANTHROPIC,
-    NEWAPI_OPENAI_COMPATIBLE;
+    ANTHROPIC;
 
     @JsonCreator
     public static ModelProtocol fromJson(String raw) {
@@ -18,7 +17,6 @@ public enum ModelProtocol {
         return switch (normalized) {
             case "OPENAI" -> OPENAI;
             case "ANTHROPIC" -> ANTHROPIC;
-            case "NEWAPI_OPENAI_COMPATIBLE" -> NEWAPI_OPENAI_COMPATIBLE;
             default -> throw new IllegalArgumentException("Unsupported model protocol: " + raw);
         };
     }

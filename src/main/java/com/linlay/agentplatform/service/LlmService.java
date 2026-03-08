@@ -27,9 +27,7 @@ public class LlmService {
     private static final Logger log = LoggerFactory.getLogger(LlmService.class);
     private static final long DEFAULT_STREAM_TIMEOUT_MS = 60_000L;
 
-    private final AgentProviderProperties providerProperties;
     private final OpenAiCompatibleSseClient openAiCompatibleSseClient;
-    private final NewApiOpenAiCompatibleSseClient newApiOpenAiCompatibleSseClient;
     private final AnthropicSseClient anthropicSseClient;
     private final LlmCallLogger callLogger;
 
@@ -57,10 +55,9 @@ public class LlmService {
             LlmInteractionLogProperties logProperties,
             ConnectionProvider llmConnectionProvider
     ) {
-        this.providerProperties = providerProperties == null ? new AgentProviderProperties() : providerProperties;
+        AgentProviderProperties resolvedProviderProperties = providerProperties == null ? new AgentProviderProperties() : providerProperties;
         this.callLogger = new LlmCallLogger(logProperties);
-        this.openAiCompatibleSseClient = new OpenAiCompatibleSseClient(this.providerProperties, objectMapper, this.callLogger, llmConnectionProvider);
-        this.newApiOpenAiCompatibleSseClient = new NewApiOpenAiCompatibleSseClient(this.providerProperties, this.openAiCompatibleSseClient);
+        this.openAiCompatibleSseClient = new OpenAiCompatibleSseClient(resolvedProviderProperties, objectMapper, this.callLogger, llmConnectionProvider);
         this.anthropicSseClient = new AnthropicSseClient();
     }
 
@@ -110,17 +107,15 @@ public class LlmService {
         if (protocol == ModelProtocol.ANTHROPIC) {
             return anthropicSseClient.streamContentRawSse(providerKey, model, systemPrompt, historyMessages, userPrompt, stage);
         }
-        if (protocol == ModelProtocol.NEWAPI_OPENAI_COMPATIBLE) {
-            return newApiOpenAiCompatibleSseClient.streamContentRawSse(
-                    providerKey,
-                    model,
-                    systemPrompt,
-                    historyMessages,
-                    userPrompt,
-                    stage
-            );
-        }
-        return openAiCompatibleSseClient.streamContentRawSse(providerKey, model, systemPrompt, historyMessages, userPrompt, stage);
+        return openAiCompatibleSseClient.streamContentRawSse(
+                providerKey,
+                model,
+                protocol,
+                systemPrompt,
+                historyMessages,
+                userPrompt,
+                stage
+        );
     }
 
     public Mono<String> completeText(String providerKey, String model, String systemPrompt, String userPrompt) {
@@ -148,19 +143,10 @@ public class LlmService {
                     spec.stage()
             );
         }
-        if (spec.protocol() == ModelProtocol.NEWAPI_OPENAI_COMPATIBLE) {
-            return newApiOpenAiCompatibleSseClient.streamContentRawSse(
-                    spec.providerKey(),
-                    spec.model(),
-                    spec.systemPrompt(),
-                    spec.messages(),
-                    spec.userPrompt(),
-                    spec.stage()
-            );
-        }
         return openAiCompatibleSseClient.streamContentRawSse(
                 spec.providerKey(),
                 spec.model(),
+                spec.protocol(),
                 spec.systemPrompt(),
                 spec.messages(),
                 spec.userPrompt(),
@@ -216,27 +202,11 @@ public class LlmService {
                         traceId,
                         spec.stage()
                 );
-            } else if (spec.protocol() == ModelProtocol.NEWAPI_OPENAI_COMPATIBLE) {
-                deltaFlux = newApiOpenAiCompatibleSseClient.streamDeltasRawSse(
-                        spec.providerKey(),
-                        spec.model(),
-                        spec.systemPrompt(),
-                        spec.messages(),
-                        spec.userPrompt(),
-                        spec.tools(),
-                        spec.parallelToolCalls(),
-                        spec.toolChoice(),
-                        spec.jsonSchema(),
-                        spec.compute(),
-                        spec.reasoningEnabled(),
-                        spec.maxTokens(),
-                        traceId,
-                        spec.stage()
-                );
             } else {
                 deltaFlux = openAiCompatibleSseClient.streamDeltasRawSse(
                         spec.providerKey(),
                         spec.model(),
+                        spec.protocol(),
                         spec.systemPrompt(),
                         spec.messages(),
                         spec.userPrompt(),

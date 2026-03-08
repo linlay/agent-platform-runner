@@ -58,7 +58,7 @@ cp "$DOCKERFILE" "$RELEASE_DIR/Dockerfile"
 cp "$ROOT_DIR/settings.xml" "$RELEASE_DIR/settings.xml"
 
 # 复制运行时数据目录
-for dir in agents viewports tools skills; do
+for dir in agents viewports tools skills configs; do
   if [ -d "$ROOT_DIR/$dir" ]; then
     cp -R "$ROOT_DIR/$dir" "$RELEASE_DIR/$dir"
     log "copied $dir/"
@@ -78,13 +78,14 @@ services:
       - "${HOST_PORT}:8080"
     environment:
       SERVER_PORT: 8080
+      AGENT_CONFIG_DIR: /opt/configs
     volumes:
       - ./agents:/opt/agents
       - ./viewports:/opt/viewports
       - ./tools:/opt/tools
       - ./skills:/opt/skills
+      - ./configs:/opt/configs:ro
       - ./chats:/opt/chats
-      - ./application.yml:/opt/application.yml:ro
     env_file:
       - .env
 EOF
@@ -100,7 +101,7 @@ AGENT_AUTH_ENABLED=false
 # AGENT_AUTH_JWKS_URI=
 # AGENT_AUTH_ISSUER=
 
-# LLM provider keys (configure in application.yml)
+# Structured YAML config lives under ./configs
 
 # Bash tool security (explicit allowlists required)
 # AGENT_BASH_WORKING_DIRECTORY=/opt
@@ -119,8 +120,7 @@ cat >"$RELEASE_DIR/DEPLOY.md" <<'EOF'
    cp .env.example .env
    # Edit .env with production values
 
-   # Create application.yml with LLM provider API keys
-   touch application.yml
+   # Copy configs/*.example.yml to real .yml files as needed
 
 3. Create data directory for chat memory:
 
@@ -138,6 +138,6 @@ log "  $RELEASE_DIR/settings.xml"
 log "  $RELEASE_DIR/docker-compose.yml"
 log "  $RELEASE_DIR/.env.example"
 log "  $RELEASE_DIR/DEPLOY.md"
-for dir in agents viewports tools skills; do
+for dir in agents viewports tools skills configs; do
   [ -d "$RELEASE_DIR/$dir" ] && log "  $RELEASE_DIR/$dir/"
 done

@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.config;
 
+import com.linlay.agentplatform.model.ModelProtocol;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -28,7 +29,7 @@ public class AgentProviderProperties {
         private String baseUrl;
         private String apiKey;
         private String model;
-        private String newApiPath;
+        private Map<ModelProtocol, ProtocolConfig> protocols = new LinkedHashMap<>();
 
         public String getBaseUrl() {
             return baseUrl;
@@ -54,12 +55,31 @@ public class AgentProviderProperties {
             this.model = model;
         }
 
-        public String getNewApiPath() {
-            return newApiPath;
+        public Map<ModelProtocol, ProtocolConfig> getProtocols() {
+            return protocols;
         }
 
-        public void setNewApiPath(String newApiPath) {
-            this.newApiPath = newApiPath;
+        public void setProtocols(Map<ModelProtocol, ProtocolConfig> protocols) {
+            this.protocols = protocols == null ? new LinkedHashMap<>() : new LinkedHashMap<>(protocols);
+        }
+
+        public ProtocolConfig getProtocol(ModelProtocol protocol) {
+            if (protocol == null || protocols == null) {
+                return null;
+            }
+            return protocols.get(protocol);
+        }
+    }
+
+    public static class ProtocolConfig {
+        private String endpointPath;
+
+        public String getEndpointPath() {
+            return endpointPath;
+        }
+
+        public void setEndpointPath(String endpointPath) {
+            this.endpointPath = endpointPath;
         }
     }
 }

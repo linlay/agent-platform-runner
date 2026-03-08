@@ -1,0 +1,6 @@
+agent:
+  providers:
+    siliconflow:
+      base-url: https://api.siliconflow.cn
+      api-key: replace-with-your-siliconflow-api-key
+      model: deepseek-ai/DeepSeek-V3.2

@@ -1,6 +1,9 @@
 package com.linlay.agentplatform.security;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.KeyFactory;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.X509EncodedKeySpec;
@@ -11,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.linlay.agentplatform.config.AppAuthProperties;
+import com.linlay.agentplatform.config.ConfigDirectorySupport;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
@@ -156,32 +160,35 @@ public class JwksJwtVerifier {
             return null;
         }
 
-        String pem = authProperties.getLocalPublicKey();
+        String sourceProperty = StringUtils.hasText(authProperties.getLocalPublicKey())
+                ? "agent.auth.local-public-key"
+                : "agent.auth.local-public-key-file";
+        String pem = resolveLocalPublicKeyContent();
         try {
             JWK jwk = JWK.parseFromPEMEncodedObjects(pem.trim());
             if (!(jwk instanceof RSAKey rsaKey)) {
-                throw new IllegalStateException("agent.auth.local-public-key must be an RSA public key");
+                throw new IllegalStateException(sourceProperty + " must be an RSA public key");
             }
             return rsaKey;
         } catch (NoClassDefFoundError | ExceptionInInitializerError ex) {
-            return parseRsaPublicKeyFallback(pem.trim());
+            return parseRsaPublicKeyFallback(pem.trim(), sourceProperty);
         } catch (IllegalStateException ex) {
             log.error("Invalid local public key configuration", ex);
             throw ex;
         } catch (Exception ex) {
             log.error("Invalid local public key configuration", ex);
-            throw new IllegalStateException("agent.auth.local-public-key is not a valid PEM RSA public key", ex);
+            throw new IllegalStateException(sourceProperty + " is not a valid PEM RSA public key", ex);
         }
     }
 
-    private RSAKey parseRsaPublicKeyFallback(String pem) {
+    private RSAKey parseRsaPublicKeyFallback(String pem, String sourceProperty) {
         try {
             String normalized = pem
                 .replace("-----BEGIN PUBLIC KEY-----", "")
                 .replace("-----END PUBLIC KEY-----", "")
                 .replaceAll("\\s+", "");
             if (!StringUtils.hasText(normalized)) {
-                throw new IllegalStateException("agent.auth.local-public-key is not a valid PEM RSA public key");
+                throw new IllegalStateException(sourceProperty + " is not a valid PEM RSA public key");
             }
             byte[] der = Base64.getDecoder().decode(normalized);
             X509EncodedKeySpec keySpec = new X509EncodedKeySpec(der);
@@ -193,7 +200,7 @@ public class JwksJwtVerifier {
             throw ex;
         } catch (Exception ex) {
             log.error("Invalid local public key configuration", ex);
-            throw new IllegalStateException("agent.auth.local-public-key is not a valid PEM RSA public key", ex);
+            throw new IllegalStateException(sourceProperty + " is not a valid PEM RSA public key", ex);
         }
     }
 
@@ -267,16 +274,49 @@ public class JwksJwtVerifier {
 
     private void validateLocalKeyConfiguration() {
         String localPublicKey = authProperties.getLocalPublicKey();
-        if (localPublicKey == null) {
-            return;
-        }
-        if (!StringUtils.hasText(localPublicKey)) {
+        String localPublicKeyFile = authProperties.getLocalPublicKeyFile();
+        if (localPublicKey != null && !StringUtils.hasText(localPublicKey)) {
             throw new IllegalStateException("agent.auth.local-public-key cannot be blank");
+        }
+        if (localPublicKeyFile != null && !StringUtils.hasText(localPublicKeyFile)) {
+            throw new IllegalStateException("agent.auth.local-public-key-file cannot be blank");
+        }
+        if (StringUtils.hasText(localPublicKey) && StringUtils.hasText(localPublicKeyFile)) {
+            throw new IllegalStateException("agent.auth.local-public-key and agent.auth.local-public-key-file cannot be configured together");
         }
     }
 
     private boolean isLocalKeyConfigured() {
-        return StringUtils.hasText(authProperties.getLocalPublicKey());
+        return StringUtils.hasText(authProperties.getLocalPublicKey())
+            || StringUtils.hasText(authProperties.getLocalPublicKeyFile());
+    }
+
+    private String resolveLocalPublicKeyContent() {
+        if (StringUtils.hasText(authProperties.getLocalPublicKey())) {
+            return authProperties.getLocalPublicKey();
+        }
+        String rawPath = authProperties.getLocalPublicKeyFile();
+        Path path = ConfigDirectorySupport.resolveConfigRelativePath(
+                System.getProperty(ConfigDirectorySupport.CONFIG_DIR_ENV, System.getenv(ConfigDirectorySupport.CONFIG_DIR_ENV)),
+                rawPath
+        );
+        if (!Files.exists(path)) {
+            throw new IllegalStateException("agent.auth.local-public-key-file does not exist: " + path);
+        }
+        if (!Files.isReadable(path)) {
+            throw new IllegalStateException("agent.auth.local-public-key-file is not readable: " + path);
+        }
+        try {
+            String pem = Files.readString(path, StandardCharsets.UTF_8);
+            if (!StringUtils.hasText(pem)) {
+                throw new IllegalStateException("agent.auth.local-public-key-file cannot be blank");
+            }
+            return pem;
+        } catch (IllegalStateException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to read agent.auth.local-public-key-file: " + path, ex);
+        }
     }
 
     private boolean isJwksConfigured() {

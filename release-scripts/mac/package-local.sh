@@ -50,7 +50,7 @@ fi
 cp "$BACKEND_JAR" "$RELEASE_DIR/app.jar"
 
 # 复制运行时数据目录
-for dir in agents viewports tools skills data; do
+for dir in agents viewports tools skills data configs; do
   if [ -d "$ROOT_DIR/$dir" ]; then
     cp -R "$ROOT_DIR/$dir" "$RELEASE_DIR/$dir"
     log "copied $dir/"
@@ -100,12 +100,7 @@ export AGENT_VIEWPORTS_EXTERNAL_DIR="${AGENT_VIEWPORTS_EXTERNAL_DIR:-$APP_DIR/vi
 export AGENT_TOOLS_EXTERNAL_DIR="${AGENT_TOOLS_EXTERNAL_DIR:-$APP_DIR/tools}"
 export AGENT_SKILLS_EXTERNAL_DIR="${AGENT_SKILLS_EXTERNAL_DIR:-$APP_DIR/skills}"
 export MEMORY_CHATS_DIR="${MEMORY_CHATS_DIR:-$APP_DIR/chats}"
-
-# Spring 额外配置文件
-SPRING_OPTS=""
-if [ -f "$APP_DIR/application.yml" ]; then
-  SPRING_OPTS="--spring.config.additional-location=file:$APP_DIR/application.yml"
-fi
+export AGENT_CONFIG_DIR="${AGENT_CONFIG_DIR:-$APP_DIR/configs}"
 
 DAEMON=false
 if [ "${1:-}" = "-d" ]; then
@@ -115,7 +110,7 @@ fi
 if [ "$DAEMON" = true ]; then
   echo "[start] starting in background, log: $LOG_FILE"
   # shellcheck disable=SC2086
-  nohup java $JAVA_OPTS -jar "$JAR_FILE" $SPRING_OPTS >"$LOG_FILE" 2>&1 &
+  nohup java $JAVA_OPTS -jar "$JAR_FILE" >"$LOG_FILE" 2>&1 &
   APP_PID=$!
   echo "$APP_PID" >"$PID_FILE"
   echo "[start] started (PID $APP_PID)"
@@ -126,7 +121,7 @@ else
   trap cleanup EXIT INT TERM
   echo "$$" >"$PID_FILE"
   # shellcheck disable=SC2086
-  exec java $JAVA_OPTS -jar "$JAR_FILE" $SPRING_OPTS
+  exec java $JAVA_OPTS -jar "$JAR_FILE"
 fi
 STARTEOF
 chmod +x "$RELEASE_DIR/start.sh"
@@ -184,23 +179,19 @@ cat >"$RELEASE_DIR/DEPLOY.md" <<'DEPLOYEOF'
 ## Quick Start
 
 ```bash
-# 1. Prepare runtime .env (setup usually creates release-local/.env)
-# Edit .env with your settings
+# 1. Prepare runtime .env and configs/ from the bundled examples
+# Edit .env and copy configs/*.example.yml to real .yml files
 
-# 2. Ensure application.yml exists
-# setup usually creates it from application.example.yml
-# Add provider configuration (see project docs for schema)
-
-# 3. Create chat memory directory
+# 2. Create chat memory directory
 mkdir -p chats
 
-# 4. Start (foreground)
+# 3. Start (foreground)
 ./start.sh
 
-# 4a. Or start in background
+# 3a. Or start in background
 ./start.sh -d
 
-# 5. Stop (when running in background)
+# 4. Stop (when running in background)
 ./stop.sh
 ```
 
@@ -238,8 +229,8 @@ release-local/
 ├── app.jar              # Application JAR
 ├── start.sh             # Start script (-d for background)
 ├── stop.sh              # Stop script (graceful shutdown)
-├── .env                 # Environment variables (created by setup or manually)
-├── application.yml # Spring config override (created by setup or manually)
+├── .env                 # Environment variables (copy from .env.example)
+├── configs/             # Structured YAML config files and templates
 ├── app.pid              # PID file (auto-managed)
 ├── app.log              # Log file (background mode)
 ├── agents/              # Agent JSON definitions
@@ -268,6 +259,6 @@ log "  $RELEASE_DIR/app.jar"
 log "  $RELEASE_DIR/start.sh"
 log "  $RELEASE_DIR/stop.sh"
 log "  $RELEASE_DIR/DEPLOY.md"
-for dir in agents viewports tools skills data; do
+for dir in agents viewports tools skills data configs; do
   [ -d "$RELEASE_DIR/$dir" ] && log "  $RELEASE_DIR/$dir/"
 done

@@ -141,6 +141,10 @@ public class ModelRegistryService {
                 log.warn("Skip model '{}' with unsupported protocol in {}", key, file, ex);
                 return Optional.empty();
             }
+            if (protocol == ModelProtocol.ANTHROPIC) {
+                log.warn("Skip model '{}' with protocol '{}' because this protocol is not implemented yet: {}", key, protocol, file);
+                return Optional.empty();
+            }
 
             ModelDefinition.Pricing pricing = parsePricing(root.path("pricing"));
 

@@ -1,7 +1,7 @@
 {
   "key": "babelark-glm5",
   "provider": "babelark",
-  "protocol": "NEWAPI_OPENAI_COMPATIBLE",
+  "protocol": "OPENAI",
   "modelId": "GLM-5",
   "isReasoner": true,
   "isFunction": true,
