@@ -112,11 +112,13 @@ public class ToolRegistry {
         if (descriptor == null) {
             return "function";
         }
-        return switch (descriptor.kind()) {
-            case FRONTEND -> normalize(descriptor.toolType(), "function");
-            case ACTION -> "action";
-            case BACKEND -> "function";
-        };
+        if (descriptor.isAction()) {
+            return "action";
+        }
+        if (descriptor.isFrontend()) {
+            return normalize(descriptor.toolType(), "function");
+        }
+        return "function";
     }
 
     public Optional<ToolDescriptor> descriptor(String toolName) {
@@ -144,7 +146,7 @@ public class ToolRegistry {
                 nativeTool.parametersSchema(),
                 false,
                 true,
-                ToolKind.BACKEND,
+                false,
                 "function",
                 null,
                 "local",
@@ -155,12 +157,11 @@ public class ToolRegistry {
     }
 
     public boolean isAction(String toolName) {
-        return "action".equalsIgnoreCase(toolCallType(toolName));
+        return descriptor(toolName).map(ToolDescriptor::isAction).orElse(false);
     }
 
     public boolean isFrontend(String toolName) {
-        String type = toolCallType(toolName).toLowerCase(Locale.ROOT);
-        return "frontend".equals(type);
+        return descriptor(toolName).map(ToolDescriptor::isFrontend).orElse(false);
     }
 
     public String description(String toolName) {

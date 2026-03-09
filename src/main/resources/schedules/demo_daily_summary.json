@@ -1,0 +1,11 @@
+{
+  "name": "Demo Daily Summary",
+  "enabled": false,
+  "cron": "0 0 9 * * *",
+  "zoneId": "Asia/Shanghai",
+  "agentKey": "demoModePlain",
+  "query": "请总结今天需要关注的三件事，并给出简短建议。",
+  "params": {
+    "source": "example-template"
+  }
+}

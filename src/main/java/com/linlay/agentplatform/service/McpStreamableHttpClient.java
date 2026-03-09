@@ -71,6 +71,9 @@ public class McpStreamableHttpClient {
             String description = text(node.get("description"));
             String afterCallHint = text(node.get("afterCallHint"));
             JsonNode schema = node.has("inputSchema") ? node.get("inputSchema") : node.get("parameters");
+            boolean toolAction = node.path("toolAction").asBoolean(false);
+            String toolType = text(node.get("toolType"));
+            String viewportKey = text(node.get("viewportKey"));
             JsonNode aliasesNode = node.get("aliases");
             List<String> aliases = new ArrayList<>();
             if (aliasesNode != null && aliasesNode.isArray()) {
@@ -86,6 +89,9 @@ public class McpStreamableHttpClient {
                     description,
                     afterCallHint,
                     schema == null || schema.isNull() ? null : schema,
+                    toolAction,
+                    toolType,
+                    viewportKey,
                     List.copyOf(aliases)
             ));
         }
@@ -275,6 +281,9 @@ public class McpStreamableHttpClient {
             String description,
             String afterCallHint,
             JsonNode inputSchema,
+            boolean toolAction,
+            String toolType,
+            String viewportKey,
             List<String> aliases
     ) {
     }

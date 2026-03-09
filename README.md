@@ -553,7 +553,9 @@ plain:
 
 中文命名备选池（文档附录）：`清岚`、`星河`、`云舟`、`小岚`、`小满`、`景行`。
 
-### 内置 Action
+### 示例 Action
+
+以下 Action 仅随 `example/` 分发，执行 `./example/install-example-*` 后才会复制到运行目录，不属于启动时默认同步的内置资源：
 
 - `switch_theme(theme)`：主题切换，`theme` 仅支持 `light/dark`。
 - `launch_fireworks(durationMs?)`：播放烟花特效，`durationMs` 可选（毫秒）。

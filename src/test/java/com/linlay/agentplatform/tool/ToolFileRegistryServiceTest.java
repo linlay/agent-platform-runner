@@ -18,64 +18,54 @@ class ToolFileRegistryServiceTest {
     Path tempDir;
 
     @Test
-    void shouldLoadBackendAndActionToolsFromToolsDirectory() throws Exception {
+    void shouldLoadBackendFrontendAndActionToolsFromToolsDirectory() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
 
-        Files.writeString(toolsDir.resolve("bash.backend"), """
-                {
-                  "tools": [
-                    {"type":"function", "name":"bash", "description":"bash tool", "afterCallHint":"bash prompt", "parameters":{"type":"object"}}
-                  ]
-                }
+        Files.writeString(toolsDir.resolve("bash.yml"), """
+                type: function
+                name: bash
+                description: bash tool
+                afterCallHint: bash prompt
+                inputSchema:
+                  type: object
                 """);
-        Files.writeString(toolsDir.resolve("switch_theme.action"), """
-                {
-                  "tools": [
-                    {"type":"function", "name":"switch_theme", "description":"switch", "parameters":{"type":"object"}}
-                  ]
-                }
+        Files.writeString(toolsDir.resolve("confirm_dialog.yml"), """
+                type: function
+                name: confirm_dialog
+                description: confirm
+                toolType: html
+                viewportKey: confirm_dialog
+                inputSchema:
+                  type: object
                 """);
-        Files.writeString(toolsDir.resolve("launch_fireworks.action"), """
-                {
-                  "tools": [
-                    {"type":"function", "name":"launch_fireworks", "description":"fireworks", "parameters":{"type":"object"}}
-                  ]
-                }
-                """);
-        Files.writeString(toolsDir.resolve("show_modal.action"), """
-                {
-                  "tools": [
-                    {"type":"function", "name":"show_modal", "description":"modal", "parameters":{"type":"object"}}
-                  ]
-                }
+        Files.writeString(toolsDir.resolve("switch_theme.yml"), """
+                type: function
+                name: switch_theme
+                description: switch
+                toolAction: true
+                inputSchema:
+                  type: object
                 """);
 
-        ToolProperties properties = new ToolProperties();
-        properties.setExternalDir(toolsDir.toString());
-
-        ToolFileRegistryService service = new ToolFileRegistryService(
-                new ObjectMapper(),
-                properties
-        );
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
 
         ToolDescriptor backend = service.find("bash").orElseThrow();
+        ToolDescriptor frontend = service.find("confirm_dialog").orElseThrow();
         ToolDescriptor action = service.find("switch_theme").orElseThrow();
-        ToolDescriptor fireworks = service.find("launch_fireworks").orElseThrow();
-        ToolDescriptor modal = service.find("show_modal").orElseThrow();
 
         assertThat(backend.kind()).isEqualTo(ToolKind.BACKEND);
-        assertThat(backend.toolType()).isEqualTo("function");
+        assertThat(backend.toolType()).isNull();
         assertThat(backend.afterCallHint()).isEqualTo("bash prompt");
         assertThat(backend.clientVisible()).isTrue();
-        assertThat(service.find("show_weather_card")).isEmpty();
+
+        assertThat(frontend.kind()).isEqualTo(ToolKind.FRONTEND);
+        assertThat(frontend.toolType()).isEqualTo("html");
+        assertThat(frontend.viewportKey()).isEqualTo("confirm_dialog");
 
         assertThat(action.kind()).isEqualTo(ToolKind.ACTION);
-        assertThat(action.toolType()).isEqualTo("action");
-        assertThat(fireworks.kind()).isEqualTo(ToolKind.ACTION);
-        assertThat(fireworks.toolType()).isEqualTo("action");
-        assertThat(modal.kind()).isEqualTo(ToolKind.ACTION);
-        assertThat(modal.toolType()).isEqualTo("action");
+        assertThat(action.toolAction()).isTrue();
+        assertThat(action.toolType()).isNull();
     }
 
     @Test
@@ -83,66 +73,44 @@ class ToolFileRegistryServiceTest {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
 
-        Files.writeString(toolsDir.resolve("a.backend"), """
-                {
-                  "tools": [
-                    {"type":"function", "name":"dup_name", "description":"a", "parameters":{"type":"object"}}
-                  ]
-                }
+        Files.writeString(toolsDir.resolve("a.yml"), """
+                type: function
+                name: dup_name
+                description: a
+                inputSchema:
+                  type: object
                 """);
-        Files.writeString(toolsDir.resolve("b.action"), """
+        Files.writeString(toolsDir.resolve("b.json"), """
                 {
-                  "tools": [
-                    {"type":"function", "name":"dup_name", "description":"b", "parameters":{"type":"object"}}
-                  ]
+                  "type": "function",
+                  "name": "dup_name",
+                  "description": "b",
+                  "inputSchema": {"type": "object"}
                 }
                 """);
 
-        ToolProperties properties = new ToolProperties();
-        properties.setExternalDir(toolsDir.toString());
-
-        ToolFileRegistryService service = new ToolFileRegistryService(
-                new ObjectMapper(),
-                properties
-        );
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
 
         assertThat(service.find("dup_name")).isEmpty();
     }
 
     @Test
-    void shouldOnlyRecognizeFrontendSuffix() throws Exception {
+    void shouldSkipLegacyMultiToolFiles() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
 
-        Files.writeString(toolsDir.resolve("show_form.frontend"), """
-                {
-                  "tools": [
-                    {"type":"function", "name":"show_form_frontend", "description":"frontend", "parameters":{"type":"object"}}
-                  ]
-                }
-                """);
-        Files.writeString(toolsDir.resolve("legacy_html.html"), """
-                {
-                  "tools": [
-                    {"type":"function", "name":"legacy_html_frontend", "description":"legacy html", "parameters":{"type":"object"}}
-                  ]
-                }
+        Files.writeString(toolsDir.resolve("legacy.yml"), """
+                tools:
+                  - type: function
+                    name: legacy_tool
+                    description: legacy
+                    inputSchema:
+                      type: object
                 """);
 
-        ToolProperties properties = new ToolProperties();
-        properties.setExternalDir(toolsDir.toString());
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
 
-        ToolFileRegistryService service = new ToolFileRegistryService(
-                new ObjectMapper(),
-                properties
-        );
-
-        ToolDescriptor frontend = service.find("show_form_frontend").orElseThrow();
-        assertThat(frontend.kind()).isEqualTo(ToolKind.FRONTEND);
-        assertThat(frontend.toolType()).isEqualTo("frontend");
-        assertThat(frontend.viewportKey()).isEqualTo("show_form");
-
-        assertThat(service.find("legacy_html_frontend")).isEmpty();
+        assertThat(service.find("legacy_tool")).isEmpty();
     }
 
     @Test
@@ -150,23 +118,16 @@ class ToolFileRegistryServiceTest {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
 
-        Files.writeString(toolsDir.resolve("hidden_yaml.backend"), """
-                tools:
-                  - type: function
-                    name: hidden_yaml_tool
-                    description: hidden yaml tool
-                    clientVisible: false
-                    parameters:
-                      type: object
+        Files.writeString(toolsDir.resolve("hidden_yaml.yml"), """
+                type: function
+                name: hidden_yaml_tool
+                description: hidden yaml tool
+                clientVisible: false
+                inputSchema:
+                  type: object
                 """);
 
-        ToolProperties properties = new ToolProperties();
-        properties.setExternalDir(toolsDir.toString());
-
-        ToolFileRegistryService service = new ToolFileRegistryService(
-                new ObjectMapper(),
-                properties
-        );
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
 
         ToolDescriptor descriptor = service.find("hidden_yaml_tool").orElseThrow();
         assertThat(descriptor.kind()).isEqualTo(ToolKind.BACKEND);
@@ -177,16 +138,22 @@ class ToolFileRegistryServiceTest {
     void shouldReturnCatalogDiffWhenCapabilitiesChanged() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("a.backend"), """
-                { "tools": [ {"type":"function", "name":"a_tool", "description":"a", "parameters":{"type":"object"}} ] }
+        Files.writeString(toolsDir.resolve("a.yml"), """
+                type: function
+                name: a_tool
+                description: a
+                inputSchema:
+                  type: object
                 """);
 
-        ToolProperties properties = new ToolProperties();
-        properties.setExternalDir(toolsDir.toString());
-        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties);
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
 
-        Files.writeString(toolsDir.resolve("b.backend"), """
-                { "tools": [ {"type":"function", "name":"b_tool", "description":"b", "parameters":{"type":"object"}} ] }
+        Files.writeString(toolsDir.resolve("b.yml"), """
+                type: function
+                name: b_tool
+                description: b
+                inputSchema:
+                  type: object
                 """);
         CatalogDiff diff = service.refreshTools();
 
@@ -194,4 +161,9 @@ class ToolFileRegistryServiceTest {
         assertThat(diff.changedKeys()).contains("b_tool");
     }
 
+    private ToolProperties properties(Path toolsDir) {
+        ToolProperties properties = new ToolProperties();
+        properties.setExternalDir(toolsDir.toString());
+        return properties;
+    }
 }

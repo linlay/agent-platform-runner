@@ -1,10 +1,9 @@
 {
-  "tools": [
-    {
-      "type": "function",
-      "name": "switch_theme",
-      "description": "切换主题",
-      "parameters": {
+  "type": "function",
+  "name": "switch_theme",
+  "description": "切换主题",
+  "toolAction": true,
+  "inputSchema": {
         "type": "object",
         "properties": {
           "theme": {
@@ -20,7 +19,5 @@
           "theme"
         ],
         "additionalProperties": false
-      }
-    }
-  ]
+  }
 }

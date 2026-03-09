@@ -1,10 +1,8 @@
 {
-  "tools": [
-    {
-      "type": "function",
-      "name": "datetime",
-      "description": "获取当前或偏移后的日期时间，支持可选 timezone 和链式 offset，输出包含农历",
-      "parameters": {
+  "type": "function",
+  "name": "datetime",
+  "description": "获取当前或偏移后的日期时间，支持可选 timezone 和链式 offset，输出包含农历",
+  "inputSchema": {
         "type": "object",
         "properties": {
           "timezone": {
@@ -17,7 +15,5 @@
           }
         },
         "additionalProperties": false
-      }
-    }
-  ]
+  }
 }

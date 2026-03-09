@@ -361,9 +361,7 @@ class OpenAiCompatibleSseClient {
             request.put("max_tokens", maxTokens);
         }
 
-        if (isBailianProvider(providerKey)) {
-            request.put("enable_thinking", reasoningEnabled);
-        }
+        request.put("enable_thinking", reasoningEnabled);
 
         if (reasoningEnabled) {
             request.put("reasoning", Map.of("effort", toReasoningEffort(computePolicy)));
@@ -540,10 +538,6 @@ class OpenAiCompatibleSseClient {
             rawTools.add(toolMap);
         }
         return rawTools;
-    }
-
-    private boolean isBailianProvider(String providerKey) {
-        return providerKey != null && "bailian".equalsIgnoreCase(providerKey.trim());
     }
 
     private String safeJson(Object value) {

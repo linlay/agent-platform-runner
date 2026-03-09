@@ -167,7 +167,7 @@ class ToolExecutionServiceTest {
     void shouldWaitForFrontendSubmitWithoutPreExecutionToolEnd() throws Exception {
         ConstantTool frontendTool = new ConstantTool("confirm_dialog", "IGNORED");
         ToolRegistry toolRegistry = spy(new ToolRegistry(List.of(frontendTool)));
-        doReturn("frontend").when(toolRegistry).toolCallType("confirm_dialog");
+        doReturn("html").when(toolRegistry).toolCallType("confirm_dialog");
         doReturn(true).when(toolRegistry).isFrontend("confirm_dialog");
 
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
@@ -232,7 +232,7 @@ class ToolExecutionServiceTest {
     void frontendTimeoutResultShouldContainStructuredTimeoutCode() throws Exception {
         ConstantTool frontendTool = new ConstantTool("confirm_dialog", "IGNORED");
         ToolRegistry toolRegistry = spy(new ToolRegistry(List.of(frontendTool)));
-        doReturn("frontend").when(toolRegistry).toolCallType("confirm_dialog");
+        doReturn("html").when(toolRegistry).toolCallType("confirm_dialog");
         doReturn(true).when(toolRegistry).isFrontend("confirm_dialog");
 
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();

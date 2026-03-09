@@ -1,10 +1,8 @@
 {
-  "tools": [
-    {
-      "type": "function",
-      "name": "_bash_",
-      "description": "运行白名单 bash 命令（默认严格模式；可配置启用高级 shell 语法，如管道、重定向与 here-doc）",
-      "parameters": {
+  "type": "function",
+  "name": "_bash_",
+  "description": "运行白名单 bash 命令（默认严格模式；可配置启用高级 shell 语法，如管道、重定向与 here-doc）",
+  "inputSchema": {
         "type": "object",
         "properties": {
           "command": {
@@ -16,7 +14,5 @@
           "command"
         ],
         "additionalProperties": false
-      }
-    }
-  ]
+  }
 }

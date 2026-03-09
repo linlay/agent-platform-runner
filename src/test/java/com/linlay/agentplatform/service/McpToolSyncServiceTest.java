@@ -53,6 +53,9 @@ class McpToolSyncServiceTest {
                         "weather",
                         "use weather viewport card",
                         schema,
+                        false,
+                        null,
+                        null,
                         List.of()
                 )
         ));
@@ -128,6 +131,9 @@ class McpToolSyncServiceTest {
                         "weather",
                         "use weather viewport card",
                         schema,
+                        false,
+                        null,
+                        null,
                         List.of()
                 )
         ));
@@ -161,6 +167,71 @@ class McpToolSyncServiceTest {
 
         verify(client, times(3)).initialize(server, "2025-06");
         verify(client, times(2)).listTools(server);
+    }
+
+    @Test
+    void shouldClassifyFrontendAndActionToolsFromMcpMetadata() {
+        McpProperties properties = new McpProperties();
+        properties.setEnabled(true);
+
+        McpServerRegistryService.RegisteredServer server = new McpServerRegistryService.RegisteredServer(
+                "mock",
+                "http://localhost:18080",
+                "/mcp",
+                "mock",
+                Map.of(),
+                Map.of(),
+                3000,
+                15000,
+                1
+        );
+        McpServerRegistryService registryService = mock(McpServerRegistryService.class);
+        when(registryService.list()).thenReturn(List.of(server));
+
+        ObjectNode schema = new ObjectMapper().createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", new ObjectMapper().createObjectNode());
+
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        doNothing().when(client).initialize(server, "2025-06");
+        when(client.listTools(server)).thenReturn(List.of(
+                new McpStreamableHttpClient.McpToolDefinition(
+                        "mock.todo.tasks.list",
+                        "todo",
+                        "",
+                        schema,
+                        false,
+                        "html",
+                        "show_todo_card",
+                        List.of()
+                ),
+                new McpStreamableHttpClient.McpToolDefinition(
+                        "mock.sensitive-data.detect",
+                        "sensitive",
+                        "",
+                        schema,
+                        true,
+                        null,
+                        null,
+                        List.of()
+                )
+        ));
+
+        McpToolSyncService service = new McpToolSyncService(
+                properties,
+                registryService,
+                new McpServerAvailabilityGate(properties),
+                client,
+                new ObjectMapper()
+        );
+        service.refreshTools();
+
+        assertThat(service.find("mock.todo.tasks.list")).isPresent();
+        assertThat(service.find("mock.todo.tasks.list").orElseThrow().kind()).isEqualTo(com.linlay.agentplatform.tool.ToolKind.FRONTEND);
+        assertThat(service.find("mock.todo.tasks.list").orElseThrow().toolType()).isEqualTo("html");
+        assertThat(service.find("mock.todo.tasks.list").orElseThrow().viewportKey()).isEqualTo("show_todo_card");
+        assertThat(service.find("mock.sensitive-data.detect").orElseThrow().kind()).isEqualTo(com.linlay.agentplatform.tool.ToolKind.ACTION);
+        assertThat(service.find("mock.sensitive-data.detect").orElseThrow().toolAction()).isTrue();
     }
 
     private static final class MutableClock extends Clock {

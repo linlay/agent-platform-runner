@@ -1,10 +1,8 @@
 {
-  "tools": [
-    {
-      "type": "function",
-      "name": "_skill_run_script_",
-      "description": "执行 skills/<skill>/ 下的脚本文件，或执行临时 pythonCode。script 与 pythonCode 二选一；脚本文件仅支持 .py/.sh 且必须在目标 skill 目录内。",
-      "parameters": {
+  "type": "function",
+  "name": "_skill_run_script_",
+  "description": "执行 skills/<skill>/ 下的脚本文件，或执行临时 pythonCode。script 与 pythonCode 二选一；脚本文件仅支持 .py/.sh 且必须在目标 skill 目录内。",
+  "inputSchema": {
         "type": "object",
         "properties": {
           "skill": {
@@ -49,7 +47,5 @@
           }
         ],
         "additionalProperties": false
-      }
-    }
-  ]
+  }
 }

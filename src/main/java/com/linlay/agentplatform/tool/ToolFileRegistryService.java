@@ -35,9 +35,7 @@ public class ToolFileRegistryService {
     private static final Logger log = LoggerFactory.getLogger(ToolFileRegistryService.class);
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
-    private static final String BACKEND_SUFFIX = ".backend";
-    private static final String ACTION_SUFFIX = ".action";
-    private static final Set<String> FRONTEND_SUFFIXES = Set.of(".frontend");
+    private static final Set<String> SUPPORTED_SUFFIXES = Set.of(".json", ".yml", ".yaml");
 
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
@@ -93,30 +91,15 @@ public class ToolFileRegistryService {
             return;
         }
         for (Path file : sortedFiles(dir)) {
-            String fileName = file.getFileName().toString();
-            String lower = fileName.toLowerCase(Locale.ROOT);
-            if (lower.endsWith(BACKEND_SUFFIX)) {
-                parseFile(file, ToolKind.BACKEND, "function", null, loaded, conflicts);
+            if (!isSupported(file)) {
                 continue;
             }
-            if (lower.endsWith(ACTION_SUFFIX)) {
-                parseFile(file, ToolKind.ACTION, "action", null, loaded, conflicts);
-                continue;
-            }
-            String frontendSuffix = resolveFrontendSuffix(lower);
-            if (frontendSuffix == null) {
-                continue;
-            }
-            String viewportKey = fileName.substring(0, fileName.length() - frontendSuffix.length()).toLowerCase(Locale.ROOT);
-            parseFile(file, ToolKind.FRONTEND, frontendSuffix.substring(1), viewportKey, loaded, conflicts);
+            parseFile(file, loaded, conflicts);
         }
     }
 
     private void parseFile(
             Path file,
-            ToolKind kind,
-            String toolType,
-            String viewportKey,
             Map<String, ToolDescriptor> loaded,
             Set<String> conflicts
     ) {
@@ -128,59 +111,66 @@ public class ToolFileRegistryService {
             return;
         }
 
-        JsonNode tools = root.path("tools");
-        if (!tools.isArray()) {
-            log.warn("Skip tool file without tools[]: {}", file);
+        if (!root.isObject()) {
+            log.warn("Skip invalid tool file without object root: {}", file);
+            return;
+        }
+        if (root.has("tools") && root.get("tools").isArray()) {
+            log.warn("Skip legacy multi-tool file; tools[] is no longer supported: {}", file);
             return;
         }
 
-        for (JsonNode node : tools) {
-            if (node == null || !node.isObject()) {
-                continue;
-            }
-            String type = normalize(node.path("type").asText(""));
-            if (!"function".equals(type)) {
-                continue;
-            }
-            String name = normalizeName(node.path("name").asText(""));
-            if (name.isBlank()) {
-                continue;
-            }
-            if (conflicts.contains(name)) {
-                continue;
-            }
+        String type = normalize(root.path("type").asText(""));
+        if (!"function".equals(type)) {
+            log.warn("Skip non-function tool file: {}", file);
+            return;
+        }
+        String name = normalizeName(root.path("name").asText(""));
+        if (name.isBlank()) {
+            log.warn("Skip tool file without name: {}", file);
+            return;
+        }
+        if (conflicts.contains(name)) {
+            return;
+        }
 
-            Map<String, Object> parameters = parseParameters(node.get("parameters"));
-            String description = normalize(node.path("description").asText(""));
-            String afterCallHint = normalize(node.path("afterCallHint").asText(""));
-            Boolean strict = node.has("strict") ? node.path("strict").asBoolean(false) : null;
-            Boolean clientVisible = node.has("clientVisible") ? node.path("clientVisible").asBoolean(true) : null;
-            String toolApi = node.has("toolApi") && node.get("toolApi").isTextual()
-                    ? node.get("toolApi").asText()
-                    : null;
+        Map<String, Object> parameters = parseParameters(root.has("inputSchema") ? root.get("inputSchema") : root.get("parameters"));
+        String description = normalize(root.path("description").asText(""));
+        String afterCallHint = normalize(root.path("afterCallHint").asText(""));
+        Boolean strict = root.has("strict") ? root.path("strict").asBoolean(false) : null;
+        Boolean clientVisible = root.has("clientVisible") ? root.path("clientVisible").asBoolean(true) : null;
+        Boolean toolAction = root.has("toolAction") ? root.path("toolAction").asBoolean(false) : null;
+        String toolType = root.has("toolType") && root.get("toolType").isTextual()
+                ? root.get("toolType").asText()
+                : null;
+        String toolApi = root.has("toolApi") && root.get("toolApi").isTextual()
+                ? root.get("toolApi").asText()
+                : null;
+        String viewportKey = root.has("viewportKey") && root.get("viewportKey").isTextual()
+                ? root.get("viewportKey").asText()
+                : null;
 
-            ToolDescriptor descriptor = new ToolDescriptor(
-                    name,
-                    description,
-                    afterCallHint,
-                    parameters,
-                    strict,
-                    clientVisible,
-                    kind,
-                    toolType,
-                    toolApi,
-                    "local",
-                    null,
-                    viewportKey,
-                    file.toString()
-            );
+        ToolDescriptor descriptor = new ToolDescriptor(
+                name,
+                description,
+                afterCallHint,
+                parameters,
+                strict,
+                clientVisible,
+                toolAction,
+                toolType,
+                toolApi,
+                "local",
+                null,
+                viewportKey,
+                file.toString()
+        );
 
-            ToolDescriptor old = loaded.putIfAbsent(name, descriptor);
-            if (old != null) {
-                loaded.remove(name);
-                conflicts.add(name);
-                log.warn("Duplicate tool name '{}' found in {} and {}, both skipped", name, old.sourceFile(), file);
-            }
+        ToolDescriptor old = loaded.putIfAbsent(name, descriptor);
+        if (old != null) {
+            loaded.remove(name);
+            conflicts.add(name);
+            log.warn("Duplicate tool name '{}' found in {} and {}, both skipped", name, old.sourceFile(), file);
         }
     }
 
@@ -196,11 +186,9 @@ public class ToolFileRegistryService {
         return files;
     }
 
-    private String resolveFrontendSuffix(String fileName) {
-        return FRONTEND_SUFFIXES.stream()
-                .filter(fileName::endsWith)
-                .findFirst()
-                .orElse(null);
+    private boolean isSupported(Path file) {
+        String fileName = file.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        return SUPPORTED_SUFFIXES.stream().anyMatch(fileName::endsWith);
     }
 
     private Map<String, Object> parseParameters(JsonNode node) {

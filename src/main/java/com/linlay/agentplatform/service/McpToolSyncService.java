@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.tool.ToolDescriptor;
-import com.linlay.agentplatform.tool.ToolKind;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -220,12 +219,12 @@ public class McpToolSyncService {
                     toParameters(tool.inputSchema()),
                     false,
                     true,
-                    ToolKind.BACKEND,
-                    "function",
+                    tool.toolAction(),
+                    tool.toolType(),
                     "mcp://" + server.serverKey() + "/" + toolName,
                     "mcp",
                     normalize(server.serverKey()),
-                    null,
+                    tool.viewportKey(),
                     "mcp://" + server.serverKey()
             );
             descriptors.put(toolName, descriptor);

@@ -78,13 +78,13 @@ class OrchestratorServicesTest {
                 """.trim();
         ToolExecutionService.ToolExecutionBatch batch = new ToolExecutionService.ToolExecutionBatch(
                 List.of(AgentDelta.toolResult("call_frontend_1", timeoutResult)),
-                List.of(new ToolExecutionService.ToolExecutionEvent(
-                        "call_frontend_1",
-                        "confirm_dialog",
-                        "frontend",
-                        "{\"question\":\"去哪玩\"}",
-                        timeoutResult
-                ))
+                        List.of(new ToolExecutionService.ToolExecutionEvent(
+                                "call_frontend_1",
+                                "confirm_dialog",
+                                "html",
+                                "{\"question\":\"去哪玩\"}",
+                                timeoutResult
+                        ))
         );
         when(toolExecutionService.executeToolCalls(
                 anyList(),

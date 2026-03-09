@@ -266,7 +266,9 @@ public class StreamEventAssembler {
                     payload.put("runId", runId);
                     putIfNonNull(payload, "taskId", taskId);
                     putIfNonNull(payload, "toolName", value.toolName());
-                    putIfNonNull(payload, "toolType", value.toolType());
+                    if (shouldEmitToolType(value.toolType())) {
+                        putIfNonNull(payload, "toolType", value.toolType());
+                    }
                     putIfNonNull(payload, "toolApi", value.toolApi());
                     putIfNonNull(payload, "toolParams", value.toolParams());
                     putIfNonNull(payload, "description", value.description());
@@ -658,5 +660,9 @@ public class StreamEventAssembler {
         if (value != null) {
             payload.put(key, value);
         }
+    }
+
+    private static boolean shouldEmitToolType(String toolType) {
+        return toolType != null && !toolType.isBlank() && !"function".equalsIgnoreCase(toolType);
     }
 }

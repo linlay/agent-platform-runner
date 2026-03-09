@@ -3,7 +3,6 @@ package com.linlay.agentplatform.agent.runtime;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.linlay.agentplatform.tool.ToolDescriptor;
-import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
@@ -30,7 +29,7 @@ class ToolInvokerRouterTest {
                 Map.of("type", "object"),
                 false,
                 true,
-                ToolKind.BACKEND,
+                false,
                 "function",
                 null,
                 "local",
@@ -63,7 +62,7 @@ class ToolInvokerRouterTest {
                 Map.of("type", "object"),
                 false,
                 true,
-                ToolKind.BACKEND,
+                false,
                 "function",
                 "mcp://mock/mock.weather.query",
                 "mcp",

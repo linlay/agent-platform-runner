@@ -9,7 +9,7 @@ public record ToolDescriptor(
         Map<String, Object> parameters,
         Boolean strict,
         Boolean clientVisible,
-        ToolKind kind,
+        Boolean toolAction,
         String toolType,
         String toolApi,
         String sourceType,
@@ -28,7 +28,33 @@ public record ToolDescriptor(
             parameters = Map.copyOf(parameters);
         }
         clientVisible = clientVisible == null ? Boolean.TRUE : clientVisible;
+        toolAction = toolAction == null ? Boolean.FALSE : toolAction;
+        toolType = toolType == null || toolType.isBlank() ? null : toolType.trim();
+        toolApi = toolApi == null || toolApi.isBlank() ? null : toolApi.trim();
+        viewportKey = viewportKey == null || viewportKey.isBlank() ? null : viewportKey.trim();
         sourceType = sourceType == null || sourceType.isBlank() ? "local" : sourceType.trim().toLowerCase();
         sourceKey = sourceKey == null || sourceKey.isBlank() ? null : sourceKey.trim().toLowerCase();
+    }
+
+    public boolean isAction() {
+        return Boolean.TRUE.equals(toolAction);
+    }
+
+    public boolean isFrontend() {
+        return !isAction() && hasText(toolType) && hasText(viewportKey);
+    }
+
+    public ToolKind kind() {
+        if (isAction()) {
+            return ToolKind.ACTION;
+        }
+        if (isFrontend()) {
+            return ToolKind.FRONTEND;
+        }
+        return ToolKind.BACKEND;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

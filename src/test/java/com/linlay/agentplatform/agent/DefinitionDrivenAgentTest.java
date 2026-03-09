@@ -196,7 +196,7 @@ class DefinitionDrivenAgentTest {
                 if ("agent-oneshot-tool-first".equals(stage)) {
                     return Flux.just(new LlmDelta(
                             null,
-                            List.of(new ToolCallDelta("call_frontend_timeout_1", "frontend", "confirm_dialog", "{\"question\":\"去哪玩\"}")),
+                            List.of(new ToolCallDelta("call_frontend_timeout_1", "html", "confirm_dialog", "{\"question\":\"去哪玩\"}")),
                             "tool_calls"
                     ));
                 }
@@ -222,7 +222,7 @@ class DefinitionDrivenAgentTest {
         };
 
         ToolRegistry toolRegistry = spy(new ToolRegistry(List.of(frontendTool)));
-        doReturn("frontend").when(toolRegistry).toolCallType("confirm_dialog");
+        doReturn("html").when(toolRegistry).toolCallType("confirm_dialog");
         doReturn(true).when(toolRegistry).isFrontend("confirm_dialog");
 
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
@@ -292,7 +292,7 @@ class DefinitionDrivenAgentTest {
                 ),
                 false,
                 true,
-                ToolKind.BACKEND,
+                false,
                 "function",
                 "mcp://email/mail_search",
                 "mcp",

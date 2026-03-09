@@ -95,25 +95,21 @@ class ToolRegistryTest {
     void backendToolMetadataShouldOverrideNativeToolDefinition(@TempDir Path tempDir) throws IOException {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("datetime.backend"), """
+        Files.writeString(toolsDir.resolve("datetime.json"), """
                 {
-                  "tools": [
-                    {
-                      "type": "function",
-                      "name": "datetime",
-                      "description": "city datetime from backend",
-                      "afterCallHint": "use city datetime prompt",
-                      "parameters": {
-                        "type": "object",
-                        "properties": {
-                          "timezone": {"type": "string"},
-                          "offset": {"type": "string"}
-                        },
-                        "required": ["timezone"],
-                        "additionalProperties": false
-                      }
-                    }
-                  ]
+                  "type": "function",
+                  "name": "datetime",
+                  "description": "city datetime from backend",
+                  "afterCallHint": "use city datetime prompt",
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                      "timezone": {"type": "string"},
+                      "offset": {"type": "string"}
+                    },
+                    "required": ["timezone"],
+                    "additionalProperties": false
+                  }
                 }
                 """);
 
@@ -153,7 +149,7 @@ class ToolRegistryTest {
                 Map.of("type", "object"),
                 false,
                 true,
-                ToolKind.BACKEND,
+                false,
                 "function",
                 "mcp://mock/mock.weather.query",
                 "mcp",
@@ -196,7 +192,7 @@ class ToolRegistryTest {
                 Map.of("type", "object"),
                 false,
                 true,
-                ToolKind.BACKEND,
+                false,
                 "function",
                 "mcp://mock/datetime",
                 "mcp",

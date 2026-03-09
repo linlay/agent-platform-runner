@@ -164,7 +164,7 @@ public class AgentCatalogController {
                 tool.parametersSchema(),
                 false,
                 true,
-                ToolKind.BACKEND,
+                false,
                 "function",
                 null,
                 "local",
@@ -207,12 +207,12 @@ public class AgentCatalogController {
                 || normalizeText(descriptor.toolType()).contains(normalized)
                 || normalizeText(descriptor.toolApi()).contains(normalized)
                 || normalizeText(descriptor.viewportKey()).contains(normalized)
-                || (descriptor.kind() != null && descriptor.kind().name().toLowerCase(Locale.ROOT).contains(normalized));
+                || descriptor.kind().name().toLowerCase(Locale.ROOT).contains(normalized);
     }
 
     private ToolListResponse.ToolSummary toToolSummary(ToolDescriptor descriptor) {
         Map<String, Object> meta = new java.util.LinkedHashMap<>();
-        meta.put("kind", descriptor.kind() == null ? "" : descriptor.kind().name().toLowerCase(Locale.ROOT));
+        meta.put("kind", descriptor.kind().name().toLowerCase(Locale.ROOT));
         meta.put("toolType", descriptor.toolType());
         meta.put("toolApi", descriptor.toolApi());
         meta.put("sourceType", descriptor.sourceType());

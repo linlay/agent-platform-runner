@@ -602,7 +602,7 @@ class ChatRecordStoreTest {
                 Map.of("type", "object"),
                 false,
                 clientVisible,
-                ToolKind.BACKEND,
+                false,
                 "function",
                 null,
                 "local",

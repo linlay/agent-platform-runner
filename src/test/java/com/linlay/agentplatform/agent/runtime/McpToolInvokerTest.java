@@ -7,7 +7,6 @@ import com.linlay.agentplatform.service.McpServerAvailabilityGate;
 import com.linlay.agentplatform.service.McpServerRegistryService;
 import com.linlay.agentplatform.service.McpStreamableHttpClient;
 import com.linlay.agentplatform.tool.ToolDescriptor;
-import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 
@@ -161,7 +160,7 @@ class McpToolInvokerTest {
                 Map.of("type", "object"),
                 false,
                 true,
-                ToolKind.BACKEND,
+                false,
                 "function",
                 "mcp://mock/mock.weather.query",
                 "mcp",

@@ -633,7 +633,9 @@ public class ChatRecordStore {
                             payload.put("arguments", toolCall.function.arguments);
 
                             if (!binding.action) {
-                                payload.put("toolType", StringUtils.hasText(toolCall.type) ? toolCall.type : "function");
+                                if (StringUtils.hasText(toolCall.type) && !"function".equalsIgnoreCase(toolCall.type)) {
+                                    payload.put("toolType", toolCall.type);
+                                }
                                 payload.put("toolApi", null);
                                 payload.put("toolParams", toToolParams(toolCall.function.arguments));
                                 payload.put("description", null);

@@ -1,10 +1,9 @@
 {
-  "tools": [
-    {
-      "type": "function",
-      "name": "show_modal",
-      "description": "显示模态框",
-      "parameters": {
+  "type": "function",
+  "name": "show_modal",
+  "description": "显示模态框",
+  "toolAction": true,
+  "inputSchema": {
         "type": "object",
         "properties": {
           "title": {
@@ -25,7 +24,5 @@
           "content"
         ],
         "additionalProperties": false
-      }
-    }
-  ]
+  }
 }

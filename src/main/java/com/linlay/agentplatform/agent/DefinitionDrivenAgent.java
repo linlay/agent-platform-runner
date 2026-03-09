@@ -709,7 +709,7 @@ public class DefinitionDrivenAgent implements Agent {
 
     private String resolveToolGroup(String toolName) {
         ToolDescriptor descriptor = toolRegistry.descriptor(toolName).orElse(null);
-        if (descriptor != null && descriptor.kind() != null) {
+        if (descriptor != null) {
             ToolKind kind = descriptor.kind();
             if (kind == ToolKind.ACTION) {
                 return "action";
@@ -723,7 +723,7 @@ public class DefinitionDrivenAgent implements Agent {
         if ("action".equals(callType)) {
             return "action";
         }
-        if ("frontend".equals(callType)) {
+        if (!"function".equals(callType)) {
             return "frontend";
         }
         return "backend";

@@ -125,26 +125,23 @@ class AgentControllerTest {
 
         Path toolsDir = Path.of(toolProperties.getExternalDir()).toAbsolutePath().normalize();
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("switch_theme.action"), """
+        Files.writeString(toolsDir.resolve("switch_theme.yml"), """
                 {
-                  "tools": [
-                    {
-                      "type": "function",
-                      "name": "switch_theme",
-                      "description": "切换主题",
-                      "parameters": {
-                        "type": "object",
-                        "properties": {
-                          "theme": {
-                            "type": "string",
-                            "enum": ["light", "dark"]
-                          }
-                        },
-                        "required": ["theme"],
-                        "additionalProperties": false
+                  "type": "function",
+                  "name": "switch_theme",
+                  "description": "切换主题",
+                  "toolAction": true,
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                      "theme": {
+                        "type": "string",
+                        "enum": ["light", "dark"]
                       }
-                    }
-                  ]
+                    },
+                    "required": ["theme"],
+                    "additionalProperties": false
+                  }
                 }
                 """, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         toolFileRegistryService.refreshTools();
@@ -213,7 +210,7 @@ class AgentControllerTest {
                     ),
                     false,
                     true,
-                    ToolKind.BACKEND,
+                    false,
                     "function",
                     "mcp://mock/mock.weather.query",
                     "mcp",
