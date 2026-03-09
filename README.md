@@ -550,6 +550,7 @@ plain:
 - `demoConfirmDialog`（`REACT`）：`灵犀`，角色为“确认对话示例”。
 - `demoDataViewer`（`ONESHOT`）：`天枢`，角色为“文件展示示例”。
 - `demoCreateGif`（`REACT`）：`Milo`，角色为“GIF制作示例”。
+- `demoDatabase`（`REACT`）：`数枢`，角色为“数据库助手示例”。
 
 中文命名备选池（文档附录）：`清岚`、`星河`、`云舟`、`小岚`、`小满`、`景行`。
 
