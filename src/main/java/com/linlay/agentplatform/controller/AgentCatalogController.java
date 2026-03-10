@@ -170,7 +170,7 @@ public class AgentCatalogController {
     private ToolDescriptor resolveDescriptor(BaseTool tool) {
         return toolRegistry.descriptor(tool.name()).orElseGet(() -> new ToolDescriptor(
                 tool.name(),
-                null,
+                tool.name(),
                 tool.description(),
                 tool.afterCallHint(),
                 tool.parametersSchema(),

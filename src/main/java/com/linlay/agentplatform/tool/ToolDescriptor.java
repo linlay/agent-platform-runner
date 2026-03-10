@@ -28,7 +28,7 @@ public record ToolDescriptor(
             parameters = Map.copyOf(parameters);
         }
         name = name == null || name.isBlank() ? null : name.trim();
-        label = label == null || label.isBlank() ? null : label.trim();
+        label = label == null || label.isBlank() ? name : label.trim();
         description = description == null ? "" : description.trim();
         afterCallHint = afterCallHint == null || afterCallHint.isBlank() ? null : afterCallHint.trim();
         clientVisible = clientVisible == null ? Boolean.TRUE : clientVisible;

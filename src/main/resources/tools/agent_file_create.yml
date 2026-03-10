@@ -1,6 +1,7 @@
 {
   "type": "function",
   "name": "agent_file_create",
+  "label": "创建智能体文件",
   "description": "创建或更新 agents 目录下的智能体配置文件（仅支持 Agent JSON v2，新结构 modelConfig/toolConfig）。",
   "inputSchema": {
         "type": "object",

@@ -368,7 +368,27 @@ class AgentControllerTest {
     }
 
     @Test
-    void toolsShouldReturnListAndSupportKindAndTag() {
+    void toolsShouldReturnListAndSupportKindAndTag() throws Exception {
+        String body = webTestClient.get()
+                .uri("/api/ap/tools")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(body).isNotNull();
+        Map<String, Object> payload = objectMapper.readValue(body, new TypeReference<>() {
+        });
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> data = (List<Map<String, Object>>) payload.get("data");
+        assertThat(data).isNotNull();
+        Map<String, Object> datetimeTool = data.stream()
+                .filter(item -> "datetime".equals(item.get("key")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(datetimeTool.get("label")).isEqualTo("日期时间");
+
         webTestClient.get()
                 .uri("/api/ap/tools")
                 .exchange()

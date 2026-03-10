@@ -139,21 +139,7 @@ public class ToolRegistry {
             }
             return mcpToolSyncService.find(normalizedName);
         }
-        return Optional.of(new ToolDescriptor(
-                nativeTool.name(),
-                null,
-                nativeTool.description(),
-                nativeTool.afterCallHint(),
-                nativeTool.parametersSchema(),
-                false,
-                true,
-                false,
-                null,
-                "local",
-                null,
-                null,
-                "java://builtin"
-        ));
+        return Optional.of(nativeDescriptor(nativeTool));
     }
 
     public boolean isAction(String toolName) {
@@ -191,6 +177,24 @@ public class ToolRegistry {
                 (left, right) -> left,
                 LinkedHashMap::new
         ));
+    }
+
+    private ToolDescriptor nativeDescriptor(BaseTool tool) {
+        return new ToolDescriptor(
+                tool.name(),
+                tool.name(),
+                tool.description(),
+                tool.afterCallHint(),
+                tool.parametersSchema(),
+                false,
+                true,
+                false,
+                null,
+                "local",
+                null,
+                null,
+                "java://builtin"
+        );
     }
 
     private static final class VirtualTool implements BaseTool {

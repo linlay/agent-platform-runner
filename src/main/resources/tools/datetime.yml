@@ -1,6 +1,7 @@
 {
   "type": "function",
   "name": "datetime",
+  "label": "日期时间",
   "description": "获取当前或偏移后的日期时间，支持可选 timezone 和链式 offset，输出包含农历",
   "inputSchema": {
         "type": "object",
