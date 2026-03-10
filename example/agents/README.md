@@ -33,6 +33,7 @@ modelConfig:
 
 - `demoScheduleManager`：计划任务管理示例（REACT + `_bash_`），用于维护 `schedules/*.json`。
   使用提示：如需创建/改写文件，通常需要在 bash 白名单中放行相关命令，并按需启用 `AGENT_BASH_SHELL_FEATURES_ENABLED=true`。
+- `terminalAssistant`：终端辅助智能体示例（PLAN_EXECUTE + `terminal_command_review`），用于把完整命令清单交给外部前端逐步审批或批量放行。
 
 ## 与外层目录关系
 

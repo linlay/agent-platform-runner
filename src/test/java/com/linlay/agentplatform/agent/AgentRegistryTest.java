@@ -240,6 +240,19 @@ class AgentRegistryTest {
         assertThat(betaAfter).isSameAs(betaBefore);
     }
 
+    @Test
+    void shouldLoadTerminalAssistantExampleAgent() {
+        Path agentsDir = Path.of("example/agents").toAbsolutePath().normalize();
+
+        AgentRegistry registry = createRegistry(agentsDir);
+        Agent terminalAssistant = registry.get("terminalAssistant");
+
+        assertThat(registry.listIds()).contains("terminalAssistant");
+        assertThat(terminalAssistant.mode()).isEqualTo(com.linlay.agentplatform.agent.runtime.AgentRuntimeMode.PLAN_EXECUTE);
+        assertThat(terminalAssistant.tools()).contains("terminal_command_review");
+        assertThat(terminalAssistant.description()).contains("终端辅助智能体");
+    }
+
     private AgentRegistry createRegistry(Path agentsDir) {
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(agentsDir.toString());

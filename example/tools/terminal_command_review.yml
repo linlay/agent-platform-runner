@@ -1,0 +1,48 @@
+type: function
+name: terminal_command_review
+description: 预览终端执行计划与命令清单，交由前端逐步确认或批量放行，再回传统一执行结果。
+afterCallHint: |
+  等待前端 submit。
+  submit params 约定：
+  - approved: 是否批准执行
+  - status: completed | rejected
+  - commandCount: 命令总数
+  - commands[]: 每条命令的 id/title/command/reason/highRisk/status/exitCode/outputExcerpt/transcriptDelta/error/startedAt/completedAt
+toolType: html
+viewportKey: terminal_command_review
+inputSchema:
+  type: object
+  properties:
+    title:
+      type: string
+      description: 当前命令审批标题
+    summary:
+      type: string
+      description: 执行目标、风险说明或审批提示
+    allowBatchApprove:
+      type: boolean
+      description: 是否允许前端展示“全部同意”
+    commands:
+      type: array
+      description: 完整命令清单，必须一次性提交给前端审批
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          title:
+            type: string
+          command:
+            type: string
+          reason:
+            type: string
+          highRisk:
+            type: boolean
+        required:
+          - id
+          - title
+          - command
+        additionalProperties: true
+  required:
+    - commands
+  additionalProperties: true

@@ -19,6 +19,7 @@ import com.linlay.agentplatform.security.ChatImageTokenService;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.service.McpViewportService;
 import com.linlay.agentplatform.service.ViewportRegistryService;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.stream.service.SseFlushWriter;
@@ -45,6 +46,7 @@ public class AgentController {
             ChatRecordStore chatRecordStore,
             SseFlushWriter sseFlushWriter,
             ViewportRegistryService viewportRegistryService,
+            McpViewportService mcpViewportService,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             ChatImageTokenService chatImageTokenService,
             SkillRegistryService skillRegistryService,
@@ -68,7 +70,7 @@ public class AgentController {
                 chatImageTokenHelper,
                 objectMapper
         );
-        this.viewportController = new ViewportController(viewportRegistryService, loggingAgentProperties);
+        this.viewportController = new ViewportController(viewportRegistryService, mcpViewportService, loggingAgentProperties);
     }
 
     public ApiResponse<List<AgentListResponse.AgentSummary>> agents(String tag) {
@@ -87,8 +89,8 @@ public class AgentController {
         return agentCatalogController.tools(tag, kind);
     }
 
-    public ApiResponse<List<ChatSummaryResponse>> chats(String lastRunId) {
-        return chatController.chats(lastRunId);
+    public ApiResponse<List<ChatSummaryResponse>> chats(String lastRunId, String agentKey) {
+        return chatController.chats(lastRunId, agentKey);
     }
 
     public ApiResponse<MarkChatReadResponse> markRead(@Valid MarkChatReadRequest request) {

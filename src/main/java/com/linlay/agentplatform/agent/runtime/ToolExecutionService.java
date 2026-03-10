@@ -365,7 +365,7 @@ public class ToolExecutionService {
             return new InvokeResult(objectMapper.getNodeFactory().textNode("OK"), null);
         }
 
-        if (toolRegistry.isFrontend(toolName)) {
+        if (toolRegistry.requiresFrontendSubmit(toolName)) {
             if (frontendSubmitCoordinator == null) {
                 return new InvokeResult(errorResult(toolName, "Frontend submit coordinator is not configured"), null);
             }

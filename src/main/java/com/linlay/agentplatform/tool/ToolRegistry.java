@@ -164,6 +164,10 @@ public class ToolRegistry {
         return descriptor(toolName).map(ToolDescriptor::isFrontend).orElse(false);
     }
 
+    public boolean requiresFrontendSubmit(String toolName) {
+        return descriptor(toolName).map(ToolDescriptor::requiresFrontendSubmit).orElse(false);
+    }
+
     public String description(String toolName) {
         return descriptor(toolName).map(ToolDescriptor::description).orElse("");
     }

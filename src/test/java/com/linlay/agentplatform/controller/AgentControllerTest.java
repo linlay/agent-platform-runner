@@ -515,6 +515,7 @@ class AgentControllerTest {
                 mock(ChatRecordStore.class),
                 flushWriter,
                 mock(ViewportRegistryService.class),
+                mock(com.linlay.agentplatform.service.McpViewportService.class),
                 mock(FrontendSubmitCoordinator.class),
                 mock(com.linlay.agentplatform.security.ChatImageTokenService.class),
                 mock(com.linlay.agentplatform.skill.SkillRegistryService.class),
@@ -1029,6 +1030,93 @@ class AgentControllerTest {
                 .jsonPath("$.data.chatId").isEqualTo(chatId)
                 .jsonPath("$.data.readStatus").isEqualTo(1)
                 .jsonPath("$.data.readAt").isNumber();
+    }
+
+    @Test
+    void chatsApiShouldSupportAgentKeyFilterTogetherWithIncrementalLastRunId() throws Exception {
+        FluxExchangeResult<String> plainResult = webTestClient.post()
+                .uri("/api/ap/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "agentKey", "demoModePlain",
+                        "message", "plain filter smoke"
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(String.class);
+        List<String> plainChunks = plainResult.getResponseBody()
+                .take(800)
+                .collectList()
+                .block(Duration.ofSeconds(8));
+        assertThat(plainChunks).isNotNull();
+        String plainJoined = String.join("", plainChunks);
+        String plainChatId = extractFirstValue(plainJoined, "chatId");
+        assertThat(plainChatId).isNotBlank();
+
+        FluxExchangeResult<String> firstPlanResult = webTestClient.post()
+                .uri("/api/ap/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "agentKey", "demoModePlanExecute",
+                        "message", "plan filter smoke"
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(String.class);
+        List<String> firstPlanChunks = firstPlanResult.getResponseBody()
+                .take(1600)
+                .collectList()
+                .block(Duration.ofSeconds(8));
+        assertThat(firstPlanChunks).isNotNull();
+        String firstPlanJoined = String.join("", firstPlanChunks);
+        String planChatId = extractFirstValue(firstPlanJoined, "chatId");
+        String firstPlanRunId = extractFirstValue(firstPlanJoined, "runId");
+        assertThat(planChatId).isNotBlank();
+        assertThat(firstPlanRunId).isNotBlank();
+
+        Thread.sleep(20L);
+        FluxExchangeResult<String> secondPlanResult = webTestClient.post()
+                .uri("/api/ap/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "chatId", planChatId,
+                        "agentKey", "demoModePlanExecute",
+                        "message", "plan filter smoke second"
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(String.class);
+        List<String> secondPlanChunks = secondPlanResult.getResponseBody()
+                .take(1600)
+                .collectList()
+                .block(Duration.ofSeconds(8));
+        assertThat(secondPlanChunks).isNotNull();
+        String secondPlanJoined = String.join("", secondPlanChunks);
+        String secondPlanRunId = extractFirstValue(secondPlanJoined, "runId");
+        assertThat(secondPlanRunId).isNotBlank();
+
+        byte[] body = webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/ap/chats")
+                        .queryParam("lastRunId", firstPlanRunId)
+                        .queryParam("agentKey", "demoModePlanExecute")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+        assertThat(body).isNotNull();
+
+        Map<String, Object> root = objectMapper.readValue(body, new TypeReference<>() {
+        });
+        List<Map<String, Object>> chats = objectMapper.convertValue(root.get("data"), new TypeReference<>() {
+        });
+        assertThat(chats).isNotEmpty();
+        assertThat(chats).allMatch(item -> "demoModePlanExecute".equals(item.get("agentKey")));
+        assertThat(chats.stream().map(item -> String.valueOf(item.get("chatId"))).toList()).contains(planChatId);
+        assertThat(chats.stream().map(item -> String.valueOf(item.get("chatId"))).toList()).doesNotContain(plainChatId);
+        assertThat(chats.stream().map(item -> String.valueOf(item.get("lastRunId"))).toList()).contains(secondPlanRunId);
     }
 
     @Test

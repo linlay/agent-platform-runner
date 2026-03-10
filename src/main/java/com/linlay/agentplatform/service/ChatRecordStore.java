@@ -229,11 +229,15 @@ public class ChatRecordStore {
     }
 
     public List<ChatSummaryResponse> listChats() {
-        return listChats(null);
+        return listChats(null, null);
     }
 
     public List<ChatSummaryResponse> listChats(String lastRunId) {
-        return chatIndexRepository.listChats(lastRunId);
+        return listChats(lastRunId, null);
+    }
+
+    public List<ChatSummaryResponse> listChats(String lastRunId, String agentKey) {
+        return chatIndexRepository.listChats(lastRunId, agentKey);
     }
 
     public MarkChatReadResult markChatRead(String chatId) {

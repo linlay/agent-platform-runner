@@ -30,8 +30,11 @@ public class ChatController {
     }
 
     @GetMapping("/chats")
-    public ApiResponse<List<ChatSummaryResponse>> chats(@RequestParam(required = false) String lastRunId) {
-        return ApiResponse.success(chatRecordStore.listChats(lastRunId));
+    public ApiResponse<List<ChatSummaryResponse>> chats(
+            @RequestParam(required = false) String lastRunId,
+            @RequestParam(required = false) String agentKey
+    ) {
+        return ApiResponse.success(chatRecordStore.listChats(lastRunId, agentKey));
     }
 
     @PostMapping("/read")

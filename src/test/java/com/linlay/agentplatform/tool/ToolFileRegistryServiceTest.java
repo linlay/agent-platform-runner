@@ -62,6 +62,7 @@ class ToolFileRegistryServiceTest {
         assertThat(frontend.kind()).isEqualTo(ToolKind.FRONTEND);
         assertThat(frontend.toolType()).isEqualTo("html");
         assertThat(frontend.viewportKey()).isEqualTo("confirm_dialog");
+        assertThat(frontend.requiresFrontendSubmit()).isTrue();
 
         assertThat(action.kind()).isEqualTo(ToolKind.ACTION);
         assertThat(action.toolAction()).isTrue();
@@ -159,6 +160,19 @@ class ToolFileRegistryServiceTest {
 
         assertThat(diff.addedKeys()).contains("b_tool");
         assertThat(diff.changedKeys()).contains("b_tool");
+    }
+
+    @Test
+    void shouldLoadTerminalCommandReviewExampleTool() {
+        Path toolsDir = Path.of("example/tools").toAbsolutePath().normalize();
+
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+
+        ToolDescriptor descriptor = service.find("terminal_command_review").orElseThrow();
+        assertThat(descriptor.kind()).isEqualTo(ToolKind.FRONTEND);
+        assertThat(descriptor.toolType()).isEqualTo("html");
+        assertThat(descriptor.viewportKey()).isEqualTo("terminal_command_review");
+        assertThat(descriptor.description()).contains("命令清单");
     }
 
     private ToolProperties properties(Path toolsDir) {

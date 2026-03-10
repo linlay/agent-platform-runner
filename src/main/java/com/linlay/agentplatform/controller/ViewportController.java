@@ -3,6 +3,7 @@ package com.linlay.agentplatform.controller;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.service.LoggingSanitizer;
+import com.linlay.agentplatform.service.McpViewportService;
 import com.linlay.agentplatform.service.ViewportRegistryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,13 +24,16 @@ public class ViewportController {
     private static final Logger log = LoggerFactory.getLogger(ViewportController.class);
 
     private final ViewportRegistryService viewportRegistryService;
+    private final McpViewportService mcpViewportService;
     private final LoggingAgentProperties loggingAgentProperties;
 
     public ViewportController(
             ViewportRegistryService viewportRegistryService,
+            McpViewportService mcpViewportService,
             LoggingAgentProperties loggingAgentProperties
     ) {
         this.viewportRegistryService = viewportRegistryService;
+        this.mcpViewportService = mcpViewportService;
         this.loggingAgentProperties = loggingAgentProperties;
     }
 
@@ -47,8 +51,13 @@ public class ViewportController {
                     }
                     return ResponseEntity.ok(ApiResponse.success(data));
                 })
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(notFoundViewport(viewportKey)));
+                .orElseGet(() -> mcpViewportService.fetchViewport(viewportKey)
+                        .map(response -> {
+                            logViewport(viewportKey, response.getStatusCode().value(), response.getStatusCode().is2xxSuccessful());
+                            return response;
+                        })
+                        .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                .body(notFoundViewport(viewportKey))));
     }
 
     private ApiResponse<Object> notFoundViewport(String viewportKey) {

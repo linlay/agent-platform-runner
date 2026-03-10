@@ -227,27 +227,37 @@ final class ChatIndexRepository {
         }
     }
 
-    List<ChatSummaryResponse> listChats(String lastRunId) {
+    List<ChatSummaryResponse> listChats(String lastRunId, String agentKey) {
         boolean incremental = StringUtils.hasText(lastRunId);
-        String sql = incremental
-                ? """
+        boolean agentFiltered = StringUtils.hasText(agentKey);
+        StringBuilder sql = new StringBuilder("""
                 SELECT CHAT_ID_, CHAT_NAME_, AGENT_KEY_, TEAM_ID_,
                        CREATED_AT_, UPDATED_AT_, LAST_RUN_ID_, LAST_RUN_CONTENT_, READ_STATUS_, READ_AT_
                 FROM CHATS
-                WHERE LAST_RUN_ID_ > ?
-                ORDER BY LAST_RUN_ID_ ASC
-                """
-                : """
-                SELECT CHAT_ID_, CHAT_NAME_, AGENT_KEY_, TEAM_ID_,
-                       CREATED_AT_, UPDATED_AT_, LAST_RUN_ID_, LAST_RUN_CONTENT_, READ_STATUS_, READ_AT_
-                FROM CHATS
-                ORDER BY LAST_RUN_ID_ DESC, UPDATED_AT_ DESC
-                """;
+                """);
+        List<String> params = new ArrayList<>();
+        List<String> conditions = new ArrayList<>();
+        if (incremental) {
+            conditions.add("LAST_RUN_ID_ > ?");
+            params.add(lastRunId.trim());
+        }
+        if (agentFiltered) {
+            conditions.add("AGENT_KEY_ = ?");
+            params.add(agentKey.trim());
+        }
+        if (!conditions.isEmpty()) {
+            sql.append(" WHERE ").append(String.join(" AND ", conditions));
+        }
+        if (incremental) {
+            sql.append(" ORDER BY LAST_RUN_ID_ ASC");
+        } else {
+            sql.append(" ORDER BY LAST_RUN_ID_ DESC, UPDATED_AT_ DESC");
+        }
         synchronized (lock) {
             try (Connection connection = openConnection();
-                 PreparedStatement statement = connection.prepareStatement(sql)) {
-                if (incremental) {
-                    statement.setString(1, lastRunId.trim());
+                 PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+                for (int index = 0; index < params.size(); index++) {
+                    statement.setString(index + 1, params.get(index));
                 }
                 try (ResultSet resultSet = statement.executeQuery()) {
                     List<ChatSummaryResponse> responses = new ArrayList<>();

@@ -342,7 +342,7 @@ public class AgentQueryService {
         }
 
         return toolRegistry.descriptor(toolName)
-                .filter(descriptor -> descriptor.kind() == ToolKind.FRONTEND)
+                .filter(com.linlay.agentplatform.tool.ToolDescriptor::hasViewport)
                 .map(descriptor -> {
                     String toolKey = StringUtils.hasText(descriptor.viewportKey())
                             ? descriptor.viewportKey().trim()
@@ -351,7 +351,7 @@ public class AgentQueryService {
                         return false;
                     }
                     root.put("toolKey", toolKey);
-                    root.put("toolType", resolveFrontendToolType(toolKey));
+                    root.put("toolType", resolveViewportToolType(descriptor.toolType(), toolKey));
                     root.put("toolTimeout", Math.max(1L, frontendToolProperties.getSubmitTimeoutMs()));
                     return true;
                 })
@@ -387,7 +387,10 @@ public class AgentQueryService {
         return hidden;
     }
 
-    private String resolveFrontendToolType(String toolKey) {
+    private String resolveViewportToolType(String descriptorToolType, String toolKey) {
+        if (StringUtils.hasText(descriptorToolType)) {
+            return descriptorToolType.trim();
+        }
         return viewportRegistryService.find(toolKey)
                 .map(viewport -> viewport.viewportType().value())
                 .filter(StringUtils::hasText)

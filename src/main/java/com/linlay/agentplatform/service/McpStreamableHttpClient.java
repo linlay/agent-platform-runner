@@ -1,11 +1,14 @@
 package com.linlay.agentplatform.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.netty.channel.ChannelOption;
+import com.linlay.agentplatform.model.api.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -111,6 +114,25 @@ public class McpStreamableHttpClient {
             throw new IllegalStateException("MCP tools/call failed: " + response.error());
         }
         return response.result();
+    }
+
+    public RemoteViewportResponse fetchViewport(
+            McpServerRegistryService.RegisteredServer server,
+            String viewportKey
+    ) {
+        HttpPayload payload = buildClient(server).get()
+                .uri(resolveViewportUri(server, viewportKey))
+                .accept(MediaType.APPLICATION_JSON)
+                .headers(headers -> applyHeaders(headers, server.headers()))
+                .exchangeToMono(response -> response.bodyToMono(String.class)
+                        .defaultIfEmpty("")
+                        .map(body -> new HttpPayload(response.statusCode(), body)))
+                .block(Duration.ofMillis(Math.max(1, server.readTimeoutMs())));
+        if (payload == null) {
+            throw new IllegalStateException("Viewport request returned empty payload");
+        }
+        ApiResponse<Object> apiResponse = parseApiResponse(payload.body());
+        return new RemoteViewportResponse(payload.statusCode().value(), apiResponse);
     }
 
     private RpcResponse callRpc(McpServerRegistryService.RegisteredServer server, String method, ObjectNode params) {
@@ -252,6 +274,27 @@ public class McpStreamableHttpClient {
         }
     }
 
+    private ApiResponse<Object> parseApiResponse(String body) {
+        if (!StringUtils.hasText(body)) {
+            return ApiResponse.failure(502, "Viewport response body is empty", Map.of());
+        }
+        try {
+            return objectMapper.readValue(body, new TypeReference<ApiResponse<Object>>() {
+            });
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to parse viewport response: " + ex.getMessage(), ex);
+        }
+    }
+
+    private String resolveViewportUri(McpServerRegistryService.RegisteredServer server, String viewportKey) {
+        String baseUrl = server.baseUrl();
+        String path = "/api/ap/viewport?viewportKey=" + viewportKey;
+        if (baseUrl.endsWith("/")) {
+            return baseUrl.substring(0, baseUrl.length() - 1) + path;
+        }
+        return baseUrl + path;
+    }
+
     private String text(JsonNode node) {
         if (node == null || node.isNull()) {
             return null;
@@ -288,9 +331,21 @@ public class McpStreamableHttpClient {
     ) {
     }
 
+    public record RemoteViewportResponse(
+            int statusCode,
+            ApiResponse<Object> payload
+    ) {
+    }
+
     private record RpcResponse(
             JsonNode result,
             JsonNode error
+    ) {
+    }
+
+    private record HttpPayload(
+            HttpStatusCode statusCode,
+            String body
     ) {
     }
 }

@@ -230,8 +230,87 @@ class McpToolSyncServiceTest {
         assertThat(service.find("mock.todo.tasks.list").orElseThrow().kind()).isEqualTo(com.linlay.agentplatform.tool.ToolKind.FRONTEND);
         assertThat(service.find("mock.todo.tasks.list").orElseThrow().toolType()).isEqualTo("html");
         assertThat(service.find("mock.todo.tasks.list").orElseThrow().viewportKey()).isEqualTo("show_todo_card");
+        assertThat(service.find("mock.todo.tasks.list").orElseThrow().requiresFrontendSubmit()).isFalse();
+        assertThat(service.findViewport("show_todo_card")).isPresent();
+        assertThat(service.findViewport("show_todo_card").orElseThrow().serverKey()).isEqualTo("mock");
         assertThat(service.find("mock.sensitive-data.detect").orElseThrow().kind()).isEqualTo(com.linlay.agentplatform.tool.ToolKind.ACTION);
         assertThat(service.find("mock.sensitive-data.detect").orElseThrow().toolAction()).isTrue();
+    }
+
+    @Test
+    void shouldSkipConflictedRemoteViewportKeys() {
+        McpProperties properties = new McpProperties();
+        properties.setEnabled(true);
+
+        McpServerRegistryService.RegisteredServer first = new McpServerRegistryService.RegisteredServer(
+                "mock-a",
+                "http://localhost:18080",
+                "/mcp",
+                "mock",
+                Map.of(),
+                Map.of(),
+                3000,
+                15000,
+                1
+        );
+        McpServerRegistryService.RegisteredServer second = new McpServerRegistryService.RegisteredServer(
+                "mock-b",
+                "http://localhost:18081",
+                "/mcp",
+                "mock",
+                Map.of(),
+                Map.of(),
+                3000,
+                15000,
+                1
+        );
+        McpServerRegistryService registryService = mock(McpServerRegistryService.class);
+        when(registryService.list()).thenReturn(List.of(first, second));
+
+        ObjectNode schema = new ObjectMapper().createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", new ObjectMapper().createObjectNode());
+
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        doNothing().when(client).initialize(first, "2025-06");
+        doNothing().when(client).initialize(second, "2025-06");
+        when(client.listTools(first)).thenReturn(List.of(
+                new McpStreamableHttpClient.McpToolDefinition(
+                        "mock.todo.tasks.list",
+                        "todo",
+                        "",
+                        schema,
+                        false,
+                        "html",
+                        "show_todo_card",
+                        List.of()
+                )
+        ));
+        when(client.listTools(second)).thenReturn(List.of(
+                new McpStreamableHttpClient.McpToolDefinition(
+                        "mock.weather.query",
+                        "weather",
+                        "",
+                        schema,
+                        false,
+                        "html",
+                        "show_todo_card",
+                        List.of()
+                )
+        ));
+
+        McpToolSyncService service = new McpToolSyncService(
+                properties,
+                registryService,
+                new McpServerAvailabilityGate(properties),
+                client,
+                new ObjectMapper()
+        );
+        service.refreshTools();
+
+        assertThat(service.find("mock.todo.tasks.list")).isPresent();
+        assertThat(service.find("mock.weather.query")).isPresent();
+        assertThat(service.findViewport("show_todo_card")).isEmpty();
     }
 
     private static final class MutableClock extends Clock {

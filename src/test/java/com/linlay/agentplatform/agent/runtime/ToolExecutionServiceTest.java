@@ -168,7 +168,7 @@ class ToolExecutionServiceTest {
         ConstantTool frontendTool = new ConstantTool("confirm_dialog", "IGNORED");
         ToolRegistry toolRegistry = spy(new ToolRegistry(List.of(frontendTool)));
         doReturn("html").when(toolRegistry).toolCallType("confirm_dialog");
-        doReturn(true).when(toolRegistry).isFrontend("confirm_dialog");
+        doReturn(true).when(toolRegistry).requiresFrontendSubmit("confirm_dialog");
 
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
         frontendToolProperties.setSubmitTimeoutMs(5_000L);
@@ -233,7 +233,7 @@ class ToolExecutionServiceTest {
         ConstantTool frontendTool = new ConstantTool("confirm_dialog", "IGNORED");
         ToolRegistry toolRegistry = spy(new ToolRegistry(List.of(frontendTool)));
         doReturn("html").when(toolRegistry).toolCallType("confirm_dialog");
-        doReturn(true).when(toolRegistry).isFrontend("confirm_dialog");
+        doReturn(true).when(toolRegistry).requiresFrontendSubmit("confirm_dialog");
 
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
         frontendToolProperties.setSubmitTimeoutMs(60L);
@@ -266,6 +266,40 @@ class ToolExecutionServiceTest {
         assertThat(resultNode.path("ok").asBoolean(true)).isFalse();
         assertThat(resultNode.path("code").asText()).isEqualTo(ToolExecutionService.FRONTEND_SUBMIT_TIMEOUT_CODE);
         assertThat(resultNode.path("error").asText()).contains("Frontend tool submit timeout");
+    }
+
+    @Test
+    void mcpViewportToolShouldExecuteWithoutWaitingForFrontendSubmit() {
+        ConstantTool backendMetadataTool = new ConstantTool("mock.weather.query", "IGNORED");
+        ToolRegistry toolRegistry = spy(new ToolRegistry(List.of(backendMetadataTool)));
+        doReturn("html").when(toolRegistry).toolCallType("mock.weather.query");
+        doReturn(false).when(toolRegistry).requiresFrontendSubmit("mock.weather.query");
+
+        ToolExecutionService toolExecutionService = new ToolExecutionService(
+                toolRegistry,
+                new ToolArgumentResolver(objectMapper),
+                objectMapper,
+                null,
+                new LoggingAgentProperties(),
+                (name, args, context) -> objectMapper.valueToTree(Map.of("ok", true, "source", "mcp"))
+        );
+
+        ExecutionContext context = new ExecutionContext(
+                definition(List.of("mock.weather.query"), Budget.DEFAULT),
+                new AgentRequest("test", "chat_mcp_viewport", null, "run_mcp_viewport"),
+                List.of()
+        );
+
+        ToolExecutionService.ToolExecutionBatch batch = toolExecutionService.executeToolCalls(
+                List.of(new PlannedToolCall("mock.weather.query", Map.of("city", "Shanghai"), "call_mcp_viewport")),
+                enabledTools(toolRegistry),
+                new ArrayList<>(),
+                "run_mcp_viewport",
+                context,
+                false
+        );
+
+        assertThat(singleToolResult(batch, "call_mcp_viewport")).contains("\"source\":\"mcp\"");
     }
 
     @Test

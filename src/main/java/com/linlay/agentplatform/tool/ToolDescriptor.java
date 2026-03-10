@@ -40,8 +40,16 @@ public record ToolDescriptor(
         return Boolean.TRUE.equals(toolAction);
     }
 
-    public boolean isFrontend() {
+    public boolean hasViewport() {
         return !isAction() && hasText(toolType) && hasText(viewportKey);
+    }
+
+    public boolean requiresFrontendSubmit() {
+        return hasViewport() && !"mcp".equalsIgnoreCase(sourceType);
+    }
+
+    public boolean isFrontend() {
+        return hasViewport();
     }
 
     public ToolKind kind() {

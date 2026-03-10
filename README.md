@@ -10,7 +10,7 @@
 - `GET /api/ap/teams`: 团队列表（team 元数据，含成员 `agentKeys`）
 - `GET /api/ap/skills`: 技能列表（支持 `tag` 过滤）
 - `GET /api/ap/tools`: 工具列表（支持 `tag`、`kind=backend|frontend|action` 过滤）
-- `GET /api/ap/chats`: 会话列表（支持 `lastRunId` 增量查询）
+- `GET /api/ap/chats`: 会话列表（支持 `lastRunId` 增量查询、`agentKey` 过滤）
 - `POST /api/ap/read`: 标记单个会话已读
 - `GET /api/ap/chat?chatId=...`: 会话详情（默认返回快照事件流）
 - `GET /api/ap/chat?chatId=...&includeRawMessages=true`: 会话详情（附带原始 `rawMessages`）
@@ -109,6 +109,29 @@
 ```
 
 `GET /api/ap/chats?lastRunId=mtoewf3u` 示例：
+
+```json
+{
+  "code": 0,
+  "msg": "success",
+  "data": [
+    {
+      "chatId": "d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656",
+      "chatName": "元素碳的简介，100",
+      "agentKey": "demoModePlain",
+      "teamId": null,
+      "createdAt": 1770866044047,
+      "updatedAt": 1770867412459,
+      "lastRunId": "mtoewfr9",
+      "lastRunContent": "碳在自然界中有多种同素异形体...",
+      "readStatus": 0,
+      "readAt": null
+    }
+  ]
+}
+```
+
+`GET /api/ap/chats?agentKey=demoModePlain&lastRunId=mtoewf3u` 示例：
 
 ```json
 {
@@ -757,6 +780,12 @@ curl -N -X GET "$BASE_URL/api/ap/chats" \
 
 ```bash
 curl -N -X GET "$BASE_URL/api/ap/chats?lastRunId=mtoewf3u" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+```bash
+curl -N -X GET "$BASE_URL/api/ap/chats?agentKey=demoModePlain&lastRunId=mtoewf3u" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json"
 ```

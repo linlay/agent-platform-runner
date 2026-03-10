@@ -451,6 +451,30 @@ class ChatRecordStoreTest {
     }
 
     @Test
+    void listChatsShouldFilterByAgentKeyAndCombineWithIncrementalQuery() {
+        String chatA = "123e4567-e89b-12d3-a456-426614174095";
+        String chatB = "123e4567-e89b-12d3-a456-426614174096";
+        String chatC = "123e4567-e89b-12d3-a456-426614174097";
+        ChatRecordStore store = newStore();
+        store.ensureChat(chatA, "agent-a", "Agent A", "hello a");
+        store.ensureChat(chatB, "agent-b", "Agent B", "hello b");
+        store.ensureChat(chatC, "agent-a", "Agent A", "hello c");
+        store.onRunCompleted(new ChatRecordStore.RunCompletion(chatA, "a1", "reply a", "hello a", System.currentTimeMillis()));
+        store.onRunCompleted(new ChatRecordStore.RunCompletion(chatB, "a2", "reply b", "hello b", System.currentTimeMillis() + 1));
+        store.onRunCompleted(new ChatRecordStore.RunCompletion(chatC, "a3", "reply c", "hello c", System.currentTimeMillis() + 2));
+
+        List<ChatSummaryResponse> filtered = store.listChats(null, "agent-a");
+        assertThat(filtered).extracting(ChatSummaryResponse::chatId).containsExactly(chatC, chatA);
+        assertThat(filtered).extracting(ChatSummaryResponse::agentKey).containsOnly("agent-a");
+
+        List<ChatSummaryResponse> incremental = store.listChats("a1", "agent-a");
+        assertThat(incremental).hasSize(1);
+        assertThat(incremental.getFirst().chatId()).isEqualTo(chatC);
+        assertThat(incremental.getFirst().lastRunId()).isEqualTo("a3");
+        assertThat(incremental.getFirst().agentKey()).isEqualTo("agent-a");
+    }
+
+    @Test
     void loadChatShouldEmitChatStartOnlyOnceAcrossMultipleRuns() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174016";
         Path chatDir = tempDir.resolve("chats");
