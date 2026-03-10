@@ -269,7 +269,6 @@ public class StreamEventAssembler {
                     if (shouldEmitToolType(value.toolType())) {
                         putIfNonNull(payload, "toolType", value.toolType());
                     }
-                    putIfNonNull(payload, "toolApi", value.toolApi());
                     putIfNonNull(payload, "toolParams", value.toolParams());
                     putIfNonNull(payload, "description", value.description());
                     events.add(next("tool.start", payload));

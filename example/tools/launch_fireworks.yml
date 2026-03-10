@@ -1,6 +1,7 @@
 {
   "type": "function",
   "name": "launch_fireworks",
+  "label": "播放烟花",
   "description": "播放烟花特效",
   "toolAction": true,
   "inputSchema": {

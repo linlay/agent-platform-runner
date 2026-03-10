@@ -140,14 +140,14 @@ public class ToolRegistry {
             return mcpToolSyncService.find(normalizedName);
         }
         return Optional.of(new ToolDescriptor(
-                normalizedName,
+                nativeTool.name(),
+                null,
                 nativeTool.description(),
                 nativeTool.afterCallHint(),
                 nativeTool.parametersSchema(),
                 false,
                 true,
                 false,
-                "function",
                 null,
                 "local",
                 null,

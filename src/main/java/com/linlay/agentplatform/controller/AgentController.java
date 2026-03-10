@@ -14,6 +14,7 @@ import com.linlay.agentplatform.model.api.SkillListResponse;
 import com.linlay.agentplatform.model.api.SubmitRequest;
 import com.linlay.agentplatform.model.api.SubmitResponse;
 import com.linlay.agentplatform.model.api.TeamSummaryResponse;
+import com.linlay.agentplatform.model.api.ToolDetailResponse;
 import com.linlay.agentplatform.model.api.ToolListResponse;
 import com.linlay.agentplatform.security.ChatImageTokenService;
 import com.linlay.agentplatform.service.AgentQueryService;
@@ -87,6 +88,10 @@ public class AgentController {
 
     public ApiResponse<List<ToolListResponse.ToolSummary>> tools(String tag, String kind) {
         return agentCatalogController.tools(tag, kind);
+    }
+
+    public ApiResponse<ToolDetailResponse> tool(String toolName) {
+        return agentCatalogController.tool(toolName);
     }
 
     public ApiResponse<List<ChatSummaryResponse>> chats(String lastRunId, String agentKey) {

@@ -4,6 +4,7 @@ import java.util.Map;
 
 public record ToolDescriptor(
         String name,
+        String label,
         String description,
         String afterCallHint,
         Map<String, Object> parameters,
@@ -11,7 +12,6 @@ public record ToolDescriptor(
         Boolean clientVisible,
         Boolean toolAction,
         String toolType,
-        String toolApi,
         String sourceType,
         String sourceKey,
         String viewportKey,
@@ -27,13 +27,20 @@ public record ToolDescriptor(
         } else {
             parameters = Map.copyOf(parameters);
         }
+        name = name == null || name.isBlank() ? null : name.trim();
+        label = label == null || label.isBlank() ? null : label.trim();
+        description = description == null ? "" : description.trim();
+        afterCallHint = afterCallHint == null || afterCallHint.isBlank() ? null : afterCallHint.trim();
         clientVisible = clientVisible == null ? Boolean.TRUE : clientVisible;
         toolAction = toolAction == null ? Boolean.FALSE : toolAction;
         toolType = toolType == null || toolType.isBlank() ? null : toolType.trim();
-        toolApi = toolApi == null || toolApi.isBlank() ? null : toolApi.trim();
         viewportKey = viewportKey == null || viewportKey.isBlank() ? null : viewportKey.trim();
         sourceType = sourceType == null || sourceType.isBlank() ? "local" : sourceType.trim().toLowerCase();
         sourceKey = sourceKey == null || sourceKey.isBlank() ? null : sourceKey.trim().toLowerCase();
+    }
+
+    public String key() {
+        return hasText(name) ? name.trim().toLowerCase(java.util.Locale.ROOT) : "";
     }
 
     public boolean isAction() {

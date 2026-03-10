@@ -144,14 +144,14 @@ class ToolRegistryTest {
     void mcpToolShouldAppearAsVirtualTool() {
         ToolDescriptor mcpDescriptor = new ToolDescriptor(
                 "mock.weather.query",
+                null,
                 "mock weather",
                 "use weather viewport card",
                 Map.of("type", "object"),
                 false,
                 true,
                 false,
-                "function",
-                "mcp://mock/mock.weather.query",
+                null,
                 "mcp",
                 "mock",
                 null,
@@ -187,14 +187,14 @@ class ToolRegistryTest {
     void localToolShouldWinWhenMcpToolNameConflicts() {
         ToolDescriptor conflictDescriptor = new ToolDescriptor(
                 "datetime",
+                null,
                 "remote city time",
                 "",
                 Map.of("type", "object"),
                 false,
                 true,
                 false,
-                "function",
-                "mcp://mock/datetime",
+                null,
                 "mcp",
                 "mock",
                 null,

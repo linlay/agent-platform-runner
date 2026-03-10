@@ -174,8 +174,8 @@ plain:
 - `GET /api/ap/agent?agentKey=...`：返回 `AgentDetail`，顶层包含 `key/name/icon/description/role/instructions/meta`。
 - `GET /api/ap/skills?tag=...`：返回 `SkillSummary[]`，字段为 `key/name/description/meta.promptTruncated`。
 - `GET /api/ap/skill?skillId=...`：返回 `SkillDetail`，字段为 `key/name/description/instructions/meta.promptTruncated`。
-- `GET /api/ap/tools?tag=...&kind=backend|frontend|action`：返回 `ToolSummary[]`，字段为 `key/name/description/meta(kind/toolType/toolApi/viewportKey/strict)`。
-- `GET /api/ap/tool?toolName=...`：返回 `ToolDetail`，字段为 `key/name/description/afterCallHint/parameters/meta`。
+- `GET /api/ap/tools?tag=...&kind=backend|frontend|action`：返回 `ToolSummary[]`，字段为 `key/name/label/description/meta(kind/toolType/viewportKey/strict/sourceType/sourceKey)`。
+- `GET /api/ap/tool?toolName=...`：返回 `ToolDetail`，字段为 `key/name/label/description/afterCallHint/parameters/meta`。
 - `/api/ap/skill` 未命中 `skillId`、`/api/ap/tool` 未命中 `toolName`、`kind` 非法时均返回 HTTP `400`（`ApiResponse.failure`）。
 
 ### 模式配置块
@@ -270,7 +270,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 ### 前端 tool 提交协议
 
-- SSE `tool.start` / `tool.snapshot` 会包含：`toolType`（html/qlc）、`toolKey`（viewport key）、`toolTimeout`（超时毫秒）。
+- SSE `tool.start` / `tool.snapshot` 会包含：`toolType`（html/qlc）、`viewportKey`（viewport key）、`toolTimeout`（超时毫秒）。
 - 默认等待超时 5 分钟（`agent.tools.frontend.submit-timeout-ms`）。
 - `POST /api/ap/submit` 请求体：`runId` + `toolId` + `params`。
 - 前端工具返回值提取规则：直接回传 `params`（若为 `null` 则回传 `{}`）。
@@ -434,11 +434,11 @@ type=html, key=show_weather_card
 
 ### 5. 工具与动作事件
 
-- `tool.start`：`toolId`, `runId`, `taskId?`, `toolName?`, `toolType?`, `toolApi?`, `toolParams?`, `description?`
+- `tool.start`：`toolId`, `runId`, `taskId?`, `toolName?`, `toolType?`, `viewportKey?`, `toolParams?`, `description?`
 - `tool.args`：`toolId`, `delta`, `chunkIndex?`（字段名保持 `delta`，不使用 `args`）
 - `tool.end`：`toolId`
 - `tool.result`：`toolId`, `result`
-- `tool.snapshot`：`toolId`, `toolName?`, `taskId?`, `toolType?`, `toolApi?`, `toolParams?`, `description?`, `arguments?`
+- `tool.snapshot`：`toolId`, `toolName?`, `taskId?`, `toolType?`, `viewportKey?`, `toolParams?`, `description?`, `arguments?`
 - `action.start`：`actionId`, `runId`, `taskId?`, `actionName?`, `description?`
 - `action.args`：`actionId`, `delta`
 - `action.end`：`actionId`

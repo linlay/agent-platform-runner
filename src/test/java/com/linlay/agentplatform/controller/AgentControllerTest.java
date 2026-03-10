@@ -198,6 +198,7 @@ class AgentControllerTest {
             McpToolSyncService service = mock(McpToolSyncService.class);
             ToolDescriptor descriptor = new ToolDescriptor(
                     "mock.weather.query",
+                    "天气查询",
                     "[MOCK] query weather",
                     "",
                     Map.of(
@@ -211,8 +212,7 @@ class AgentControllerTest {
                     false,
                     true,
                     false,
-                    "function",
-                    "mcp://mock/mock.weather.query",
+                    null,
                     "mcp",
                     "mock",
                     null,
@@ -339,7 +339,7 @@ class AgentControllerTest {
     }
 
     @Test
-    void removedSingleEndpointsShouldReturnNotFound() {
+    void removedAgentAndSkillSingleEndpointsShouldReturnNotFound() {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/ap/agent").queryParam("agentKey", "demoModePlanExecute").build())
                 .exchange()
@@ -349,11 +349,22 @@ class AgentControllerTest {
                 .uri(uriBuilder -> uriBuilder.path("/api/ap/skill").queryParam("skillId", "math_basic").build())
                 .exchange()
                 .expectStatus().isNotFound();
+    }
 
+    @Test
+    void toolDetailShouldReturnLabelAndMetadata() {
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/ap/tool").queryParam("toolName", "confirm_dialog").build())
+                .uri(uriBuilder -> uriBuilder.path("/api/ap/tool").queryParam("toolName", "mock.weather.query").build())
                 .exchange()
-                .expectStatus().isNotFound();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.key").isEqualTo("mock.weather.query")
+                .jsonPath("$.data.name").isEqualTo("mock.weather.query")
+                .jsonPath("$.data.label").isEqualTo("天气查询")
+                .jsonPath("$.data.meta.sourceType").isEqualTo("mcp")
+                .jsonPath("$.data.meta.sourceKey").isEqualTo("mock")
+                .jsonPath("$.data.meta.toolApi").doesNotExist();
     }
 
     @Test
@@ -424,7 +435,8 @@ class AgentControllerTest {
         Map<String, Object> meta = (Map<String, Object>) mcpTool.get("meta");
         assertThat(meta.get("sourceType")).isEqualTo("mcp");
         assertThat(meta.get("sourceKey")).isEqualTo("mock");
-        assertThat(meta.get("toolApi")).isEqualTo("mcp://mock/mock.weather.query");
+        assertThat(meta).doesNotContainKey("toolApi");
+        assertThat(mcpTool.get("label")).isEqualTo("天气查询");
     }
 
     @Test

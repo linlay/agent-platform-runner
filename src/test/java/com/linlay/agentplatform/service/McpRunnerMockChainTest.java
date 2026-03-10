@@ -79,8 +79,8 @@ class McpRunnerMockChainTest {
         assertThat(toolSyncService.find("mock.weather.query"))
                 .isPresent()
                 .get()
-                .extracting(descriptor -> descriptor.afterCallHint())
-                .isEqualTo("Use viewport key=show_weather_card");
+                .extracting(descriptor -> descriptor.label(), descriptor -> descriptor.afterCallHint())
+                .containsExactly("天气查询", "Use viewport key=show_weather_card");
 
         DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
         beanFactory.registerSingleton("mcpToolSyncService", toolSyncService);
@@ -126,7 +126,7 @@ class McpRunnerMockChainTest {
                         {"jsonrpc":"2.0","id":"1","result":{"protocolVersion":"2025-06","capabilities":{"tools":{"listChanged":false}}}}
                         """;
                 case 2 -> """
-                        data: {"jsonrpc":"2.0","id":"2","result":{"tools":[{"name":"mock.weather.query","description":"[MOCK] query weather","afterCallHint":"Use viewport key=show_weather_card","inputSchema":{"type":"object","properties":{"city":{"type":"string"},"date":{"type":"string"}},"additionalProperties":true}}]}}
+                        data: {"jsonrpc":"2.0","id":"2","result":{"tools":[{"name":"mock.weather.query","label":"天气查询","description":"[MOCK] query weather","afterCallHint":"Use viewport key=show_weather_card","inputSchema":{"type":"object","properties":{"city":{"type":"string"},"date":{"type":"string"}},"additionalProperties":true}}]}}
 
                         """;
                 case 3 -> """

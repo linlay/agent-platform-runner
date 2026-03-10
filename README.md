@@ -10,6 +10,7 @@
 - `GET /api/ap/teams`: 团队列表（team 元数据，含成员 `agentKeys`）
 - `GET /api/ap/skills`: 技能列表（支持 `tag` 过滤）
 - `GET /api/ap/tools`: 工具列表（支持 `tag`、`kind=backend|frontend|action` 过滤）
+- `GET /api/ap/tool?toolName=...`: 单个工具详情
 - `GET /api/ap/chats`: 会话列表（支持 `lastRunId` 增量查询、`agentKey` 过滤）
 - `POST /api/ap/read`: 标记单个会话已读
 - `GET /api/ap/chat?chatId=...`: 会话详情（默认返回快照事件流）
@@ -83,7 +84,11 @@
 
 `GET /api/ap/tools` 返回结构：
 
-- 列表项：`key`, `name`, `description`, `meta.kind`, `meta.toolType`, `meta.toolApi`, `meta.viewportKey`, `meta.strict`
+- 列表项：`key`, `name`, `label`, `description`, `meta.kind`, `meta.toolType`, `meta.viewportKey`, `meta.strict`
+
+`GET /api/ap/tool` 返回结构：
+
+- 详情字段：`key`, `name`, `label`, `description`, `afterCallHint`, `parameters`, `meta.kind`, `meta.toolType`, `meta.viewportKey`, `meta.strict`
 
 `GET /api/ap/chats` 示例：
 
@@ -550,7 +555,7 @@ plain:
 
 ### 前端 tool 提交流程
 
-- 当前端工具触发时，SSE `tool.start` / `tool.snapshot` 会包含 `toolType`、`toolKey`、`toolTimeout`。
+- 当前端工具触发时，SSE `tool.start` / `tool.snapshot` 会包含 `toolType`、`viewportKey`、`toolTimeout`。
 - 默认等待超时 5 分钟（可配置）。
 - `POST /api/ap/submit` 请求体：`runId` + `toolId` + `params`。
 - 成功命中后会释放对应 `runId + toolId` 的等待；未命中返回 `accepted=false`。
@@ -899,7 +904,7 @@ curl -N -X POST "$BASE_URL/api/ap/query" \
   -d '{"message":"帮我规划周六的旅游，给我几个目的地选项让我选","agentKey":"demoConfirmDialog"}'
 ```
 
-观察 SSE 输出，当看到 `toolName` 为 `confirm_dialog` 且事件携带 `toolType/toolKey/toolTimeout` 后，
+观察 SSE 输出，当看到 `toolName` 为 `confirm_dialog` 且事件携带 `toolType/viewportKey/toolTimeout` 后，
 流会暂停等待。记录事件中的 `runId` 和 `toolId` 值。
 
 **终端 2：提交用户选择（用终端 1 中的 runId 和 toolId 替换占位符）**

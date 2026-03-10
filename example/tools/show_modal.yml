@@ -1,6 +1,7 @@
 {
   "type": "function",
   "name": "show_modal",
+  "label": "显示弹窗",
   "description": "显示模态框",
   "toolAction": true,
   "inputSchema": {

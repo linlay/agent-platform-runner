@@ -1,6 +1,7 @@
 {
   "type": "function",
   "name": "switch_theme",
+  "label": "切换主题",
   "description": "切换主题",
   "toolAction": true,
   "inputSchema": {

@@ -9,6 +9,7 @@ public record ToolListResponse(
     public record ToolSummary(
             String key,
             String name,
+            String label,
             String description,
             Map<String, Object> meta
     ) {

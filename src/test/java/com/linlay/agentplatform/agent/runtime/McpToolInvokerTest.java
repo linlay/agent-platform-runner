@@ -155,14 +155,14 @@ class McpToolInvokerTest {
     private static ToolDescriptor descriptor() {
         return new ToolDescriptor(
                 "mock.weather.query",
+                null,
                 "weather",
                 "",
                 Map.of("type", "object"),
                 false,
                 true,
                 false,
-                "function",
-                "mcp://mock/mock.weather.query",
+                null,
                 "mcp",
                 "mock",
                 null,

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.netty.channel.ChannelOption;
 import com.linlay.agentplatform.model.api.ApiResponse;
+import com.linlay.agentplatform.tool.ToolMetadataValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
@@ -71,12 +72,28 @@ public class McpStreamableHttpClient {
             if (!StringUtils.hasText(name)) {
                 continue;
             }
+            String label = text(node.get("label"));
             String description = text(node.get("description"));
             String afterCallHint = text(node.get("afterCallHint"));
-            JsonNode schema = node.has("inputSchema") ? node.get("inputSchema") : node.get("parameters");
+            JsonNode schema = node.get("inputSchema");
             boolean toolAction = node.path("toolAction").asBoolean(false);
             String toolType = text(node.get("toolType"));
             String viewportKey = text(node.get("viewportKey"));
+            Map<String, Object> inputSchema = toInputSchema(schema);
+            String validationError = ToolMetadataValidator.validate(
+                    "function",
+                    name,
+                    description,
+                    label,
+                    inputSchema,
+                    toolAction,
+                    toolType,
+                    viewportKey
+            );
+            if (validationError != null) {
+                log.warn("Skip invalid MCP tool metadata name={}: {}", name, validationError);
+                continue;
+            }
             JsonNode aliasesNode = node.get("aliases");
             List<String> aliases = new ArrayList<>();
             if (aliasesNode != null && aliasesNode.isArray()) {
@@ -88,10 +105,11 @@ public class McpStreamableHttpClient {
                 }
             }
             definitions.add(new McpToolDefinition(
-                    name.trim().toLowerCase(),
+                    name.trim(),
+                    label,
                     description,
                     afterCallHint,
-                    schema == null || schema.isNull() ? null : schema,
+                    inputSchema,
                     toolAction,
                     toolType,
                     viewportKey,
@@ -303,6 +321,18 @@ public class McpStreamableHttpClient {
         return StringUtils.hasText(raw) ? raw.trim() : null;
     }
 
+    private Map<String, Object> toInputSchema(JsonNode node) {
+        if (node == null || node.isNull() || !node.isObject()) {
+            return null;
+        }
+        try {
+            return objectMapper.convertValue(node, new TypeReference<Map<String, Object>>() {
+            });
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
     private String summarizeException(Throwable throwable) {
         if (throwable == null) {
             return "unknown error";
@@ -321,9 +351,10 @@ public class McpStreamableHttpClient {
 
     public record McpToolDefinition(
             String name,
+            String label,
             String description,
             String afterCallHint,
-            JsonNode inputSchema,
+            Map<String, Object> inputSchema,
             boolean toolAction,
             String toolType,
             String viewportKey,

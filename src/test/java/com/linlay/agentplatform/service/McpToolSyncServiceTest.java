@@ -1,7 +1,6 @@
 package com.linlay.agentplatform.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.config.McpProperties;
 import org.junit.jupiter.api.Test;
 
@@ -41,15 +40,14 @@ class McpToolSyncServiceTest {
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
         when(registryService.list()).thenReturn(List.of(server));
 
-        ObjectNode schema = new ObjectMapper().createObjectNode();
-        schema.put("type", "object");
-        schema.set("properties", new ObjectMapper().createObjectNode());
+        Map<String, Object> schema = Map.of("type", "object", "properties", Map.of());
 
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         doNothing().when(client).initialize(server, "2025-06");
         when(client.listTools(server)).thenReturn(List.of(
                 new McpStreamableHttpClient.McpToolDefinition(
                         "mock.weather.query",
+                        "天气查询",
                         "weather",
                         "use weather viewport card",
                         schema,
@@ -73,6 +71,7 @@ class McpToolSyncServiceTest {
         assertThat(service.find("mock_city_weather")).isEmpty();
         assertThat(diff.addedKeys()).contains("mock.weather.query");
         assertThat(service.find("mock.weather.query").orElseThrow().sourceKey()).isEqualTo("mock");
+        assertThat(service.find("mock.weather.query").orElseThrow().label()).isEqualTo("天气查询");
         assertThat(service.find("mock.weather.query").orElseThrow().afterCallHint())
                 .isEqualTo("use weather viewport card");
     }
@@ -115,9 +114,7 @@ class McpToolSyncServiceTest {
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
         when(registryService.list()).thenReturn(List.of(server));
 
-        ObjectNode schema = new ObjectMapper().createObjectNode();
-        schema.put("type", "object");
-        schema.set("properties", new ObjectMapper().createObjectNode());
+        Map<String, Object> schema = Map.of("type", "object", "properties", Map.of());
 
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         doNothing()
@@ -128,6 +125,7 @@ class McpToolSyncServiceTest {
         when(client.listTools(server)).thenReturn(List.of(
                 new McpStreamableHttpClient.McpToolDefinition(
                         "mock.weather.query",
+                        null,
                         "weather",
                         "use weather viewport card",
                         schema,
@@ -188,15 +186,14 @@ class McpToolSyncServiceTest {
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
         when(registryService.list()).thenReturn(List.of(server));
 
-        ObjectNode schema = new ObjectMapper().createObjectNode();
-        schema.put("type", "object");
-        schema.set("properties", new ObjectMapper().createObjectNode());
+        Map<String, Object> schema = Map.of("type", "object", "properties", Map.of());
 
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         doNothing().when(client).initialize(server, "2025-06");
         when(client.listTools(server)).thenReturn(List.of(
                 new McpStreamableHttpClient.McpToolDefinition(
                         "mock.todo.tasks.list",
+                        "待办列表",
                         "todo",
                         "",
                         schema,
@@ -207,6 +204,7 @@ class McpToolSyncServiceTest {
                 ),
                 new McpStreamableHttpClient.McpToolDefinition(
                         "mock.sensitive-data.detect",
+                        null,
                         "sensitive",
                         "",
                         schema,
@@ -227,6 +225,7 @@ class McpToolSyncServiceTest {
         service.refreshTools();
 
         assertThat(service.find("mock.todo.tasks.list")).isPresent();
+        assertThat(service.find("mock.todo.tasks.list").orElseThrow().label()).isEqualTo("待办列表");
         assertThat(service.find("mock.todo.tasks.list").orElseThrow().kind()).isEqualTo(com.linlay.agentplatform.tool.ToolKind.FRONTEND);
         assertThat(service.find("mock.todo.tasks.list").orElseThrow().toolType()).isEqualTo("html");
         assertThat(service.find("mock.todo.tasks.list").orElseThrow().viewportKey()).isEqualTo("show_todo_card");
@@ -267,9 +266,7 @@ class McpToolSyncServiceTest {
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
         when(registryService.list()).thenReturn(List.of(first, second));
 
-        ObjectNode schema = new ObjectMapper().createObjectNode();
-        schema.put("type", "object");
-        schema.set("properties", new ObjectMapper().createObjectNode());
+        Map<String, Object> schema = Map.of("type", "object", "properties", Map.of());
 
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
         doNothing().when(client).initialize(first, "2025-06");
@@ -277,6 +274,7 @@ class McpToolSyncServiceTest {
         when(client.listTools(first)).thenReturn(List.of(
                 new McpStreamableHttpClient.McpToolDefinition(
                         "mock.todo.tasks.list",
+                        null,
                         "todo",
                         "",
                         schema,
@@ -289,6 +287,7 @@ class McpToolSyncServiceTest {
         when(client.listTools(second)).thenReturn(List.of(
                 new McpStreamableHttpClient.McpToolDefinition(
                         "mock.weather.query",
+                        null,
                         "weather",
                         "",
                         schema,
@@ -311,6 +310,56 @@ class McpToolSyncServiceTest {
         assertThat(service.find("mock.todo.tasks.list")).isPresent();
         assertThat(service.find("mock.weather.query")).isPresent();
         assertThat(service.findViewport("show_todo_card")).isEmpty();
+    }
+
+    @Test
+    void shouldPreserveDeclaredToolNameCaseWhileLookupRemainsCaseInsensitive() {
+        McpProperties properties = new McpProperties();
+        properties.setEnabled(true);
+
+        McpServerRegistryService.RegisteredServer server = new McpServerRegistryService.RegisteredServer(
+                "mock",
+                "http://localhost:18080",
+                "/mcp",
+                "mock",
+                Map.of(),
+                Map.of(),
+                3000,
+                15000,
+                1
+        );
+        McpServerRegistryService registryService = mock(McpServerRegistryService.class);
+        when(registryService.list()).thenReturn(List.of(server));
+
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        doNothing().when(client).initialize(server, "2025-06");
+        when(client.listTools(server)).thenReturn(List.of(
+                new McpStreamableHttpClient.McpToolDefinition(
+                        "Weather.Query",
+                        "天气查询",
+                        "weather",
+                        "",
+                        Map.of("type", "object", "properties", Map.of()),
+                        false,
+                        null,
+                        null,
+                        List.of()
+                )
+        ));
+
+        McpToolSyncService service = new McpToolSyncService(
+                properties,
+                registryService,
+                new McpServerAvailabilityGate(properties),
+                client,
+                new ObjectMapper()
+        );
+        service.refreshTools();
+
+        assertThat(service.find("weather.query")).isPresent();
+        assertThat(service.find("WEATHER.QUERY")).isPresent();
+        assertThat(service.find("weather.query").orElseThrow().name()).isEqualTo("Weather.Query");
+        assertThat(service.find("weather.query").orElseThrow().key()).isEqualTo("weather.query");
     }
 
     private static final class MutableClock extends Clock {

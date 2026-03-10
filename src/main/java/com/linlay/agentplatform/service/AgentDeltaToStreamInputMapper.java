@@ -122,7 +122,6 @@ public class AgentDeltaToStreamInputMapper {
                         delta.taskId(),
                         toolName,
                         normalizedType,
-                        resolveToolApi(toolName),
                         parseToolParams(toolId),
                         resolveDescription(toolName),
                         chunkIndex
@@ -350,15 +349,6 @@ public class AgentDeltaToStreamInputMapper {
         }
         String description = toolRegistry.description(toolName);
         return hasText(description) ? description : null;
-    }
-
-    private String resolveToolApi(String toolName) {
-        if (toolRegistry == null || !hasText(toolName)) {
-            return null;
-        }
-        return toolRegistry.descriptor(toolName)
-                .map(descriptor -> hasText(descriptor.toolApi()) ? descriptor.toolApi() : null)
-                .orElse(null);
     }
 
     private boolean hasText(String value) {

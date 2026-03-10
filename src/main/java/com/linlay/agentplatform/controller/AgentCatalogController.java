@@ -6,6 +6,7 @@ import com.linlay.agentplatform.model.api.AgentListResponse;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.model.api.SkillListResponse;
 import com.linlay.agentplatform.model.api.TeamSummaryResponse;
+import com.linlay.agentplatform.model.api.ToolDetailResponse;
 import com.linlay.agentplatform.model.api.ToolListResponse;
 import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.skill.SkillRegistryService;
@@ -89,6 +90,16 @@ public class AgentCatalogController {
         return ApiResponse.success(items);
     }
 
+    @GetMapping("/tool")
+    public ApiResponse<ToolDetailResponse> tool(@RequestParam String toolName) {
+        if (!StringUtils.hasText(toolName)) {
+            throw new IllegalArgumentException("toolName is required");
+        }
+        ToolDescriptor descriptor = toolRegistry.descriptor(toolName)
+                .orElseThrow(() -> new IllegalArgumentException("Tool not found: " + toolName));
+        return ApiResponse.success(toToolDetail(descriptor));
+    }
+
     private boolean matchesTag(Agent agent, String tag) {
         if (!StringUtils.hasText(tag)) {
             return true;
@@ -159,13 +170,13 @@ public class AgentCatalogController {
     private ToolDescriptor resolveDescriptor(BaseTool tool) {
         return toolRegistry.descriptor(tool.name()).orElseGet(() -> new ToolDescriptor(
                 tool.name(),
+                null,
                 tool.description(),
                 tool.afterCallHint(),
                 tool.parametersSchema(),
                 false,
                 true,
                 false,
-                "function",
                 null,
                 "local",
                 null,
@@ -202,10 +213,10 @@ public class AgentCatalogController {
         }
         String normalized = tag.trim().toLowerCase(Locale.ROOT);
         return normalizeText(descriptor.name()).contains(normalized)
+                || normalizeText(descriptor.label()).contains(normalized)
                 || normalizeText(descriptor.description()).contains(normalized)
                 || normalizeText(descriptor.afterCallHint()).contains(normalized)
                 || normalizeText(descriptor.toolType()).contains(normalized)
-                || normalizeText(descriptor.toolApi()).contains(normalized)
                 || normalizeText(descriptor.viewportKey()).contains(normalized)
                 || descriptor.kind().name().toLowerCase(Locale.ROOT).contains(normalized);
     }
@@ -214,17 +225,40 @@ public class AgentCatalogController {
         Map<String, Object> meta = new java.util.LinkedHashMap<>();
         meta.put("kind", descriptor.kind().name().toLowerCase(Locale.ROOT));
         meta.put("toolType", descriptor.toolType());
-        meta.put("toolApi", descriptor.toolApi());
         meta.put("sourceType", descriptor.sourceType());
         meta.put("sourceKey", descriptor.sourceKey());
         meta.put("viewportKey", descriptor.viewportKey());
         meta.put("strict", descriptor.strict());
         return new ToolListResponse.ToolSummary(
+                descriptor.key(),
                 descriptor.name(),
-                descriptor.name(),
+                descriptor.label(),
                 descriptor.description(),
                 meta
         );
+    }
+
+    private ToolDetailResponse toToolDetail(ToolDescriptor descriptor) {
+        return new ToolDetailResponse(
+                descriptor.key(),
+                descriptor.name(),
+                descriptor.label(),
+                descriptor.description(),
+                descriptor.afterCallHint(),
+                descriptor.parameters(),
+                buildToolMeta(descriptor)
+        );
+    }
+
+    private Map<String, Object> buildToolMeta(ToolDescriptor descriptor) {
+        Map<String, Object> meta = new java.util.LinkedHashMap<>();
+        meta.put("kind", descriptor.kind().name().toLowerCase(Locale.ROOT));
+        meta.put("toolType", descriptor.toolType());
+        meta.put("sourceType", descriptor.sourceType());
+        meta.put("sourceKey", descriptor.sourceKey());
+        meta.put("viewportKey", descriptor.viewportKey());
+        meta.put("strict", descriptor.strict());
+        return meta;
     }
 
     private String normalizeText(String value) {

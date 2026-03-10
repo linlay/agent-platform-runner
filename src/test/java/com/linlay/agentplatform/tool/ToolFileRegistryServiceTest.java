@@ -33,6 +33,7 @@ class ToolFileRegistryServiceTest {
         Files.writeString(toolsDir.resolve("confirm_dialog.yml"), """
                 type: function
                 name: confirm_dialog
+                label: 确认弹窗
                 description: confirm
                 toolType: html
                 viewportKey: confirm_dialog
@@ -60,6 +61,7 @@ class ToolFileRegistryServiceTest {
         assertThat(backend.clientVisible()).isTrue();
 
         assertThat(frontend.kind()).isEqualTo(ToolKind.FRONTEND);
+        assertThat(frontend.label()).isEqualTo("确认弹窗");
         assertThat(frontend.toolType()).isEqualTo("html");
         assertThat(frontend.viewportKey()).isEqualTo("confirm_dialog");
         assertThat(frontend.requiresFrontendSubmit()).isTrue();
@@ -67,6 +69,73 @@ class ToolFileRegistryServiceTest {
         assertThat(action.kind()).isEqualTo(ToolKind.ACTION);
         assertThat(action.toolAction()).isTrue();
         assertThat(action.toolType()).isNull();
+    }
+
+    @Test
+    void shouldSkipInvalidToolMetadataShapes() throws Exception {
+        Path toolsDir = tempDir.resolve("tools");
+        Files.createDirectories(toolsDir);
+
+        Files.writeString(toolsDir.resolve("missing_schema.yml"), """
+                type: function
+                name: missing_schema
+                description: missing schema
+                """);
+        Files.writeString(toolsDir.resolve("blank_label.yml"), """
+                type: function
+                name: blank_label
+                label: ""
+                description: blank label
+                inputSchema:
+                  type: object
+                """);
+        Files.writeString(toolsDir.resolve("tool_type_only.yml"), """
+                type: function
+                name: tool_type_only
+                description: invalid frontend metadata
+                toolType: html
+                inputSchema:
+                  type: object
+                """);
+        Files.writeString(toolsDir.resolve("action_and_viewport.yml"), """
+                type: function
+                name: action_and_viewport
+                description: invalid action metadata
+                toolAction: true
+                toolType: html
+                viewportKey: dialog
+                inputSchema:
+                  type: object
+                """);
+
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+
+        assertThat(service.find("missing_schema")).isEmpty();
+        assertThat(service.find("blank_label")).isEmpty();
+        assertThat(service.find("tool_type_only")).isEmpty();
+        assertThat(service.find("action_and_viewport")).isEmpty();
+    }
+
+    @Test
+    void shouldPreserveDeclaredNameCaseWhileLookupRemainsCaseInsensitive() throws Exception {
+        Path toolsDir = tempDir.resolve("tools");
+        Files.createDirectories(toolsDir);
+
+        Files.writeString(toolsDir.resolve("mixed_case.yml"), """
+                type: function
+                name: Weather.Query
+                label: 天气查询
+                description: mixed case name
+                inputSchema:
+                  type: object
+                """);
+
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+
+        ToolDescriptor descriptor = service.find("weather.query").orElseThrow();
+        assertThat(descriptor.name()).isEqualTo("Weather.Query");
+        assertThat(descriptor.key()).isEqualTo("weather.query");
+        assertThat(service.find("WEATHER.QUERY")).isPresent();
     }
 
     @Test
@@ -170,6 +239,7 @@ class ToolFileRegistryServiceTest {
 
         ToolDescriptor descriptor = service.find("terminal_command_review").orElseThrow();
         assertThat(descriptor.kind()).isEqualTo(ToolKind.FRONTEND);
+        assertThat(descriptor.label()).isEqualTo("命令审查面板");
         assertThat(descriptor.toolType()).isEqualTo("html");
         assertThat(descriptor.viewportKey()).isEqualTo("terminal_command_review");
         assertThat(descriptor.description()).contains("命令清单");

@@ -121,20 +121,18 @@ public class ToolFileRegistryService {
         }
 
         String type = normalize(root.path("type").asText(""));
-        if (!"function".equals(type)) {
-            log.warn("Skip non-function tool file: {}", file);
-            return;
-        }
-        String name = normalizeName(root.path("name").asText(""));
-        if (name.isBlank()) {
+        String name = normalize(root.path("name").asText(""));
+        String normalizedName = normalizeName(name);
+        if (normalizedName.isBlank()) {
             log.warn("Skip tool file without name: {}", file);
             return;
         }
-        if (conflicts.contains(name)) {
+        if (conflicts.contains(normalizedName)) {
             return;
         }
 
-        Map<String, Object> parameters = parseParameters(root.has("inputSchema") ? root.get("inputSchema") : root.get("parameters"));
+        Map<String, Object> parameters = parseInputSchema(root.get("inputSchema"));
+        String label = readOptionalText(root, "label");
         String description = normalize(root.path("description").asText(""));
         String afterCallHint = normalize(root.path("afterCallHint").asText(""));
         Boolean strict = root.has("strict") ? root.path("strict").asBoolean(false) : null;
@@ -143,15 +141,31 @@ public class ToolFileRegistryService {
         String toolType = root.has("toolType") && root.get("toolType").isTextual()
                 ? root.get("toolType").asText()
                 : null;
-        String toolApi = root.has("toolApi") && root.get("toolApi").isTextual()
-                ? root.get("toolApi").asText()
-                : null;
         String viewportKey = root.has("viewportKey") && root.get("viewportKey").isTextual()
                 ? root.get("viewportKey").asText()
                 : null;
+        String validationError = ToolMetadataValidator.validate(
+                type,
+                name,
+                description,
+                label,
+                parameters,
+                toolAction,
+                toolType,
+                viewportKey
+        );
+        if (validationError != null) {
+            if (!"function".equalsIgnoreCase(type)) {
+                log.warn("Skip non-function tool file: {}", file);
+            } else {
+                log.warn("Skip invalid tool file {}: {}", file, validationError);
+            }
+            return;
+        }
 
         ToolDescriptor descriptor = new ToolDescriptor(
                 name,
+                label,
                 description,
                 afterCallHint,
                 parameters,
@@ -159,17 +173,16 @@ public class ToolFileRegistryService {
                 clientVisible,
                 toolAction,
                 toolType,
-                toolApi,
                 "local",
                 null,
                 viewportKey,
                 file.toString()
         );
 
-        ToolDescriptor old = loaded.putIfAbsent(name, descriptor);
+        ToolDescriptor old = loaded.putIfAbsent(normalizedName, descriptor);
         if (old != null) {
-            loaded.remove(name);
-            conflicts.add(name);
+            loaded.remove(normalizedName);
+            conflicts.add(normalizedName);
             log.warn("Duplicate tool name '{}' found in {} and {}, both skipped", name, old.sourceFile(), file);
         }
     }
@@ -191,27 +204,30 @@ public class ToolFileRegistryService {
         return SUPPORTED_SUFFIXES.stream().anyMatch(fileName::endsWith);
     }
 
-    private Map<String, Object> parseParameters(JsonNode node) {
+    private Map<String, Object> parseInputSchema(JsonNode node) {
         if (node == null || node.isNull()) {
-            return defaultParameters();
+            return null;
         }
         if (!node.isObject()) {
-            return defaultParameters();
+            return null;
         }
         try {
             Map<String, Object> converted = objectMapper.convertValue(node, MAP_TYPE);
-            return converted == null || converted.isEmpty() ? defaultParameters() : converted;
+            return converted == null || converted.isEmpty() ? null : converted;
         } catch (IllegalArgumentException ex) {
-            return defaultParameters();
+            return null;
         }
     }
 
-    private Map<String, Object> defaultParameters() {
-        return Map.of(
-                "type", "object",
-                "properties", Map.of(),
-                "additionalProperties", true
-        );
+    private String readOptionalText(JsonNode root, String fieldName) {
+        if (root == null || fieldName == null || !root.has(fieldName)) {
+            return null;
+        }
+        JsonNode value = root.get(fieldName);
+        if (value == null || value.isNull() || !value.isTextual()) {
+            return null;
+        }
+        return value.asText();
     }
 
     private String normalizeName(String raw) {

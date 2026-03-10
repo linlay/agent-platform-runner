@@ -133,7 +133,7 @@ class AgentQueryServiceTest {
 
         assertThat(payload.path("type").asText()).isEqualTo("tool.start");
         assertThat(payload.path("toolType").asText()).isEqualTo("html");
-        assertThat(payload.path("toolKey").asText()).isEqualTo("confirm_dialog");
+        assertThat(payload.path("viewportKey").asText()).isEqualTo("confirm_dialog");
         assertThat(payload.path("toolTimeout").asLong()).isEqualTo(120_000L);
     }
 
@@ -167,8 +167,8 @@ class AgentQueryServiceTest {
         JsonNode payload = objectMapper.readTree(normalized.data());
 
         assertThat(payload.path("type").asText()).isEqualTo("tool.snapshot");
-        assertThat(payload.path("toolType").asText()).isEqualTo("qlc");
-        assertThat(payload.path("toolKey").asText()).isEqualTo("confirm_dialog");
+        assertThat(payload.path("toolType").asText()).isEqualTo("html");
+        assertThat(payload.path("viewportKey").asText()).isEqualTo("confirm_dialog");
         assertThat(payload.path("toolTimeout").asLong()).isEqualTo(30_000L);
     }
 
@@ -287,6 +287,7 @@ class AgentQueryServiceTest {
     private ToolDescriptor frontendTool() {
         return new ToolDescriptor(
                 "confirm_dialog",
+                "确认框",
                 "confirm",
                 "",
                 Map.of("type", "object"),
@@ -294,7 +295,6 @@ class AgentQueryServiceTest {
                 true,
                 false,
                 "html",
-                null,
                 "local",
                 null,
                 "confirm_dialog",
@@ -305,13 +305,13 @@ class AgentQueryServiceTest {
     private ToolDescriptor hiddenTool(String toolName) {
         return new ToolDescriptor(
                 toolName,
+                null,
                 "hidden",
                 "",
                 Map.of("type", "object"),
                 false,
                 false,
                 false,
-                "function",
                 null,
                 "local",
                 null,

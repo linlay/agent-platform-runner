@@ -72,7 +72,6 @@ public sealed interface StreamInput permits
             String taskId,
             String toolName,
             String toolType,
-            String toolApi,
             Object toolParams,
             String description,
             Integer chunkIndex

@@ -1,7 +1,5 @@
 package com.linlay.agentplatform.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.tool.ToolDescriptor;
@@ -26,14 +24,10 @@ import java.util.Set;
 public class McpToolSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(McpToolSyncService.class);
-    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
-    };
-
     private final McpProperties properties;
     private final McpServerRegistryService serverRegistryService;
     private final McpServerAvailabilityGate availabilityGate;
     private final McpStreamableHttpClient streamableHttpClient;
-    private final ObjectMapper objectMapper;
     private final Object refreshLock = new Object();
 
     private volatile Map<String, ToolDescriptor> toolsByName = Map.of();
@@ -52,7 +46,6 @@ public class McpToolSyncService {
         this.serverRegistryService = serverRegistryService;
         this.availabilityGate = availabilityGate;
         this.streamableHttpClient = streamableHttpClient;
-        this.objectMapper = objectMapper;
     }
 
     @PostConstruct
@@ -227,15 +220,15 @@ public class McpToolSyncService {
             String afterCallHint = normalizeText(tool.afterCallHint());
 
             ToolDescriptor descriptor = new ToolDescriptor(
-                    toolName,
+                    tool.name(),
+                    tool.label(),
                     StringUtils.hasText(tool.description()) ? tool.description().trim() : "",
                     afterCallHint,
-                    toParameters(tool.inputSchema()),
+                    tool.inputSchema(),
                     false,
                     true,
                     tool.toolAction(),
                     tool.toolType(),
-                    "mcp://" + server.serverKey() + "/" + toolName,
                     "mcp",
                     normalize(server.serverKey()),
                     tool.viewportKey(),
@@ -348,29 +341,6 @@ public class McpToolSyncService {
                 log.warn("Duplicate MCP alias '{}' for '{}' and '{}', keep first", alias, existing, toolName);
             }
         }
-    }
-
-    private Map<String, Object> toParameters(JsonNode schemaNode) {
-        if (schemaNode == null || schemaNode.isNull() || !schemaNode.isObject()) {
-            return defaultParameters();
-        }
-        try {
-            Map<String, Object> converted = objectMapper.convertValue(schemaNode, MAP_TYPE);
-            if (converted == null || converted.isEmpty()) {
-                return defaultParameters();
-            }
-            return Map.copyOf(converted);
-        } catch (IllegalArgumentException ex) {
-            return defaultParameters();
-        }
-    }
-
-    private Map<String, Object> defaultParameters() {
-        return Map.of(
-                "type", "object",
-                "properties", Map.of(),
-                "additionalProperties", true
-        );
     }
 
     private String normalize(String raw) {

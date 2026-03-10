@@ -272,6 +272,7 @@ class DefinitionDrivenAgentTest {
 
         ToolDescriptor descriptor = new ToolDescriptor(
                 "mail_search",
+                null,
                 "Search messages in a folder by sender/recipient/subject/date/unread filters.",
                 "",
                 Map.of(
@@ -293,8 +294,7 @@ class DefinitionDrivenAgentTest {
                 false,
                 true,
                 false,
-                "function",
-                "mcp://email/mail_search",
+                null,
                 "mcp",
                 "email",
                 null,

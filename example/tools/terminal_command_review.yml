@@ -1,5 +1,6 @@
 type: function
 name: terminal_command_review
+label: 命令审查面板
 description: 预览终端执行计划与命令清单，交由前端逐步确认或批量放行，再回传统一执行结果。
 afterCallHint: |
   等待前端 submit。

@@ -640,7 +640,6 @@ public class ChatRecordStore {
                                 if (StringUtils.hasText(toolCall.type) && !"function".equalsIgnoreCase(toolCall.type)) {
                                     payload.put("toolType", toolCall.type);
                                 }
-                                payload.put("toolApi", null);
                                 payload.put("toolParams", toToolParams(toolCall.function.arguments));
                                 payload.put("description", null);
                             } else {

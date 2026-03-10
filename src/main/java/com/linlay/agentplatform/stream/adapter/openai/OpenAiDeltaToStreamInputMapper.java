@@ -38,7 +38,6 @@ public class OpenAiDeltaToStreamInputMapper {
                         toolCall.type(),
                         null,
                         null,
-                        null,
                         null
                 ));
             }

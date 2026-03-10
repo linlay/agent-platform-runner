@@ -24,13 +24,13 @@ class ToolInvokerRouterTest {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
         when(toolRegistry.descriptor("datetime")).thenReturn(Optional.of(new ToolDescriptor(
                 "datetime",
+                null,
                 "local",
                 "",
                 Map.of("type", "object"),
                 false,
                 true,
                 false,
-                "function",
                 null,
                 "local",
                 null,
@@ -57,14 +57,14 @@ class ToolInvokerRouterTest {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
         when(toolRegistry.descriptor("mock.weather.query")).thenReturn(Optional.of(new ToolDescriptor(
                 "mock.weather.query",
+                null,
                 "mcp",
                 "",
                 Map.of("type", "object"),
                 false,
                 true,
                 false,
-                "function",
-                "mcp://mock/mock.weather.query",
+                null,
                 "mcp",
                 "mock",
                 null,

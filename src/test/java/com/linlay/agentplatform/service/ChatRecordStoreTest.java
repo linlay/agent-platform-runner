@@ -621,13 +621,13 @@ class ChatRecordStoreTest {
     private ToolDescriptor descriptor(String name, boolean clientVisible) {
         return new ToolDescriptor(
                 name,
+                null,
                 name + " desc",
                 "",
                 Map.of("type", "object"),
                 false,
                 clientVisible,
                 false,
-                "function",
                 null,
                 "local",
                 null,
