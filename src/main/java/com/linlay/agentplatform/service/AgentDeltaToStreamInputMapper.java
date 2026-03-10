@@ -31,7 +31,6 @@ public class AgentDeltaToStreamInputMapper {
     private final AtomicLong idCounter = new AtomicLong(0);
     private final Map<Integer, String> indexedToolIds = new HashMap<>();
     private final Map<String, AtomicInteger> toolArgChunkCounters = new HashMap<>();
-    private final Map<String, StringBuilder> toolArgsBuffer = new HashMap<>();
     private final Set<String> actionToolIds = new HashSet<>();
     private final Set<String> closedActionToolIds = new HashSet<>();
     private final Set<String> closedToolIds = new HashSet<>();
@@ -98,7 +97,6 @@ public class AgentDeltaToStreamInputMapper {
                 String toolName = toolCall.name();
                 String normalizedType = resolveToolType(toolName, toolCall.type());
                 String argsDelta = toolCall.arguments() == null ? "" : toolCall.arguments();
-                toolArgsBuffer.computeIfAbsent(toolId, key -> new StringBuilder()).append(argsDelta);
 
                 if ("action".equalsIgnoreCase(normalizedType)) {
                     actionToolIds.add(toolId);
@@ -108,7 +106,7 @@ public class AgentDeltaToStreamInputMapper {
                             argsDelta,
                             delta.taskId(),
                             toolName,
-                            resolveDescription(toolName)
+                            resolveToolDescription(toolName)
                     ));
                     continue;
                 }
@@ -122,8 +120,8 @@ public class AgentDeltaToStreamInputMapper {
                         delta.taskId(),
                         toolName,
                         normalizedType,
-                        parseToolParams(toolId),
-                        resolveDescription(toolName),
+                        resolveToolLabel(toolName),
+                        resolveToolDescription(toolName),
                         chunkIndex
                 ));
             }
@@ -317,18 +315,6 @@ public class AgentDeltaToStreamInputMapper {
         return hasText(rawType) ? rawType.trim() : "function";
     }
 
-    private Object parseToolParams(String toolId) {
-        StringBuilder builder = toolArgsBuffer.get(toolId);
-        if (builder == null || builder.isEmpty()) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(builder.toString(), Object.class);
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
     private Object parseResult(String raw) {
         String value = raw == null ? "null" : raw;
         try {
@@ -339,11 +325,18 @@ public class AgentDeltaToStreamInputMapper {
     }
 
     private void cleanupToolState(String toolId) {
-        toolArgsBuffer.remove(toolId);
         toolArgChunkCounters.remove(toolId);
     }
 
-    private String resolveDescription(String toolName) {
+    private String resolveToolLabel(String toolName) {
+        if (toolRegistry == null || !hasText(toolName)) {
+            return null;
+        }
+        String label = toolRegistry.label(toolName);
+        return hasText(label) ? label : null;
+    }
+
+    private String resolveToolDescription(String toolName) {
         if (toolRegistry == null || !hasText(toolName)) {
             return null;
         }

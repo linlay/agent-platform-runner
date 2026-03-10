@@ -434,11 +434,11 @@ type=html, key=show_weather_card
 
 ### 5. 工具与动作事件
 
-- `tool.start`：`toolId`, `runId`, `taskId?`, `toolName?`, `toolType?`, `viewportKey?`, `toolParams?`, `description?`
+- `tool.start`：`toolId`, `runId`, `taskId?`, `toolName?`, `toolType?`, `toolLabel?`, `toolDescription?`, `viewportKey?`
 - `tool.args`：`toolId`, `delta`, `chunkIndex?`（字段名保持 `delta`，不使用 `args`）
 - `tool.end`：`toolId`
 - `tool.result`：`toolId`, `result`
-- `tool.snapshot`：`toolId`, `toolName?`, `taskId?`, `toolType?`, `viewportKey?`, `toolParams?`, `description?`, `arguments?`
+- `tool.snapshot`：`toolId`, `toolName?`, `taskId?`, `toolType?`, `toolLabel?`, `toolDescription?`, `viewportKey?`, `arguments?`
 - `action.start`：`actionId`, `runId`, `taskId?`, `actionName?`, `description?`
 - `action.args`：`actionId`, `delta`
 - `action.end`：`actionId`

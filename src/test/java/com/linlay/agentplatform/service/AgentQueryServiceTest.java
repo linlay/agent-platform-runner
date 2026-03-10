@@ -125,16 +125,19 @@ class AgentQueryServiceTest {
                 mock(TeamRegistryService.class)
         );
         ServerSentEvent<String> event = ServerSentEvent.builder("""
-                {"type":"tool.start","toolName":"confirm_dialog","toolId":"call_1","runId":"run_1"}
+                {"type":"tool.start","toolName":"confirm_dialog","toolId":"call_1","runId":"run_1","toolLabel":"确认框","toolDescription":"confirm"}
                 """).build();
 
         ServerSentEvent<String> normalized = ReflectionTestUtils.invokeMethod(service, "normalizeEvent", event);
         JsonNode payload = objectMapper.readTree(normalized.data());
 
         assertThat(payload.path("type").asText()).isEqualTo("tool.start");
+        assertThat(payload.path("toolLabel").asText()).isEqualTo("确认框");
+        assertThat(payload.path("toolDescription").asText()).isEqualTo("confirm");
         assertThat(payload.path("toolType").asText()).isEqualTo("html");
         assertThat(payload.path("viewportKey").asText()).isEqualTo("confirm_dialog");
         assertThat(payload.path("toolTimeout").asLong()).isEqualTo(120_000L);
+        assertThat(payload.has("toolParams")).isFalse();
     }
 
     @Test
@@ -160,16 +163,19 @@ class AgentQueryServiceTest {
                 mock(TeamRegistryService.class)
         );
         ServerSentEvent<String> event = ServerSentEvent.builder("""
-                {"type":"tool.snapshot","toolName":"confirm_dialog","toolId":"call_2","runId":"run_2"}
+                {"type":"tool.snapshot","toolName":"confirm_dialog","toolId":"call_2","runId":"run_2","toolLabel":"确认框","toolDescription":"confirm"}
                 """).build();
 
         ServerSentEvent<String> normalized = ReflectionTestUtils.invokeMethod(service, "normalizeEvent", event);
         JsonNode payload = objectMapper.readTree(normalized.data());
 
         assertThat(payload.path("type").asText()).isEqualTo("tool.snapshot");
+        assertThat(payload.path("toolLabel").asText()).isEqualTo("确认框");
+        assertThat(payload.path("toolDescription").asText()).isEqualTo("confirm");
         assertThat(payload.path("toolType").asText()).isEqualTo("html");
         assertThat(payload.path("viewportKey").asText()).isEqualTo("confirm_dialog");
         assertThat(payload.path("toolTimeout").asLong()).isEqualTo(30_000L);
+        assertThat(payload.has("toolParams")).isFalse();
     }
 
     @Test

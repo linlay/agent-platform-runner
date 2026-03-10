@@ -6,6 +6,7 @@ import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
 import com.linlay.agentplatform.stream.service.StreamEventAssembler;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -14,6 +15,8 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class AgentDeltaToStreamInputMapperTest {
 
@@ -44,7 +47,10 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldKeepToolEndBeforeToolResult() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        ToolRegistry toolRegistry = mock(ToolRegistry.class);
+        when(toolRegistry.label("bash")).thenReturn("命令执行");
+        when(toolRegistry.description("bash")).thenReturn("执行 shell 命令");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", toolRegistry);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.toolCalls(List.of(new ToolCallDelta(
                         "tool_1",
@@ -65,6 +71,10 @@ class AgentDeltaToStreamInputMapperTest {
         assertThat(toolEnd).isGreaterThan(toolArgs);
         assertThat(toolResult).isGreaterThan(toolEnd);
         assertThat(countToolEvent(events, "tool.end", "tool_1")).isEqualTo(1);
+        StreamEvent toolStartEvent = events.get(toolStart);
+        assertThat(toolStartEvent.payload()).containsEntry("toolLabel", "命令执行");
+        assertThat(toolStartEvent.payload()).containsEntry("toolDescription", "执行 shell 命令");
+        assertThat(toolStartEvent.payload()).doesNotContainKey("toolParams");
     }
 
     @Test

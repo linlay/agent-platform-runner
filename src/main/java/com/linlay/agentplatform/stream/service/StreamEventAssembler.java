@@ -269,8 +269,8 @@ public class StreamEventAssembler {
                     if (shouldEmitToolType(value.toolType())) {
                         putIfNonNull(payload, "toolType", value.toolType());
                     }
-                    putIfNonNull(payload, "toolParams", value.toolParams());
-                    putIfNonNull(payload, "description", value.description());
+                    putIfNonNull(payload, "toolLabel", value.toolLabel());
+                    putIfNonNull(payload, "toolDescription", value.toolDescription());
                     events.add(next("tool.start", payload));
                 } else if (!openToolIds.contains(value.toolId())) {
                     throw new IllegalStateException("tool.args for closed toolId: " + value.toolId());

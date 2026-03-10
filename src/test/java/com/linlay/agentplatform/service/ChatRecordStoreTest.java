@@ -199,6 +199,8 @@ class ChatRecordStoreTest {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
         when(toolRegistry.descriptor("_plan_add_tasks_")).thenReturn(Optional.of(descriptor("_plan_add_tasks_", false)));
         when(toolRegistry.descriptor("bash")).thenReturn(Optional.of(descriptor("bash", true)));
+        when(toolRegistry.label("bash")).thenReturn("bash label");
+        when(toolRegistry.description("bash")).thenReturn("bash desc");
 
         ChatRecordStore store = newStore(toolRegistry);
         ChatDetailResponse detail = store.loadChat(chatId, true);
@@ -211,11 +213,49 @@ class ChatRecordStoreTest {
                 .toList();
 
         assertThat(toolSnapshots).hasSize(1);
-        assertThat(toolSnapshots.getFirst()).containsEntry("toolName", "bash");
+        assertThat(toolSnapshots.getFirst())
+                .containsEntry("toolName", "bash")
+                .containsEntry("toolLabel", "bash label")
+                .containsEntry("toolDescription", "bash desc")
+                .doesNotContainKey("toolParams");
         assertThat(toolResults).hasSize(1);
         assertThat(toolResults.getFirst()).containsEntry("toolId", "tool_visible_1");
         assertThat(detail.events().stream()
                 .anyMatch(event -> "_plan_add_tasks_".equals(event.get("toolName")))).isFalse();
+    }
+
+    @Test
+    void loadChatShouldOmitToolLabelWhenDescriptorHasNoLabel() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174198";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "无标签工具会话", 1707001100000L, 1707001100000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".json");
+        writeJsonLine(historyPath, queryLine(chatId, "run_198", query("run_198", chatId, "执行命令", List.of())));
+        writeJsonLine(historyPath, stepLine(chatId, "run_198", "react", 1, null,
+                1707001100000L,
+                List.of(
+                        userMessage("执行命令", 1707001100000L),
+                        assistantToolCallMessage("bash", "call_visible_2", "{\"command\":\"pwd\"}", 1707001100001L, "tool_visible_2", null),
+                        toolMessage("bash", "call_visible_2", "{\"ok\":true}", 1707001100002L, "tool_visible_2", null)
+                )));
+
+        ToolRegistry toolRegistry = mock(ToolRegistry.class);
+        when(toolRegistry.descriptor("bash")).thenReturn(Optional.of(descriptor("bash", null, true)));
+        when(toolRegistry.label("bash")).thenReturn(null);
+        when(toolRegistry.description("bash")).thenReturn("bash desc");
+
+        ChatRecordStore store = newStore(toolRegistry);
+        ChatDetailResponse detail = store.loadChat(chatId, true);
+
+        Map<String, Object> toolSnapshot = detail.events().stream()
+                .filter(event -> "tool.snapshot".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(toolSnapshot).containsEntry("toolDescription", "bash desc");
+        assertThat(toolSnapshot).doesNotContainKey("toolLabel");
+        assertThat(toolSnapshot).doesNotContainKey("toolParams");
     }
 
     @Test
@@ -619,9 +659,13 @@ class ChatRecordStoreTest {
     }
 
     private ToolDescriptor descriptor(String name, boolean clientVisible) {
+        return descriptor(name, name + " label", clientVisible);
+    }
+
+    private ToolDescriptor descriptor(String name, String label, boolean clientVisible) {
         return new ToolDescriptor(
                 name,
-                null,
+                label,
                 name + " desc",
                 "",
                 Map.of("type", "object"),

@@ -172,6 +172,10 @@ public class ToolRegistry {
         return descriptor(toolName).map(ToolDescriptor::description).orElse("");
     }
 
+    public String label(String toolName) {
+        return descriptor(toolName).map(ToolDescriptor::label).orElse(null);
+    }
+
     private String normalizeName(String raw) {
         return normalize(raw, "").toLowerCase(Locale.ROOT);
     }

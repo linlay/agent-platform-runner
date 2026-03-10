@@ -640,8 +640,8 @@ public class ChatRecordStore {
                                 if (StringUtils.hasText(toolCall.type) && !"function".equalsIgnoreCase(toolCall.type)) {
                                     payload.put("toolType", toolCall.type);
                                 }
-                                payload.put("toolParams", toToolParams(toolCall.function.arguments));
-                                payload.put("description", null);
+                                putIfNonNull(payload, "toolLabel", resolveToolLabel(toolCall.function.name));
+                                putIfNonNull(payload, "toolDescription", resolveToolDescription(toolCall.function.name));
                             } else {
                                 payload.put("description", null);
                             }
@@ -802,18 +802,6 @@ public class ChatRecordStore {
         return new IdBinding(runId + "_tool_result_" + toolIndex + "_action_" + actionIndex, false);
     }
 
-    private Object toToolParams(String arguments) {
-        if (!StringUtils.hasText(arguments)) {
-            return null;
-        }
-        try {
-            JsonNode parsed = objectMapper.readTree(arguments);
-            return objectMapper.convertValue(parsed, Object.class);
-        } catch (Exception ex) {
-            return null;
-        }
-    }
-
     private boolean isClientVisibleTool(String toolName) {
         if (!StringUtils.hasText(toolName) || toolRegistry == null) {
             return true;
@@ -821,6 +809,22 @@ public class ChatRecordStore {
         return toolRegistry.descriptor(toolName)
                 .map(descriptor -> !Boolean.FALSE.equals(descriptor.clientVisible()))
                 .orElse(true);
+    }
+
+    private String resolveToolLabel(String toolName) {
+        if (!StringUtils.hasText(toolName) || toolRegistry == null) {
+            return null;
+        }
+        String label = toolRegistry.label(toolName);
+        return StringUtils.hasText(label) ? label.trim() : null;
+    }
+
+    private String resolveToolDescription(String toolName) {
+        if (!StringUtils.hasText(toolName) || toolRegistry == null) {
+            return null;
+        }
+        String description = toolRegistry.description(toolName);
+        return StringUtils.hasText(description) ? description.trim() : null;
     }
 
     private String firstUserText(List<ChatWindowMemoryStore.StoredMessage> messages) {
