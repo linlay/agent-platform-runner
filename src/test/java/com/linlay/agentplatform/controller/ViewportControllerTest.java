@@ -27,7 +27,7 @@ class ViewportControllerTest {
         ));
 
         ViewportController controller = new ViewportController(localRegistry, remoteService, new LoggingAgentProperties());
-        ResponseEntity<ApiResponse<Object>> response = controller.viewport("show_weather_card");
+        ResponseEntity<ApiResponse<Object>> response = controller.viewport("show_weather_card").block();
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
@@ -44,7 +44,7 @@ class ViewportControllerTest {
         ));
 
         ViewportController controller = new ViewportController(localRegistry, remoteService, new LoggingAgentProperties());
-        ResponseEntity<ApiResponse<Object>> response = controller.viewport("show_weather_card");
+        ResponseEntity<ApiResponse<Object>> response = controller.viewport("show_weather_card").block();
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
@@ -62,7 +62,7 @@ class ViewportControllerTest {
         ));
 
         ViewportController controller = new ViewportController(localRegistry, remoteService, new LoggingAgentProperties());
-        ResponseEntity<ApiResponse<Object>> response = controller.viewport("missing");
+        ResponseEntity<ApiResponse<Object>> response = controller.viewport("missing").block();
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNotNull();

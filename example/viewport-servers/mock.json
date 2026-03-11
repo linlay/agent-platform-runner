@@ -1,0 +1,5 @@
+{
+  "serverKey": "mock",
+  "baseUrl": "http://localhost:11969",
+  "endpointPath": "/mcp"
+}

@@ -50,7 +50,7 @@ fi
 cp "$BACKEND_JAR" "$RELEASE_DIR/app.jar"
 
 # 复制运行时数据目录
-for dir in agents viewports tools skills data configs; do
+for dir in agents viewport-servers viewports tools skills data configs; do
   if [ -d "$ROOT_DIR/$dir" ]; then
     cp -R "$ROOT_DIR/$dir" "$RELEASE_DIR/$dir"
     log "copied $dir/"
@@ -96,6 +96,7 @@ JAVA_OPTS="${JAVA_OPTS:--server -Xms256m -Xmx512m}"
 
 # 目录类环境变量默认解析为安装目录的绝对路径
 export AGENT_AGENTS_EXTERNAL_DIR="${AGENT_AGENTS_EXTERNAL_DIR:-$APP_DIR/agents}"
+export AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR="${AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR:-$APP_DIR/viewport-servers}"
 export AGENT_VIEWPORTS_EXTERNAL_DIR="${AGENT_VIEWPORTS_EXTERNAL_DIR:-$APP_DIR/viewports}"
 export AGENT_TOOLS_EXTERNAL_DIR="${AGENT_TOOLS_EXTERNAL_DIR:-$APP_DIR/tools}"
 export AGENT_SKILLS_EXTERNAL_DIR="${AGENT_SKILLS_EXTERNAL_DIR:-$APP_DIR/skills}"
@@ -234,6 +235,7 @@ release-local/
 ├── app.pid              # PID file (auto-managed)
 ├── app.log              # Log file (background mode)
 ├── agents/              # Agent JSON definitions
+├── viewport-servers/    # Remote viewport server configs
 ├── viewports/           # Viewport files
 ├── tools/               # Tool definition files
 ├── skills/              # Skill directories
@@ -259,6 +261,6 @@ log "  $RELEASE_DIR/app.jar"
 log "  $RELEASE_DIR/start.sh"
 log "  $RELEASE_DIR/stop.sh"
 log "  $RELEASE_DIR/DEPLOY.md"
-for dir in agents viewports tools skills data configs; do
+for dir in agents viewport-servers viewports tools skills data configs; do
   [ -d "$RELEASE_DIR/$dir" ] && log "  $RELEASE_DIR/$dir/"
 done

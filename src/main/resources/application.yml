@@ -40,6 +40,14 @@ agent:
     reconnect-interval-ms: ${AGENT_MCP_SERVERS_RECONNECT_INTERVAL_MS:60000}
     registry:
       external-dir: ${AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR:mcp-servers}
+  viewport-servers:
+    enabled: ${AGENT_VIEWPORT_SERVERS_ENABLED:true}
+    protocol-version: ${AGENT_VIEWPORT_SERVERS_PROTOCOL_VERSION:2025-06}
+    connect-timeout-ms: ${AGENT_VIEWPORT_SERVERS_CONNECT_TIMEOUT_MS:3000}
+    retry: ${AGENT_VIEWPORT_SERVERS_RETRY:1}
+    reconnect-interval-ms: ${AGENT_VIEWPORT_SERVERS_RECONNECT_INTERVAL_MS:60000}
+    registry:
+      external-dir: ${AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR:viewport-servers}
   tools:
     external-dir: ${AGENT_TOOLS_EXTERNAL_DIR:tools}
     refresh-interval-ms: ${AGENT_TOOLS_REFRESH_INTERVAL_MS:30000}

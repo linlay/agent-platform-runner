@@ -8,6 +8,7 @@
 - `teams/`：demo 团队定义
 - `models/`：demo 模型定义
 - `mcp-servers/`：demo MCP Server 定义
+- `viewport-servers/`：demo Viewport Server 定义
 - `viewports/`：demo 前端视图
 - `tools/`：demo 工具定义
 - `skills/`：demo 技能目录
@@ -32,6 +33,7 @@
 - `teams`
 - `models`
 - `mcp-servers`
+- `viewport-servers`
 - `viewports`
 - `tools`
 - `skills`

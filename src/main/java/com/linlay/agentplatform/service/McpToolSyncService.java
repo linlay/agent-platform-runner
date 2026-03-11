@@ -1,9 +1,9 @@
 package com.linlay.agentplatform.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -32,20 +32,29 @@ public class McpToolSyncService {
 
     private volatile Map<String, ToolDescriptor> toolsByName = Map.of();
     private volatile Map<String, String> aliasToCanonical = Map.of();
-    private volatile Map<String, RemoteViewportBinding> viewportByKey = Map.of();
     private volatile Map<String, ServerToolSnapshot> snapshotsByServerKey = Map.of();
+
+    @Autowired
+    public McpToolSyncService(
+            McpProperties properties,
+            McpServerRegistryService serverRegistryService,
+            McpServerAvailabilityGate availabilityGate,
+            McpStreamableHttpClient streamableHttpClient
+    ) {
+        this.properties = properties;
+        this.serverRegistryService = serverRegistryService;
+        this.availabilityGate = availabilityGate;
+        this.streamableHttpClient = streamableHttpClient;
+    }
 
     public McpToolSyncService(
             McpProperties properties,
             McpServerRegistryService serverRegistryService,
             McpServerAvailabilityGate availabilityGate,
             McpStreamableHttpClient streamableHttpClient,
-            ObjectMapper objectMapper
+            com.fasterxml.jackson.databind.ObjectMapper ignoredObjectMapper
     ) {
-        this.properties = properties;
-        this.serverRegistryService = serverRegistryService;
-        this.availabilityGate = availabilityGate;
-        this.streamableHttpClient = streamableHttpClient;
+        this(properties, serverRegistryService, availabilityGate, streamableHttpClient);
     }
 
     @PostConstruct
@@ -80,7 +89,6 @@ public class McpToolSyncService {
             if (!properties.isEnabled()) {
                 toolsByName = Map.of();
                 aliasToCanonical = Map.of();
-                viewportByKey = Map.of();
                 snapshotsByServerKey = Map.of();
                 availabilityGate.prune(Set.of());
                 return CatalogDiff.between(before, toolsByName);
@@ -156,13 +164,6 @@ public class McpToolSyncService {
         return StringUtils.hasText(canonical) ? Optional.of(canonical) : Optional.empty();
     }
 
-    public Optional<RemoteViewportBinding> findViewport(String viewportKey) {
-        if (!StringUtils.hasText(viewportKey)) {
-            return Optional.empty();
-        }
-        return Optional.ofNullable(viewportByKey.get(normalize(viewportKey)));
-    }
-
     private CatalogDiff publishSnapshots(
             Map<String, ToolDescriptor> before,
             List<McpServerRegistryService.RegisteredServer> servers,
@@ -170,27 +171,23 @@ public class McpToolSyncService {
     ) {
         Map<String, ToolDescriptor> loaded = new LinkedHashMap<>();
         Map<String, String> loadedAlias = new LinkedHashMap<>();
-        Map<String, RemoteViewportBinding> loadedViewports = new LinkedHashMap<>();
         Set<String> conflicts = new HashSet<>();
-        Set<String> viewportConflicts = new HashSet<>();
         for (McpServerRegistryService.RegisteredServer server : servers) {
             ServerToolSnapshot snapshot = nextSnapshots.get(normalize(server.serverKey()));
             if (snapshot == null) {
                 continue;
             }
-            mergeSnapshot(snapshot, loaded, loadedAlias, loadedViewports, conflicts, viewportConflicts);
+            mergeSnapshot(snapshot, loaded, loadedAlias, conflicts);
         }
 
         snapshotsByServerKey = Map.copyOf(nextSnapshots);
         toolsByName = Map.copyOf(loaded);
         aliasToCanonical = Map.copyOf(loadedAlias);
-        viewportByKey = Map.copyOf(loadedViewports);
         CatalogDiff diff = CatalogDiff.between(before, toolsByName);
         log.debug(
-                "Refreshed MCP tool cache, size={}, aliases={}, viewports={}, changed={}",
+                "Refreshed MCP tool cache, size={}, aliases={}, changed={}",
                 toolsByName.size(),
                 aliasToCanonical.size(),
-                viewportByKey.size(),
                 diff.changedKeys().size()
         );
         return diff;
@@ -202,10 +199,9 @@ public class McpToolSyncService {
     ) {
         Map<String, ToolDescriptor> descriptors = new LinkedHashMap<>();
         Map<String, String> aliasToCanonical = new LinkedHashMap<>();
-        Map<String, RemoteViewportBinding> viewportsByKey = new LinkedHashMap<>();
 
         if (tools == null) {
-            return new ServerToolSnapshot(Map.copyOf(descriptors), Map.copyOf(aliasToCanonical), Map.copyOf(viewportsByKey));
+            return new ServerToolSnapshot(Map.copyOf(descriptors), Map.copyOf(aliasToCanonical));
         }
 
         for (McpStreamableHttpClient.McpToolDefinition tool : tools) {
@@ -235,28 +231,16 @@ public class McpToolSyncService {
                     "mcp://" + server.serverKey()
             );
             descriptors.put(toolName, descriptor);
-            if (descriptor.hasViewport()) {
-                String viewportKey = normalize(descriptor.viewportKey());
-                if (StringUtils.hasText(viewportKey) && !viewportsByKey.containsKey(viewportKey)) {
-                    viewportsByKey.put(viewportKey, new RemoteViewportBinding(
-                            viewportKey,
-                            normalizeText(descriptor.toolType()),
-                            normalize(server.serverKey())
-                    ));
-                }
-            }
             registerAliases(server, toolName, tool.aliases(), aliasToCanonical);
         }
-        return new ServerToolSnapshot(Map.copyOf(descriptors), Map.copyOf(aliasToCanonical), Map.copyOf(viewportsByKey));
+        return new ServerToolSnapshot(Map.copyOf(descriptors), Map.copyOf(aliasToCanonical));
     }
 
     private void mergeSnapshot(
             ServerToolSnapshot snapshot,
             Map<String, ToolDescriptor> loaded,
             Map<String, String> loadedAlias,
-            Map<String, RemoteViewportBinding> loadedViewports,
-            Set<String> conflicts,
-            Set<String> viewportConflicts
+            Set<String> conflicts
     ) {
         List<Map.Entry<String, ToolDescriptor>> descriptorEntries = new ArrayList<>(snapshot.toolsByName().entrySet());
         descriptorEntries.sort(Map.Entry.comparingByKey(Comparator.naturalOrder()));
@@ -290,25 +274,6 @@ public class McpToolSyncService {
             String existing = loadedAlias.putIfAbsent(alias, canonical);
             if (existing != null && !existing.equals(canonical)) {
                 log.warn("Duplicate MCP alias '{}' for '{}' and '{}', keep first", alias, existing, canonical);
-            }
-        }
-
-        List<Map.Entry<String, RemoteViewportBinding>> viewportEntries = new ArrayList<>(snapshot.viewportsByKey().entrySet());
-        viewportEntries.sort(Map.Entry.comparingByKey(Comparator.naturalOrder()));
-        for (Map.Entry<String, RemoteViewportBinding> entry : viewportEntries) {
-            String viewportKey = entry.getKey();
-            if (!StringUtils.hasText(viewportKey) || viewportConflicts.contains(viewportKey)) {
-                continue;
-            }
-            RemoteViewportBinding binding = entry.getValue();
-            RemoteViewportBinding existing = loadedViewports.putIfAbsent(viewportKey, binding);
-            if (existing != null && !existing.serverKey().equals(binding.serverKey())) {
-                loadedViewports.remove(viewportKey);
-                viewportConflicts.add(viewportKey);
-                log.warn("Duplicate MCP viewport '{}' from '{}' and '{}', both skipped",
-                        viewportKey,
-                        existing.serverKey(),
-                        binding.serverKey());
             }
         }
     }
@@ -372,15 +337,7 @@ public class McpToolSyncService {
 
     private record ServerToolSnapshot(
             Map<String, ToolDescriptor> toolsByName,
-            Map<String, String> aliasToCanonical,
-            Map<String, RemoteViewportBinding> viewportsByKey
-    ) {
-    }
-
-    public record RemoteViewportBinding(
-            String viewportKey,
-            String toolType,
-            String serverKey
+            Map<String, String> aliasToCanonical
     ) {
     }
 }

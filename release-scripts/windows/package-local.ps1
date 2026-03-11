@@ -80,7 +80,7 @@ if (-not $jar) {
 
 Copy-Item $jar.FullName (Join-Path $releaseDir "app.jar") -Force
 
-foreach ($dir in @("agents", "viewports", "tools", "skills", "data", "configs")) {
+foreach ($dir in @("agents", "viewport-servers", "viewports", "tools", "skills", "data", "configs")) {
     $sourceDir = Join-Path $rootDir $dir
     if (Test-Path $sourceDir) {
         Copy-Item $sourceDir (Join-Path $releaseDir $dir) -Recurse -Force
@@ -150,6 +150,7 @@ if (-not $env:JAVA_OPTS) {
 }
 
 if (-not $env:AGENT_AGENTS_EXTERNAL_DIR) { $env:AGENT_AGENTS_EXTERNAL_DIR = Join-Path $appDir "agents" }
+if (-not $env:AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR) { $env:AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR = Join-Path $appDir "viewport-servers" }
 if (-not $env:AGENT_VIEWPORTS_EXTERNAL_DIR) { $env:AGENT_VIEWPORTS_EXTERNAL_DIR = Join-Path $appDir "viewports" }
 if (-not $env:AGENT_TOOLS_EXTERNAL_DIR) { $env:AGENT_TOOLS_EXTERNAL_DIR = Join-Path $appDir "tools" }
 if (-not $env:AGENT_SKILLS_EXTERNAL_DIR) { $env:AGENT_SKILLS_EXTERNAL_DIR = Join-Path $appDir "skills" }
@@ -263,7 +264,7 @@ Write-Log "  $releaseDir/app.jar"
 Write-Log "  $releaseDir/start.ps1"
 Write-Log "  $releaseDir/stop.ps1"
 Write-Log "  $releaseDir/DEPLOY.md"
-foreach ($dir in @("agents", "viewports", "tools", "skills", "data", "configs")) {
+foreach ($dir in @("agents", "viewport-servers", "viewports", "tools", "skills", "data", "configs")) {
     if (Test-Path (Join-Path $releaseDir $dir)) {
         Write-Log "  $releaseDir/$dir/"
     }

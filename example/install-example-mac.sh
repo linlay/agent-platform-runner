@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 EXAMPLE_DIR="$ROOT_DIR/example"
 
-DIRS=(agents teams models mcp-servers viewports tools skills schedules)
+DIRS=(agents teams models mcp-servers viewport-servers viewports tools skills schedules)
 
 log() {
   printf '[install-example][mac] %s\n' "$*"

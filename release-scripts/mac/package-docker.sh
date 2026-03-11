@@ -58,7 +58,7 @@ cp "$DOCKERFILE" "$RELEASE_DIR/Dockerfile"
 cp "$ROOT_DIR/settings.xml" "$RELEASE_DIR/settings.xml"
 
 # 复制运行时数据目录
-for dir in agents viewports tools skills configs; do
+for dir in agents viewport-servers viewports tools skills configs; do
   if [ -d "$ROOT_DIR/$dir" ]; then
     cp -R "$ROOT_DIR/$dir" "$RELEASE_DIR/$dir"
     log "copied $dir/"
@@ -81,6 +81,7 @@ services:
       AGENT_CONFIG_DIR: /opt/configs
     volumes:
       - ./agents:/opt/agents
+      - ./viewport-servers:/opt/viewport-servers
       - ./viewports:/opt/viewports
       - ./tools:/opt/tools
       - ./skills:/opt/skills
@@ -138,6 +139,6 @@ log "  $RELEASE_DIR/settings.xml"
 log "  $RELEASE_DIR/docker-compose.yml"
 log "  $RELEASE_DIR/.env.example"
 log "  $RELEASE_DIR/DEPLOY.md"
-for dir in agents viewports tools skills configs; do
+for dir in agents viewport-servers viewports tools skills configs; do
   [ -d "$RELEASE_DIR/$dir" ] && log "  $RELEASE_DIR/$dir/"
 done

@@ -15,6 +15,7 @@ services:
       - ./models:/opt/models
       - ./tools:/opt/tools
       - ./mcp-servers:/opt/mcp-servers
+      - ./viewport-servers:/opt/viewport-servers
       - ./skills:/opt/skills
       - ./viewports:/opt/viewports
       - ./agents:/opt/agents

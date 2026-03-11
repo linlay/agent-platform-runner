@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DIRS=(agents teams tools skills mcp-servers chats models viewports schedules)
+DIRS=(agents teams tools skills mcp-servers viewport-servers chats models viewports schedules)
 
 printf '[clear-all-data] root: %s\n' "$ROOT_DIR"
 

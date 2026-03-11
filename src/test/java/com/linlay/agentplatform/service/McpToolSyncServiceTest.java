@@ -230,19 +230,17 @@ class McpToolSyncServiceTest {
         assertThat(service.find("mock.todo.tasks.list").orElseThrow().toolType()).isEqualTo("html");
         assertThat(service.find("mock.todo.tasks.list").orElseThrow().viewportKey()).isEqualTo("show_todo_card");
         assertThat(service.find("mock.todo.tasks.list").orElseThrow().requiresFrontendSubmit()).isFalse();
-        assertThat(service.findViewport("show_todo_card")).isPresent();
-        assertThat(service.findViewport("show_todo_card").orElseThrow().serverKey()).isEqualTo("mock");
         assertThat(service.find("mock.sensitive-data.detect").orElseThrow().kind()).isEqualTo(com.linlay.agentplatform.tool.ToolKind.ACTION);
         assertThat(service.find("mock.sensitive-data.detect").orElseThrow().toolAction()).isTrue();
     }
 
     @Test
-    void shouldSkipConflictedRemoteViewportKeys() {
+    void shouldNotRegisterRemoteViewportsFromToolsList() {
         McpProperties properties = new McpProperties();
         properties.setEnabled(true);
 
-        McpServerRegistryService.RegisteredServer first = new McpServerRegistryService.RegisteredServer(
-                "mock-a",
+        McpServerRegistryService.RegisteredServer server = new McpServerRegistryService.RegisteredServer(
+                "mock",
                 "http://localhost:18080",
                 "/mcp",
                 "mock",
@@ -252,43 +250,18 @@ class McpToolSyncServiceTest {
                 15000,
                 1
         );
-        McpServerRegistryService.RegisteredServer second = new McpServerRegistryService.RegisteredServer(
-                "mock-b",
-                "http://localhost:18081",
-                "/mcp",
-                "mock",
-                Map.of(),
-                Map.of(),
-                3000,
-                15000,
-                1
-        );
         McpServerRegistryService registryService = mock(McpServerRegistryService.class);
-        when(registryService.list()).thenReturn(List.of(first, second));
+        when(registryService.list()).thenReturn(List.of(server));
 
         Map<String, Object> schema = Map.of("type", "object", "properties", Map.of());
 
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
-        doNothing().when(client).initialize(first, "2025-06");
-        doNothing().when(client).initialize(second, "2025-06");
-        when(client.listTools(first)).thenReturn(List.of(
+        doNothing().when(client).initialize(server, "2025-06");
+        when(client.listTools(server)).thenReturn(List.of(
                 new McpStreamableHttpClient.McpToolDefinition(
                         "mock.todo.tasks.list",
                         null,
                         "todo",
-                        "",
-                        schema,
-                        false,
-                        "html",
-                        "show_todo_card",
-                        List.of()
-                )
-        ));
-        when(client.listTools(second)).thenReturn(List.of(
-                new McpStreamableHttpClient.McpToolDefinition(
-                        "mock.weather.query",
-                        null,
-                        "weather",
                         "",
                         schema,
                         false,
@@ -308,8 +281,7 @@ class McpToolSyncServiceTest {
         service.refreshTools();
 
         assertThat(service.find("mock.todo.tasks.list")).isPresent();
-        assertThat(service.find("mock.weather.query")).isPresent();
-        assertThat(service.findViewport("show_todo_card")).isEmpty();
+        assertThat(service.find("mock.todo.tasks.list").orElseThrow().viewportKey()).isEqualTo("show_todo_card");
     }
 
     @Test

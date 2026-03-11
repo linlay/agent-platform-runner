@@ -4,6 +4,7 @@ import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.ViewportServerProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
@@ -54,7 +55,9 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
-                mock(McpToolSyncService.class)
+                mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
         );
         try {
             callbackFor(service, tempDir.resolve("tools")).run();
@@ -87,7 +90,9 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
-                mock(McpToolSyncService.class)
+                mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
         );
         try {
             callbackFor(service, tempDir.resolve("models")).run();
@@ -121,7 +126,9 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mcpServerRegistryService,
-                mcpToolSyncService
+                mcpToolSyncService,
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
         );
         try {
             callbackFor(service, tempDir.resolve("mcp-servers")).run();
@@ -150,7 +157,9 @@ class DirectoryWatchServiceReloadRoutingTest {
                 skillRegistryService,
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
-                mock(McpToolSyncService.class)
+                mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
         );
         try {
             callbackFor(service, tempDir.resolve("skills")).run();
@@ -175,11 +184,43 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
                 mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class),
                 orchestrator
         );
         try {
             callbackFor(service, tempDir.resolve("schedules")).run();
             verify(orchestrator).refreshAndReconcile();
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldRefreshViewportRegistryWithoutReloadingAgentsWhenViewportServersChanged() throws Exception {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        ViewportServerRegistryService viewportServerRegistryService = mock(ViewportServerRegistryService.class);
+        ViewportSyncService viewportSyncService = mock(ViewportSyncService.class);
+
+        DirectoryWatchService service = createService(
+                agentRegistry,
+                mock(ViewportRegistryService.class),
+                mock(ToolFileRegistryService.class),
+                mock(ModelRegistryService.class),
+                mock(SkillRegistryService.class),
+                mock(TeamRegistryService.class),
+                mock(McpServerRegistryService.class),
+                mock(McpToolSyncService.class),
+                viewportServerRegistryService,
+                viewportSyncService
+        );
+        try {
+            callbackFor(service, tempDir.resolve("viewport-servers")).run();
+
+            verify(viewportServerRegistryService).refreshServers();
+            verify(viewportSyncService).refreshViewports();
+            verify(agentRegistry, never()).refreshAgentsByIds(anySet(), anyString());
+            verify(agentRegistry, never()).refreshAgents();
         } finally {
             service.destroy();
         }
@@ -193,7 +234,9 @@ class DirectoryWatchServiceReloadRoutingTest {
             SkillRegistryService skillRegistryService,
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
-            McpToolSyncService mcpToolSyncService
+            McpToolSyncService mcpToolSyncService,
+            ViewportServerRegistryService viewportServerRegistryService,
+            ViewportSyncService viewportSyncService
     ) {
         return createService(
                 agentRegistry,
@@ -204,6 +247,8 @@ class DirectoryWatchServiceReloadRoutingTest {
                 teamRegistryService,
                 mcpServerRegistryService,
                 mcpToolSyncService,
+                viewportServerRegistryService,
+                viewportSyncService,
                 mock(ScheduledQueryOrchestrator.class)
         );
     }
@@ -217,6 +262,8 @@ class DirectoryWatchServiceReloadRoutingTest {
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
             McpToolSyncService mcpToolSyncService,
+            ViewportServerRegistryService viewportServerRegistryService,
+            ViewportSyncService viewportSyncService,
             ScheduledQueryOrchestrator scheduledQueryOrchestrator
     ) {
         AgentProperties agentProperties = new AgentProperties();
@@ -243,6 +290,9 @@ class DirectoryWatchServiceReloadRoutingTest {
         McpProperties mcpProperties = new McpProperties();
         mcpProperties.getRegistry().setExternalDir(tempDir.resolve("mcp-servers").toString());
 
+        ViewportServerProperties viewportServerProperties = new ViewportServerProperties();
+        viewportServerProperties.getRegistry().setExternalDir(tempDir.resolve("viewport-servers").toString());
+
         return new DirectoryWatchService(
                 agentRegistry,
                 viewportRegistryService,
@@ -252,11 +302,14 @@ class DirectoryWatchServiceReloadRoutingTest {
                 teamRegistryService,
                 mcpServerRegistryService,
                 mcpToolSyncService,
+                viewportServerRegistryService,
+                viewportSyncService,
                 scheduledQueryOrchestrator,
                 agentProperties,
                 viewportProperties,
                 toolProperties,
                 mcpProperties,
+                viewportServerProperties,
                 modelProperties,
                 skillProperties,
                 teamProperties,

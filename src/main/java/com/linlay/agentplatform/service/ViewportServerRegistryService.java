@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.ViewportServerProperties;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,20 +19,20 @@ import java.util.Optional;
 
 @Service
 @DependsOn("runtimeResourceSyncService")
-public class McpServerRegistryService {
+public class ViewportServerRegistryService {
 
-    private static final Logger log = LoggerFactory.getLogger(McpServerRegistryService.class);
+    private static final Logger log = LoggerFactory.getLogger(ViewportServerRegistryService.class);
     private static final int DEFAULT_READ_TIMEOUT_MS = 15_000;
 
     private final ObjectMapper objectMapper;
-    private final McpProperties properties;
+    private final ViewportServerProperties properties;
     private final Object reloadLock = new Object();
     private volatile Map<String, RegisteredServer> byKey = Map.of();
     private volatile long registryVersion = 0L;
 
-    public McpServerRegistryService(
+    public ViewportServerRegistryService(
             ObjectMapper objectMapper,
-            McpProperties properties
+            ViewportServerProperties properties
     ) {
         this.objectMapper = objectMapper;
         this.properties = properties;
@@ -45,12 +45,14 @@ public class McpServerRegistryService {
 
     public void refreshServers() {
         synchronized (reloadLock) {
+            Path dir = Path.of(properties.getRegistry().getExternalDir()).toAbsolutePath().normalize();
             Map<String, RegisteredServer> merged = new LinkedHashMap<>();
-            Map<String, RegisteredServer> dynamic = loadDynamicServers();
-            dynamic.forEach(merged::putIfAbsent);
+            for (RemoteServerConfigSupport.ServerSpec spec : RemoteServerConfigSupport.loadServerSpecs(dir, objectMapper, log)) {
+                normalizeServer(spec).ifPresent(server -> merged.putIfAbsent(server.serverKey(), server));
+            }
             byKey = Map.copyOf(merged);
             registryVersion++;
-            log.debug("Refreshed MCP server registry, size={}", byKey.size());
+            log.debug("Refreshed viewport server registry, size={}", byKey.size());
         }
     }
 
@@ -71,15 +73,6 @@ public class McpServerRegistryService {
         return Optional.ofNullable(byKey.get(serverKey.trim().toLowerCase(Locale.ROOT)));
     }
 
-    private Map<String, RegisteredServer> loadDynamicServers() {
-        Path dir = Path.of(properties.getRegistry().getExternalDir()).toAbsolutePath().normalize();
-        Map<String, RegisteredServer> loaded = new LinkedHashMap<>();
-        for (RemoteServerConfigSupport.ServerSpec spec : RemoteServerConfigSupport.loadServerSpecs(dir, objectMapper, log)) {
-            normalizeServer(spec).ifPresent(server -> loaded.putIfAbsent(server.serverKey(), server));
-        }
-        return loaded;
-    }
-
     private Optional<RegisteredServer> normalizeServer(RemoteServerConfigSupport.ServerSpec raw) {
         if (raw == null || !raw.enabled()) {
             return Optional.empty();
@@ -90,15 +83,11 @@ public class McpServerRegistryService {
         }
         String baseUrl = RemoteServerConfigSupport.normalizeText(raw.baseUrl());
         if (!StringUtils.hasText(baseUrl)) {
-            log.warn("Skip MCP server '{}' due to empty baseUrl", serverKey);
+            log.warn("Skip viewport server '{}' due to empty baseUrl", serverKey);
             return Optional.empty();
         }
         String endpointPath = RemoteServerConfigSupport.normalizeEndpointPath(raw.endpointPath(), "/mcp");
-        String toolPrefix = RemoteServerConfigSupport.normalizeText(raw.toolPrefix());
-
         Map<String, String> headers = RemoteServerConfigSupport.normalizeStringMap(raw.headers());
-        Map<String, String> aliasMap = RemoteServerConfigSupport.normalizeAliasMap(raw.aliasMap());
-
         int connectTimeoutMs = raw.connectTimeoutMs() != null
                 ? Math.max(1, raw.connectTimeoutMs())
                 : Math.max(1, properties.getConnectTimeoutMs());
@@ -111,9 +100,7 @@ public class McpServerRegistryService {
                 serverKey,
                 baseUrl,
                 endpointPath,
-                toolPrefix,
                 headers,
-                aliasMap,
                 connectTimeoutMs,
                 readTimeoutMs,
                 retry
@@ -124,16 +111,13 @@ public class McpServerRegistryService {
             String serverKey,
             String baseUrl,
             String endpointPath,
-            String toolPrefix,
             Map<String, String> headers,
-            Map<String, String> aliasMap,
             int connectTimeoutMs,
             int readTimeoutMs,
             int retry
     ) {
         public RegisteredServer {
             headers = headers == null ? Map.of() : Map.copyOf(headers);
-            aliasMap = aliasMap == null ? Map.of() : Map.copyOf(aliasMap);
         }
 
         public String endpointUrl() {

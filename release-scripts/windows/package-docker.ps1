@@ -86,7 +86,7 @@ Copy-Item $jar.FullName (Join-Path $releaseDir "app.jar") -Force
 Copy-Item $dockerfile (Join-Path $releaseDir "Dockerfile") -Force
 Copy-Item (Join-Path $rootDir "settings.xml") (Join-Path $releaseDir "settings.xml") -Force
 
-foreach ($dir in @("agents", "viewports", "tools", "skills", "configs")) {
+foreach ($dir in @("agents", "viewport-servers", "viewports", "tools", "skills", "configs")) {
     $sourceDir = Join-Path $rootDir $dir
     if (Test-Path $sourceDir) {
         Copy-Item $sourceDir (Join-Path $releaseDir $dir) -Recurse -Force
@@ -109,6 +109,7 @@ services:
       AGENT_CONFIG_DIR: /opt/configs
     volumes:
       - ./agents:/opt/agents
+      - ./viewport-servers:/opt/viewport-servers
       - ./viewports:/opt/viewports
       - ./tools:/opt/tools
       - ./skills:/opt/skills
@@ -167,7 +168,7 @@ Write-Log "  $releaseDir/settings.xml"
 Write-Log "  $releaseDir/docker-compose.yml"
 Write-Log "  $releaseDir/.env.example"
 Write-Log "  $releaseDir/DEPLOY.md"
-foreach ($dir in @("agents", "viewports", "tools", "skills", "configs")) {
+foreach ($dir in @("agents", "viewport-servers", "viewports", "tools", "skills", "configs")) {
     if (Test-Path (Join-Path $releaseDir $dir)) {
         Write-Log "  $releaseDir/$dir/"
     }

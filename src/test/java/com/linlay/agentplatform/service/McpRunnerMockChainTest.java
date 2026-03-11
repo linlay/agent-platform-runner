@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.McpToolInvoker;
 import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.ViewportServerProperties;
 import com.linlay.agentplatform.tool.ToolFileRegistryService;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
@@ -111,6 +112,75 @@ class McpRunnerMockChainTest {
         assertThat(requestCounter.get()).isEqualTo(3);
     }
 
+    @Test
+    void shouldUseSameEndpointForMcpToolsAndViewportServers() throws Exception {
+        Path mcpRegistryDir = tempDir.resolve("mcp-servers");
+        Path viewportRegistryDir = tempDir.resolve("viewport-servers");
+        Files.createDirectories(mcpRegistryDir);
+        Files.createDirectories(viewportRegistryDir);
+        String serverJson = """
+                {
+                  "serverKey": "mock",
+                  "baseUrl": "http://mock.local",
+                  "endpointPath": "/mcp"
+                }
+                """;
+        Files.writeString(mcpRegistryDir.resolve("mock.json"), serverJson);
+        Files.writeString(viewportRegistryDir.resolve("mock.json"), serverJson);
+
+        McpProperties mcpProperties = new McpProperties();
+        mcpProperties.setEnabled(true);
+        mcpProperties.getRegistry().setExternalDir(mcpRegistryDir.toString());
+
+        ViewportServerProperties viewportProperties = new ViewportServerProperties();
+        viewportProperties.setEnabled(true);
+        viewportProperties.getRegistry().setExternalDir(viewportRegistryDir.toString());
+
+        McpServerRegistryService mcpServerRegistryService = new McpServerRegistryService(objectMapper, mcpProperties);
+        mcpServerRegistryService.refreshServers();
+        ViewportServerRegistryService viewportServerRegistryService = new ViewportServerRegistryService(objectMapper, viewportProperties);
+        viewportServerRegistryService.refreshServers();
+
+        AtomicInteger requestCounter = new AtomicInteger();
+        ExchangeFunction exchangeFunction = new DualRegistryExchangeFunction(requestCounter);
+        McpStreamableHttpClient streamableHttpClient = new McpStreamableHttpClient(
+                objectMapper,
+                WebClient.builder().exchangeFunction(exchangeFunction)
+        );
+
+        McpToolSyncService toolSyncService = new McpToolSyncService(
+                mcpProperties,
+                mcpServerRegistryService,
+                new McpServerAvailabilityGate(mcpProperties),
+                streamableHttpClient,
+                objectMapper
+        );
+        toolSyncService.refreshTools();
+
+        ViewportSyncService viewportSyncService = new ViewportSyncService(
+                viewportProperties,
+                viewportServerRegistryService,
+                new ViewportServerAvailabilityGate(viewportProperties),
+                streamableHttpClient
+        );
+        viewportSyncService.refreshViewports();
+
+        McpViewportService viewportService = new McpViewportService(
+                viewportSyncService,
+                viewportServerRegistryService,
+                streamableHttpClient
+        );
+
+        assertThat(toolSyncService.find("mock.weather.query")).isPresent();
+        assertThat(viewportSyncService.findViewport("show_weather_card")).isPresent();
+        assertThat(viewportService.fetchViewport("show_weather_card"))
+                .isPresent()
+                .get()
+                .extracting(response -> response.getBody().data())
+                .isEqualTo(Map.of("html", "<div>Weather card</div>"));
+        assertThat(requestCounter.get()).isEqualTo(5);
+    }
+
     private static final class ScriptedExchangeFunction implements ExchangeFunction {
         private final AtomicInteger requestCounter;
 
@@ -138,6 +208,47 @@ class McpRunnerMockChainTest {
                         """;
             };
             String contentType = index == 1 ? MediaType.APPLICATION_JSON_VALUE : MediaType.TEXT_EVENT_STREAM_VALUE;
+            return Mono.just(
+                    ClientResponse.create(HttpStatus.OK)
+                            .header(HttpHeaders.CONTENT_TYPE, contentType)
+                            .body(responseBody)
+                            .build()
+            );
+        }
+    }
+
+    private static final class DualRegistryExchangeFunction implements ExchangeFunction {
+        private final AtomicInteger requestCounter;
+
+        private DualRegistryExchangeFunction(AtomicInteger requestCounter) {
+            this.requestCounter = requestCounter;
+        }
+
+        @Override
+        public Mono<ClientResponse> exchange(ClientRequest request) {
+            int index = requestCounter.incrementAndGet();
+            String responseBody = switch (index) {
+                case 1, 3 -> """
+                        {"jsonrpc":"2.0","id":"1","result":{"protocolVersion":"2025-06","capabilities":{"tools":{"listChanged":false}}}}
+                        """;
+                case 2 -> """
+                        data: {"jsonrpc":"2.0","id":"2","result":{"tools":[{"name":"mock.weather.query","label":"天气查询","description":"[MOCK] query weather","afterCallHint":"Use viewport key=show_weather_card","inputSchema":{"type":"object","properties":{"city":{"type":"string"}},"additionalProperties":true}}]}}
+
+                        """;
+                case 4 -> """
+                        data: {"jsonrpc":"2.0","id":"4","result":{"viewports":[{"viewportKey":"show_weather_card","viewportType":"html","toolNames":["mock.weather.query"]}]}}
+
+                        """;
+                case 5 -> """
+                        {"jsonrpc":"2.0","id":"5","result":{"viewportType":"html","payload":"<div>Weather card</div>"}}
+                        """;
+                default -> """
+                        {"jsonrpc":"2.0","id":"x","error":{"code":-32603,"message":"unexpected request"}}
+                        """;
+            };
+            String contentType = index == 1 || index == 3 || index == 5
+                    ? MediaType.APPLICATION_JSON_VALUE
+                    : MediaType.TEXT_EVENT_STREAM_VALUE;
             return Mono.just(
                     ClientResponse.create(HttpStatus.OK)
                             .header(HttpHeaders.CONTENT_TYPE, contentType)

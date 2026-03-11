@@ -230,6 +230,7 @@
 │   ├── teams/
 │   ├── models/
 │   ├── mcp-servers/
+│   ├── viewport-servers/
 │   ├── viewports/
 │   ├── tools/
 │   ├── skills/
@@ -496,6 +497,7 @@ plain:
 - 运行目录默认值：
   - agents: `agents/`
   - models: `models/`
+  - viewport-servers: `viewport-servers/`
   - viewports: `viewports/`
   - tools: `tools/`
   - skills: `skills/`
@@ -504,12 +506,13 @@ plain:
   - `AGENT_TOOLS_EXTERNAL_DIR`
   - `AGENT_SKILLS_EXTERNAL_DIR`
   - `AGENT_SCHEDULE_EXTERNAL_DIR`
-- `agents|teams|models|mcp-servers|viewports` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
+- `agents|teams|models|mcp-servers|viewport-servers|viewports` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
 - 示例安装为覆盖写入同名文件，但不会清空目标目录，不会删除额外文件。
 - 目录监听热重载策略：
   - `agents/` 变更：全量刷新 agent 定义。
   - `tools/` 变更：刷新 tool registry，并按依赖精准刷新受影响 agent。
   - `mcp-servers/` 变更：刷新 mcp server 与 mcp tool registry，并按依赖精准刷新受影响 agent。
+  - `viewport-servers/` 变更：刷新 viewport server 与远端 viewport registry，不触发 agent reload。
   - `models/` 变更：刷新 model registry，并按 `modelKey` 依赖精准刷新受影响 agent。
   - `skills/` 变更：仅刷新 skill registry，不触发 agent reload。
   - `schedules/` 变更：刷新计划任务 registry，并增量重编排 cron 触发器。
@@ -543,7 +546,7 @@ plain:
   - macOS：`./example/install-example-mac.sh`
   - Linux：`./example/install-example-linux.sh`
   - Windows PowerShell：`.\\example\\install-example-windows.ps1`
-- 脚本会覆盖复制：`agents/teams/models/mcp-servers/viewports/tools/skills/schedules`。
+- 脚本会覆盖复制：`agents/teams/models/mcp-servers/viewport-servers/viewports/tools/skills/schedules`。
 
 ### /api/ap/viewport 约定
 
@@ -552,6 +555,10 @@ plain:
   - `html` 文件：`data = {"html":"<...>"}`
   - `qlc` 文件：`data` 直接是文件内 JSON 对象
 - `viewportKey` 不存在时返回 `404`。
+- 远端 viewport 来源为 `viewport-servers/`：
+  - `viewports/list` 负责注册 summary
+  - `viewports/get` 负责透传 payload
+  - 不支持 viewports 协议的服务会被跳过并按配置自动重试
 
 ### 前端 tool 提交流程
 
@@ -672,6 +679,8 @@ for f in *.md; do echo "$f"; done
 | `SERVER_PORT` | `8080` | 应用 HTTP 监听端口（容器内固定 `8080`；本地非 Docker 运行可覆盖） |
 | `AGENT_AGENTS_EXTERNAL_DIR` | `agents` | Agent 定义目录 |
 | `AGENT_MODELS_EXTERNAL_DIR` | `models` | Model 定义目录 |
+| `AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR` | `mcp-servers` | MCP server 注册目录 |
+| `AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR` | `viewport-servers` | Viewport server 注册目录 |
 | `AGENT_VIEWPORTS_EXTERNAL_DIR` | `viewports` | Viewport 目录 |
 | `AGENT_TOOLS_EXTERNAL_DIR` | `tools` | 工具目录 |
 | `AGENT_SKILLS_EXTERNAL_DIR` | `skills` | 技能目录 |

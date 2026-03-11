@@ -31,6 +31,7 @@ ENV JAVA_OPTS="-server -Xms256m -XX:MaxRAMPercentage=60" \
     AGENT_MODELS_EXTERNAL_DIR="/opt/models" \
     AGENT_TOOLS_EXTERNAL_DIR="/opt/tools" \
     AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR="/opt/mcp-servers" \
+    AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR="/opt/viewport-servers" \
     AGENT_VIEWPORTS_EXTERNAL_DIR="/opt/viewports" \
     AGENT_SKILLS_EXTERNAL_DIR="/opt/skills" \
     AGENT_AGENTS_EXTERNAL_DIR="/opt/agents" \

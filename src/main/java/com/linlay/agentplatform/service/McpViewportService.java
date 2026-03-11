@@ -1,69 +1,116 @@
 package com.linlay.agentplatform.service;
 
 import com.linlay.agentplatform.model.api.ApiResponse;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Set;
 import java.util.Map;
 import java.util.Optional;
 
 @Service
 public class McpViewportService {
 
-    private final McpToolSyncService mcpToolSyncService;
-    private final McpServerRegistryService mcpServerRegistryService;
+    private final ViewportSyncService viewportSyncService;
+    private final ViewportServerRegistryService viewportServerRegistryService;
     private final McpStreamableHttpClient mcpStreamableHttpClient;
 
     public McpViewportService(
-            McpToolSyncService mcpToolSyncService,
-            McpServerRegistryService mcpServerRegistryService,
+            ViewportSyncService viewportSyncService,
+            ViewportServerRegistryService viewportServerRegistryService,
             McpStreamableHttpClient mcpStreamableHttpClient
     ) {
-        this.mcpToolSyncService = mcpToolSyncService;
-        this.mcpServerRegistryService = mcpServerRegistryService;
+        this.viewportSyncService = viewportSyncService;
+        this.viewportServerRegistryService = viewportServerRegistryService;
         this.mcpStreamableHttpClient = mcpStreamableHttpClient;
     }
 
-    public Optional<McpToolSyncService.RemoteViewportBinding> findViewport(String viewportKey) {
-        return mcpToolSyncService.findViewport(viewportKey);
+    public Optional<ViewportSyncService.RemoteViewportBinding> findViewport(String viewportKey) {
+        return viewportSyncService.findViewport(viewportKey);
     }
 
     public Optional<String> resolveViewportType(String viewportKey) {
         return findViewport(viewportKey)
-                .map(McpToolSyncService.RemoteViewportBinding::toolType)
+                .map(ViewportSyncService.RemoteViewportBinding::viewportType)
                 .filter(StringUtils::hasText);
     }
 
     public Optional<ResponseEntity<ApiResponse<Object>>> fetchViewport(String viewportKey) {
-        Optional<McpToolSyncService.RemoteViewportBinding> bindingOptional = findViewport(viewportKey);
+        Optional<ViewportSyncService.RemoteViewportBinding> bindingOptional = findViewport(viewportKey);
         if (bindingOptional.isEmpty()) {
             return Optional.empty();
         }
-        McpToolSyncService.RemoteViewportBinding binding = bindingOptional.get();
-        Optional<McpServerRegistryService.RegisteredServer> serverOptional = mcpServerRegistryService.find(binding.serverKey());
+        ViewportSyncService.RemoteViewportBinding binding = bindingOptional.get();
+        Optional<ViewportServerRegistryService.RegisteredServer> serverOptional = viewportServerRegistryService.find(binding.serverKey());
         if (serverOptional.isEmpty()) {
-            return Optional.of(ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+            return Optional.of(ResponseEntity.status(502)
                     .body(ApiResponse.failure(
-                            HttpStatus.BAD_GATEWAY.value(),
-                            "MCP viewport server is not registered: " + binding.serverKey(),
+                            502,
+                            "Viewport server is not registered: " + binding.serverKey(),
                             (Object) Map.of()
                     )));
         }
         try {
-            McpStreamableHttpClient.RemoteViewportResponse response = mcpStreamableHttpClient.fetchViewport(
-                    serverOptional.get(),
-                    viewportKey.trim()
-            );
-            return Optional.of(ResponseEntity.status(response.statusCode()).body(response.payload()));
+            McpStreamableHttpClient.RemoteViewportPayload response = fetchRemoteViewport(serverOptional.get(), viewportKey);
+            Object payload = toApiPayload(response);
+            return Optional.of(ResponseEntity.ok(ApiResponse.success(payload)));
+        } catch (McpStreamableHttpClient.RpcErrorException ex) {
+            if (ex.error() != null && ex.error().isInvalidParams()) {
+                return Optional.of(ResponseEntity.status(404)
+                        .body(ApiResponse.failure(404, "Viewport not found: " + viewportKey.trim(), (Object) Map.of())));
+            }
+            return Optional.of(ResponseEntity.status(502)
+                    .body(ApiResponse.failure(502, "MCP viewport request failed: " + ex.getMessage(), (Object) Map.of())));
         } catch (Exception ex) {
-            return Optional.of(ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+            return Optional.of(ResponseEntity.status(502)
                     .body(ApiResponse.failure(
-                            HttpStatus.BAD_GATEWAY.value(),
+                            502,
                             "MCP viewport request failed: " + ex.getMessage(),
                             (Object) Map.of()
                     )));
         }
+    }
+
+    private McpStreamableHttpClient.RemoteViewportPayload fetchRemoteViewport(
+            ViewportServerRegistryService.RegisteredServer server,
+            String viewportKey
+    ) {
+        String normalizedViewportKey = viewportKey == null ? "" : viewportKey.trim();
+        try {
+            return mcpStreamableHttpClient.getViewport(server, normalizedViewportKey);
+        } catch (Exception firstFailure) {
+            Optional<McpStreamableHttpClient.RemoteViewportPayload> retryResult = retryAfterRefresh(server.serverKey(), normalizedViewportKey);
+            if (retryResult.isPresent()) {
+                return retryResult.get();
+            }
+            throw firstFailure;
+        }
+    }
+
+    private Optional<McpStreamableHttpClient.RemoteViewportPayload> retryAfterRefresh(
+            String serverKey,
+            String viewportKey
+    ) {
+        viewportSyncService.refreshViewportsForServers(Set.of(serverKey));
+        Optional<ViewportSyncService.RemoteViewportBinding> refreshedBinding = findViewport(viewportKey);
+        if (refreshedBinding.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<ViewportServerRegistryService.RegisteredServer> refreshedServer =
+                viewportServerRegistryService.find(refreshedBinding.get().serverKey());
+        if (refreshedServer.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(mcpStreamableHttpClient.getViewport(refreshedServer.get(), viewportKey));
+    }
+
+    private Object toApiPayload(McpStreamableHttpClient.RemoteViewportPayload response) {
+        JsonNode payload = response.payload();
+        if ("html".equalsIgnoreCase(response.viewportType())) {
+            return Map.of("html", payload.asText(""));
+        }
+        return mcpStreamableHttpClient.parseJson(payload.toString());
     }
 }

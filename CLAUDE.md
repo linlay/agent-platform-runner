@@ -552,6 +552,8 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `AGENT_AGENTS_REFRESH_INTERVAL_MS` | `agent.agents.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
 | `AGENT_MODELS_EXTERNAL_DIR` | `agent.models.external-dir` | `models` | Model JSON 定义目录 |
 | `AGENT_MODELS_REFRESH_INTERVAL_MS` | `agent.models.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |
+| `AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR` | `agent.mcp-servers.registry.external-dir` | `mcp-servers` | MCP server 注册目录 |
+| `AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR` | `agent.viewport-servers.registry.external-dir` | `viewport-servers` | Viewport server 注册目录 |
 | `AGENT_VIEWPORTS_EXTERNAL_DIR` | `agent.viewports.external-dir` | `viewports` | Viewport 目录 |
 | `AGENT_VIEWPORTS_REFRESH_INTERVAL_MS` | `agent.viewports.refresh-interval-ms` | `30000` | Viewport 刷新间隔（ms） |
 | `AGENT_DATA_EXTERNAL_DIR` | `agent.data.external-dir` | `data` | 静态文件目录 |

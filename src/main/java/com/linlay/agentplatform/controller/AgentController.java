@@ -122,7 +122,7 @@ public class AgentController {
         return queryController.submit(request, exchange);
     }
 
-    public ResponseEntity<ApiResponse<Object>> viewport(String viewportKey) {
+    public Mono<ResponseEntity<ApiResponse<Object>>> viewport(String viewportKey) {
         return viewportController.viewport(viewportKey);
     }
 }

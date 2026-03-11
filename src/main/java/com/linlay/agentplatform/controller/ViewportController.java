@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.Map;
 
@@ -38,7 +40,12 @@ public class ViewportController {
     }
 
     @GetMapping("/viewport")
-    public ResponseEntity<ApiResponse<Object>> viewport(@RequestParam String viewportKey) {
+    public Mono<ResponseEntity<ApiResponse<Object>>> viewport(@RequestParam String viewportKey) {
+        return Mono.fromCallable(() -> resolveViewport(viewportKey))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    private ResponseEntity<ApiResponse<Object>> resolveViewport(String viewportKey) {
         if (!StringUtils.hasText(viewportKey)) {
             throw new IllegalArgumentException("viewportKey is required");
         }

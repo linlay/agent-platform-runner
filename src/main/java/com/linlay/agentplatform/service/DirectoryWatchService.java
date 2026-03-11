@@ -4,6 +4,7 @@ import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.ViewportServerProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
@@ -55,11 +56,14 @@ public class DirectoryWatchService implements DisposableBean {
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
             McpToolSyncService mcpToolSyncService,
+            ViewportServerRegistryService viewportServerRegistryService,
+            ViewportSyncService viewportSyncService,
             ScheduledQueryOrchestrator scheduledQueryOrchestrator,
             AgentProperties agentProperties,
             ViewportProperties viewportProperties,
             ToolProperties toolProperties,
             McpProperties mcpProperties,
+            ViewportServerProperties viewportServerProperties,
             ModelProperties modelProperties,
             SkillProperties skillProperties,
             TeamProperties teamProperties,
@@ -114,6 +118,13 @@ public class DirectoryWatchService implements DisposableBean {
                     }
                     java.util.Set<String> affectedAgents = agentRegistry.findAgentIdsByTools(diff.changedKeys());
                     agentRegistry.refreshAgentsByIds(affectedAgents, "mcp-registry-directory");
+                }
+        );
+        watchedDirs.put(
+                Path.of(viewportServerProperties.getRegistry().getExternalDir()).toAbsolutePath().normalize(),
+                () -> {
+                    viewportServerRegistryService.refreshServers();
+                    viewportSyncService.refreshViewports();
                 }
         );
         watchedDirs.put(
