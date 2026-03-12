@@ -66,4 +66,30 @@ class ScheduledQueryRegistryServiceTest {
 
         assertThat(service.list()).isEmpty();
     }
+
+    @Test
+    void shouldLoadViewportWeatherMinutelyExample() throws Exception {
+        Files.writeString(tempDir.resolve("demo_viewport_weather_minutely.json"), """
+                {
+                  "name": "Demo Viewport Weather Minutely",
+                  "enabled": true,
+                  "cron": "0 * * * * *",
+                  "zoneId": "Asia/Shanghai",
+                  "agentKey": "demoViewport",
+                  "query": "请从以下城市中随机选择一个：北京、深圳、大连、广州、上海、纽约、巴黎、东京。调用天气工具查询该城市当前天气；如果工具返回了可用的 viewport 结果，请按约定输出 viewport 视图块。"
+                }
+                """);
+
+        ScheduleProperties properties = new ScheduleProperties();
+        properties.setExternalDir(tempDir.toString());
+        ScheduledQueryRegistryService service = new ScheduledQueryRegistryService(new ObjectMapper(), properties);
+
+        ScheduledQueryDescriptor descriptor = service.find("demo_viewport_weather_minutely").orElseThrow();
+        assertThat(descriptor.name()).isEqualTo("Demo Viewport Weather Minutely");
+        assertThat(descriptor.enabled()).isTrue();
+        assertThat(descriptor.cron()).isEqualTo("0 * * * * *");
+        assertThat(descriptor.zoneId()).isEqualTo("Asia/Shanghai");
+        assertThat(descriptor.agentKey()).isEqualTo("demoViewport");
+        assertThat(descriptor.query()).contains("北京").contains("东京").contains("viewport");
+    }
 }

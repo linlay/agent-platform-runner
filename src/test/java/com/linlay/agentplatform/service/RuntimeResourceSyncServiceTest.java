@@ -72,6 +72,10 @@ class RuntimeResourceSyncServiceTest {
         assertThat(skillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
         assertThat(skillsDir.resolve("text_utils").resolve("SKILL.md")).exists();
         assertThat(schedulesDir.resolve("demo_daily_summary.json")).exists();
+        assertThat(schedulesDir.resolve("demo_viewport_weather_minutely.json")).exists();
+        assertThat(Files.readString(schedulesDir.resolve("demo_viewport_weather_minutely.json")))
+                .contains("\"agentKey\": \"demoViewport\"")
+                .contains("\"cron\": \"0 * * * * *\"");
         assertThat(toolsDir.resolve("launch_fireworks.yml")).doesNotExist();
         assertThat(toolsDir.resolve("show_modal.yml")).doesNotExist();
         assertThat(toolsDir.resolve("switch_theme.yml")).doesNotExist();
@@ -119,6 +123,7 @@ class RuntimeResourceSyncServiceTest {
         assertThat(configuredSkillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
         assertThat(configuredSkillsDir.resolve("text_utils").resolve("SKILL.md")).exists();
         assertThat(configuredSchedulesDir.resolve("demo_daily_summary.json")).exists();
+        assertThat(configuredSchedulesDir.resolve("demo_viewport_weather_minutely.json")).exists();
         assertThat(legacyUserDir.resolve("tools")).doesNotExist();
         assertThat(legacyUserDir.resolve("skills")).doesNotExist();
         assertThat(legacyUserDir.resolve("schedules")).doesNotExist();

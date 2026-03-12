@@ -289,6 +289,8 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - `mock_city_weather`：模拟城市天气数据。
 - `agent_file_create`：创建/更新 agent JSON 文件。
 
+若使用 `demoScheduleManager` 维护项目根目录下的 `schedules/`，需确保 `AGENT_BASH_WORKING_DIRECTORY` 指向项目根目录，且 `AGENT_BASH_ALLOWED_PATHS` 至少包含项目根目录和 `schedules/`；仅设置 `working-directory` 不会自动放行这些路径。
+
 ### 工具参数模板
 
 支持 `{{tool_name.field+Nd}}` 格式的日期运算和链式引用。

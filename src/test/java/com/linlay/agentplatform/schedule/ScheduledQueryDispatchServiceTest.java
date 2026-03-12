@@ -85,4 +85,57 @@ class ScheduledQueryDispatchServiceTest {
         assertThat(request.params()).containsEntry("x", 1);
         assertThat(request.params()).containsKey("__schedule");
     }
+
+    @Test
+    void shouldDispatchViewportWeatherQueryToDemoViewport() {
+        AgentQueryService agentQueryService = mock(AgentQueryService.class);
+        TeamRegistryService teamRegistryService = mock(TeamRegistryService.class);
+        ScheduledQueryDispatchService service = new ScheduledQueryDispatchService(agentQueryService, teamRegistryService);
+
+        AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
+                null,
+                new StreamRequest.Query(
+                        "req_2",
+                        UUID.randomUUID().toString(),
+                        "user",
+                        "message",
+                        "demoViewport",
+                        null,
+                        null,
+                        null,
+                        null,
+                        false,
+                        "chat",
+                        "run_2"
+                ),
+                new AgentRequest("message", UUID.randomUUID().toString(), "req_2", "run_2", Map.of())
+        );
+        when(agentQueryService.prepare(any(QueryRequest.class))).thenReturn(session);
+        when(agentQueryService.stream(any(AgentQueryService.QuerySession.class))).thenReturn(Flux.empty());
+
+        String query = "请从以下城市中随机选择一个：北京、深圳、大连、广州、上海、纽约、巴黎、东京。调用天气工具查询该城市当前天气；如果工具返回了可用的 viewport 结果，请按约定输出 viewport 视图块。";
+        ScheduledQueryDescriptor descriptor = new ScheduledQueryDescriptor(
+                "demo_viewport_weather_minutely",
+                "Demo Viewport Weather Minutely",
+                true,
+                "0 * * * * *",
+                "Asia/Shanghai",
+                "demoViewport",
+                null,
+                query,
+                Map.of("source", "built-in"),
+                "/tmp/demo_viewport_weather_minutely.json"
+        );
+
+        service.dispatch(descriptor);
+
+        ArgumentCaptor<QueryRequest> requestCaptor = ArgumentCaptor.forClass(QueryRequest.class);
+        verify(agentQueryService).prepare(requestCaptor.capture());
+        QueryRequest request = requestCaptor.getValue();
+        assertThat(request.agentKey()).isEqualTo("demoViewport");
+        assertThat(request.teamId()).isNull();
+        assertThat(request.message()).isEqualTo(query);
+        assertThat(request.params()).containsEntry("source", "built-in");
+        assertThat(request.params()).containsKey("__schedule");
+    }
 }

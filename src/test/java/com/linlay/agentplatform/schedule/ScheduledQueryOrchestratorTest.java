@@ -2,11 +2,16 @@ package com.linlay.agentplatform.schedule;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.Trigger;
+import org.springframework.scheduling.support.CronTrigger;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -71,5 +76,48 @@ class ScheduledQueryOrchestratorTest {
         orchestrator.refreshAndReconcile();
 
         verify(registryService).refreshSchedules();
+    }
+
+    @Test
+    void shouldRegisterViewportWeatherScheduleWithConfiguredZone() {
+        ScheduledQueryRegistryService registryService = mock(ScheduledQueryRegistryService.class);
+        ScheduledQueryDispatchService dispatchService = mock(ScheduledQueryDispatchService.class);
+        ScheduleProperties properties = new ScheduleProperties();
+        properties.setEnabled(true);
+        properties.setDefaultZoneId("UTC");
+        TaskScheduler taskScheduler = mock(TaskScheduler.class);
+        ScheduledFuture<?> future = mock(ScheduledFuture.class);
+        when(taskScheduler.schedule(any(Runnable.class), any(Trigger.class)))
+                .thenReturn((ScheduledFuture) future);
+
+        ScheduledQueryDescriptor descriptor = new ScheduledQueryDescriptor(
+                "demo_viewport_weather_minutely",
+                "Demo Viewport Weather Minutely",
+                true,
+                "0 * * * * *",
+                "Asia/Shanghai",
+                "demoViewport",
+                null,
+                "请从以下城市中随机选择一个：北京、深圳、大连、广州、上海、纽约、巴黎、东京。",
+                Map.of(),
+                "/tmp/demo_viewport_weather_minutely.json"
+        );
+        when(registryService.snapshot()).thenReturn(Map.of(descriptor.id(), descriptor));
+
+        ScheduledQueryOrchestrator orchestrator = new ScheduledQueryOrchestrator(
+                registryService,
+                dispatchService,
+                properties,
+                taskScheduler
+        );
+
+        var triggerCaptor = forClass(Trigger.class);
+        orchestrator.reconcile();
+
+        verify(taskScheduler).schedule(any(Runnable.class), triggerCaptor.capture());
+        assertThat(triggerCaptor.getValue()).isInstanceOf(CronTrigger.class);
+        CronTrigger cronTrigger = (CronTrigger) triggerCaptor.getValue();
+        assertThat(cronTrigger.getExpression()).isEqualTo("0 * * * * *");
+        assertThat(ReflectionTestUtils.getField(cronTrigger, "zoneId")).hasToString("Asia/Shanghai");
     }
 }

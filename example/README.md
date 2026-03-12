@@ -14,6 +14,11 @@
 - `skills/`：demo 技能目录
 - `schedules/`：demo 计划任务定义
 
+计划任务相关示例：
+
+- `example/agents/demoScheduleManager.json`：维护 `schedules/*.json` 的 REACT 智能体。
+- `example/schedules/demo_viewport_weather_minutely.json`：每分钟触发 `demoViewport` 查询随机城市天气。
+
 ## 终端助手示例
 
 - `example/agents/terminalAssistant.yml`：终端辅助智能体，使用 `PLAN_EXECUTE`，先列计划，再一次性提交完整命令清单给 `terminal_command_review`。

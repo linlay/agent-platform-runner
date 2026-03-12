@@ -1,7 +1,9 @@
 agent:
   tools:
     bash:
+      # For demoScheduleManager, point this to the repo root that contains schedules/.
       working-directory: ${user.dir}
+      # working-directory does not implicitly whitelist paths; include schedules/ explicitly when needed.
       allowed-paths: ${user.dir},/tmp
       allowed-commands: ls,pwd,cat,head,tail,top,free,df,git,rg,find
       path-checked-commands: ls,cat,head,tail,git,rg,find

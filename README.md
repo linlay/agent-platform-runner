@@ -533,6 +533,7 @@ plain:
   - 目标字段：`agentKey` 或 `teamId`（至少一个）
   - 可选字段：`enabled`、`name`、`zoneId`、`params`
   - 若仅配置 `teamId`，则读取 team 的 `defaultAgentKey` 作为默认执行智能体
+  - 内置示例包含 `demo_daily_summary.json`（每日摘要）和 `demo_viewport_weather_minutely.json`（每分钟随机城市天气）
 - `models`:
   - 目录结构：`models/<model-key>.json`
   - 关键字段：`key/provider/protocol/modelId/pricing`
@@ -618,6 +619,16 @@ plain:
 `_bash_` 工具必须显式配置命令白名单（`allowed-commands`）和目录白名单（`allowed-paths`）。未配置 `allowed-commands` 时会直接拒绝执行任何命令。工具返回文本包含 `exitCode`、`mode`、`"workingDirectory"`、`stdout`、`stderr`。
 
 `path-checked-commands` 为空时，默认等于 `allowed-commands`；并且只会对 `allowed-commands` 的交集生效。`working-directory` 仅决定进程启动目录，不会自动加入 `allowed-paths`。
+
+如果要让 `demoScheduleManager` 维护项目根目录下的 `schedules/`，建议至少这样配置：
+
+```bash
+AGENT_BASH_WORKING_DIRECTORY=/path/to/agent-platform-runner
+AGENT_BASH_ALLOWED_PATHS=/path/to/agent-platform-runner,/path/to/agent-platform-runner/schedules,/tmp
+AGENT_BASH_SHELL_FEATURES_ENABLED=true
+```
+
+否则当进程实际从其他目录启动时，相对路径 `schedules/` 会被解析到错误位置，并触发路径白名单拒绝。
 
 `path-check-bypass-commands` 为空时默认关闭。配置后仅对 `allowed-commands` 交集生效；命中的命令会跳过路径参数与重定向目标的目录白名单校验（例如可用于 `git`/`curl` 的命令级放开）。
 

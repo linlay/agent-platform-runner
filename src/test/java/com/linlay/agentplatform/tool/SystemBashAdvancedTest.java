@@ -306,4 +306,54 @@ class SystemBashAdvancedTest {
         assertThat(result.asText()).contains("mode: strict");
         assertThat(result.asText()).contains("Path not allowed outside authorized directories: ../outside.txt");
     }
+
+    @Test
+    void shouldRejectRelativeSchedulesPathWhenWorkingDirectoryIsOutsideProject(@TempDir Path tempDir) throws IOException {
+        Path projectDir = tempDir.resolve("project");
+        Path schedulesDir = projectDir.resolve("schedules");
+        Path outsideDir = tempDir.resolve("outside");
+        Files.createDirectories(schedulesDir);
+        Files.createDirectories(outsideDir);
+        Files.writeString(schedulesDir.resolve("demo.json"), "{}");
+
+        SystemBash bash = TestSystemBashFactory.bash(
+                outsideDir,
+                List.of(projectDir),
+                Set.of("ls"),
+                Set.of("ls"),
+                false,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "ls schedules/"));
+
+        assertThat(result.asText()).contains("exitCode: -1");
+        assertThat(result.asText()).contains("Path not allowed outside authorized directories: schedules/");
+    }
+
+    @Test
+    void shouldAllowRelativeSchedulesPathWhenWorkingDirectoryMatchesProject(@TempDir Path tempDir) throws IOException {
+        Path projectDir = tempDir.resolve("project");
+        Path schedulesDir = projectDir.resolve("schedules");
+        Files.createDirectories(schedulesDir);
+        Files.writeString(schedulesDir.resolve("demo.json"), "{}");
+
+        SystemBash bash = TestSystemBashFactory.bash(
+                projectDir,
+                List.of(projectDir, schedulesDir),
+                Set.of("ls"),
+                Set.of("ls"),
+                false,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "ls schedules/"));
+
+        assertThat(result.asText()).contains("exitCode: 0");
+        assertThat(result.asText()).contains("demo.json");
+    }
 }
