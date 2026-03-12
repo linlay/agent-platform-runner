@@ -10,6 +10,8 @@ import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeFunction;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
+import org.springframework.mock.http.client.reactive.MockClientHttpRequest;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
@@ -136,6 +138,38 @@ class McpStreamableHttpClientTest {
         assertThat(payload.payload().path("schema").path("type").asText()).isEqualTo("object");
     }
 
+    @Test
+    void shouldIncludeMetaInToolsCallPayload() throws Exception {
+        CapturingExchange exchange = new CapturingExchange("""
+                data: {"jsonrpc":"2.0","id":"1","result":{"structuredContent":{"ok":true},"content":[{"type":"text","text":"ok"}],"isError":false}}
+
+                """);
+        McpStreamableHttpClient client = new McpStreamableHttpClient(objectMapper, WebClient.builder().exchangeFunction(exchange));
+        McpServerRegistryService.RegisteredServer server = new McpServerRegistryService.RegisteredServer(
+                "mock",
+                "http://localhost:11969",
+                "/mcp",
+                "mock",
+                java.util.Map.of(),
+                java.util.Map.of(),
+                3000,
+                15000,
+                0
+        );
+
+        client.callTool(
+                server,
+                "mock.weather.query",
+                java.util.Map.of("city", "Shanghai"),
+                java.util.Map.of("chatId", "123e4567-e89b-12d3-a456-426614174040")
+        );
+
+        JsonNode payload = objectMapper.readTree(exchange.requestBody());
+        assertThat(payload.path("params").path("_meta").path("chatId").asText())
+                .isEqualTo("123e4567-e89b-12d3-a456-426614174040");
+        assertThat(payload.path("params").path("arguments").path("city").asText()).isEqualTo("Shanghai");
+    }
+
     private static final class FixedResponseExchange implements ExchangeFunction {
         private final String body;
 
@@ -150,7 +184,35 @@ class McpStreamableHttpClientTest {
                             .header(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_EVENT_STREAM_VALUE)
                             .body(body)
                             .build()
-            );
+                    );
+        }
+    }
+
+    private static final class CapturingExchange implements ExchangeFunction {
+        private final String body;
+        private String requestBody;
+
+        private CapturingExchange(String body) {
+            this.body = body;
+        }
+
+        @Override
+        public Mono<ClientResponse> exchange(ClientRequest request) {
+            MockClientHttpRequest mockRequest = new MockClientHttpRequest(request.method(), request.url());
+            return request.writeTo(mockRequest, ExchangeStrategies.withDefaults())
+                    .then(Mono.defer(() -> mockRequest.getBodyAsString()
+                            .defaultIfEmpty("")
+                            .map(bodyText -> {
+                                requestBody = bodyText;
+                                return ClientResponse.create(HttpStatus.OK)
+                                        .header(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_EVENT_STREAM_VALUE)
+                                        .body(body)
+                                        .build();
+                            })));
+        }
+
+        private String requestBody() {
+            return requestBody;
         }
     }
 }

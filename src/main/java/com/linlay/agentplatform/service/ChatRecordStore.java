@@ -85,23 +85,34 @@ public class ChatRecordStore {
     private final ObjectMapper objectMapper;
     private final ChatWindowMemoryProperties properties;
     private final ToolRegistry toolRegistry;
+    private final ChatAssetCatalogService chatAssetCatalogService;
     private final Object lock = new Object();
     private final ChatIndexRepository chatIndexRepository;
     private final ChatHistoryFileReader chatHistoryFileReader;
     private final ChatEventSnapshotBuilder chatEventSnapshotBuilder;
 
     public ChatRecordStore(ObjectMapper objectMapper, ChatWindowMemoryProperties properties) {
-        this(objectMapper, properties, null);
+        this(objectMapper, properties, null, null);
     }
 
     @Autowired
-    public ChatRecordStore(ObjectMapper objectMapper, ChatWindowMemoryProperties properties, ToolRegistry toolRegistry) {
+    public ChatRecordStore(
+            ObjectMapper objectMapper,
+            ChatWindowMemoryProperties properties,
+            ToolRegistry toolRegistry,
+            ChatAssetCatalogService chatAssetCatalogService
+    ) {
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.toolRegistry = toolRegistry;
+        this.chatAssetCatalogService = chatAssetCatalogService;
         this.chatIndexRepository = new ChatIndexRepository(properties, lock);
         this.chatHistoryFileReader = new ChatHistoryFileReader(objectMapper, this::resolveCharset);
         this.chatEventSnapshotBuilder = new ChatEventSnapshotBuilder(objectMapper, toolRegistry);
+    }
+
+    public ChatRecordStore(ObjectMapper objectMapper, ChatWindowMemoryProperties properties, ToolRegistry toolRegistry) {
+        this(objectMapper, properties, toolRegistry, null);
     }
 
     @PostConstruct
@@ -272,9 +283,10 @@ public class ChatRecordStore {
             List<Map<String, Object>> rawMessages = includeRawMessages
                     ? List.copyOf(content.rawMessages)
                     : null;
-            List<QueryRequest.Reference> references = content.references.isEmpty()
-                    ? null
-                    : List.copyOf(content.references.values());
+            List<QueryRequest.Reference> references = mergeChatAssetReferences(
+                    summary.chatId,
+                    content.references.isEmpty() ? null : List.copyOf(content.references.values())
+            );
 
             return new ChatDetailResponse(
                     summary.chatId,
@@ -313,6 +325,19 @@ public class ChatRecordStore {
         }
         content.events.addAll(chatEventSnapshotBuilder.buildSnapshotEvents(chatId, chatName, boundAgentKey, content.runs));
         return content;
+    }
+
+    private List<QueryRequest.Reference> mergeChatAssetReferences(String chatId, List<QueryRequest.Reference> references) {
+        if (chatAssetCatalogService == null || !StringUtils.hasText(chatId)) {
+            return references == null || references.isEmpty() ? null : List.copyOf(references);
+        }
+        try {
+            List<QueryRequest.Reference> merged = chatAssetCatalogService.mergeWithChatAssets(chatId, references);
+            return merged.isEmpty() ? null : merged;
+        } catch (Exception ex) {
+            log.warn("Failed to merge chat asset references chatId={}", chatId, ex);
+            return references == null || references.isEmpty() ? null : List.copyOf(references);
+        }
     }
 
     private void readHistoryLines(Path historyPath, ParsedChatContent content) {

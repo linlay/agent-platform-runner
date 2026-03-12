@@ -34,7 +34,14 @@ public final class DataFilePathNormalizer {
             if (relativePath.isAbsolute()) {
                 return null;
             }
-            return relativePath.toString();
+            String normalizedPath = relativePath.toString().replace('\\', '/');
+            if ("data".equals(normalizedPath)) {
+                return null;
+            }
+            if (normalizedPath.startsWith("data/")) {
+                normalizedPath = normalizedPath.substring("data/".length());
+            }
+            return normalizedPath.isBlank() ? null : normalizedPath;
         } catch (Exception ex) {
             return null;
         }

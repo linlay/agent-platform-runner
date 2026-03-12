@@ -6,6 +6,7 @@ import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.service.McpServerAvailabilityGate;
 import com.linlay.agentplatform.service.McpServerRegistryService;
 import com.linlay.agentplatform.service.McpStreamableHttpClient;
+import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -55,7 +58,7 @@ class McpToolInvokerTest {
         result.put("isError", false);
         result.set("structuredContent", new ObjectMapper().createObjectNode().put("temperatureC", 21));
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
-        when(client.callTool(server, "mock.weather.query", Map.of("city", "Shanghai")))
+        when(client.callTool(server, "mock.weather.query", Map.of("city", "Shanghai"), Map.of()))
                 .thenReturn(result);
 
         McpProperties properties = new McpProperties();
@@ -71,6 +74,58 @@ class McpToolInvokerTest {
 
         assertThat(invoker.invoke("mock.weather.query", Map.of("city", "Shanghai"), null)
                 .path("temperatureC").asInt()).isEqualTo(21);
+    }
+
+    @Test
+    void shouldIncludeChatMetaOnSuccessfulCall() {
+        ToolRegistry toolRegistry = mock(ToolRegistry.class);
+        ToolDescriptor descriptor = descriptor();
+        when(toolRegistry.descriptor("mock.weather.query")).thenReturn(Optional.of(descriptor));
+
+        McpServerRegistryService registryService = mock(McpServerRegistryService.class);
+        McpServerRegistryService.RegisteredServer server = server();
+        when(registryService.find("mock")).thenReturn(Optional.of(server));
+
+        ObjectNode result = new ObjectMapper().createObjectNode();
+        result.put("isError", false);
+        result.set("structuredContent", new ObjectMapper().createObjectNode().put("temperatureC", 21));
+        McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
+        when(client.callTool(eq(server), eq("mock.weather.query"), eq(Map.of("city", "Shanghai")), anyMap()))
+                .thenReturn(result);
+
+        ExecutionContext context = mock(ExecutionContext.class);
+        when(context.request()).thenReturn(new AgentRequest(
+                "hello",
+                "123e4567-e89b-12d3-a456-426614174030",
+                "req-1",
+                "run-1",
+                Map.of()
+        ));
+
+        McpProperties properties = new McpProperties();
+        properties.setEnabled(true);
+        McpToolInvoker invoker = new McpToolInvoker(
+                toolRegistry,
+                properties,
+                registryService,
+                new McpServerAvailabilityGate(properties),
+                client,
+                new ObjectMapper()
+        );
+
+        invoker.invoke("mock.weather.query", Map.of("city", "Shanghai"), context);
+
+        verify(client).callTool(
+                server,
+                "mock.weather.query",
+                Map.of("city", "Shanghai"),
+                Map.of(
+                        "chatId", "123e4567-e89b-12d3-a456-426614174030",
+                        "requestId", "req-1",
+                        "runId", "run-1",
+                        "toolName", "mock.weather.query"
+                )
+        );
     }
 
     @Test
@@ -104,7 +159,7 @@ class McpToolInvokerTest {
                 .isEqualTo("mcp_server_unavailable");
         assertThat(invoker.invoke("mock.weather.query", Map.of("city", "Shanghai"), null).path("error").asText())
                 .contains("scheduled reconnect");
-        verify(client, times(0)).callTool(server, "mock.weather.query", Map.of("city", "Shanghai"));
+        verify(client, times(0)).callTool(server, "mock.weather.query", Map.of("city", "Shanghai"), Map.of());
     }
 
     @Test
@@ -122,7 +177,7 @@ class McpToolInvokerTest {
         success.set("structuredContent", new ObjectMapper().createObjectNode().put("temperatureC", 18));
 
         McpStreamableHttpClient client = mock(McpStreamableHttpClient.class);
-        when(client.callTool(server, "mock.weather.query", Map.of("city", "Shanghai")))
+        when(client.callTool(server, "mock.weather.query", Map.of("city", "Shanghai"), Map.of()))
                 .thenThrow(new IllegalStateException("connection refused"))
                 .thenReturn(success);
 
@@ -149,7 +204,7 @@ class McpToolInvokerTest {
         assertThat(invoker.invoke("mock.weather.query", Map.of("city", "Shanghai"), null)
                 .path("temperatureC").asInt()).isEqualTo(18);
 
-        verify(client, times(2)).callTool(server, "mock.weather.query", Map.of("city", "Shanghai"));
+        verify(client, times(2)).callTool(server, "mock.weather.query", Map.of("city", "Shanghai"), Map.of());
     }
 
     private static ToolDescriptor descriptor() {

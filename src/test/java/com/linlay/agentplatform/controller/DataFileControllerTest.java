@@ -102,8 +102,7 @@ class DataFileControllerTest {
     void shouldServeImageFromDataPrefixedPath() throws Exception {
         Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
-        Files.createDirectories(dataDir.resolve("data"));
-        Files.write(dataDir.resolve("data").resolve("sample_photo.jpg"), png);
+        Files.write(dataDir.resolve("sample_photo.jpg"), png);
 
         webTestClient.get()
                 .uri(dataApiUri("/data/sample_photo.jpg"))
@@ -118,8 +117,7 @@ class DataFileControllerTest {
     void shouldServeImageWithEncodedFileParam() throws Exception {
         Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
-        Files.createDirectories(dataDir.resolve("data"));
-        Files.write(dataDir.resolve("data").resolve("encoded_photo.jpg"), png);
+        Files.write(dataDir.resolve("encoded_photo.jpg"), png);
 
         webTestClient.get()
                 .uri(dataApiUri("/data/encoded_photo.jpg"))
@@ -177,11 +175,26 @@ class DataFileControllerTest {
     void shouldServeImageFromSubDirectoryPath() throws Exception {
         Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
-        Files.createDirectories(dataDir.resolve("data").resolve("sub"));
-        Files.write(dataDir.resolve("data").resolve("sub").resolve("a.png"), png);
+        Files.createDirectories(dataDir.resolve("sub"));
+        Files.write(dataDir.resolve("sub").resolve("a.png"), png);
 
         webTestClient.get()
                 .uri(dataApiUri("/data/sub/a.png"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/png");
+    }
+
+    @Test
+    void shouldServeChatScopedAssetFromDataPrefixedPath() throws Exception {
+        Path dataDir = Path.of(dataProperties.getExternalDir());
+        String chatId = "123e4567-e89b-12d3-a456-426614174999";
+        byte[] png = createMinimalPng();
+        Files.createDirectories(dataDir.resolve(chatId));
+        Files.write(dataDir.resolve(chatId).resolve("cover.png"), png);
+
+        webTestClient.get()
+                .uri(dataApiUri("/data/" + chatId + "/cover.png"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/png");

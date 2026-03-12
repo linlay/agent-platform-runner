@@ -225,6 +225,30 @@ class ChatImageTokenIntegrationTest {
     }
 
     @Test
+    void dataApiShouldServeCurrentChatDirectoryAssetWithValidChatImageToken() throws Exception {
+        String chatId = UUID.randomUUID().toString();
+        String userId = "user-chat-asset-ok";
+        chatRecordStore.ensureChat(chatId, "demoModePlain", "Demo Agent", "hello");
+        Path assetDir = Path.of(dataProperties.getExternalDir()).resolve(chatId);
+        Files.createDirectories(assetDir);
+        Files.write(assetDir.resolve("cover.png"), createMinimalPng());
+
+        String authToken = issueAuthToken(userId);
+        String chatImageToken = fetchChatImageToken(chatId, authToken);
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/ap/data")
+                        .queryParam("file", "/data/" + chatId + "/cover.png")
+                        .queryParam("t", chatImageToken)
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.CACHE_CONTROL, "private, no-store")
+                .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/png");
+    }
+
+    @Test
     void dataApiShouldReturn403ForInvalidToken() throws Exception {
         writeImageFile("sample_photo.jpg");
 

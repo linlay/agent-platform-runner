@@ -12,6 +12,7 @@ import com.linlay.agentplatform.tool.ToolRegistry;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -74,7 +75,8 @@ public class McpToolInvoker implements ToolInvoker {
             JsonNode result = streamableHttpClient.callTool(
                     server,
                     tool.name(),
-                    args == null ? Map.of() : args
+                    args == null ? Map.of() : args,
+                    buildMeta(tool.name(), context)
             );
             availabilityGate.markSuccess(server.serverKey());
             return normalizeCallResult(toolName, result);
@@ -137,6 +139,26 @@ public class McpToolInvoker implements ToolInvoker {
             cursor = cursor.getCause();
         }
         return "unknown error";
+    }
+
+    private Map<String, Object> buildMeta(String toolName, ExecutionContext context) {
+        if (context == null || context.request() == null) {
+            return Map.of();
+        }
+        Map<String, Object> meta = new LinkedHashMap<>();
+        if (StringUtils.hasText(context.request().chatId())) {
+            meta.put("chatId", context.request().chatId().trim());
+        }
+        if (StringUtils.hasText(context.request().requestId())) {
+            meta.put("requestId", context.request().requestId().trim());
+        }
+        if (StringUtils.hasText(context.request().runId())) {
+            meta.put("runId", context.request().runId().trim());
+        }
+        if (StringUtils.hasText(toolName)) {
+            meta.put("toolName", toolName.trim());
+        }
+        return meta;
     }
 
     private ObjectNode error(String toolName, String code, String message) {

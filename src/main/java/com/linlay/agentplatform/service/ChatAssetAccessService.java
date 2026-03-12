@@ -17,9 +17,11 @@ public class ChatAssetAccessService {
     private static final Pattern MARKDOWN_LINK_PATTERN = Pattern.compile("!?\\[[^\\]]*]\\(([^)]+)\\)");
 
     private final ChatRecordStore chatRecordStore;
+    private final ChatAssetCatalogService chatAssetCatalogService;
 
-    public ChatAssetAccessService(ChatRecordStore chatRecordStore) {
+    public ChatAssetAccessService(ChatRecordStore chatRecordStore, ChatAssetCatalogService chatAssetCatalogService) {
         this.chatRecordStore = chatRecordStore;
+        this.chatAssetCatalogService = chatAssetCatalogService;
     }
 
     public boolean canRead(String chatId, String normalizedFilePath) {
@@ -35,6 +37,17 @@ public class ChatAssetAccessService {
         }
 
         Set<String> assets = resolveAllowedAssets(chatDetail);
+        if (chatAssetCatalogService != null) {
+            try {
+                for (QueryRequest.Reference reference : chatAssetCatalogService.listAssets(chatId)) {
+                    if (reference != null) {
+                        addNormalized(assets, reference.url());
+                    }
+                }
+            } catch (Exception ignored) {
+                // fall back to persisted history assets only
+            }
+        }
         return assets.contains(normalizedFilePath);
     }
 

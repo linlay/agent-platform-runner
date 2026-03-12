@@ -213,6 +213,56 @@ class AgentQueryServiceTest {
     }
 
     @Test
+    void prepareShouldMergeChatDirectoryAssetsIntoReferences() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        Agent agent = mock(Agent.class);
+        when(agent.id()).thenReturn("demo-agent");
+        when(agent.name()).thenReturn("Demo Agent");
+        when(agentRegistry.get("demo-agent")).thenReturn(agent);
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        String chatId = UUID.randomUUID().toString();
+        when(chatRecordStore.findBoundAgentKey(chatId)).thenReturn(Optional.of("demo-agent"));
+        when(chatRecordStore.findBoundTeamId(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.ensureChat(chatId, "demo-agent", "Demo Agent", null, "hello"))
+                .thenReturn(new ChatRecordStore.ChatSummary(chatId, "hello", "demo-agent", null, 1L, 2L, "", "", 1, 2L, false));
+
+        ChatAssetCatalogService chatAssetCatalogService = mock(ChatAssetCatalogService.class);
+        QueryRequest.Reference localAsset = new QueryRequest.Reference(
+                "asset_local",
+                "image",
+                "cover.png",
+                "image/png",
+                1L,
+                "/data/" + chatId + "/cover.png",
+                null,
+                Map.of("relativePath", "cover.png")
+        );
+        when(chatAssetCatalogService.mergeWithChatAssets(chatId, List.of()))
+                .thenReturn(List.of(localAsset));
+
+        AgentQueryService service = new AgentQueryService(
+                agentRegistry,
+                mock(com.linlay.agentplatform.stream.service.StreamSseStreamer.class),
+                objectMapper,
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                mock(ViewportRegistryService.class),
+                new FrontendToolProperties(),
+                mock(TeamRegistryService.class),
+                new com.linlay.agentplatform.config.LoggingAgentProperties(),
+                chatAssetCatalogService
+        );
+
+        QueryRequest request = new QueryRequest("req-1", chatId, "demo-agent", null, "user", "hello", List.of(), null, null, true);
+        AgentQueryService.QuerySession session = service.prepare(request);
+
+        assertThat(session.request().references()).hasSize(1);
+        assertThat(session.request().references().getFirst()).isEqualTo(localAsset);
+        assertThat((List<?>) session.agentRequest().query().get("references")).hasSize(1);
+    }
+
+    @Test
     void streamShouldReportRunCompletionToChatStore() {
         Agent agent = mock(Agent.class);
         when(agent.stream(any(AgentRequest.class))).thenReturn(Flux.<AgentDelta>empty());

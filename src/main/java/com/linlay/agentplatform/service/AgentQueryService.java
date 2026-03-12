@@ -63,6 +63,7 @@ public class AgentQueryService {
     private final FrontendToolProperties frontendToolProperties;
     private final TeamRegistryService teamRegistryService;
     private final LoggingAgentProperties loggingAgentProperties;
+    private final ChatAssetCatalogService chatAssetCatalogService;
 
     public AgentQueryService(
             AgentRegistry agentRegistry,
@@ -83,7 +84,8 @@ public class AgentQueryService {
                 viewportRegistryService,
                 frontendToolProperties,
                 teamRegistryService,
-                new LoggingAgentProperties()
+                new LoggingAgentProperties(),
+                null
         );
     }
 
@@ -97,7 +99,8 @@ public class AgentQueryService {
             ViewportRegistryService viewportRegistryService,
             FrontendToolProperties frontendToolProperties,
             TeamRegistryService teamRegistryService,
-            LoggingAgentProperties loggingAgentProperties
+            LoggingAgentProperties loggingAgentProperties,
+            ChatAssetCatalogService chatAssetCatalogService
     ) {
         this.agentRegistry = agentRegistry;
         this.streamSseStreamer = streamSseStreamer;
@@ -108,6 +111,7 @@ public class AgentQueryService {
         this.frontendToolProperties = frontendToolProperties;
         this.teamRegistryService = teamRegistryService;
         this.loggingAgentProperties = loggingAgentProperties;
+        this.chatAssetCatalogService = chatAssetCatalogService;
     }
 
     public QuerySession prepare(QueryRequest request) {
@@ -126,7 +130,16 @@ public class AgentQueryService {
                 : runId;
         String role = StringUtils.hasText(request.role()) ? request.role().trim() : "user";
         String effectiveAgentKey = agent.id();
-        Map<String, Object> querySnapshot = buildQuerySnapshot(request, requestId, chatId, role, effectiveAgentKey, effectiveTeamId);
+        List<QueryRequest.Reference> mergedReferences = mergeReferences(chatId, request.references());
+        Map<String, Object> querySnapshot = buildQuerySnapshot(
+                request,
+                requestId,
+                chatId,
+                role,
+                effectiveAgentKey,
+                effectiveTeamId,
+                mergedReferences
+        );
         ChatRecordStore.ChatSummary summary = chatRecordStore.ensureChat(
                 chatId,
                 StringUtils.hasText(effectiveTeamId) ? null : agent.id(),
@@ -143,7 +156,7 @@ public class AgentQueryService {
                 request.message(),
                 effectiveAgentKey,
                 effectiveTeamId,
-                request.references() == null ? null : request.references().stream().map(value -> (Object) value).toList(),
+                mergedReferences.isEmpty() ? null : mergedReferences.stream().map(value -> (Object) value).toList(),
                 queryParams,
                 serializeScene(request.scene()),
                 request.stream(),
@@ -511,7 +524,8 @@ public class AgentQueryService {
             String chatId,
             String role,
             String effectiveAgentKey,
-            String teamId
+            String teamId,
+            List<QueryRequest.Reference> references
     ) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("requestId", requestId);
@@ -520,11 +534,23 @@ public class AgentQueryService {
         snapshot.put("teamId", teamId);
         snapshot.put("role", role);
         snapshot.put("message", request.message());
-        snapshot.put("references", request.references());
+        snapshot.put("references", references == null || references.isEmpty() ? null : references);
         snapshot.put("params", request.params());
         snapshot.put("scene", request.scene());
         snapshot.put("stream", request.stream());
         return snapshot;
+    }
+
+    private List<QueryRequest.Reference> mergeReferences(String chatId, List<QueryRequest.Reference> references) {
+        if (chatAssetCatalogService == null || !StringUtils.hasText(chatId)) {
+            return references == null ? List.of() : List.copyOf(references);
+        }
+        try {
+            return chatAssetCatalogService.mergeWithChatAssets(chatId, references);
+        } catch (Exception ex) {
+            log.warn("Failed to merge chat assets into query references chatId={}", chatId, ex);
+            return references == null ? List.of() : List.copyOf(references);
+        }
     }
 
     private String resolveEffectiveTeamId(String requestTeamId, String boundTeamId, String boundAgentKey) {

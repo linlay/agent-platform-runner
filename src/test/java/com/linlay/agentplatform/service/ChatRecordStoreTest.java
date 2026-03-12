@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;
@@ -284,6 +285,24 @@ class ChatRecordStoreTest {
         assertThat(detail.references()).isNotNull();
         assertThat(detail.references()).hasSize(1);
         assertThat(detail.references().getFirst().id()).isEqualTo("ref_001");
+    }
+
+    @Test
+    void loadChatShouldIncludeCurrentChatDirectoryAssets() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174013";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "资产会话", 1707000200000L, 1707000200000L);
+
+        Path dataDir = tempDir.resolve("data");
+        Files.createDirectories(dataDir.resolve(chatId));
+        Files.write(dataDir.resolve(chatId).resolve("cover.png"), new byte[]{1});
+
+        ChatRecordStore store = newStore(null, dataDir);
+        ChatDetailResponse detail = store.loadChat(chatId, false);
+
+        assertThat(detail.references()).isNotNull();
+        assertThat(detail.references()).extracting(reference -> reference.url())
+                .contains("/data/" + chatId + "/cover.png");
     }
 
     @Test
@@ -641,19 +660,24 @@ class ChatRecordStoreTest {
     }
 
     private ChatRecordStore newStore() {
-        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
-        properties.setDir(tempDir.resolve("chats").toString());
-        properties.getIndex().setSqliteFile(tempDir.resolve("chats").resolve("chats.db").toString());
-        ChatRecordStore store = new ChatRecordStore(objectMapper, properties);
-        store.initializeDatabase();
-        return store;
+        return newStore(null, null);
     }
 
     private ChatRecordStore newStore(ToolRegistry toolRegistry) {
+        return newStore(toolRegistry, null);
+    }
+
+    private ChatRecordStore newStore(ToolRegistry toolRegistry, Path dataDir) {
         ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
         properties.setDir(tempDir.resolve("chats").toString());
         properties.getIndex().setSqliteFile(tempDir.resolve("chats").resolve("chats.db").toString());
-        ChatRecordStore store = new ChatRecordStore(objectMapper, properties, toolRegistry);
+        ChatAssetCatalogService chatAssetCatalogService = null;
+        if (dataDir != null) {
+            DataProperties dataProperties = new DataProperties();
+            dataProperties.setExternalDir(dataDir.toString());
+            chatAssetCatalogService = new ChatAssetCatalogService(new ChatDataPathService(dataProperties));
+        }
+        ChatRecordStore store = new ChatRecordStore(objectMapper, properties, toolRegistry, chatAssetCatalogService);
         store.initializeDatabase();
         return store;
     }

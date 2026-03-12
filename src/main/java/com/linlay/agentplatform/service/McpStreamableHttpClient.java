@@ -128,11 +128,15 @@ public class McpStreamableHttpClient {
     public JsonNode callTool(
             McpServerRegistryService.RegisteredServer server,
             String toolName,
-            Map<String, Object> args
+            Map<String, Object> args,
+            Map<String, Object> meta
     ) {
         ObjectNode params = objectMapper.createObjectNode();
         params.put("name", toolName);
         params.set("arguments", objectMapper.valueToTree(args == null ? Map.of() : args));
+        if (meta != null && !meta.isEmpty()) {
+            params.set("_meta", objectMapper.valueToTree(meta));
+        }
         RpcResponse response = callRpc(toEndpoint(server), "tools/call", params);
         if (response.error() != null) {
             throw new RpcErrorException("MCP tools/call failed", response.error());
