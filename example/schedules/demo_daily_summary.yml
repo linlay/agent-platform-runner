@@ -1,4 +1,4 @@
-name: Demo Daily Summary
+name: 每日摘要
 description: 每天早上 9 点触发 demoModePlain 输出三条摘要建议
 enabled: false
 cron: "0 0 9 * * *"

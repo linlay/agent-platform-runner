@@ -12,6 +12,7 @@ import java.util.Set;
 final class ShellCommandValidator {
 
     private static final int MAX_SUBSTITUTION_DEPTH = 8;
+    private static final Set<String> SAFE_SPECIAL_PATHS = Set.of("/dev/null");
 
     private static final Set<String> STRUCTURAL_KEYWORDS = Set.of(
             "if", "then", "else", "elif", "fi",
@@ -723,6 +724,10 @@ final class ShellCommandValidator {
     private String validatePathToken(String token) {
         if (token.contains("$") || token.contains("`")) {
             return "Path not allowed outside authorized directories: " + token;
+        }
+
+        if (SAFE_SPECIAL_PATHS.contains(token)) {
+            return null;
         }
 
         if (containsGlob(token)) {

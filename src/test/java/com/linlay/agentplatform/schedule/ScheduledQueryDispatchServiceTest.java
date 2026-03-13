@@ -120,7 +120,7 @@ class ScheduledQueryDispatchServiceTest {
         String query = "请从以下城市中随机选择一个：北京、深圳、大连、广州、上海、纽约、巴黎、东京。调用天气工具查询该城市当前天气；如果工具返回了可用的 viewport 结果，请按约定输出 viewport 视图块。";
         ScheduledQueryDescriptor descriptor = new ScheduledQueryDescriptor(
                 "demo_viewport_weather_minutely",
-                "Demo Viewport Weather Minutely",
+                "分钟天气视图播报",
                 "每分钟触发一次天气视图查询",
                 true,
                 "0 * * * * *",

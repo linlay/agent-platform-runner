@@ -16,7 +16,7 @@
 
 计划任务相关示例：
 
-- `example/agents/demoScheduleManager.json`：维护 `schedules/*.yml` 的 REACT 智能体，优先读取文件前两到三行的 `name`/`description` 披露信息。
+- `example/agents/demoScheduleManager.yml`：维护 `schedules/*.yml` 的 REACT 智能体，采用“渐进式披露阅读”，优先使用 `head -n 3 *.yml` 读取文件头，并默认用中文 Markdown 表格展示计划任务摘要。
 - `example/schedules/demo_viewport_weather_minutely.yml`：每分钟触发 `demoViewport` 查询随机城市天气。
 
 ## 终端助手示例

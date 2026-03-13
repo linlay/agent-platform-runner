@@ -67,7 +67,7 @@ class RuntimeResourceSyncServiceTest {
         assertThat(syncedTool).contains("\"name\": \"datetime\"");
         assertThat(syncedSkillScriptTool).contains("\"name\": \"_skill_run_script_\"");
         assertThat(syncedSkill).contains("name: \"math_basic\"");
-        assertThat(syncedSchedule).contains("name: Demo Daily Summary")
+        assertThat(syncedSchedule).contains("name: 每日摘要")
                 .contains("description: 每天早上 9 点触发 demoModePlain 输出三条摘要建议")
                 .contains("cron: \"0 0 9 * * *\"");
         assertThat(skillsDir.resolve("math_basic").resolve("SKILL.md")).exists();

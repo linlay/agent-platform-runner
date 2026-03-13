@@ -72,7 +72,7 @@ class ViewportSyncServiceTest {
         );
         ViewportServerRegistryService.RegisteredServer second = new ViewportServerRegistryService.RegisteredServer(
                 "viewport-b",
-                "http://localhost:11970",
+                "http://localhost:11962",
                 "/mcp",
                 Map.of(),
                 3000,

@@ -93,7 +93,7 @@ class ScheduledQueryOrchestratorTest {
 
         ScheduledQueryDescriptor descriptor = new ScheduledQueryDescriptor(
                 "demo_viewport_weather_minutely",
-                "Demo Viewport Weather Minutely",
+                "分钟天气视图播报",
                 "每分钟触发一次天气视图查询",
                 true,
                 "0 * * * * *",

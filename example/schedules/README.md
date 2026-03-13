@@ -28,7 +28,7 @@
 ## 最小示例
 
 ```yaml
-name: Daily Summary
+name: 每日摘要
 description: 每天上午九点触发一次今日待办摘要
 cron: "0 0 9 * * *"
 agentKey: demoModePlain

@@ -289,7 +289,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - `mock_city_weather`：模拟城市天气数据。
 - `agent_file_create`：创建/更新 agent JSON 文件。
 
-若使用 `demoScheduleManager` 维护项目根目录下的 `schedules/`，需确保 `AGENT_BASH_WORKING_DIRECTORY` 指向项目根目录。该 agent 会优先读取每个 `.yml` 文件前两到三行的 `name` / `description` 披露信息。`working-directory` 会自动作为 `_bash_` 的基础允许目录；`AGENT_BASH_ALLOWED_PATHS` 只需要用于追加放行工作目录之外的路径。未配置 `working-directory` 时，`_bash_` 默认使用项目运行根目录，并会在工具描述中显示当前生效目录。
+`demoScheduleManager` 会优先读取每个 `.yml` 文件前两到三行的 `name` / `description` 披露信息，并默认用中文 Markdown 表格展示计划任务摘要。
 
 ### 工具参数模板
 

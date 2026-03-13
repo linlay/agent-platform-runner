@@ -622,15 +622,7 @@ plain:
 
 `path-checked-commands` 为空时，默认等于 `allowed-commands`；并且只会对 `allowed-commands` 的交集生效。`working-directory` 既决定进程启动目录，也会自动作为 `_bash_` 的基础允许目录。`allowed-paths` 用于追加放行工作目录之外的目录。未配置 `working-directory` 时，`_bash_` 默认取项目运行根目录（通常是 `configs/` 的上级目录），而不是简单的 `${user.dir}`。
 
-如果要让 `demoScheduleManager` 维护项目根目录下的 `schedules/`，通常只需要把 `working-directory` 指向项目根目录；该 agent 会优先读取每个 `.yml` 文件前两到三行的 `name` / `description` 披露信息。只有还要访问其他目录时，才需要额外配置 `allowed-paths`：
-
-```bash
-AGENT_BASH_WORKING_DIRECTORY=/path/to/agent-platform-runner
-AGENT_BASH_ALLOWED_PATHS=/tmp
-AGENT_BASH_SHELL_FEATURES_ENABLED=true
-```
-
-如果进程实际从其他目录启动，或者要访问工作目录之外的路径，相对路径仍可能被解析错位或被白名单拒绝。
+`demoScheduleManager` 会优先读取每个 `.yml` 文件前两到三行的 `name` / `description` 披露信息，并默认用中文 Markdown 表格展示计划任务摘要。
 
 `_bash_` 的运行时工具描述会显示当前生效的 `workingDirectory` 与 `shellFeaturesEnabled`，便于定位命令实际执行位置。
 

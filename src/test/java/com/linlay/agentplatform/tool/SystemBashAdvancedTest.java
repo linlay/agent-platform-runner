@@ -121,6 +121,31 @@ class SystemBashAdvancedTest {
     }
 
     @Test
+    void shouldAllowRedirectToDevNullInShellMode(@TempDir Path tempDir) throws IOException {
+        Path schedulesDir = tempDir.resolve("schedules");
+        Files.createDirectories(schedulesDir);
+        Files.writeString(schedulesDir.resolve("demo.json"), "{}");
+
+        SystemBash bash = TestSystemBashFactory.bash(
+                tempDir,
+                List.of(),
+                Set.of("ls", "head"),
+                Set.of("ls", "head"),
+                true,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "ls -la schedules/ 2>/dev/null | head -20"));
+
+        assertThat(result.asText()).contains("exitCode: 0");
+        assertThat(result.asText()).contains("mode: shell");
+        assertThat(result.asText()).contains("demo.json");
+        assertThat(result.asText()).doesNotContain("Path not allowed outside authorized directories: /dev/null");
+    }
+
+    @Test
     void shouldRejectUnsupportedSourceSyntax(@TempDir Path tempDir) {
         SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,

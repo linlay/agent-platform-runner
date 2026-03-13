@@ -17,7 +17,7 @@ class ScheduledQueryRegistryServiceTest {
     @Test
     void shouldLoadValidScheduleFile() throws Exception {
         Files.writeString(tempDir.resolve("daily.yml"), """
-                name: Daily Summary
+                name: 每日摘要
                 description: 每天早上 9 点执行一次摘要查询
                 enabled: true
                 cron: "0 0 9 * * *"
@@ -33,7 +33,7 @@ class ScheduledQueryRegistryServiceTest {
 
         ScheduledQueryDescriptor descriptor = service.find("daily").orElseThrow();
         assertThat(descriptor.id()).isEqualTo("daily");
-        assertThat(descriptor.name()).isEqualTo("Daily Summary");
+        assertThat(descriptor.name()).isEqualTo("每日摘要");
         assertThat(descriptor.description()).isEqualTo("每天早上 9 点执行一次摘要查询");
         assertThat(descriptor.enabled()).isTrue();
         assertThat(descriptor.cron()).isEqualTo("0 0 9 * * *");
@@ -69,7 +69,7 @@ class ScheduledQueryRegistryServiceTest {
     @Test
     void shouldLoadViewportWeatherMinutelyExample() throws Exception {
         Files.writeString(tempDir.resolve("demo_viewport_weather_minutely.yml"), """
-                name: Demo Viewport Weather Minutely
+                name: 分钟天气视图播报
                 description: 每分钟触发 demoViewport 查询随机城市天气
                 enabled: true
                 cron: "0 * * * * *"
@@ -83,7 +83,7 @@ class ScheduledQueryRegistryServiceTest {
         ScheduledQueryRegistryService service = new ScheduledQueryRegistryService(new ObjectMapper(), properties);
 
         ScheduledQueryDescriptor descriptor = service.find("demo_viewport_weather_minutely").orElseThrow();
-        assertThat(descriptor.name()).isEqualTo("Demo Viewport Weather Minutely");
+        assertThat(descriptor.name()).isEqualTo("分钟天气视图播报");
         assertThat(descriptor.description()).isEqualTo("每分钟触发 demoViewport 查询随机城市天气");
         assertThat(descriptor.enabled()).isTrue();
         assertThat(descriptor.cron()).isEqualTo("0 * * * * *");
