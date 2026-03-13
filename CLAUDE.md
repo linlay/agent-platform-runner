@@ -289,7 +289,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - `mock_city_weather`：模拟城市天气数据。
 - `agent_file_create`：创建/更新 agent JSON 文件。
 
-若使用 `demoScheduleManager` 维护项目根目录下的 `schedules/`，需确保 `AGENT_BASH_WORKING_DIRECTORY` 指向项目根目录，且 `AGENT_BASH_ALLOWED_PATHS` 至少包含项目根目录和 `schedules/`；仅设置 `working-directory` 不会自动放行这些路径。
+若使用 `demoScheduleManager` 维护项目根目录下的 `schedules/`，需确保 `AGENT_BASH_WORKING_DIRECTORY` 指向项目根目录。该 agent 会优先读取每个 `.yml` 文件前两到三行的 `name` / `description` 披露信息。`working-directory` 会自动作为 `_bash_` 的基础允许目录；`AGENT_BASH_ALLOWED_PATHS` 只需要用于追加放行工作目录之外的路径。未配置 `working-directory` 时，`_bash_` 默认使用项目运行根目录，并会在工具描述中显示当前生效目录。
 
 ### 工具参数模板
 
@@ -352,13 +352,15 @@ Agent Definition 文件中引用 skills：
 ### 目录结构
 
 ```
-schedules/<schedule-id>.json
+schedules/<schedule-id>.yml
 ```
 
 - 每个文件仅定义一个 cron 计划任务。
-- 必填字段：`cron`、`query`。
+- 顶部前两行固定为：`name: ...`、`description: ...`。
+- `description` 仅支持单行，不支持 `|` / `>` 多行写法。
+- 必填字段：`name`、`description`、`cron`、`query`。
 - 目标字段：`agentKey` 或 `teamId`（至少一个）。
-- 可选字段：`enabled`、`name`、`zoneId`、`params`。
+- 可选字段：`enabled`、`zoneId`、`params`。
 - 启动时会同步内置 `src/main/resources/schedules/**` 到运行目录 `schedules/`。
 - 热加载：仅监听运行目录 `schedules/` 的文件变化，并做增量重编排。
 - 触发执行：内部构造一次 `QueryRequest`（`stream=false`，`chatId` 每次新 UUID），走与普通对话相同链路。
@@ -568,7 +570,7 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `AGENT_TOOLS_REFRESH_INTERVAL_MS` | `agent.tools.refresh-interval-ms` | `30000` | 工具目录刷新间隔（ms） |
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `agent.tools.frontend.submit-timeout-ms` | `300000` | 前端工具提交等待超时（ms） |
 | `AGENT_TOOLS_AGENT_FILE_CREATE_DEFAULT_SYSTEM_PROMPT` | `agent.tools.agent-file-create.default-system-prompt` | `你是通用助理，回答要清晰和可执行。` | `agent_file_create` 默认 system prompt |
-| `AGENT_BASH_WORKING_DIRECTORY` | `agent.tools.bash.working-directory` | `${user.dir}` | Bash 工具工作目录 |
+| `AGENT_BASH_WORKING_DIRECTORY` | `agent.tools.bash.working-directory` | 项目运行根目录（通常为 `configs/` 上级目录） | Bash 工具工作目录 |
 | `AGENT_BASH_ALLOWED_PATHS` | `agent.tools.bash.allowed-paths` | （空） | Bash 工具路径白名单（逗号分隔） |
 | `AGENT_BASH_ALLOWED_COMMANDS` | `agent.tools.bash.allowed-commands` | （空=拒绝执行） | Bash 允许命令列表（逗号分隔） |
 | `AGENT_BASH_PATH_CHECKED_COMMANDS` | `agent.tools.bash.path-checked-commands` | （空=默认等于 allowed-commands） | 启用路径校验的命令列表（逗号分隔） |

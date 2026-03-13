@@ -3,9 +3,11 @@ package com.linlay.agentplatform.schedule;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -20,8 +22,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import org.springframework.scheduling.support.CronExpression;
-
 @Service
 @DependsOn("runtimeResourceSyncService")
 public class ScheduledQueryRegistryService {
@@ -29,8 +29,10 @@ public class ScheduledQueryRegistryService {
     private static final Logger log = LoggerFactory.getLogger(ScheduledQueryRegistryService.class);
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
+    private static final String SUPPORTED_SUFFIX = ".yml";
 
     private final ObjectMapper objectMapper;
+    private final ObjectMapper yamlMapper;
     private final ScheduleProperties properties;
 
     private final Object reloadLock = new Object();
@@ -41,6 +43,7 @@ public class ScheduledQueryRegistryService {
             ScheduleProperties properties
     ) {
         this.objectMapper = objectMapper;
+        this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.properties = properties;
         refreshSchedules();
     }
@@ -77,7 +80,8 @@ public class ScheduledQueryRegistryService {
 
             Map<String, ScheduledQueryDescriptor> loaded = new LinkedHashMap<>();
             try (Stream<Path> stream = Files.list(dir)) {
-                stream.filter(path -> Files.isRegularFile(path) && path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json"))
+                stream.filter(path -> Files.isRegularFile(path)
+                        && path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(SUPPORTED_SUFFIX))
                         .sorted(Comparator.comparing(path -> path.getFileName().toString()))
                         .forEach(path -> tryLoad(path).ifPresent(descriptor -> {
                             ScheduledQueryDescriptor existing = loaded.putIfAbsent(descriptor.id(), descriptor);
@@ -100,16 +104,30 @@ public class ScheduledQueryRegistryService {
 
     private Optional<ScheduledQueryDescriptor> tryLoad(Path file) {
         String fileName = file.getFileName().toString();
-        String fileBasedId = fileName.substring(0, fileName.length() - ".json".length()).trim();
+        String fileBasedId = fileName.substring(0, fileName.length() - SUPPORTED_SUFFIX.length()).trim();
         String scheduleId = normalizeId(fileBasedId);
         if (!StringUtils.hasText(scheduleId)) {
             log.warn("Skip schedule file with empty id: {}", file);
             return Optional.empty();
         }
 
+        String raw;
+        try {
+            raw = Files.readString(file);
+        } catch (Exception ex) {
+            log.warn("Skip unreadable schedule file: {}", file, ex);
+            return Optional.empty();
+        }
+
+        Optional<String> headerError = validateHeader(raw);
+        if (headerError.isPresent()) {
+            log.warn("Skip schedule '{}' due to invalid header: {} ({})", scheduleId, headerError.get(), file);
+            return Optional.empty();
+        }
+
         JsonNode root;
         try {
-            root = objectMapper.readTree(Files.readString(file));
+            root = yamlMapper.readTree(raw);
         } catch (Exception ex) {
             log.warn("Skip invalid schedule file: {}", file, ex);
             return Optional.empty();
@@ -129,7 +147,19 @@ public class ScheduledQueryRegistryService {
             return Optional.empty();
         }
 
-        String query = normalize(root.path("query").asText(""));
+        String name = readRequiredText(root, "name");
+        if (!StringUtils.hasText(name)) {
+            log.warn("Skip schedule '{}' without name: {}", scheduleId, file);
+            return Optional.empty();
+        }
+
+        String description = readRequiredText(root, "description");
+        if (!StringUtils.hasText(description)) {
+            log.warn("Skip schedule '{}' without description: {}", scheduleId, file);
+            return Optional.empty();
+        }
+
+        String query = readRequiredText(root, "query");
         if (!StringUtils.hasText(query)) {
             log.warn("Skip schedule '{}' without query: {}", scheduleId, file);
             return Optional.empty();
@@ -152,13 +182,13 @@ public class ScheduledQueryRegistryService {
             }
         }
 
-        String name = normalize(root.path("name").asText(""));
         boolean enabled = !root.has("enabled") || root.path("enabled").asBoolean(true);
         Map<String, Object> params = parseParams(root.get("params"));
 
         return Optional.of(new ScheduledQueryDescriptor(
                 scheduleId,
-                StringUtils.hasText(name) ? name : scheduleId,
+                name,
+                description,
                 enabled,
                 cron,
                 zoneId,
@@ -179,6 +209,50 @@ public class ScheduledQueryRegistryService {
         }
     }
 
+    private Optional<String> validateHeader(String raw) {
+        String normalized = normalizeNewlines(raw);
+        List<String> lines = normalized.lines().toList();
+        if (lines.size() < 2) {
+            return Optional.of("first two lines must be name and description");
+        }
+
+        Optional<String> nameError = validateHeaderLine(stripBom(lines.get(0)), "name", false);
+        if (nameError.isPresent()) {
+            return nameError;
+        }
+        return validateHeaderLine(lines.get(1), "description", true);
+    }
+
+    private Optional<String> validateHeaderLine(String line, String expectedKey, boolean singleLineOnly) {
+        if (line == null || line.isBlank()) {
+            return Optional.of("line for '" + expectedKey + "' cannot be blank");
+        }
+        if (line.startsWith("#")) {
+            return Optional.of("comments are not allowed before '" + expectedKey + "'");
+        }
+        if (Character.isWhitespace(line.charAt(0))) {
+            return Optional.of("'" + expectedKey + "' must start at column 1");
+        }
+
+        int separator = line.indexOf(':');
+        if (separator <= 0) {
+            return Optional.of("line must start with '" + expectedKey + ":'");
+        }
+        String actualKey = line.substring(0, separator).trim().toLowerCase(Locale.ROOT);
+        if (!expectedKey.equals(actualKey)) {
+            return Optional.of("expected '" + expectedKey + "' before any other field");
+        }
+
+        String value = line.substring(separator + 1).trim();
+        if (!StringUtils.hasText(value) || value.startsWith("#")) {
+            return Optional.of("'" + expectedKey + "' must have an inline value");
+        }
+        if (singleLineOnly && (value.startsWith("|") || value.startsWith(">"))) {
+            return Optional.of("'" + expectedKey + "' does not support multi-line YAML scalars");
+        }
+        return Optional.empty();
+    }
+
     private Map<String, Object> parseParams(JsonNode node) {
         if (node == null || node.isNull()) {
             return Map.of();
@@ -197,6 +271,17 @@ public class ScheduledQueryRegistryService {
         }
     }
 
+    private String readRequiredText(JsonNode root, String fieldName) {
+        if (root == null || fieldName == null || !root.has(fieldName)) {
+            return "";
+        }
+        JsonNode value = root.get(fieldName);
+        if (value == null || value.isNull() || !value.isTextual()) {
+            return "";
+        }
+        return normalize(value.asText());
+    }
+
     private String normalizeId(String raw) {
         if (!StringUtils.hasText(raw)) {
             return "";
@@ -211,5 +296,16 @@ public class ScheduledQueryRegistryService {
     private String normalizeNullable(String raw) {
         String normalized = normalize(raw);
         return StringUtils.hasText(normalized) ? normalized : null;
+    }
+
+    private String normalizeNewlines(String raw) {
+        return raw == null ? "" : raw.replace("\r\n", "\n").replace('\r', '\n');
+    }
+
+    private String stripBom(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return raw;
+        }
+        return raw.charAt(0) == '\uFEFF' ? raw.substring(1) : raw;
     }
 }

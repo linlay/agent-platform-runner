@@ -5,6 +5,7 @@ import java.util.Map;
 public record ScheduledQueryDescriptor(
         String id,
         String name,
+        String description,
         boolean enabled,
         String cron,
         String zoneId,

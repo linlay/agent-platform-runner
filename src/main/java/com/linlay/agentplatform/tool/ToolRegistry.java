@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -126,13 +127,17 @@ public class ToolRegistry {
         if (normalizedName.isBlank()) {
             return Optional.empty();
         }
+        BaseTool nativeTool = nativeToolsByName.get(normalizedName);
         if (toolFileRegistryService != null) {
             Optional<ToolDescriptor> dynamic = toolFileRegistryService.find(normalizedName);
             if (dynamic.isPresent()) {
-                return dynamic;
+                ToolDescriptor descriptor = dynamic.get();
+                if (descriptor.kind() == ToolKind.BACKEND && nativeTool != null) {
+                    return Optional.of(mergedBackendDescriptor(nativeTool, descriptor));
+                }
+                return Optional.of(descriptor);
             }
         }
-        BaseTool nativeTool = nativeToolsByName.get(normalizedName);
         if (nativeTool == null) {
             if (mcpToolSyncService == null) {
                 return Optional.empty();
@@ -197,6 +202,32 @@ public class ToolRegistry {
         );
     }
 
+    private ToolDescriptor mergedBackendDescriptor(BaseTool tool, ToolDescriptor descriptor) {
+        String runtimeDescription = tool.description();
+        String effectiveDescription = StringUtils.hasText(runtimeDescription)
+                ? runtimeDescription
+                : descriptor.description();
+        String runtimeAfterCallHint = tool.afterCallHint();
+        String effectiveAfterCallHint = StringUtils.hasText(descriptor.afterCallHint())
+                ? descriptor.afterCallHint()
+                : runtimeAfterCallHint;
+        return new ToolDescriptor(
+                descriptor.name(),
+                descriptor.label(),
+                effectiveDescription,
+                effectiveAfterCallHint,
+                descriptor.parameters(),
+                descriptor.strict(),
+                descriptor.clientVisible(),
+                descriptor.toolAction(),
+                descriptor.toolType(),
+                descriptor.sourceType(),
+                descriptor.sourceKey(),
+                descriptor.viewportKey(),
+                descriptor.sourceFile()
+        );
+    }
+
     private static final class VirtualTool implements BaseTool {
         private final ToolDescriptor descriptor;
 
@@ -246,6 +277,10 @@ public class ToolRegistry {
 
         @Override
         public String description() {
+            String runtimeDescription = delegate.description();
+            if (StringUtils.hasText(runtimeDescription)) {
+                return runtimeDescription;
+            }
             return descriptor.description();
         }
 

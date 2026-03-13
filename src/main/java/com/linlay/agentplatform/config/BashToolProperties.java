@@ -8,7 +8,7 @@ import java.util.List;
 @ConfigurationProperties(prefix = "agent.tools.bash")
 public class BashToolProperties {
 
-    private String workingDirectory = System.getProperty("user.dir", ".");
+    private String workingDirectory;
     private List<String> allowedPaths = new ArrayList<>();
     private List<String> allowedCommands = new ArrayList<>();
     private List<String> pathCheckedCommands = new ArrayList<>();

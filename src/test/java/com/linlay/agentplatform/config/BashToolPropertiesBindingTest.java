@@ -8,6 +8,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.StandardEnvironment;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -125,13 +127,69 @@ class BashToolPropertiesBindingTest {
                 });
     }
 
+    @Test
+    void shouldDefaultWorkingDirectoryToProjectRootFromConfigsDir(@TempDir Path tempDir) throws IOException {
+        Path configsDir = tempDir.resolve("project").resolve("configs");
+        Path projectDir = configsDir.getParent();
+        Files.createDirectories(configsDir);
+        Files.writeString(projectDir.resolve("demo.txt"), "hello-project-root");
+
+        contextRunner
+                .withPropertyValues(
+                        "AGENT_CONFIG_DIR=" + configsDir,
+                        "agent.tools.bash.allowed-paths=" + projectDir,
+                        "agent.tools.bash.allowed-commands=cat"
+                )
+                .run(context -> {
+                    SystemBash bash = context.getBean(SystemBash.class);
+                    JsonNode result = bash.invoke(Map.of("command", "cat demo.txt"));
+                    assertThat(bash.description()).contains("workingDirectory: " + projectDir.toAbsolutePath().normalize());
+                    assertThat(result.asText()).contains("exitCode: 0");
+                    assertThat(result.asText()).contains("hello-project-root");
+                });
+    }
+
+    @Test
+    void shouldUseExplicitWorkingDirectoryInsteadOfDerivedDefault(@TempDir Path tempDir) throws IOException {
+        Path configsDir = tempDir.resolve("project").resolve("configs");
+        Path explicitDir = tempDir.resolve("explicit");
+        Files.createDirectories(configsDir);
+        Files.createDirectories(explicitDir);
+        Files.writeString(explicitDir.resolve("demo.txt"), "hello-explicit");
+
+        contextRunner
+                .withPropertyValues(
+                        "AGENT_CONFIG_DIR=" + configsDir,
+                        "agent.tools.bash.working-directory=" + explicitDir,
+                        "agent.tools.bash.allowed-paths=" + explicitDir,
+                        "agent.tools.bash.allowed-commands=cat"
+                )
+                .run(context -> {
+                    SystemBash bash = context.getBean(SystemBash.class);
+                    JsonNode result = bash.invoke(Map.of("command", "cat demo.txt"));
+                    assertThat(bash.description()).contains("workingDirectory: " + explicitDir.toAbsolutePath().normalize());
+                    assertThat(result.asText()).contains("hello-explicit");
+                });
+    }
+
+    @Test
+    void shouldUseConfiguredDirectoryWhenConfigDirIsNotNamedConfigs(@TempDir Path tempDir) throws IOException {
+        Path configDir = tempDir.resolve("runtime-root");
+        Files.createDirectories(configDir);
+
+        ConfigurableEnvironment environment = new StandardEnvironment();
+        environment.getSystemProperties().put(ConfigDirectorySupport.CONFIG_DIR_ENV, configDir.toString());
+
+        assertThat(SystemBash.defaultWorkingDirectory(environment)).isEqualTo(configDir.toAbsolutePath().normalize());
+    }
+
     @Configuration(proxyBeanMethods = false)
     @EnableConfigurationProperties(BashToolProperties.class)
     static class BashToolConfiguration {
 
         @Bean
-        SystemBash systemBash(BashToolProperties properties) {
-            return new SystemBash(properties);
+        SystemBash systemBash(BashToolProperties properties, ConfigurableEnvironment environment) {
+            return new SystemBash(properties, environment);
         }
     }
 }

@@ -1,9 +1,12 @@
 package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.linlay.agentplatform.config.ConfigDirectorySupport;
 import com.linlay.agentplatform.config.BashToolProperties;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -60,8 +63,8 @@ public class SystemBash extends AbstractDeterministicTool {
     private final ShellCommandValidator shellCommandValidator;
 
     @Autowired
-    public SystemBash(BashToolProperties properties) {
-        this(resolveWorkingDirectory(properties.getWorkingDirectory()),
+    public SystemBash(BashToolProperties properties, ConfigurableEnvironment environment) {
+        this(resolveWorkingDirectory(properties.getWorkingDirectory(), environment),
              parseAllowedPaths(properties.getAllowedPaths()),
              parseCommandSet(properties.getAllowedCommands()),
              parseCommandSet(properties.getPathCheckedCommands()),
@@ -82,7 +85,7 @@ public class SystemBash extends AbstractDeterministicTool {
                int timeoutMs,
                int maxCommandChars) {
         this.workingDirectory = workingDirectory.toAbsolutePath().normalize();
-        this.allowedRoots = buildAllowedRoots(additionalAllowedRoots);
+        this.allowedRoots = buildAllowedRoots(this.workingDirectory, additionalAllowedRoots);
         this.allowedCommands = normalizeCommandSet(allowedCommands);
         this.pathCheckedCommands = resolvePathCheckedCommands(pathCheckedCommands, this.allowedCommands);
         this.pathCheckBypassCommands = resolvePathCheckBypassCommands(pathCheckBypassCommands, this.allowedCommands);
@@ -102,6 +105,13 @@ public class SystemBash extends AbstractDeterministicTool {
     @Override
     public String name() {
         return "_bash_";
+    }
+
+    @Override
+    public String description() {
+        return "运行白名单 bash 命令（默认严格模式；可配置启用高级 shell 语法，如管道、重定向与 here-doc）。"
+                + " 当前 workingDirectory: " + workingDirectory
+                + "; shellFeaturesEnabled: " + shellFeaturesEnabled;
     }
 
     @Override
@@ -429,11 +439,24 @@ public class SystemBash extends AbstractDeterministicTool {
         return path.toString();
     }
 
-    private static Path resolveWorkingDirectory(String configuredWorkingDirectory) {
-        if (configuredWorkingDirectory == null || configuredWorkingDirectory.isBlank()) {
-            return Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
+    static Path resolveWorkingDirectory(String configuredWorkingDirectory, ConfigurableEnvironment environment) {
+        if (!StringUtils.hasText(configuredWorkingDirectory)) {
+            return defaultWorkingDirectory(environment);
         }
         return Path.of(configuredWorkingDirectory).toAbsolutePath().normalize();
+    }
+
+    public static Path defaultWorkingDirectory(ConfigurableEnvironment environment) {
+        java.util.Optional<Path> configDir = ConfigDirectorySupport.resolveConfigDirectory(environment);
+        if (configDir.isPresent()) {
+            Path resolved = configDir.get().toAbsolutePath().normalize();
+            Path fileName = resolved.getFileName();
+            if (fileName != null && "configs".equalsIgnoreCase(fileName.toString()) && resolved.getParent() != null) {
+                return resolved.getParent().toAbsolutePath().normalize();
+            }
+            return resolved;
+        }
+        return Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
     }
 
     private static List<Path> parseAllowedPaths(List<String> configuredAllowedPaths) {
@@ -523,8 +546,11 @@ public class SystemBash extends AbstractDeterministicTool {
         return intersected.isEmpty() ? Set.of() : Set.copyOf(intersected);
     }
 
-    private static List<Path> buildAllowedRoots(List<Path> additionalAllowedRoots) {
+    private static List<Path> buildAllowedRoots(Path workingDirectory, List<Path> additionalAllowedRoots) {
         LinkedHashSet<Path> roots = new LinkedHashSet<>();
+        if (workingDirectory != null) {
+            roots.add(workingDirectory.toAbsolutePath().normalize());
+        }
         if (additionalAllowedRoots != null) {
             for (Path path : additionalAllowedRoots) {
                 if (path != null) {

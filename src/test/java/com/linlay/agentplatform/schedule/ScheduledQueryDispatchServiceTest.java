@@ -62,6 +62,7 @@ class ScheduledQueryDispatchServiceTest {
         ScheduledQueryDescriptor descriptor = new ScheduledQueryDescriptor(
                 "daily",
                 "Daily Summary",
+                "每天早上汇总一次",
                 true,
                 "0 0 9 * * *",
                 null,
@@ -69,7 +70,7 @@ class ScheduledQueryDispatchServiceTest {
                 "a1b2c3d4e5f6",
                 "hello",
                 Map.of("x", 1),
-                "/tmp/daily.json"
+                "/tmp/daily.yml"
         );
         service.dispatch(descriptor);
 
@@ -84,6 +85,9 @@ class ScheduledQueryDispatchServiceTest {
         assertThat(request.stream()).isFalse();
         assertThat(request.params()).containsEntry("x", 1);
         assertThat(request.params()).containsKey("__schedule");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> scheduleMeta = (Map<String, Object>) request.params().get("__schedule");
+        assertThat(scheduleMeta).containsEntry("scheduleDescription", "每天早上汇总一次");
     }
 
     @Test
@@ -117,6 +121,7 @@ class ScheduledQueryDispatchServiceTest {
         ScheduledQueryDescriptor descriptor = new ScheduledQueryDescriptor(
                 "demo_viewport_weather_minutely",
                 "Demo Viewport Weather Minutely",
+                "每分钟触发一次天气视图查询",
                 true,
                 "0 * * * * *",
                 "Asia/Shanghai",
@@ -124,7 +129,7 @@ class ScheduledQueryDispatchServiceTest {
                 null,
                 query,
                 Map.of("source", "built-in"),
-                "/tmp/demo_viewport_weather_minutely.json"
+                "/tmp/demo_viewport_weather_minutely.yml"
         );
 
         service.dispatch(descriptor);

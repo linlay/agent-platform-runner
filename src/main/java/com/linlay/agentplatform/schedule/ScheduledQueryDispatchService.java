@@ -49,6 +49,7 @@ public class ScheduledQueryDispatchService {
         params.put("__schedule", Map.of(
                 "scheduleId", descriptor.id(),
                 "scheduleName", descriptor.name(),
+                "scheduleDescription", descriptor.description(),
                 "sourceFile", descriptor.sourceFile(),
                 "triggeredAt", System.currentTimeMillis()
         ));

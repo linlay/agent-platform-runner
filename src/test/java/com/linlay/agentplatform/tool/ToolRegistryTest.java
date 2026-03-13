@@ -141,6 +141,61 @@ class ToolRegistryTest {
     }
 
     @Test
+    void backendMetadataShouldKeepRuntimeDescriptionForNativeBashTool(@TempDir Path tempDir) throws IOException {
+        Path toolsDir = tempDir.resolve("tools");
+        Files.createDirectories(toolsDir);
+        Files.writeString(toolsDir.resolve("_bash_.json"), """
+                {
+                  "type": "function",
+                  "name": "_bash_",
+                  "label": "Bash命令执行",
+                  "description": "static backend bash description",
+                  "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                      "command": {"type": "string"}
+                    },
+                    "required": ["command"],
+                    "additionalProperties": false
+                  }
+                }
+                """);
+
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+        SystemBash bash = TestSystemBashFactory.bash(
+                projectDir,
+                List.of(projectDir),
+                Set.of("pwd"),
+                Set.of("pwd")
+        );
+
+        ToolProperties properties = new ToolProperties();
+        properties.setExternalDir(toolsDir.toString());
+        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper(), properties);
+
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("toolFileRegistryService", toolFileRegistryService);
+        ToolRegistry toolRegistry = new ToolRegistry(
+                List.of(bash),
+                beanFactory.getBeanProvider(ToolFileRegistryService.class)
+        );
+
+        BaseTool bashMetadataTool = toolRegistry.list().stream()
+                .filter(tool -> "_bash_".equals(tool.name()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(bashMetadataTool.description()).contains("workingDirectory: " + projectDir.toAbsolutePath().normalize());
+        assertThat(toolRegistry.description("_bash_")).contains("shellFeaturesEnabled: false");
+        assertThat(toolRegistry.descriptor("_bash_"))
+                .isPresent()
+                .get()
+                .extracting(ToolDescriptor::label)
+                .isEqualTo("Bash命令执行");
+    }
+
+    @Test
     void mcpToolShouldAppearAsVirtualTool() {
         ToolDescriptor mcpDescriptor = new ToolDescriptor(
                 "mock.weather.query",
@@ -239,7 +294,7 @@ class ToolRegistryTest {
     }
 
     @Test
-    void bashToolShouldRejectRelativePathWhenWorkingDirectoryNotInAllowedPaths(@TempDir Path tempDir) throws IOException {
+    void bashToolShouldAllowRelativePathInsideWorkingDirectoryByDefault(@TempDir Path tempDir) throws IOException {
         Path file = tempDir.resolve("demo.txt");
         Files.writeString(file, "hello");
         SystemBash localBashTool = TestSystemBashFactory.bash(tempDir, List.of(), Set.of("cat"), Set.of());
@@ -247,8 +302,8 @@ class ToolRegistryTest {
         JsonNode result = localBashTool.invoke(Map.of("command", "cat demo.txt"));
 
         assertThat(result.isTextual()).isTrue();
-        assertThat(result.asText()).contains("exitCode: -1");
-        assertThat(result.asText()).contains("Path not allowed outside authorized directories");
+        assertThat(result.asText()).contains("exitCode: 0");
+        assertThat(result.asText()).contains("hello");
     }
 
     @Test
@@ -294,8 +349,22 @@ class ToolRegistryTest {
 
         JsonNode result = localBashTool.invoke(Map.of("command", "cat " + file));
 
+        assertThat(result.asText()).contains("exitCode: 0");
+        assertThat(result.asText()).contains("hello");
+    }
+
+    @Test
+    void bashToolShouldStillRejectPathOutsideWorkingDirectoryWhenNoExtraAllowedPath(@TempDir Path tempDir) throws IOException {
+        Path outsideDir = tempDir.resolve("outside");
+        Files.createDirectories(outsideDir);
+        Files.writeString(outsideDir.resolve("demo.txt"), "hello");
+
+        SystemBash localBashTool = TestSystemBashFactory.bash(tempDir, List.of(), Set.of("cat"), Set.of());
+
+        JsonNode result = localBashTool.invoke(Map.of("command", "cat ../outside/demo.txt"));
+
         assertThat(result.asText()).contains("exitCode: -1");
-        assertThat(result.asText()).contains("Path not allowed outside authorized directories");
+        assertThat(result.asText()).contains("Path not allowed outside authorized directories: ../outside/demo.txt");
     }
 
     @Test

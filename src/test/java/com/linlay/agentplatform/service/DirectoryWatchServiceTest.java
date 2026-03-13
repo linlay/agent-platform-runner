@@ -173,7 +173,7 @@ class DirectoryWatchServiceTest {
 
         DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
         try {
-            Files.writeString(schedulesDir.resolve("demo_daily_summary.json"), "{}");
+            Files.writeString(schedulesDir.resolve("demo_daily_summary.yml"), "name: demo\ndescription: test\n");
             boolean triggered = latch.await(10, TimeUnit.SECONDS);
             assertThat(triggered).isTrue();
         } finally {

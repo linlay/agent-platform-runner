@@ -58,7 +58,7 @@ agent:
     bash:
       # Baseline defaults live here; concrete local whitelist is recommended in configs/bash.yml.
       # If AGENT_BASH_ALLOWED_COMMANDS is empty, _bash_ will reject all commands.
-      working-directory: ${AGENT_BASH_WORKING_DIRECTORY:${user.dir}}
+      working-directory: ${AGENT_BASH_WORKING_DIRECTORY:}
       allowed-paths: ${AGENT_BASH_ALLOWED_PATHS:${user.dir},/tmp}
       allowed-commands: ${AGENT_BASH_ALLOWED_COMMANDS:ls,pwd,cat,head,tail,top,free,df,git,rg,find}
       path-checked-commands: ${AGENT_BASH_PATH_CHECKED_COMMANDS:ls,cat,head,tail,git,rg,find}

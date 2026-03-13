@@ -528,12 +528,14 @@ plain:
   - 可选子目录：`scripts/`、`references/`、`assets/`
   - `skill-id` 取目录名，`SKILL.md` frontmatter 的 `name/description` 作为元信息。
 - `schedules`:
-  - 目录结构：`schedules/<schedule-id>.json`
-  - 必填字段：`cron`、`query`
+  - 目录结构：`schedules/<schedule-id>.yml`
+  - 前两行固定为 `name: ...`、`description: ...`
+  - `description` 仅支持单行披露，不支持 `|` / `>` 多行写法
+  - 必填字段：`name`、`description`、`cron`、`query`
   - 目标字段：`agentKey` 或 `teamId`（至少一个）
-  - 可选字段：`enabled`、`name`、`zoneId`、`params`
+  - 可选字段：`enabled`、`zoneId`、`params`
   - 若仅配置 `teamId`，则读取 team 的 `defaultAgentKey` 作为默认执行智能体
-  - 内置示例包含 `demo_daily_summary.json`（每日摘要）和 `demo_viewport_weather_minutely.json`（每分钟随机城市天气）
+  - 内置示例包含 `demo_daily_summary.yml`（每日摘要）和 `demo_viewport_weather_minutely.yml`（每分钟随机城市天气）
 - `models`:
   - 目录结构：`models/<model-key>.json`
   - 关键字段：`key/provider/protocol/modelId/pricing`
@@ -618,17 +620,19 @@ plain:
 
 `_bash_` 工具必须显式配置命令白名单（`allowed-commands`）和目录白名单（`allowed-paths`）。未配置 `allowed-commands` 时会直接拒绝执行任何命令。工具返回文本包含 `exitCode`、`mode`、`"workingDirectory"`、`stdout`、`stderr`。
 
-`path-checked-commands` 为空时，默认等于 `allowed-commands`；并且只会对 `allowed-commands` 的交集生效。`working-directory` 仅决定进程启动目录，不会自动加入 `allowed-paths`。
+`path-checked-commands` 为空时，默认等于 `allowed-commands`；并且只会对 `allowed-commands` 的交集生效。`working-directory` 既决定进程启动目录，也会自动作为 `_bash_` 的基础允许目录。`allowed-paths` 用于追加放行工作目录之外的目录。未配置 `working-directory` 时，`_bash_` 默认取项目运行根目录（通常是 `configs/` 的上级目录），而不是简单的 `${user.dir}`。
 
-如果要让 `demoScheduleManager` 维护项目根目录下的 `schedules/`，建议至少这样配置：
+如果要让 `demoScheduleManager` 维护项目根目录下的 `schedules/`，通常只需要把 `working-directory` 指向项目根目录；该 agent 会优先读取每个 `.yml` 文件前两到三行的 `name` / `description` 披露信息。只有还要访问其他目录时，才需要额外配置 `allowed-paths`：
 
 ```bash
 AGENT_BASH_WORKING_DIRECTORY=/path/to/agent-platform-runner
-AGENT_BASH_ALLOWED_PATHS=/path/to/agent-platform-runner,/path/to/agent-platform-runner/schedules,/tmp
+AGENT_BASH_ALLOWED_PATHS=/tmp
 AGENT_BASH_SHELL_FEATURES_ENABLED=true
 ```
 
-否则当进程实际从其他目录启动时，相对路径 `schedules/` 会被解析到错误位置，并触发路径白名单拒绝。
+如果进程实际从其他目录启动，或者要访问工作目录之外的路径，相对路径仍可能被解析错位或被白名单拒绝。
+
+`_bash_` 的运行时工具描述会显示当前生效的 `workingDirectory` 与 `shellFeaturesEnabled`，便于定位命令实际执行位置。
 
 `path-check-bypass-commands` 为空时默认关闭。配置后仅对 `allowed-commands` 交集生效；命中的命令会跳过路径参数与重定向目标的目录白名单校验（例如可用于 `git`/`curl` 的命令级放开）。
 
@@ -700,7 +704,7 @@ for f in *.md; do echo "$f"; done
 | `AGENT_SCHEDULE_DEFAULT_ZONE_ID` | 系统时区 | 计划任务默认时区 |
 | `AGENT_SCHEDULE_POOL_SIZE` | `4` | 计划任务线程池大小 |
 | `AGENT_DATA_EXTERNAL_DIR` | `data` | 静态文件目录 |
-| `AGENT_BASH_WORKING_DIRECTORY` | `${user.dir}` | Bash 工作目录 |
+| `AGENT_BASH_WORKING_DIRECTORY` | 项目运行根目录（通常为 `configs/` 上级目录） | Bash 工作目录 |
 | `AGENT_BASH_ALLOWED_PATHS` | （空） | Bash 允许路径 |
 | `AGENT_BASH_ALLOWED_COMMANDS` | （空=拒绝执行） | Bash 允许命令列表（逗号分隔） |
 | `AGENT_BASH_PATH_CHECKED_COMMANDS` | （空=默认等于 allowed-commands） | 启用路径校验的命令列表（逗号分隔） |

@@ -105,7 +105,7 @@ class SystemBashAdvancedTest {
     void shouldRejectRedirectOutsideAllowedPaths(@TempDir Path tempDir) {
         SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
-                List.of(tempDir),
+                List.of(),
                 Set.of("echo"),
                 Set.of("echo"),
                 true,
@@ -124,7 +124,7 @@ class SystemBashAdvancedTest {
     void shouldRejectUnsupportedSourceSyntax(@TempDir Path tempDir) {
         SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
-                List.of(tempDir),
+                List.of(),
                 Set.of("echo", "source"),
                 Set.of("echo"),
                 true,
@@ -144,7 +144,7 @@ class SystemBashAdvancedTest {
         Files.writeString(tempDir.resolve("a.txt"), "foo\nbar\n");
         SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
-                List.of(tempDir),
+                List.of(),
                 Set.of("cat", "rg"),
                 Set.of("cat"),
                 false,
@@ -329,8 +329,8 @@ class SystemBashAdvancedTest {
 
         JsonNode result = bash.invoke(Map.of("command", "ls schedules/"));
 
-        assertThat(result.asText()).contains("exitCode: -1");
-        assertThat(result.asText()).contains("Path not allowed outside authorized directories: schedules/");
+        assertThat(result.asText()).contains("exitCode: 1");
+        assertThat(result.asText()).contains("No such file or directory");
     }
 
     @Test
@@ -355,5 +355,54 @@ class SystemBashAdvancedTest {
 
         assertThat(result.asText()).contains("exitCode: 0");
         assertThat(result.asText()).contains("demo.json");
+    }
+
+    @Test
+    void shouldAllowSchedulesUnderWorkingDirectoryWithoutExplicitAllowedPath(@TempDir Path tempDir) throws IOException {
+        Path projectDir = tempDir.resolve("project");
+        Path schedulesDir = projectDir.resolve("schedules");
+        Files.createDirectories(schedulesDir);
+        Files.writeString(schedulesDir.resolve("demo.json"), "{}");
+
+        SystemBash bash = TestSystemBashFactory.bash(
+                projectDir,
+                List.of(),
+                Set.of("ls"),
+                Set.of("ls"),
+                false,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "ls ./schedules/"));
+
+        assertThat(result.asText()).contains("exitCode: 0");
+        assertThat(result.asText()).contains("demo.json");
+    }
+
+    @Test
+    void shouldRejectPathOutsideWorkingDirectoryWhenNoExtraAllowedRoot(@TempDir Path tempDir) throws IOException {
+        Path projectDir = tempDir.resolve("project");
+        Path outsideDir = tempDir.resolve("outside");
+        Files.createDirectories(projectDir);
+        Files.createDirectories(outsideDir);
+        Files.writeString(outsideDir.resolve("demo.txt"), "outside");
+
+        SystemBash bash = TestSystemBashFactory.bash(
+                projectDir,
+                List.of(),
+                Set.of("cat"),
+                Set.of("cat"),
+                false,
+                "bash",
+                10_000,
+                16_000
+        );
+
+        JsonNode result = bash.invoke(Map.of("command", "cat ../outside/demo.txt"));
+
+        assertThat(result.asText()).contains("exitCode: -1");
+        assertThat(result.asText()).contains("Path not allowed outside authorized directories: ../outside/demo.txt");
     }
 }

@@ -31,8 +31,8 @@ modelConfig:
 
 ## 附带示例
 
-- `demoScheduleManager`：计划任务管理示例（REACT + `_bash_`），用于维护 `schedules/*.json`。
-  使用提示：建议将 `AGENT_BASH_WORKING_DIRECTORY` 指向项目根目录，并让 `AGENT_BASH_ALLOWED_PATHS` 至少包含项目根目录和 `schedules/`。如需创建/改写文件，通常还需要放行相关命令，并按需启用 `AGENT_BASH_SHELL_FEATURES_ENABLED=true`。
+- `demoScheduleManager`：计划任务管理示例（REACT + `_bash_`），用于维护 `schedules/*.yml`，并优先读取文件前两到三行的 `name`/`description` 披露信息。
+  使用提示：建议将 `AGENT_BASH_WORKING_DIRECTORY` 指向项目根目录。`working-directory` 会自动放行该目录及其子路径；如需访问其他目录或创建/改写文件，再按需配置 `AGENT_BASH_ALLOWED_PATHS`、放行相关命令，并启用 `AGENT_BASH_SHELL_FEATURES_ENABLED=true`。
 - `terminalAssistant`：终端辅助智能体示例（PLAN_EXECUTE + `terminal_command_review`），用于把完整命令清单交给外部前端逐步审批或批量放行。
 
 ## 与外层目录关系
