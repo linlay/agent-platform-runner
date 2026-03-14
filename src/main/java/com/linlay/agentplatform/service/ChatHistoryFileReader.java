@@ -87,11 +87,8 @@ final class ChatHistoryFileReader {
                     }
 
                     ChatWindowMemoryStore.PlanSnapshot plan = null;
-                    JsonNode planNode = node.has("plan") && !node.get("plan").isNull()
-                            ? node.get("plan")
-                            : (node.has("planSnapshot") && !node.get("planSnapshot").isNull() ? node.get("planSnapshot") : null);
-                    if (planNode != null) {
-                        plan = objectMapper.treeToValue(planNode, ChatWindowMemoryStore.PlanSnapshot.class);
+                    if (node.has("plan") && !node.get("plan").isNull()) {
+                        plan = objectMapper.treeToValue(node.get("plan"), ChatWindowMemoryStore.PlanSnapshot.class);
                     }
 
                     List<ChatWindowMemoryStore.StoredMessage> messages = new ArrayList<>();

@@ -7,7 +7,6 @@ import com.linlay.agentplatform.agent.runtime.ToolInvokerRouter;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.service.LlmService;
-import com.linlay.agentplatform.tool.PlatformCreateAgent;
 import com.linlay.agentplatform.tool.SystemBash;
 import com.linlay.agentplatform.tool.TestSystemBashFactory;
 import com.linlay.agentplatform.tool.ToolRegistry;
@@ -59,10 +58,7 @@ class AgentRegistryTest {
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, TestModelRegistryServices.standardRegistry());
         LlmService llmService = new StubLlmService() {
         };
-        ToolRegistry toolRegistry = new ToolRegistry(List.of(
-                TestSystemBashFactory.defaultBash(),
-                new PlatformCreateAgent(agentsDir)
-        ));
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(TestSystemBashFactory.defaultBash()));
         ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
         memoryProperties.setDir(tempDir.resolve("chats").toString());
         ChatWindowMemoryStore memoryStore = new ChatWindowMemoryStore(new ObjectMapper(), memoryProperties);
@@ -260,10 +256,7 @@ class AgentRegistryTest {
         AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, TestModelRegistryServices.standardRegistry());
         LlmService llmService = new StubLlmService() {
         };
-        ToolRegistry toolRegistry = new ToolRegistry(List.of(
-                TestSystemBashFactory.defaultBash(),
-                new PlatformCreateAgent(agentsDir)
-        ));
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(TestSystemBashFactory.defaultBash()));
         ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
         memoryProperties.setDir(tempDir.resolve("chats").toString());
         ChatWindowMemoryStore memoryStore = new ChatWindowMemoryStore(new ObjectMapper(), memoryProperties);

@@ -272,12 +272,6 @@ final class ChatEventSnapshotBuilder {
         }
         boolean actionByType = StringUtils.hasText(toolCall.type)
                 && "action".equalsIgnoreCase(toolCall.type.trim());
-        if (StringUtils.hasText(toolCall.actionId)) {
-            return new IdBinding(toolCall.actionId.trim(), true);
-        }
-        if (StringUtils.hasText(toolCall.toolId)) {
-            return new IdBinding(toolCall.toolId.trim(), false);
-        }
         if (actionByType && StringUtils.hasText(toolCall.id)) {
             return new IdBinding(toolCall.id.trim(), true);
         }

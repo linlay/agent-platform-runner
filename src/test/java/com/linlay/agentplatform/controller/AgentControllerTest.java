@@ -1290,9 +1290,9 @@ class AgentControllerTest {
                         "ts", 1707000600001L
                 )
         ));
-        stepLine.put("planSnapshot", Map.of(
+        stepLine.put("plan", Map.of(
                 "planId", "plan_chat_001",
-                "plan", List.of(
+                "tasks", List.of(
                         Map.of("taskId", "task0", "description", "收集信息", "status", "init"),
                         Map.of("taskId", "task1", "description", "执行任务", "status", "in_progress")
                 )
@@ -1372,9 +1372,9 @@ class AgentControllerTest {
                         "ts", 1707000700001L
                 )
         ));
-        stepLine.put("planSnapshot", Map.of(
+        stepLine.put("plan", Map.of(
                 "planId", "plan_chat_seed_001",
-                "plan", List.of(
+                "tasks", List.of(
                         Map.of("taskId", "task0", "description", "收集信息", "status", "init"),
                         Map.of("taskId", "task1", "description", "执行任务", "status", "in_progress")
                 )

@@ -398,12 +398,8 @@ public class ChatRecordStore {
                     }
 
                     ChatWindowMemoryStore.PlanSnapshot plan = null;
-                    // COMPAT(V3): Keep reading legacy `planSnapshot` until historical JSONL chat records are migrated or dropped.
-                    JsonNode planNode = node.has("plan") && !node.get("plan").isNull()
-                            ? node.get("plan")
-                            : (node.has("planSnapshot") && !node.get("planSnapshot").isNull() ? node.get("planSnapshot") : null);
-                    if (planNode != null) {
-                        plan = objectMapper.treeToValue(planNode, ChatWindowMemoryStore.PlanSnapshot.class);
+                    if (node.has("plan") && !node.get("plan").isNull()) {
+                        plan = objectMapper.treeToValue(node.get("plan"), ChatWindowMemoryStore.PlanSnapshot.class);
                     }
 
                     List<ChatWindowMemoryStore.StoredMessage> messages = new ArrayList<>();
@@ -773,7 +769,6 @@ public class ChatRecordStore {
             int toolIndex,
             int actionIndex
     ) {
-        // COMPAT(V3): Prefer V3.1 outer ids, but keep V3 inner fallback until historical stored tool-call payloads are no longer read.
         if (StringUtils.hasText(message.actionId)) {
             return new IdBinding(message.actionId.trim(), true);
         }
@@ -782,12 +777,6 @@ public class ChatRecordStore {
         }
         boolean actionByType = StringUtils.hasText(toolCall.type)
                 && "action".equalsIgnoreCase(toolCall.type.trim());
-        if (StringUtils.hasText(toolCall.actionId)) {
-            return new IdBinding(toolCall.actionId.trim(), true);
-        }
-        if (StringUtils.hasText(toolCall.toolId)) {
-            return new IdBinding(toolCall.toolId.trim(), false);
-        }
         if (actionByType && StringUtils.hasText(toolCall.id)) {
             return new IdBinding(toolCall.id.trim(), true);
         }

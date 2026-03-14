@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.memory;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -456,12 +456,8 @@ public class ChatWindowMemoryStore {
             }
 
             PlanSnapshot plan = null;
-            // COMPAT(V3): Keep reading legacy `planSnapshot` until historical chat memory files are migrated or dropped.
-            JsonNode planNode = node.has("plan") && !node.get("plan").isNull()
-                    ? node.get("plan")
-                    : (node.has("planSnapshot") && !node.get("planSnapshot").isNull() ? node.get("planSnapshot") : null);
-            if (planNode != null) {
-                plan = objectMapper.treeToValue(planNode, PlanSnapshot.class);
+            if (node.has("plan") && !node.get("plan").isNull()) {
+                plan = objectMapper.treeToValue(node.get("plan"), PlanSnapshot.class);
             }
 
             List<StoredMessage> messages = new ArrayList<>();
@@ -1084,9 +1080,7 @@ public class ChatWindowMemoryStore {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PlanSnapshot {
         public String planId;
-        // COMPAT(V3): Keep `plan` alias until stored V3 payloads are no longer read.
         @JsonProperty("tasks")
-        @JsonAlias("plan")
         public List<PlanTaskSnapshot> tasks;
     }
 
@@ -1098,6 +1092,7 @@ public class ChatWindowMemoryStore {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class StoredMessage {
         public String role;
         public List<ContentPart> content;
@@ -1116,7 +1111,6 @@ public class ChatWindowMemoryStore {
         public String contentId;
         @JsonProperty("_msgId")
         public String msgId;
-        // COMPAT(V3): Keep outer `_toolId`/`_actionId` fields while replay still supports V3/V3.1 stored message payloads.
         @JsonProperty("_toolId")
         public String toolId;
         @JsonProperty("_actionId")
@@ -1134,15 +1128,11 @@ public class ChatWindowMemoryStore {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class StoredToolCall {
         public String id;
         public String type;
         public FunctionCall function;
-        // COMPAT(V3): Keep inner `_toolId`/`_actionId` fields while replay still supports V3 stored tool-call payloads.
-        @JsonProperty("_toolId")
-        public String toolId;
-        @JsonProperty("_actionId")
-        public String actionId;
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

@@ -25,7 +25,7 @@ public class AppAuthProperties {
     }
 
     public void setJwksUri(String jwksUri) {
-        this.jwksUri = jwksUri;
+        this.jwksUri = normalize(jwksUri);
     }
 
     public String getIssuer() {
@@ -33,7 +33,7 @@ public class AppAuthProperties {
     }
 
     public void setIssuer(String issuer) {
-        this.issuer = issuer;
+        this.issuer = normalize(issuer);
     }
 
     public Long getJwksCacheSeconds() {
@@ -49,7 +49,7 @@ public class AppAuthProperties {
     }
 
     public void setLocalPublicKey(String localPublicKey) {
-        this.localPublicKey = localPublicKey;
+        this.localPublicKey = normalize(localPublicKey);
     }
 
     public String getLocalPublicKeyFile() {
@@ -57,6 +57,14 @@ public class AppAuthProperties {
     }
 
     public void setLocalPublicKeyFile(String localPublicKeyFile) {
-        this.localPublicKeyFile = localPublicKeyFile;
+        this.localPublicKeyFile = normalize(localPublicKeyFile);
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

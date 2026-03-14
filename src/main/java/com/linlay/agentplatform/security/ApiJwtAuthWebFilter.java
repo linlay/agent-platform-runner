@@ -6,7 +6,6 @@ import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.service.LoggingSanitizer;
 import com.linlay.agentplatform.config.AppAuthProperties;
 import com.linlay.agentplatform.config.ChatImageTokenProperties;
-import com.linlay.agentplatform.config.VoiceWsProperties;
 import com.linlay.agentplatform.security.JwksJwtVerifier.JwtPrincipal;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -24,24 +23,20 @@ public class ApiJwtAuthWebFilter implements WebFilter {
     public static final String JWT_PRINCIPAL_ATTR = "APP_JWT_PRINCIPAL";
 
     private static final String AUTH_PREFIX = "Bearer ";
-    private static final String VOICE_WS_QUERY_TOKEN_PARAM = "access_token";
 
     private final AppAuthProperties authProperties;
     private final ChatImageTokenProperties chatImageTokenProperties;
-    private final VoiceWsProperties voiceWsProperties;
     private final LoggingAgentProperties loggingAgentProperties;
     private final JwksJwtVerifier jwtVerifier;
 
     public ApiJwtAuthWebFilter(
             AppAuthProperties authProperties,
             ChatImageTokenProperties chatImageTokenProperties,
-            VoiceWsProperties voiceWsProperties,
             LoggingAgentProperties loggingAgentProperties,
             JwksJwtVerifier jwtVerifier
     ) {
         this.authProperties = authProperties;
         this.chatImageTokenProperties = chatImageTokenProperties;
-        this.voiceWsProperties = voiceWsProperties;
         this.loggingAgentProperties = loggingAgentProperties;
         this.jwtVerifier = jwtVerifier;
     }
@@ -60,19 +55,11 @@ public class ApiJwtAuthWebFilter implements WebFilter {
         if (HttpMethod.OPTIONS.equals(exchange.getRequest().getMethod())) {
             return chain.filter(exchange);
         }
-        if (!voiceWsProperties.isAuthRequired() && isVoiceWsPath(path)) {
-            return chain.filter(exchange);
-        }
         if (isDataApiRequestAllowedWithoutBearer(exchange)) {
             return chain.filter(exchange);
         }
 
-        BearerTokenResolution tokenResolution;
-        if (isVoiceWsPath(path) && voiceWsProperties.isAuthRequired()) {
-            tokenResolution = resolveVoiceWsQueryToken(exchange);
-        } else {
-            tokenResolution = resolveBearerToken(exchange);
-        }
+        BearerTokenResolution tokenResolution = resolveBearerToken(exchange);
         if (!StringUtils.hasText(tokenResolution.token())) {
             attachAuthRejectReason(exchange, tokenResolution.reasonCode());
             return writeUnauthorized(exchange);
@@ -103,17 +90,6 @@ public class ApiJwtAuthWebFilter implements WebFilter {
         return new BearerTokenResolution(token, "ok");
     }
 
-    private BearerTokenResolution resolveVoiceWsQueryToken(ServerWebExchange exchange) {
-        if (!exchange.getRequest().getQueryParams().containsKey(VOICE_WS_QUERY_TOKEN_PARAM)) {
-            return new BearerTokenResolution(null, "missing_ws_query_token");
-        }
-        String token = exchange.getRequest().getQueryParams().getFirst(VOICE_WS_QUERY_TOKEN_PARAM);
-        if (!StringUtils.hasText(token)) {
-            return new BearerTokenResolution(null, "empty_ws_query_token");
-        }
-        return new BearerTokenResolution(token.trim(), "ok");
-    }
-
     private boolean isDataApiRequestAllowedWithoutBearer(ServerWebExchange exchange) {
         if (!HttpMethod.GET.equals(exchange.getRequest().getMethod())) {
             return false;
@@ -126,10 +102,6 @@ public class ApiJwtAuthWebFilter implements WebFilter {
             return true;
         }
         return exchange.getRequest().getQueryParams().containsKey("t");
-    }
-
-    private boolean isVoiceWsPath(String path) {
-        return StringUtils.hasText(path) && voiceWsProperties.normalizedPath().equals(path.trim());
     }
 
     private Mono<Void> writeUnauthorized(ServerWebExchange exchange) {

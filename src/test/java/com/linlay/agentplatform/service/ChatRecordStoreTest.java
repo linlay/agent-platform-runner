@@ -783,7 +783,7 @@ class ChatRecordStoreTest {
             String taskId,
             long updatedAt,
             List<Map<String, Object>> messages,
-            Map<String, Object> planSnapshot
+            Map<String, Object> plan
     ) {
         Map<String, Object> line = new LinkedHashMap<>();
         line.put("_type", "step");
@@ -796,8 +796,8 @@ class ChatRecordStoreTest {
         }
         line.put("updatedAt", updatedAt);
         line.put("messages", messages);
-        if (planSnapshot != null && !planSnapshot.isEmpty()) {
-            line.put("planSnapshot", planSnapshot);
+        if (plan != null && !plan.isEmpty()) {
+            line.put("plan", plan);
         }
         return line;
     }
