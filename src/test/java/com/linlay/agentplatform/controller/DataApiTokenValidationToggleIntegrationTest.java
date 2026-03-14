@@ -127,7 +127,24 @@ class DataApiTokenValidationToggleIntegrationTest {
     }
 
     @Test
-    void dataApiShouldNotBypassAuthByTokenQueryWhenValidationDisabled() {
+    void dataApiShouldAllowAccessWithoutAuthorizationWhenValidationDisabled() throws Exception {
+        Files.write(Path.of(dataProperties.getExternalDir()).resolve("sample_photo.jpg"), createMinimalPng());
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/ap/data")
+                        .queryParam("file", "sample_photo.jpg")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/jpeg")
+                .expectHeader().valueEquals(HttpHeaders.CACHE_CONTROL, "private, no-store");
+    }
+
+    @Test
+    void dataApiShouldIgnoreInvalidTokenQueryWhenValidationDisabled() throws Exception {
+        Files.write(Path.of(dataProperties.getExternalDir()).resolve("sample_photo.jpg"), createMinimalPng());
+
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/ap/data")
@@ -135,11 +152,13 @@ class DataApiTokenValidationToggleIntegrationTest {
                         .queryParam("t", "invalid-token")
                         .build())
                 .exchange()
-                .expectStatus().isUnauthorized();
+                .expectStatus().isOk()
+                .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/jpeg")
+                .expectHeader().valueEquals(HttpHeaders.CACHE_CONTROL, "private, no-store");
     }
 
     @Test
-    void dataApiShouldIgnoreTokenQueryValidationWhenDisabled() throws Exception {
+    void dataApiShouldStillAllowBearerCompatibilityWhenValidationDisabled() throws Exception {
         Files.write(Path.of(dataProperties.getExternalDir()).resolve("sample_photo.jpg"), createMinimalPng());
         String authToken = issueAuthToken("user-data-token-toggle");
 
@@ -147,7 +166,6 @@ class DataApiTokenValidationToggleIntegrationTest {
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/ap/data")
                         .queryParam("file", "sample_photo.jpg")
-                        .queryParam("t", "invalid-token")
                         .build())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + authToken)
                 .exchange()

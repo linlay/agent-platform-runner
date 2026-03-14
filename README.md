@@ -757,7 +757,13 @@ for f in *.md; do echo "$f"; done
   - Markdown `![图](aaa.jpg)` → `file=aaa.jpg`
 - 调用时请对 `file` 做 URL encode（尤其是 `/`、空格、中文等字符）。
 - 安全防护：拒绝路径穿越（`..`）、反斜杠（`\`）和符号链接。
-- 可选 `t` 参数用于 chat image token 校验；开关为 `agent.chat-image-token.data-token-validation-enabled`（默认开启，可关闭）。
+- 可选 `t` 参数用于 chat image token 校验；开关为 `agent.chat-image-token.data-token-validation-enabled`。
+- 当 `agent.chat-image-token.data-token-validation-enabled=true`（默认）时：
+  - 可通过 `t` 绕过 `/api/ap/data` 的 Bearer JWT 要求，并按 chat image token 校验访问范围。
+  - 不带 `t` 时，若开启了 `agent.auth.enabled=true`，则仍需 `Authorization: Bearer ...`。
+- 当 `agent.chat-image-token.data-token-validation-enabled=false` 时：
+  - `GET /api/ap/data` 直接放行，不再要求 chat image token，也不再要求 Bearer JWT。
+  - 该模式适合本地调试或可信内网环境，生产环境建议保持开启。
 
 ### Content-Disposition 规则
 

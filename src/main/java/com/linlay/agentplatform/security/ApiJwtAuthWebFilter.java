@@ -63,7 +63,7 @@ public class ApiJwtAuthWebFilter implements WebFilter {
         if (!voiceWsProperties.isAuthRequired() && isVoiceWsPath(path)) {
             return chain.filter(exchange);
         }
-        if (isDataApiTokenRequest(exchange)) {
+        if (isDataApiRequestAllowedWithoutBearer(exchange)) {
             return chain.filter(exchange);
         }
 
@@ -114,16 +114,16 @@ public class ApiJwtAuthWebFilter implements WebFilter {
         return new BearerTokenResolution(token.trim(), "ok");
     }
 
-    private boolean isDataApiTokenRequest(ServerWebExchange exchange) {
-        if (!chatImageTokenProperties.isDataTokenValidationEnabled()) {
-            return false;
-        }
+    private boolean isDataApiRequestAllowedWithoutBearer(ServerWebExchange exchange) {
         if (!HttpMethod.GET.equals(exchange.getRequest().getMethod())) {
             return false;
         }
         String path = exchange.getRequest().getPath().value();
         if (!"/api/ap/data".equals(path)) {
             return false;
+        }
+        if (!chatImageTokenProperties.isDataTokenValidationEnabled()) {
+            return true;
         }
         return exchange.getRequest().getQueryParams().containsKey("t");
     }
