@@ -35,6 +35,7 @@ public class ExecutionContext {
     private final String skillCatalogPrompt;
     private final Map<String, SkillDescriptor> resolvedSkillsById;
     private final SkillAppend skillAppend;
+    private final RunControl runControl;
 
     private final List<ChatMessage> conversationMessages;
     private final List<ChatMessage> planMessages;
@@ -50,7 +51,7 @@ public class ExecutionContext {
     private int toolCalls;
 
     public ExecutionContext(AgentDefinition definition, AgentRequest request, List<ChatMessage> historyMessages) {
-        this(definition, request, historyMessages, "", Map.of());
+        this(definition, request, historyMessages, "", Map.of(), new RunControl());
     }
 
     public ExecutionContext(
@@ -59,7 +60,7 @@ public class ExecutionContext {
             List<ChatMessage> historyMessages,
             String skillPrompt
     ) {
-        this(definition, request, historyMessages, skillPrompt, Map.of());
+        this(definition, request, historyMessages, skillPrompt, Map.of(), new RunControl());
     }
 
     public ExecutionContext(
@@ -69,6 +70,17 @@ public class ExecutionContext {
             String skillCatalogPrompt,
             Map<String, SkillDescriptor> resolvedSkillsById
     ) {
+        this(definition, request, historyMessages, skillCatalogPrompt, resolvedSkillsById, new RunControl());
+    }
+
+    public ExecutionContext(
+            AgentDefinition definition,
+            AgentRequest request,
+            List<ChatMessage> historyMessages,
+            String skillCatalogPrompt,
+            Map<String, SkillDescriptor> resolvedSkillsById,
+            RunControl runControl
+    ) {
         this(
                 definition,
                 request,
@@ -77,7 +89,8 @@ public class ExecutionContext {
                 resolvedSkillsById,
                 definition == null || definition.agentMode() == null
                         ? SkillAppend.DEFAULTS
-                        : definition.agentMode().skillAppend()
+                        : definition.agentMode().skillAppend(),
+                runControl
         );
     }
 
@@ -89,6 +102,18 @@ public class ExecutionContext {
             Map<String, SkillDescriptor> resolvedSkillsById,
             SkillAppend skillAppend
     ) {
+        this(definition, request, historyMessages, skillCatalogPrompt, resolvedSkillsById, skillAppend, new RunControl());
+    }
+
+    public ExecutionContext(
+            AgentDefinition definition,
+            AgentRequest request,
+            List<ChatMessage> historyMessages,
+            String skillCatalogPrompt,
+            Map<String, SkillDescriptor> resolvedSkillsById,
+            SkillAppend skillAppend,
+            RunControl runControl
+    ) {
         this.definition = definition;
         this.request = request;
         this.budget = definition.runSpec().budget();
@@ -96,6 +121,7 @@ public class ExecutionContext {
         this.skillCatalogPrompt = StringUtils.hasText(skillCatalogPrompt) ? skillCatalogPrompt.trim() : "";
         this.resolvedSkillsById = normalizeResolvedSkills(resolvedSkillsById);
         this.skillAppend = skillAppend == null ? SkillAppend.DEFAULTS : skillAppend;
+        this.runControl = runControl == null ? new RunControl() : runControl;
 
         this.conversationMessages = new ArrayList<>();
         if (historyMessages != null) {
@@ -144,6 +170,10 @@ public class ExecutionContext {
         return budget;
     }
 
+    public RunControl runControl() {
+        return runControl;
+    }
+
     public List<ChatMessage> conversationMessages() {
         return conversationMessages;
     }
@@ -154,6 +184,16 @@ public class ExecutionContext {
 
     public List<ChatMessage> executeMessages() {
         return executeMessages;
+    }
+
+    public void appendHumanMessageToAllContexts(String message) {
+        if (!StringUtils.hasText(message)) {
+            return;
+        }
+        ChatMessage.UserMsg userMsg = new ChatMessage.UserMsg(message.trim());
+        conversationMessages.add(userMsg);
+        planMessages.add(userMsg);
+        executeMessages.add(userMsg);
     }
 
     public List<Map<String, Object>> toolRecords() {
@@ -261,6 +301,26 @@ public class ExecutionContext {
 
     public List<AgentDelta.PlanTask> planTasks() {
         return List.copyOf(planTasks);
+    }
+
+    public void enqueueSteer(RunControl.SteerEnvelope steer) {
+        runControl.enqueueSteer(steer);
+    }
+
+    public List<RunControl.SteerEnvelope> drainPendingSteers() {
+        return runControl.drainPendingSteers();
+    }
+
+    public void interrupt() {
+        runControl.interrupt();
+    }
+
+    public boolean isInterrupted() {
+        return runControl.isInterrupted();
+    }
+
+    public void bindRunnerThread(Thread thread) {
+        runControl.bindRunnerThread(thread);
     }
 
     public boolean hasPlan() {

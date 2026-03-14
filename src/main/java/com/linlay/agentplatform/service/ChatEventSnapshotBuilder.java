@@ -50,6 +50,7 @@ final class ChatEventSnapshotBuilder {
                             .thenComparingInt(PersistedChatEvent::lineIndex))
                     .toList();
             int persistedIndex = 0;
+            boolean terminalPersistedEventSeen = false;
 
             Map<String, Object> requestQueryPayload = buildRequestQueryPayload(chatId, run);
             String runAgentKey = requireRunStartAgentKey(chatId, run.runId(), requestQueryPayload.get("agentKey"), boundAgentKey);
@@ -84,6 +85,7 @@ final class ChatEventSnapshotBuilder {
                 PersistedChatEvent persisted = persistedEvents.get(persistedIndex++);
                 long persistedTs = normalizeEventTimestamp(persisted.timestamp(), timestampCursor);
                 events.add(event(persisted.type(), persistedTs, seq++, persisted.payload()));
+                terminalPersistedEventSeen = terminalPersistedEventSeen || isTerminalRunEvent(persisted.type());
                 timestampCursor = persistedTs;
             }
 
@@ -97,6 +99,7 @@ final class ChatEventSnapshotBuilder {
                     PersistedChatEvent persisted = persistedEvents.get(persistedIndex++);
                     long persistedTs = normalizeEventTimestamp(persisted.timestamp(), timestampCursor);
                     events.add(event(persisted.type(), persistedTs, seq++, persisted.payload()));
+                    terminalPersistedEventSeen = terminalPersistedEventSeen || isTerminalRunEvent(persisted.type());
                     timestampCursor = persistedTs;
                 }
                 String role = message.role.trim().toLowerCase();
@@ -214,14 +217,17 @@ final class ChatEventSnapshotBuilder {
                 PersistedChatEvent persisted = persistedEvents.get(persistedIndex++);
                 long persistedTs = normalizeEventTimestamp(persisted.timestamp(), timestampCursor);
                 events.add(event(persisted.type(), persistedTs, seq++, persisted.payload()));
+                terminalPersistedEventSeen = terminalPersistedEventSeen || isTerminalRunEvent(persisted.type());
                 timestampCursor = persistedTs;
             }
 
-            timestampCursor = normalizeEventTimestamp(runEndTs + 1, timestampCursor);
-            Map<String, Object> runCompletePayload = new LinkedHashMap<>();
-            runCompletePayload.put("runId", run.runId());
-            runCompletePayload.put("finishReason", "end_turn");
-            events.add(event("run.complete", timestampCursor, seq++, runCompletePayload));
+            if (!terminalPersistedEventSeen) {
+                timestampCursor = normalizeEventTimestamp(runEndTs + 1, timestampCursor);
+                Map<String, Object> runCompletePayload = new LinkedHashMap<>();
+                runCompletePayload.put("runId", run.runId());
+                runCompletePayload.put("finishReason", "end_turn");
+                events.add(event("run.complete", timestampCursor, seq++, runCompletePayload));
+            }
         }
 
         return List.copyOf(events);
@@ -269,6 +275,12 @@ final class ChatEventSnapshotBuilder {
         }
         if (StringUtils.hasText(message.toolId)) {
             return new IdBinding(message.toolId.trim(), false);
+        }
+        if (StringUtils.hasText(toolCall.actionId)) {
+            return new IdBinding(toolCall.actionId.trim(), true);
+        }
+        if (StringUtils.hasText(toolCall.toolId)) {
+            return new IdBinding(toolCall.toolId.trim(), false);
         }
         boolean actionByType = StringUtils.hasText(toolCall.type)
                 && "action".equalsIgnoreCase(toolCall.type.trim());
@@ -459,6 +471,10 @@ final class ChatEventSnapshotBuilder {
         if (value != null) {
             node.put(key, value);
         }
+    }
+
+    private boolean isTerminalRunEvent(String type) {
+        return "run.cancel".equals(type) || "run.complete".equals(type);
     }
 
     private String textOrFallback(Object value, String fallback) {

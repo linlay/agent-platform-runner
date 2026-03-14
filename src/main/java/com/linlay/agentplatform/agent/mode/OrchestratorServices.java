@@ -9,6 +9,8 @@ import com.linlay.agentplatform.agent.PlannedToolCall;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
+import com.linlay.agentplatform.agent.runtime.RunControl;
+import com.linlay.agentplatform.agent.runtime.RunInterruptedException;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
@@ -127,6 +129,9 @@ public class OrchestratorServices {
             FluxSink<AgentDelta> sink
     ) {
         Objects.requireNonNull(stageSettings, "stageSettings must not be null");
+        failIfInterrupted(context);
+        injectPendingSteers(context, sink);
+        failIfInterrupted(context);
         context.incrementModelCalls();
         String stageSystemPrompt = context.stageSystemPrompt(stageSettings.systemPrompt());
         String deferredSkillPrompt = context.consumeDeferredSkillSystemPrompt();
@@ -167,7 +172,8 @@ public class OrchestratorServices {
                 4096,
                 context.budget().model().timeoutMs(),
                 stage,
-                parallelToolCalls
+                parallelToolCalls,
+                context.runControl().cancelSignal()
         )).toIterable()) {
             if (delta == null) {
                 continue;
@@ -252,8 +258,10 @@ public class OrchestratorServices {
                 capturedUsage = delta.usage();
                 emit(sink, AgentDelta.usage(capturedUsage));
             }
+            failIfInterrupted(context);
         }
 
+        failIfInterrupted(context);
         if (emitToolCalls && StringUtils.hasText(activeStreamedToolCallId)) {
             emit(sink, AgentDelta.toolEnd(activeStreamedToolCallId));
         }
@@ -277,6 +285,7 @@ public class OrchestratorServices {
             List<PlannedToolCall> plannedToolCalls,
             FluxSink<AgentDelta> sink
     ) {
+        failIfInterrupted(context);
         context.registerSkillUsageFromToolCalls(plannedToolCalls);
         ToolExecutionService.ToolExecutionBatch batch = toolExecutionService.executeToolCalls(
                 plannedToolCalls,
@@ -302,6 +311,7 @@ public class OrchestratorServices {
             throw fatalToolError;
         }
         context.incrementToolCalls(batch.events().size());
+        failIfInterrupted(context);
     }
 
     public void emitFinalAnswer(
@@ -618,5 +628,25 @@ public class OrchestratorServices {
 
     private boolean isPlanGenerateStage(String stage) {
         return "agent-plan-generate".equals(stage);
+    }
+
+    private void injectPendingSteers(ExecutionContext context, FluxSink<AgentDelta> sink) {
+        if (context == null) {
+            return;
+        }
+        for (RunControl.SteerEnvelope steer : context.drainPendingSteers()) {
+            if (steer == null || !StringUtils.hasText(steer.message())) {
+                continue;
+            }
+            String message = steer.message().trim();
+            context.appendHumanMessageToAllContexts(message);
+            emit(sink, AgentDelta.userMessage(message, context.activeTaskId()));
+        }
+    }
+
+    private void failIfInterrupted(ExecutionContext context) {
+        if (context != null && context.isInterrupted()) {
+            throw new RunInterruptedException();
+        }
     }
 }

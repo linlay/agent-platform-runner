@@ -645,6 +645,62 @@ class ChatRecordStoreTest {
     }
 
     @Test
+    void appendEventShouldPersistRequestSteerAndRunCancelForHistoryReplay() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174019";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "引导会话", 1707000700000L, 1707000700000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".json");
+        writeJsonLine(historyPath, queryLine(chatId, "run_008", query("run_008", chatId, "第一轮", List.of())));
+        writeJsonLine(historyPath, stepLine(chatId, "run_008", "oneshot", 1, null,
+                1707000700000L,
+                List.of(
+                        userMessage("第一轮", 1707000700000L),
+                        assistantContentMessage("处理中", 1707000700001L)
+                )));
+
+        ChatRecordStore store = newStore();
+        store.appendEvent(chatId, objectMapper.writeValueAsString(Map.of(
+                "seq", 100,
+                "type", "request.steer",
+                "timestamp", 1707000700002L,
+                "requestId", "req_steer_001",
+                "chatId", chatId,
+                "runId", "run_008",
+                "steerId", "steer_001",
+                "message", "继续但更谨慎",
+                "role", "user"
+        )));
+        store.appendEvent(chatId, objectMapper.writeValueAsString(Map.of(
+                "seq", 101,
+                "type", "run.cancel",
+                "timestamp", 1707000700003L,
+                "runId", "run_008"
+        )));
+
+        ChatDetailResponse detail = store.loadChat(chatId, false);
+        Map<String, Object> requestSteer = detail.events().stream()
+                .filter(event -> "request.steer".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow();
+        Map<String, Object> runCancel = detail.events().stream()
+                .filter(event -> "run.cancel".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(requestSteer).containsEntry("requestId", "req_steer_001");
+        assertThat(requestSteer).containsEntry("chatId", chatId);
+        assertThat(requestSteer).containsEntry("runId", "run_008");
+        assertThat(requestSteer).containsEntry("steerId", "steer_001");
+        assertThat(requestSteer).containsEntry("message", "继续但更谨慎");
+        assertThat(requestSteer).containsEntry("role", "user");
+        assertThat(runCancel).containsEntry("runId", "run_008");
+        assertThat(detail.events()).extracting(event -> event.get("type"))
+                .contains("request.steer", "run.cancel")
+                .doesNotContain("run.complete");
+    }
+
+    @Test
     void loadChatShouldRejectInvalidChatId() {
         ChatRecordStore store = newStore();
         assertThatThrownBy(() -> store.loadChat("not-a-uuid", false))

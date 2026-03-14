@@ -7,9 +7,13 @@ import com.linlay.agentplatform.model.api.AgentListResponse;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;
+import com.linlay.agentplatform.model.api.InterruptRequest;
+import com.linlay.agentplatform.model.api.InterruptResponse;
 import com.linlay.agentplatform.model.api.MarkChatReadRequest;
 import com.linlay.agentplatform.model.api.MarkChatReadResponse;
 import com.linlay.agentplatform.model.api.QueryRequest;
+import com.linlay.agentplatform.model.api.SteerRequest;
+import com.linlay.agentplatform.model.api.SteerResponse;
 import com.linlay.agentplatform.model.api.SkillListResponse;
 import com.linlay.agentplatform.model.api.SubmitRequest;
 import com.linlay.agentplatform.model.api.SubmitResponse;
@@ -17,6 +21,7 @@ import com.linlay.agentplatform.model.api.TeamSummaryResponse;
 import com.linlay.agentplatform.model.api.ToolDetailResponse;
 import com.linlay.agentplatform.model.api.ToolListResponse;
 import com.linlay.agentplatform.security.ChatImageTokenService;
+import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
@@ -49,6 +54,7 @@ public class AgentController {
             ViewportRegistryService viewportRegistryService,
             McpViewportService mcpViewportService,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
+            ActiveRunService activeRunService,
             ChatImageTokenService chatImageTokenService,
             SkillRegistryService skillRegistryService,
             TeamRegistryService teamRegistryService,
@@ -68,6 +74,7 @@ public class AgentController {
                 agentQueryService,
                 sseFlushWriter,
                 frontendSubmitCoordinator,
+                activeRunService,
                 chatImageTokenHelper,
                 objectMapper
         );
@@ -120,6 +127,14 @@ public class AgentController {
 
     public ApiResponse<SubmitResponse> submit(@Valid SubmitRequest request, ServerWebExchange exchange) {
         return queryController.submit(request, exchange);
+    }
+
+    public ApiResponse<SteerResponse> steer(@Valid SteerRequest request, ServerWebExchange exchange) {
+        return queryController.steer(request, exchange);
+    }
+
+    public ApiResponse<InterruptResponse> interrupt(@Valid InterruptRequest request, ServerWebExchange exchange) {
+        return queryController.interrupt(request, exchange);
     }
 
     public Mono<ResponseEntity<ApiResponse<Object>>> viewport(String viewportKey) {

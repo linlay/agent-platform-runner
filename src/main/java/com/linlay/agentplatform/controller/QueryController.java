@@ -5,9 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.config.ApiRequestLoggingWebFilter;
 import com.linlay.agentplatform.model.api.ApiResponse;
+import com.linlay.agentplatform.model.api.InterruptRequest;
+import com.linlay.agentplatform.model.api.InterruptResponse;
 import com.linlay.agentplatform.model.api.QueryRequest;
+import com.linlay.agentplatform.model.api.SteerRequest;
+import com.linlay.agentplatform.model.api.SteerResponse;
 import com.linlay.agentplatform.model.api.SubmitRequest;
 import com.linlay.agentplatform.model.api.SubmitResponse;
+import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.stream.service.SseFlushWriter;
@@ -40,6 +45,7 @@ public class QueryController {
     private final AgentQueryService agentQueryService;
     private final SseFlushWriter sseFlushWriter;
     private final FrontendSubmitCoordinator frontendSubmitCoordinator;
+    private final ActiveRunService activeRunService;
     private final ChatImageTokenHelper chatImageTokenHelper;
     private final ObjectMapper objectMapper;
 
@@ -47,12 +53,14 @@ public class QueryController {
             AgentQueryService agentQueryService,
             SseFlushWriter sseFlushWriter,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
+            ActiveRunService activeRunService,
             ChatImageTokenHelper chatImageTokenHelper,
             ObjectMapper objectMapper
     ) {
         this.agentQueryService = agentQueryService;
         this.sseFlushWriter = sseFlushWriter;
         this.frontendSubmitCoordinator = frontendSubmitCoordinator;
+        this.activeRunService = activeRunService;
         this.chatImageTokenHelper = chatImageTokenHelper;
         this.objectMapper = objectMapper;
     }
@@ -119,6 +127,45 @@ public class QueryController {
                 ack.status(),
                 request.runId(),
                 request.toolId(),
+                ack.detail()
+        ));
+    }
+
+    @PostMapping("/steer")
+    public ApiResponse<SteerResponse> steer(@Valid @RequestBody SteerRequest request, ServerWebExchange exchange) {
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_REQUEST_ID, request.requestId());
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_RUN_ID, request.runId());
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_BODY_SUMMARY, Map.of(
+                "runId", request.runId(),
+                "steerId", StringUtils.hasText(request.steerId()) ? request.steerId() : "(generated)",
+                "messageChars", request.message() == null ? 0 : request.message().length()
+        ));
+        ActiveRunService.SteerAck ack = activeRunService.steer(request);
+        log.info("Received steer request runId={}, steerId={}, accepted={}, status={}",
+                request.runId(), ack.steerId(), ack.accepted(), ack.status());
+        return ApiResponse.success(new SteerResponse(
+                ack.accepted(),
+                ack.status(),
+                ack.runId(),
+                ack.steerId(),
+                ack.detail()
+        ));
+    }
+
+    @PostMapping("/interrupt")
+    public ApiResponse<InterruptResponse> interrupt(@Valid @RequestBody InterruptRequest request, ServerWebExchange exchange) {
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_REQUEST_ID, request.requestId());
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_RUN_ID, request.runId());
+        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_BODY_SUMMARY, Map.of(
+                "runId", request.runId()
+        ));
+        ActiveRunService.InterruptAck ack = activeRunService.interrupt(request);
+        log.info("Received interrupt request runId={}, accepted={}, status={}",
+                request.runId(), ack.accepted(), ack.status());
+        return ApiResponse.success(new InterruptResponse(
+                ack.accepted(),
+                ack.status(),
+                ack.runId(),
                 ack.detail()
         ));
     }

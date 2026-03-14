@@ -7,6 +7,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
@@ -54,6 +55,21 @@ public class FrontendSubmitCoordinator {
                 "accepted",
                 "Frontend submit accepted for runId=" + runId + ", toolId=" + toolId
         );
+    }
+
+    public void cancelRun(String runId) {
+        String normalizedRunId = StringUtils.hasText(runId) ? runId.trim() : "";
+        if (normalizedRunId.isBlank()) {
+            return;
+        }
+        pendingByKey.forEach((key, future) -> {
+            if (!key.startsWith(normalizedRunId + "#")) {
+                return;
+            }
+            if (pendingByKey.remove(key, future)) {
+                future.completeExceptionally(new CancellationException("Run interrupted: runId=" + normalizedRunId));
+            }
+        });
     }
 
     private String key(String runId, String toolId) {

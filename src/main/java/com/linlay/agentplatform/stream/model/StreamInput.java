@@ -17,6 +17,8 @@ public sealed interface StreamInput permits
         StreamInput.ActionEnd,
         StreamInput.ActionResult,
         StreamInput.RequestSubmit,
+        StreamInput.RequestSteer,
+        StreamInput.RunCancel,
         StreamInput.RunComplete {
 
     record PlanUpdate(String planId, Object plan, String chatId) implements StreamInput {
@@ -129,6 +131,27 @@ public sealed interface StreamInput permits
             requireNonBlank(runId, "runId");
             requireNonBlank(toolId, "toolId");
             requireNonNull(payload, "payload");
+        }
+    }
+
+    record RequestSteer(
+            String requestId,
+            String chatId,
+            String runId,
+            String steerId,
+            String message
+    ) implements StreamInput {
+        public RequestSteer {
+            requireNonBlank(chatId, "chatId");
+            requireNonBlank(runId, "runId");
+            requireNonBlank(steerId, "steerId");
+            requireNonBlank(message, "message");
+        }
+    }
+
+    record RunCancel(String runId) implements StreamInput {
+        public RunCancel {
+            requireNonBlank(runId, "runId");
         }
     }
 

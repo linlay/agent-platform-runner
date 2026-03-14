@@ -12,6 +12,8 @@ import com.linlay.agentplatform.agent.runtime.BudgetExceededException;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
+import com.linlay.agentplatform.agent.runtime.RunControl;
+import com.linlay.agentplatform.agent.runtime.RunInterruptedException;
 import com.linlay.agentplatform.agent.runtime.SkillPromptBundle;
 import com.linlay.agentplatform.agent.runtime.TextBlockIdAssigner;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
@@ -27,6 +29,7 @@ import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.service.RunIdGenerator;
+import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.BaseTool;
@@ -65,6 +68,7 @@ public class DefinitionDrivenAgent implements Agent {
     private final OrchestratorServices services;
     private final ObjectMapper objectMapper;
     private final SkillRegistryService skillRegistryService;
+    private final ActiveRunService activeRunService;
 
     public DefinitionDrivenAgent(
             AgentDefinition definition,
@@ -83,6 +87,7 @@ public class DefinitionDrivenAgent implements Agent {
                 frontendSubmitCoordinator,
                 null,
                 new LoggingAgentProperties(),
+                null,
                 null
         );
     }
@@ -105,6 +110,7 @@ public class DefinitionDrivenAgent implements Agent {
                 frontendSubmitCoordinator,
                 skillRegistryService,
                 new LoggingAgentProperties(),
+                null,
                 null
         );
     }
@@ -128,6 +134,7 @@ public class DefinitionDrivenAgent implements Agent {
                 frontendSubmitCoordinator,
                 skillRegistryService,
                 loggingAgentProperties,
+                null,
                 null
         );
     }
@@ -143,11 +150,38 @@ public class DefinitionDrivenAgent implements Agent {
             LoggingAgentProperties loggingAgentProperties,
             ToolInvoker toolInvoker
     ) {
+        this(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                loggingAgentProperties,
+                toolInvoker,
+                null
+        );
+    }
+
+    public DefinitionDrivenAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            ToolInvoker toolInvoker,
+            ActiveRunService activeRunService
+    ) {
         this.definition = definition;
         this.toolRegistry = toolRegistry;
         this.chatWindowMemoryStore = chatWindowMemoryStore;
         this.objectMapper = objectMapper;
         this.skillRegistryService = skillRegistryService;
+        this.activeRunService = activeRunService;
         this.configuredToolsByName = resolveConfiguredTools(definition.tools());
 
         ToolArgumentResolver argumentResolver = new ToolArgumentResolver(objectMapper);
@@ -236,6 +270,9 @@ public class DefinitionDrivenAgent implements Agent {
                     ChatWindowMemoryStore.PlanSnapshot latestPlanSnapshot = loadLatestPlanSnapshot(request.chatId());
                     ChatWindowMemoryStore.SystemSnapshot latestSystem = loadLatestSystemSnapshot(request.chatId());
                     String runId = resolveRunId(request);
+                    RunControl runControl = activeRunService == null
+                            ? new RunControl()
+                            : activeRunService.findControl(runId).orElseGet(RunControl::new);
                     TurnTraceWriter trace = new TurnTraceWriter(
                             chatWindowMemoryStore,
                             () -> buildSystemSnapshot(request),
@@ -249,7 +286,8 @@ public class DefinitionDrivenAgent implements Agent {
                             request,
                             historyMessages,
                             skillPromptBundle.catalogPrompt(),
-                            skillPromptBundle.resolvedSkillsById()
+                            skillPromptBundle.resolvedSkillsById(),
+                            runControl
                     );
                     if (latestPlanSnapshot != null) {
                         context.initializePlan(latestPlanSnapshot.planId, toPlanTasks(latestPlanSnapshot.tasks));
@@ -264,12 +302,20 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     private void runWithMode(ExecutionContext context, FluxSink<AgentDelta> sink) {
+        context.bindRunnerThread(Thread.currentThread());
         try {
             if (context.hasPlan()) {
                 services.emit(sink, AgentDelta.planUpdate(context.planId(), context.request().chatId(), context.planTasks()));
             }
             definition.agentMode().run(context, configuredToolsByName, services, sink);
+            if (context.isInterrupted()) {
+                throw new RunInterruptedException();
+            }
             services.emit(sink, AgentDelta.finish("stop"));
+            if (!sink.isCancelled()) {
+                sink.complete();
+            }
+        } catch (RunInterruptedException ex) {
             if (!sink.isCancelled()) {
                 sink.complete();
             }
@@ -303,6 +349,8 @@ public class DefinitionDrivenAgent implements Agent {
             if (!sink.isCancelled()) {
                 sink.complete();
             }
+        } finally {
+            context.bindRunnerThread(null);
         }
     }
 

@@ -6,6 +6,7 @@ import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
+import com.linlay.agentplatform.agent.runtime.RunControl;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
@@ -13,6 +14,8 @@ import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.AgentRequest;
+import com.linlay.agentplatform.model.ChatMessage;
+import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
@@ -247,6 +250,47 @@ class OrchestratorServicesTest {
                 "args:action_3",
                 "end:action_3"
         );
+    }
+
+    @Test
+    void callModelTurnStreamingShouldInjectPendingSteersIntoNextModelTurn() {
+        LlmService llmService = mock(LlmService.class);
+        ToolExecutionService toolExecutionService = mock(ToolExecutionService.class);
+        OrchestratorServices services = new OrchestratorServices(llmService, toolExecutionService, new ObjectMapper());
+        ExecutionContext context = contextWithBudget(Budget.DEFAULT);
+        context.enqueueSteer(new RunControl.SteerEnvelope("req_steer_1", "steer_1", "first steer"));
+        context.enqueueSteer(new RunControl.SteerEnvelope("req_steer_2", "steer_2", "second steer"));
+
+        AtomicReference<List<ChatMessage>> modelMessages = new AtomicReference<>(List.of());
+        when(llmService.streamDeltas(any(LlmCallSpec.class))).thenAnswer(invocation -> {
+            LlmCallSpec spec = invocation.getArgument(0);
+            modelMessages.set(spec.messages());
+            return Flux.just(new LlmDelta(null, "done", List.of(), "stop"));
+        });
+
+        List<AgentDelta> emitted = Flux.<AgentDelta>create(sink -> {
+            services.callModelTurnStreaming(
+                    context,
+                    new StageSettings("sys", null, null, List.of(), false, ComputePolicy.MEDIUM),
+                    context.conversationMessages(),
+                    null,
+                    Map.of(),
+                    List.of(),
+                    ToolChoice.NONE,
+                    "test-steer",
+                    false,
+                    false,
+                    false,
+                    false,
+                    sink
+            );
+            sink.complete();
+        }).collectList().block(Duration.ofSeconds(3));
+
+        assertThat(modelMessages.get()).extracting(ChatMessage::role).containsExactly("user", "user", "user");
+        assertThat(modelMessages.get()).extracting(ChatMessage::text).containsExactly("hello", "first steer", "second steer");
+        assertThat(emitted).extracting(AgentDelta::userMessage)
+                .containsExactly("first steer", "second steer");
     }
 
     private ExecutionContext contextWithBudget(Budget budget) {

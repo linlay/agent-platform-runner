@@ -1233,7 +1233,9 @@ public class ChatRecordStore {
     }
 
     private boolean isPersistedEventType(String type) {
-        return "request.submit".equals(type);
+        return "request.submit".equals(type)
+                || "request.steer".equals(type)
+                || "run.cancel".equals(type);
     }
 
     private String textValue(JsonNode node) {

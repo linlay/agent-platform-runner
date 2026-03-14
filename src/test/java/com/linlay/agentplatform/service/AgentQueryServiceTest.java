@@ -18,12 +18,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.test.util.ReflectionTestUtils;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -338,6 +341,78 @@ class AgentQueryServiceTest {
         assertThat(events.stream().map(ServerSentEvent::data))
                 .allMatch(item -> item.contains("\"content.delta\"") || item.contains("\"run.complete\""));
         verify(chatRecordStore, times(2)).appendEvent(any(String.class), any(String.class));
+    }
+
+    @Test
+    void streamShouldEmitRequestSteerFromActiveRunSession() {
+        Agent agent = mock(Agent.class);
+        Sinks.Many<AgentDelta> upstream = Sinks.many().unicast().onBackpressureBuffer();
+        when(agent.stream(any(AgentRequest.class))).thenReturn(upstream.asFlux());
+
+        ActiveRunService activeRunService = new ActiveRunService(mock(FrontendSubmitCoordinator.class));
+        AgentQueryService service = new AgentQueryService(
+                mock(AgentRegistry.class),
+                new com.linlay.agentplatform.stream.service.StreamSseStreamer(
+                        new com.linlay.agentplatform.stream.service.StreamEventAssembler(),
+                        objectMapper
+                ),
+                objectMapper,
+                mock(ChatRecordStore.class),
+                mock(ToolRegistry.class),
+                mock(ViewportRegistryService.class),
+                new FrontendToolProperties(),
+                mock(TeamRegistryService.class),
+                new com.linlay.agentplatform.config.LoggingAgentProperties(),
+                null,
+                activeRunService
+        );
+
+        String chatId = UUID.randomUUID().toString();
+        AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
+                agent,
+                new StreamRequest.Query("req-1", chatId, "user", "fallback", "demo", null, null, null, null, true, "chat", "run-1"),
+                new AgentRequest("fallback", chatId, "req-1", "run-1", Map.of())
+        );
+
+        CompletableFuture<List<ServerSentEvent<String>>> collectedFuture = CompletableFuture.supplyAsync(() ->
+                service.stream(session).collectList().block(Duration.ofSeconds(5))
+        );
+
+        long deadline = System.currentTimeMillis() + 2000L;
+        while (System.currentTimeMillis() < deadline && activeRunService.findControl("run-1").isEmpty()) {
+            try {
+                Thread.sleep(20L);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        ActiveRunService.SteerAck ack = activeRunService.steer(new com.linlay.agentplatform.model.api.SteerRequest(
+                "req-steer",
+                chatId,
+                "run-1",
+                "steer-1",
+                "demo",
+                null,
+                "please continue carefully",
+                false
+        ));
+        assertThat(ack.accepted()).isTrue();
+
+        upstream.tryEmitNext(AgentDelta.content("done"));
+        upstream.tryEmitNext(AgentDelta.finish("stop"));
+        upstream.tryEmitComplete();
+
+        List<ServerSentEvent<String>> events = collectedFuture.join();
+        List<String> payloads = new ArrayList<>();
+        for (ServerSentEvent<String> event : events) {
+            payloads.add(event.data());
+        }
+
+        assertThat(payloads).anyMatch(item -> item != null && item.contains("\"type\":\"request.steer\"") && item.contains("\"steerId\":\"steer-1\""));
+        assertThat(payloads).anyMatch(item -> item != null && item.contains("\"type\":\"content.delta\""));
+        assertThat(payloads).anyMatch(item -> item != null && item.contains("\"type\":\"run.complete\""));
     }
 
     private ToolDescriptor frontendTool() {

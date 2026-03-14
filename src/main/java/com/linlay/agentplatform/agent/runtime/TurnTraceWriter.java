@@ -93,6 +93,10 @@ public final class TurnTraceWriter {
             currentStep.pendingAssistant.append(delta.content());
         }
 
+        if (StringUtils.hasText(delta.userMessage())) {
+            currentStep.appendUserMessage(delta.userMessage(), now);
+        }
+
         if (delta.toolCalls() != null && !delta.toolCalls().isEmpty()) {
             currentStep.flushReasoning(now);
             currentStep.flushAssistantContent(now);

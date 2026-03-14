@@ -122,6 +122,16 @@ final class StepAccumulator {
         pendingAssistantStartedAt = 0L;
     }
 
+    void appendUserMessage(String text, long now) {
+        if (!StringUtils.hasText(text)) {
+            return;
+        }
+        flushReasoning(now);
+        flushAssistantContent(now);
+        orderedMessages.add(ChatWindowMemoryStore.RunMessage.user(text, now));
+        needNewMsgId = true;
+    }
+
     void rotateReasoningBlockIfNeeded(String nextReasoningId, long now) {
         if (!StringUtils.hasText(pendingReasoning) || !StringUtils.hasText(pendingReasoningId)) {
             return;

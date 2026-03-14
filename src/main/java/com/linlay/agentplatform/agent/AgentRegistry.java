@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.ToolInvokerRouter;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.skill.SkillRegistryService;
@@ -41,6 +42,7 @@ public class AgentRegistry {
     private final SkillRegistryService skillRegistryService;
     private final LoggingAgentProperties loggingAgentProperties;
     private final ToolInvokerRouter toolInvokerRouter;
+    private final ActiveRunService activeRunService;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, Agent> agents = Map.of();
@@ -66,8 +68,58 @@ public class AgentRegistry {
                 chatWindowMemoryStore,
                 frontendSubmitCoordinator,
                 skillRegistryService,
+                toolInvokerRouter,
+                null
+        );
+    }
+
+    public AgentRegistry(
+            AgentDefinitionLoader definitionLoader,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            ToolInvokerRouter toolInvokerRouter,
+            ActiveRunService activeRunService
+    ) {
+        this(
+                definitionLoader,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
                 new LoggingAgentProperties(),
-                toolInvokerRouter
+                toolInvokerRouter,
+                activeRunService
+        );
+    }
+
+    public AgentRegistry(
+            AgentDefinitionLoader definitionLoader,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            ToolInvokerRouter toolInvokerRouter
+    ) {
+        this(
+                definitionLoader,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                loggingAgentProperties,
+                toolInvokerRouter,
+                null
         );
     }
 
@@ -81,7 +133,8 @@ public class AgentRegistry {
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
-            ToolInvokerRouter toolInvokerRouter
+            ToolInvokerRouter toolInvokerRouter,
+            ActiveRunService activeRunService
     ) {
         this.definitionLoader = definitionLoader;
         this.llmService = llmService;
@@ -92,6 +145,7 @@ public class AgentRegistry {
         this.skillRegistryService = skillRegistryService;
         this.loggingAgentProperties = loggingAgentProperties;
         this.toolInvokerRouter = toolInvokerRouter;
+        this.activeRunService = activeRunService;
         refreshAgents();
     }
 
@@ -235,7 +289,8 @@ public class AgentRegistry {
                 frontendSubmitCoordinator,
                 skillRegistryService,
                 loggingAgentProperties,
-                toolInvokerRouter
+                toolInvokerRouter,
+                activeRunService
         );
     }
 

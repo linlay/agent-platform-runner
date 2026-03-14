@@ -222,7 +222,8 @@ public class LlmService {
                 );
             }
 
-            return deltaFlux
+            Flux<LlmDelta> cancelAwareFlux = deltaFlux.takeUntilOther(spec.cancelSignal());
+            return cancelAwareFlux
                     .filter(delta -> delta != null
                             && (StringUtils.hasText(delta.reasoning())
                             || (StringUtils.hasText(delta.content()))

@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.memory;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -1080,6 +1081,7 @@ public class ChatWindowMemoryStore {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PlanSnapshot {
         public String planId;
+        @JsonAlias("plan")
         @JsonProperty("tasks")
         public List<PlanTaskSnapshot> tasks;
     }
@@ -1133,6 +1135,10 @@ public class ChatWindowMemoryStore {
         public String id;
         public String type;
         public FunctionCall function;
+        @JsonProperty("_toolId")
+        public String toolId;
+        @JsonProperty("_actionId")
+        public String actionId;
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

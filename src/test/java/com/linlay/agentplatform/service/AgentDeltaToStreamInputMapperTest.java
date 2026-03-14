@@ -459,6 +459,69 @@ class AgentDeltaToStreamInputMapperTest {
                 .hasMessageContaining("runId=run_missing_agent_1");
     }
 
+    @Test
+    void shouldEmitRequestSteerEvent() {
+        StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
+                .begin(new StreamRequest.Query(
+                        "req_1",
+                        "chat_1",
+                        "user",
+                        "test",
+                        "demoModePlain",
+                        null,
+                        null,
+                        null,
+                        null,
+                        true,
+                        "chat_1",
+                        "run_1"
+                ));
+
+        List<StreamEvent> events = state.consume(new StreamInput.RequestSteer(
+                "req_steer_1",
+                "chat_1",
+                "run_1",
+                "steer_1",
+                "keep going"
+        ));
+
+        StreamEvent requestSteer = events.stream()
+                .filter(event -> "request.steer".equals(event.type()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(requestSteer.payload()).containsEntry("requestId", "req_steer_1");
+        assertThat(requestSteer.payload()).containsEntry("chatId", "chat_1");
+        assertThat(requestSteer.payload()).containsEntry("runId", "run_1");
+        assertThat(requestSteer.payload()).containsEntry("steerId", "steer_1");
+        assertThat(requestSteer.payload()).containsEntry("message", "keep going");
+        assertThat(requestSteer.payload()).containsEntry("role", "user");
+    }
+
+    @Test
+    void runCancelShouldTerminateStreamWithoutRunComplete() {
+        StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
+                .begin(new StreamRequest.Query(
+                        "req_1",
+                        "chat_1",
+                        "user",
+                        "test",
+                        "demoModePlain",
+                        null,
+                        null,
+                        null,
+                        null,
+                        true,
+                        "chat_1",
+                        "run_1"
+                ));
+
+        List<StreamEvent> cancelEvents = state.consume(new StreamInput.RunCancel("run_1"));
+        List<StreamEvent> completionEvents = state.complete();
+
+        assertThat(cancelEvents).anyMatch(event -> "run.cancel".equals(event.type()));
+        assertThat(completionEvents).isEmpty();
+    }
+
     private List<StreamEvent> assembleEvents(AgentDeltaToStreamInputMapper mapper, List<AgentDelta> deltas) {
         StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
                 .begin(new StreamRequest.Query(

@@ -9,6 +9,7 @@ import com.linlay.agentplatform.service.McpToolSyncService;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.service.AgentQueryService;
+import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmCallSpec;
@@ -99,6 +100,8 @@ class AgentControllerTest {
     private ChatWindowMemoryProperties chatWindowMemoryProperties;
     @Autowired
     private ChatRecordStore chatRecordStore;
+    @Autowired
+    private ActiveRunService activeRunService;
     @Autowired
     private ToolFileRegistryService toolFileRegistryService;
     @Autowired
@@ -549,6 +552,7 @@ class AgentControllerTest {
                 mock(ViewportRegistryService.class),
                 mock(com.linlay.agentplatform.service.McpViewportService.class),
                 mock(FrontendSubmitCoordinator.class),
+                mock(ActiveRunService.class),
                 mock(com.linlay.agentplatform.security.ChatImageTokenService.class),
                 mock(com.linlay.agentplatform.skill.SkillRegistryService.class),
                 mock(TeamRegistryService.class),
@@ -584,6 +588,61 @@ class AgentControllerTest {
         assertThat(events.get(0).data()).contains("\"type\":\"run.error\"");
         assertThat(events.get(1).event()).isEqualTo("message");
         assertThat(events.get(1).data()).isEqualTo("[DONE]");
+    }
+
+    @Test
+    void steerShouldReturnAcceptedAckWhenRunIsActive() {
+        String chatId = UUID.randomUUID().toString();
+        String runId = "run_active_steer_1";
+        activeRunService.register(runId, chatId, "demoModePlain");
+
+        webTestClient.post()
+                .uri("/api/ap/steer")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "requestId", "req_steer_1",
+                        "chatId", chatId,
+                        "runId", runId,
+                        "message", "继续并更谨慎地回答"
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.accepted").isEqualTo(true)
+                .jsonPath("$.data.status").isEqualTo("accepted")
+                .jsonPath("$.data.runId").isEqualTo(runId)
+                .jsonPath("$.data.steerId").isNotEmpty()
+                .jsonPath("$.data.detail").isNotEmpty();
+
+        activeRunService.finish(runId);
+    }
+
+    @Test
+    void interruptShouldReturnAcceptedAckWhenRunIsActive() {
+        String chatId = UUID.randomUUID().toString();
+        String runId = "run_active_interrupt_1";
+        activeRunService.register(runId, chatId, "demoModePlain");
+
+        webTestClient.post()
+                .uri("/api/ap/interrupt")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "requestId", "req_interrupt_1",
+                        "chatId", chatId,
+                        "runId", runId,
+                        "message", ""
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.accepted").isEqualTo(true)
+                .jsonPath("$.data.status").isEqualTo("accepted")
+                .jsonPath("$.data.runId").isEqualTo(runId)
+                .jsonPath("$.data.detail").isNotEmpty();
     }
 
     @Test

@@ -64,6 +64,7 @@ public class AgentQueryService {
     private final TeamRegistryService teamRegistryService;
     private final LoggingAgentProperties loggingAgentProperties;
     private final ChatAssetCatalogService chatAssetCatalogService;
+    private final ActiveRunService activeRunService;
 
     public AgentQueryService(
             AgentRegistry agentRegistry,
@@ -85,6 +86,34 @@ public class AgentQueryService {
                 frontendToolProperties,
                 teamRegistryService,
                 new LoggingAgentProperties(),
+                null,
+                null
+        );
+    }
+
+    public AgentQueryService(
+            AgentRegistry agentRegistry,
+            StreamSseStreamer streamSseStreamer,
+            ObjectMapper objectMapper,
+            ChatRecordStore chatRecordStore,
+            ToolRegistry toolRegistry,
+            ViewportRegistryService viewportRegistryService,
+            FrontendToolProperties frontendToolProperties,
+            TeamRegistryService teamRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            ChatAssetCatalogService chatAssetCatalogService
+    ) {
+        this(
+                agentRegistry,
+                streamSseStreamer,
+                objectMapper,
+                chatRecordStore,
+                toolRegistry,
+                viewportRegistryService,
+                frontendToolProperties,
+                teamRegistryService,
+                loggingAgentProperties,
+                chatAssetCatalogService,
                 null
         );
     }
@@ -100,7 +129,8 @@ public class AgentQueryService {
             FrontendToolProperties frontendToolProperties,
             TeamRegistryService teamRegistryService,
             LoggingAgentProperties loggingAgentProperties,
-            ChatAssetCatalogService chatAssetCatalogService
+            ChatAssetCatalogService chatAssetCatalogService,
+            ActiveRunService activeRunService
     ) {
         this.agentRegistry = agentRegistry;
         this.streamSseStreamer = streamSseStreamer;
@@ -112,6 +142,7 @@ public class AgentQueryService {
         this.teamRegistryService = teamRegistryService;
         this.loggingAgentProperties = loggingAgentProperties;
         this.chatAssetCatalogService = chatAssetCatalogService;
+        this.activeRunService = activeRunService;
     }
 
     public QuerySession prepare(QueryRequest request) {
@@ -175,13 +206,26 @@ public class AgentQueryService {
     }
 
     public Flux<ServerSentEvent<String>> stream(QuerySession session) {
+        ActiveRunService.ActiveRunSession activeSession = activeRunService == null
+                ? null
+                : activeRunService.register(session.request().runId(), session.request().chatId(), session.request().agentKey());
         Flux<AgentDelta> deltas = session.agent().stream(session.agentRequest());
-        Flux<StreamInput> inputs = new AgentDeltaToStreamInputMapper(session.request().runId(), toolRegistry).map(deltas);
+        Flux<StreamInput> mappedInputs = new AgentDeltaToStreamInputMapper(session.request().runId(), toolRegistry)
+                .map(deltas);
+        if (activeSession != null) {
+            mappedInputs = mappedInputs.takeUntilOther(activeSession.control().cancelSignal());
+        }
+        Flux<StreamInput> inputs = activeSession == null
+                ? mappedInputs
+                : mappedInputs.publish(sharedInputs -> Flux.merge(
+                activeSession.injectedInputs().takeUntilOther(sharedInputs.ignoreElements()),
+                sharedInputs
+        ));
         StringBuilder assistantContent = new StringBuilder();
         boolean[] completed = {false};
         AtomicLong eventSeq = new AtomicLong(0L);
         Set<String> hiddenToolIds = new HashSet<>();
-        return streamSseStreamer.stream(session.request(), inputs)
+        Flux<ServerSentEvent<String>> stream = streamSseStreamer.stream(session.request(), inputs)
                 .concatMap(event -> {
                     ServerSentEvent<String> normalized = normalizeEvent(event, hiddenToolIds);
                     if (normalized != null) {
@@ -238,6 +282,10 @@ public class AgentQueryService {
                 })
                 .doOnNext(event -> logSseEvent(session, event, eventSeq.incrementAndGet()))
                 .doOnNext(event -> chatRecordStore.appendEvent(session.request().chatId(), event.data()));
+        if (activeSession != null) {
+            stream = stream.doFinally(signalType -> activeRunService.finish(session.request().runId()));
+        }
+        return stream;
     }
 
     private ServerSentEvent<String> normalizeEvent(ServerSentEvent<String> event, Set<String> hiddenToolIds) {

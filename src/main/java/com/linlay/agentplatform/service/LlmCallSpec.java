@@ -4,6 +4,7 @@ import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.model.ModelProtocol;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 
@@ -22,7 +23,8 @@ public record LlmCallSpec(
         Integer maxTokens,
         Long timeoutMs,
         String stage,
-        boolean parallelToolCalls
+        boolean parallelToolCalls,
+        Mono<Void> cancelSignal
 ) {
     public LlmCallSpec {
         if (messages == null) {
@@ -49,6 +51,9 @@ public record LlmCallSpec(
         }
         if (timeoutMs != null && timeoutMs <= 0) {
             timeoutMs = null;
+        }
+        if (cancelSignal == null) {
+            cancelSignal = Mono.never();
         }
     }
 }

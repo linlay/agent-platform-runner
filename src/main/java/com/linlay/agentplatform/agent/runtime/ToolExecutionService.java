@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -173,6 +174,7 @@ public class ToolExecutionService {
         }
 
         for (PreparedToolCall call : preparedCalls) {
+            failIfInterrupted(context);
             long invokeStartNanos = System.nanoTime();
             logInvocationStart(runId, taskId, call);
             InvokeResult invokeResult = invokeByKind(
@@ -347,6 +349,7 @@ public class ToolExecutionService {
             Map<String, BaseTool> enabledToolsByName,
             ExecutionContext context
     ) {
+        failIfInterrupted(context);
         if (!enabledToolsByName.containsKey(toolName)) {
             return new InvokeResult(errorResult(toolName, "Tool is not enabled for this agent: " + toolName), null);
         }
@@ -374,12 +377,16 @@ public class ToolExecutionService {
             }
             try {
                 Object payload = frontendSubmitCoordinator.awaitSubmit(runId.trim(), toolId).block();
+                failIfInterrupted(context);
                 Object normalized = payload == null ? Map.of() : payload;
                 return new InvokeResult(
                         objectMapper.valueToTree(normalized),
                         buildSubmitDelta(context, runId, toolId, normalized)
                 );
             } catch (Exception ex) {
+                if (isInterrupted(context, ex)) {
+                    throw new RunInterruptedException();
+                }
                 if (isFrontendSubmitTimeout(ex)) {
                     return new InvokeResult(errorResult(toolName, FRONTEND_SUBMIT_TIMEOUT_CODE, resolveErrorMessage(ex)), null);
                 }
@@ -422,6 +429,7 @@ public class ToolExecutionService {
             Map<String, Object> args,
             ExecutionContext context
     ) {
+        failIfInterrupted(context);
         Budget.Scope scope = context == null || context.budget() == null
                 ? Budget.DEFAULT.tool()
                 : context.budget().tool();
@@ -464,9 +472,15 @@ public class ToolExecutionService {
             throw new TimeoutException("Backend tool timeout: tool=" + toolName + ", timeoutMs=" + timeoutMs);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+            if (context != null && context.isInterrupted()) {
+                throw new RunInterruptedException();
+            }
             throw new RuntimeException("Backend tool invocation interrupted", ex);
         } catch (ExecutionException ex) {
             Throwable cause = ex.getCause();
+            if (isInterrupted(context, cause)) {
+                throw new RunInterruptedException();
+            }
             if (cause instanceof IllegalArgumentException illegalArgumentException) {
                 throw illegalArgumentException;
             }
@@ -832,6 +846,26 @@ public class ToolExecutionService {
             }
             String message = cursor.getMessage();
             if (StringUtils.hasText(message) && message.contains("Frontend tool submit timeout")) {
+                return true;
+            }
+            cursor = cursor.getCause();
+        }
+        return false;
+    }
+
+    private void failIfInterrupted(ExecutionContext context) {
+        if (context != null && context.isInterrupted()) {
+            throw new RunInterruptedException();
+        }
+    }
+
+    private boolean isInterrupted(ExecutionContext context, Throwable throwable) {
+        if (context != null && context.isInterrupted()) {
+            return true;
+        }
+        Throwable cursor = throwable;
+        while (cursor != null) {
+            if (cursor instanceof RunInterruptedException || cursor instanceof CancellationException) {
                 return true;
             }
             cursor = cursor.getCause();

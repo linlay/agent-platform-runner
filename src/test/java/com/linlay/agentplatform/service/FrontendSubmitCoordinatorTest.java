@@ -6,8 +6,10 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FrontendSubmitCoordinatorTest {
 
@@ -45,5 +47,21 @@ class FrontendSubmitCoordinatorTest {
         assertThat(ack.accepted()).isFalse();
         assertThat(ack.status()).isEqualTo("unmatched");
         assertThat(ack.detail()).contains("No pending frontend tool found");
+    }
+
+    @Test
+    void cancelRunShouldFailPendingSubmitWaiters() {
+        FrontendToolProperties properties = new FrontendToolProperties();
+        properties.setSubmitTimeoutMs(3_000);
+        FrontendSubmitCoordinator coordinator = new FrontendSubmitCoordinator(properties);
+
+        Mono<Object> pending = coordinator.awaitSubmit("run_cancel", "tool_1").cache();
+        pending.subscribe(null, error -> {});
+
+        coordinator.cancelRun("run_cancel");
+
+        assertThatThrownBy(() -> pending.block(Duration.ofSeconds(1)))
+                .isInstanceOf(CancellationException.class)
+                .hasMessageContaining("Run interrupted");
     }
 }

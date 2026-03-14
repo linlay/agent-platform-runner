@@ -376,6 +376,36 @@ public class StreamEventAssembler {
                 events.add(next("request.submit", payload));
                 return;
             }
+            if (input instanceof StreamInput.RequestSteer value) {
+                ensureRunContext();
+                if (!chatId.equals(value.chatId())) {
+                    throw new IllegalStateException("request.steer chatId does not match stream chatId");
+                }
+                if (!runId.equals(value.runId())) {
+                    throw new IllegalStateException("request.steer runId does not match stream runId");
+                }
+                Map<String, Object> payload = new LinkedHashMap<>();
+                putIfNonNull(payload, "requestId", value.requestId());
+                payload.put("chatId", value.chatId());
+                payload.put("runId", value.runId());
+                payload.put("steerId", value.steerId());
+                payload.put("message", value.message());
+                payload.put("role", "user");
+                events.add(next("request.steer", payload));
+                return;
+            }
+            if (input instanceof StreamInput.RunCancel value) {
+                ensureRunContext();
+                if (!runId.equals(value.runId())) {
+                    throw new IllegalStateException("run.cancel runId does not match stream runId");
+                }
+                closeOpenBlocks(events);
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("runId", value.runId());
+                events.add(next("run.cancel", payload));
+                terminated = true;
+                return;
+            }
             if (input instanceof StreamInput.RunComplete value) {
                 ensureRunContext();
                 completeRun(events, value.finishReason());
