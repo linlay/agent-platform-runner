@@ -45,7 +45,7 @@ mvn test -Dtest=ClassName#methodName    # 运行单个测试方法
 ## Architecture
 
 ```
-POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrivenAgent.stream()
+POST /api/query → AgentController → AgentQueryService → DefinitionDrivenAgent.stream()
   → LlmService.streamDeltas() → LLM Provider → AgentDelta → SSE response
 ```
 
@@ -53,7 +53,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 
 | 包 | 职责 |
 |---|------|
-| `agent` | Agent 接口、`DefinitionDrivenAgent` 主实现、`AgentRegistry`（WatchService 热刷新）、JSON 定义加载 |
+| `agent` | Agent 接口、`DefinitionDrivenAgent` 主实现、`AgentRegistry`（WatchService 热刷新）、YAML 定义加载 |
 | `agent.mode` | `AgentMode`（sealed：`OneshotMode`/`ReactMode`/`PlanExecuteMode`）、`OrchestratorServices` 流式编排、`StageSettings` |
 | `agent.runtime` | `AgentRuntimeMode` 枚举、`ExecutionContext`（状态/预算/对话历史管理）、`ToolExecutionService` |
 | `agent.runtime.policy` | `RunSpec`、`ToolChoice`、`ComputePolicy`、`Budget` 等策略定义 |
@@ -61,22 +61,22 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 | `model.api` | REST 契约：`ApiResponse`、`QueryRequest`、`SubmitRequest`、`ChatDetailResponse` 等 |
 | `model.stream` | 流式类型：`AgentDelta` |
 | `service` | `LlmService`（WebClient 原生 SSE）、`AgentQueryService`（流编排）、`ChatRecordStore`、`DirectoryWatchService` |
-| `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册、`ToolFileRegistryService`（外部工具），内置 bash/datetime/mock_city_weather 等 |
+| `tool` | `BaseTool` 接口、`ToolRegistry` 自动注册、`ToolFileRegistryService`（tools/ 目录 YAML 定义），内置 `_bash_`/`datetime`/`_skill_run_script_` 等 |
 | `skill` | `SkillRegistryService`（技能注册与热刷新）、`SkillDescriptor`、`SkillProperties` |
-| `controller` | REST API：`/api/ap/agents`、`/api/ap/agent`、`/api/ap/skills`、`/api/ap/skill`、`/api/ap/tools`、`/api/ap/tool`、`/api/ap/chats`、`/api/ap/chat`、`/api/ap/query`（SSE）、`/api/ap/submit`、`/api/ap/viewport` |
+| `controller` | REST API：`/api/agents`、`/api/teams`、`/api/skills`、`/api/tools`、`/api/tool`、`/api/chats`、`/api/chat`、`/api/query`（SSE）、`/api/submit`、`/api/steer`、`/api/interrupt`、`/api/read`、`/api/viewport`、`/api/data` |
 | `memory` | 滑动窗口聊天记忆（k=20），文件存储于 `chats/` |
 
 ### 关键设计
 
-- **定义驱动** — Agent 通过 `agents/` 目录下 JSON 文件配置，文件名即 agentId
-- **模型注册中心** — 模型通过 `models/*.json` 管理，目录变更会热加载到内存
+- **定义驱动** — Agent 通过 `agents/` 目录下 YAML 文件配置，文件名建议与 `key` 一致
+- **模型注册中心** — 模型通过 `models/*.yml` 管理，目录变更会热加载到内存
 - **原生 Function Calling** — `tools[]` + `delta.tool_calls` 流式协议
 - **示例资源分发** — demo 资源统一放在 `example/`，可通过 `example/install-example-*` 覆盖复制到外层运行目录
 - **依赖感知热重载** — `tools/mcp/models` 变更按依赖精准刷新 agent；`skills` 仅刷新技能注册表
 - **工具参数模板** — `{{tool_name.field+Nd}}` 日期运算和链式引用
 - **原生 SSE LLM** — WebClient 原生 SSE 直连 LLM Provider
 - **响应格式** — 非 SSE 接口统一 `{"code": 0, "msg": "success", "data": {}}`
-- **会话详情格式** — `GET /api/ap/chat` 的 `data` 字段固定为 `chatId/chatName/rawMessages/events/references`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回
+- **会话详情格式** — `GET /api/chat` 的 `data` 字段固定为 `chatId/chatName/rawMessages/events/references`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回
 
 ## Agent Definition 文件格式
 
@@ -144,7 +144,7 @@ POST /api/ap/query → AgentController → AgentQueryService → DefinitionDrive
 }
 ```
 
-YAML 与 JSON 共享同一套 schema，推荐新建 Agent 使用 `.yml`：
+Agent Definition 仅支持 YAML，推荐新建 Agent 使用 `.yml`：
 
 ```yaml
 key: agent_key
@@ -170,13 +170,16 @@ plain:
 
 ### Agent / Skill / Tool REST 契约
 
-- `GET /api/ap/agents`：返回 `AgentSummary[]`，顶层包含 `key/name/icon/description/role/meta`。
-- `GET /api/ap/agent?agentKey=...`：返回 `AgentDetail`，顶层包含 `key/name/icon/description/role/instructions/meta`。
-- `GET /api/ap/skills?tag=...`：返回 `SkillSummary[]`，字段为 `key/name/description/meta.promptTruncated`。
-- `GET /api/ap/skill?skillId=...`：返回 `SkillDetail`，字段为 `key/name/description/instructions/meta.promptTruncated`。
-- `GET /api/ap/tools?tag=...&kind=backend|frontend|action`：返回 `ToolSummary[]`，字段为 `key/name/label/description/meta(kind/toolType/viewportKey/strict/sourceType/sourceKey)`。
-- `GET /api/ap/tool?toolName=...`：返回 `ToolDetail`，字段为 `key/name/label/description/afterCallHint/parameters/meta`。
-- `/api/ap/skill` 未命中 `skillId`、`/api/ap/tool` 未命中 `toolName`、`kind` 非法时均返回 HTTP `400`（`ApiResponse.failure`）。
+- `GET /api/agents`：返回 `AgentSummary[]`，顶层包含 `key/name/icon/description/role/meta`。
+- `GET /api/teams`：返回 `TeamSummaryResponse[]`，字段包含 `teamId/name/icon/agentKeys/meta.invalidAgentKeys/meta.defaultAgentKey/meta.defaultAgentKeyValid`。
+- `GET /api/skills?tag=...`：返回 `SkillSummary[]`，字段为 `key/name/description/meta.promptTruncated`。
+- `GET /api/tools?tag=...&kind=backend|frontend|action`：返回 `ToolSummary[]`，字段为 `key/name/label/description/meta(kind/toolType/viewportKey/strict/sourceType/sourceKey)`。
+- `GET /api/tool?toolName=...`：返回 `ToolDetail`，字段为 `key/name/label/description/afterCallHint/parameters/meta`。
+- `POST /api/steer`：请求体为 `SteerRequest`，返回 `SteerResponse`。
+- `POST /api/interrupt`：请求体为 `InterruptRequest`，返回 `InterruptResponse`。
+- `POST /api/read`：请求体为 `MarkChatReadRequest`，返回 `MarkChatReadResponse`。
+- `GET /api/data`：返回 `data/` 目录下的静态文件内容，支持 `download` 与 `t` 参数。
+- `/api/tool` 未命中 `toolName`、`kind` 非法时均返回 HTTP `400`（`ApiResponse.failure`）。
 
 ### 模式配置块
 
@@ -252,15 +255,15 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 ### 工具文件类型
 
-`tools/` 目录下的文件按后缀区分三种类型：
+`tools/` 目录下的文件统一为单文件单工具 YAML 对象，通过字段判定三种类型：
 
-| 后缀 | ToolKind | 说明 |
-|------|----------------|------|
-| `.backend` | `BACKEND` | 后端工具，模型通过 Function Calling 调用。`description` 用于 OpenAI tool schema，`after_call_hint` 用于注入 system prompt 的"工具调用后推荐指令"章节 |
-| `.action` | `ACTION` | 动作工具，触发前端行为（如主题切换、烟花特效）。不等待 `/api/ap/submit`，直接返回 `"OK"` |
-| `.frontend` | `FRONTEND` | 前端工具定义文件，触发 UI 渲染并等待 `/api/ap/submit` 提交；实际渲染内容由 `viewports/` 下 `.html/.qlc` 文件提供 |
+| 判定方式 | ToolKind | 说明 |
+|---|---|---|
+| 默认 `type: function` | `BACKEND` | 后端工具，模型通过 Function Calling 调用。`description` 用于 OpenAI tool schema，`afterCallHint` 用于注入 system prompt 的工具调用后提示 |
+| `toolAction: true` | `ACTION` | 动作工具，触发前端行为（如主题切换、烟花特效）。不等待 `/api/submit`，直接返回 `"OK"` |
+| `toolType + viewportKey` | `FRONTEND` | 前端工具定义，触发 UI 渲染并等待 `/api/submit` 提交；实际渲染内容由 `viewports/` 下 `.html/.qlc` 文件提供 |
 
-文件内容均为 `{"tools":[...]}` 格式的 JSON。工具名冲突策略：冲突项会被跳过，其它项继续生效。
+工具定义文件前 4 行固定为 `name`、`label`、`description`、`type`；旧的 `tools[]` 聚合文件不再支持。工具名冲突策略：冲突项会被跳过，其它项继续生效。
 
 ### toolConfig 继承规则
 
@@ -272,7 +275,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 - SSE `tool.start` / `tool.snapshot` 会包含：`toolType`（html/qlc）、`viewportKey`（viewport key）、`toolTimeout`（超时毫秒）。
 - 默认等待超时 5 分钟（`agent.tools.frontend.submit-timeout-ms`）。
-- `POST /api/ap/submit` 请求体：`runId` + `toolId` + `params`。
+- `POST /api/submit` 请求体：`runId` + `toolId` + `params`。
 - 前端工具返回值提取规则：直接回传 `params`（若为 `null` 则回传 `{}`）。
 
 ### Action 行为规则
@@ -281,13 +284,17 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - 事件顺序：`action.start` → `action.args`（可多次）→ `action.end` → `action.result`。
 - `action.end` 必须紧跟该 action 的最后一个 `action.args`，不能延后到下一个 call 或 `action.result` 前补发。
 
-### 内置工具
+### Java 内置工具
 
 - `_skill_run_script_`：执行 `skills/<skill>/` 目录下脚本或临时 Python 脚本。`script` 与 `pythonCode` 二选一；支持 `.py` / `.sh`；内联 Python 写入 `/tmp/agent-platform-skill-inline/`，执行后清理。
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。
-- `mock_city_weather`：模拟城市天气数据。
-- `agent_file_create`：创建/更新 agent JSON 文件。
+
+### tools/ 目录定义的前端与动作工具
+
+- `confirm_dialog`：确认对话框前端工具。
+- `terminal_command_review`：命令审查前端工具。
+- `switch_theme`、`launch_fireworks`、`show_modal`：动作工具示例。
 
 `demoScheduleManager` 会优先读取每个 `.yml` 文件前两到三行的 `name` / `description` 披露信息，并默认用中文 Markdown 表格展示计划任务摘要。
 
@@ -368,10 +375,10 @@ schedules/<schedule-id>.yml
 
 ## Viewport 系统
 
-### /api/ap/viewport 端点契约
+### /api/viewport 端点契约
 
 ```
-GET /api/ap/viewport?viewportKey=<key>
+GET /api/viewport?viewportKey=<key>
 ```
 
 - `viewportKey` 必填。
@@ -458,9 +465,9 @@ type=html, key=show_weather_card
 
 - 无活跃 task 出错时：只发 `run.error`（不补 `task.fail`）
 - plain 模式（当前无 plan）不应出现 `task.*`，叶子事件直接归属 `run`
-- `GET /api/ap/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件，并保留 `tool.result` / `action.result`
+- `GET /api/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件，并保留 `tool.result` / `action.result`
 - 历史里 `run.complete` 每个 run 都保留，`chat.start` 仅首次一次
-- `/api/ap/query` 在流式输出结束时追加传输层终止帧 `data:[DONE]`；该 sentinel 不属于 Event Model v2 业务事件，也不写入 chat 历史事件。
+- `/api/query` 在流式输出结束时追加传输层终止帧 `data:[DONE]`；该 sentinel 不属于 Event Model v2 业务事件，也不写入 chat 历史事件。
 
 ## Chat Memory V3（JSONL）
 
@@ -569,7 +576,6 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `AGENT_TOOLS_EXTERNAL_DIR` | `agent.tools.external-dir` | `tools` | 工具定义文件目录 |
 | `AGENT_TOOLS_REFRESH_INTERVAL_MS` | `agent.tools.refresh-interval-ms` | `30000` | 工具目录刷新间隔（ms） |
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `agent.tools.frontend.submit-timeout-ms` | `300000` | 前端工具提交等待超时（ms） |
-| `AGENT_TOOLS_AGENT_FILE_CREATE_DEFAULT_SYSTEM_PROMPT` | `agent.tools.agent-file-create.default-system-prompt` | `你是通用助理，回答要清晰和可执行。` | `agent_file_create` 默认 system prompt |
 | `AGENT_BASH_WORKING_DIRECTORY` | `agent.tools.bash.working-directory` | 项目运行根目录（通常为 `configs/` 上级目录） | Bash 工具工作目录 |
 | `AGENT_BASH_ALLOWED_PATHS` | `agent.tools.bash.allowed-paths` | （空） | Bash 工具路径白名单（逗号分隔） |
 | `AGENT_BASH_ALLOWED_COMMANDS` | `agent.tools.bash.allowed-commands` | （空=拒绝执行） | Bash 允许命令列表（逗号分隔） |
@@ -598,7 +604,7 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `CHAT_IMAGE_TOKEN_SECRET` | `agent.chat-image-token.secret` | （空） | 图片令牌签名密钥（为空则 token 机制禁用） |
 | `CHAT_IMAGE_TOKEN_PREVIOUS_SECRETS` | `agent.chat-image-token.previous-secrets` | （空） | 历史密钥列表（逗号分隔），用于密钥轮换验证 |
 | `CHAT_IMAGE_TOKEN_TTL_SECONDS` | `agent.chat-image-token.ttl-seconds` | `86400` | 图片令牌过期秒数 |
-| `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `agent.chat-image-token.data-token-validation-enabled` | `true` | `/api/ap/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |
+| `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `agent.chat-image-token.data-token-validation-enabled` | `true` | `/api/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |
 | `MEMORY_CHATS_DIR` | `memory.chats.dir` | `./chats` | 聊天记忆目录 |
 | `MEMORY_CHATS_K` | `memory.chats.k` | `20` | 滑动窗口大小（按 run） |
 | `MEMORY_CHATS_CHARSET` | `memory.chats.charset` | `UTF-8` | 记忆文件编码 |
@@ -636,7 +642,7 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 - `protocols.<PROTOCOL>.endpoint-path`（可选，按线协议覆盖请求 endpoint 路径）
 
 说明：
-- provider 不再绑定 protocol；协议由 `models/*.json` 中 `protocol` 字段决定。
+- provider 不再绑定 protocol；协议由 `models/*.yml` 中 `protocol` 字段决定。
 - `OPENAI` 未显式配置 `protocols.OPENAI.endpoint-path` 时，会按 `base-url` 自动推导默认 completions 路径。
 
 ### Logging（主配置默认）

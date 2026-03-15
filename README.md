@@ -19,6 +19,8 @@
 - `GET /api/viewport?viewportKey=...`: 获取工具/动作视图内容
 - `POST /api/query`: 提问接口（默认返回标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
 - `POST /api/submit`: Human-in-the-loop 提交接口
+- `POST /api/steer`: 运行中引导接口
+- `POST /api/interrupt`: 运行中断接口
 
 ## 不兼容升级说明
 
@@ -66,7 +68,7 @@
       "meta": {
         "model": "qwen3-max",
         "mode": "REACT",
-        "tools": ["datetime", "mock_city_weather", "confirm_dialog"],
+        "tools": ["datetime", "confirm_dialog"],
         "skills": []
       }
     }
@@ -447,7 +449,6 @@ toolConfig:
   backends:
     - _bash_
     - datetime
-    - mock_city_weather
 planExecute:
   plan:
     systemPrompt: 先规划
@@ -500,10 +501,10 @@ toolConfig:
 - 运行中一致性：当前进行中的 run 保持旧快照；reload 后仅新 run 使用新配置。
 - `viewports` 支持后缀：`.html`、`.qlc`，默认每 30 秒刷新内存快照。
 - `tools`:
-  - 后端工具文件：`*.backend`
-  - 前端工具文件：`*.frontend`
-  - 动作文件：`*.action`
   - 仅支持单文件单工具 YAML；前 4 行必须依次为 `name`、`label`、`description`、`type`
+  - 普通后端工具：默认 `type: function`
+  - 前端工具：通过 `toolType + viewportKey` 声明，触发视图并等待 `/api/submit`
+  - 动作工具：通过 `toolAction: true` 声明，触发前端行为但不等待提交
 - `skills`:
   - 目录结构：`skills/<skill-id>/SKILL.md`（强约束，目录式）
   - 可选子目录：`scripts/`、`references/`、`assets/`
@@ -522,6 +523,16 @@ toolConfig:
   - 关键字段：`key/provider/protocol/modelId/pricing`
   - `protocol` 固定值：`OPENAI`、`ANTHROPIC`（当前 `ANTHROPIC` 仅预留，未实现时会在模型加载阶段拒绝）
 - `show_weather_card` 当前仅作为 viewport（`viewports/show_weather_card.html`），不是可调用 tool。
+- `mcp-servers`:
+  - 目录结构：`mcp-servers/<server-key>.yml`
+  - 关键字段：`name`、`transport`、`url/baseUrl`、可选 `headers`
+  - agent 通过 `toolConfig.backends` 引用同步后的 MCP 工具名，不直接写 server key
+  - 环境变量：`AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR`
+- `viewport-servers`:
+  - 目录结构：`viewport-servers/<server-key>.yml`
+  - 关键字段：`name`、`transport`、`url/baseUrl`
+  - 用于远端 viewport 注册与拉取，与本地 `viewports/` 并存；本地文件和远端注册表互不替代
+  - 环境变量：`AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR`
 
 ### 示例资源初始化
 
@@ -553,6 +564,15 @@ toolConfig:
 - 动作工具触发 `action.start` 后不等待提交，直接返回 `"OK"` 给模型。
 - `tool.end` / `action.end` 必须紧跟各自最后一个 `args` 分片，不能延后到 `result` 前补发。
 
+### 运行中引导与中断
+
+- `POST /api/steer`
+  - 请求体：`SteerRequest(requestId?, chatId?, runId, steerId?, agentKey?, teamId?, message, planningMode?)`
+  - 响应体：`SteerResponse(accepted, status, runId, steerId, detail)`
+- `POST /api/interrupt`
+  - 请求体：`InterruptRequest(requestId?, chatId?, runId, agentKey?, teamId?, message?, planningMode?)`
+  - 响应体：`InterruptResponse(accepted, status, runId, detail)`
+
 ## 内置能力
 
 ### 内置智能体
@@ -564,7 +584,6 @@ toolConfig:
 - `demoModePlanExecute`（`PLAN_EXECUTE`）：`星策`，角色为“规划执行示例”。
 - `demoViewport`（`REACT`）：`极光`，角色为“视图渲染示例”。
 - `demoAction`（`ONESHOT`）：`小焰`，角色为“UI动作示例”。
-- `demoAgentCreator`（`PLAN_EXECUTE`）：`小匠`，角色为“Agent创建示例”。
 - `demoMathSkill`（`ONESHOT`）：`Leo`，角色为“数学技能示例”。
 - `demoConfirmDialog`（`REACT`）：`灵犀`，角色为“确认对话示例”。
 - `demoDataViewer`（`ONESHOT`）：`天枢`，角色为“文件展示示例”。
@@ -573,13 +592,13 @@ toolConfig:
 
 中文命名备选池（文档附录）：`清岚`、`星河`、`云舟`、`小岚`、`小满`、`景行`。
 
-### 示例 Action
-
-以下 Action 仅随 `example/` 分发，执行 `./example/install-example-*` 后才会复制到运行目录，不属于启动时默认同步的内置资源：
+### tools/ 目录内的前端与 Action 定义
 
 - `switch_theme(theme)`：主题切换，`theme` 仅支持 `light/dark`。
 - `launch_fireworks(durationMs?)`：播放烟花特效，`durationMs` 可选（毫秒）。
 - `show_modal(title, content, closeText?)`：弹出模态框，`title/content` 必填，`closeText` 可选。
+- `confirm_dialog(question, options?, allowFreeText?)`：前端确认对话框，等待 `/api/submit`。
+- `terminal_command_review(...)`：终端命令审查面板，等待 `/api/submit`。
 
 ### 内置 Skills
 
@@ -589,13 +608,11 @@ toolConfig:
 - `text_utils`：文本指标（字符/词数/行数，可选空白归一化）。
 - `slack-gif-creator`：GIF 动画创建。
 
-### 内置工具
+### Java 内置工具
 
 - `_skill_run_script_`：执行 skills 目录下脚本或临时 Python 脚本。
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。
-- `mock_city_weather`：模拟城市天气数据。
-- `agent_file_create`：创建/更新 agent YAML 文件（校验 key 仅允许 `A-Za-z0-9_-`，最长 64）。
 
 ## Bash 工具配置
 
@@ -944,6 +961,27 @@ submit 响应示例：
     "detail": "Frontend submit accepted for runId=<RUN_ID>, toolId=<TOOL_ID>"
   }
 }
+```
+
+运行中引导示例：
+
+```bash
+curl -X POST "$BASE_URL/api/steer" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "runId": "<RUN_ID>",
+    "message": "优先给出可执行结论，再补充风险"
+  }'
+```
+
+运行中断示例：
+
+```bash
+curl -X POST "$BASE_URL/api/interrupt" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "runId": "<RUN_ID>"
+  }'
 ```
 
 ### 文件展示（Data Viewer）

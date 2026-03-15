@@ -1,6 +1,5 @@
 package com.linlay.agentplatform.agent;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.mode.AgentMode;
 import com.linlay.agentplatform.agent.mode.OneshotMode;
@@ -19,10 +18,9 @@ import com.linlay.agentplatform.agent.runtime.TextBlockIdAssigner;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.ToolInvoker;
 import com.linlay.agentplatform.agent.runtime.TurnTraceWriter;
-import com.linlay.agentplatform.agent.runtime.policy.Budget;
-import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.mode.OrchestratorServices;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
+import com.linlay.agentplatform.memory.ChatMemoryTypes;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
@@ -34,7 +32,6 @@ import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.ToolDescriptor;
-import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
@@ -55,11 +52,6 @@ public class DefinitionDrivenAgent implements Agent {
 
     private static final Logger log = LoggerFactory.getLogger(DefinitionDrivenAgent.class);
     private static final String FRONTEND_TIMEOUT_FALLBACK_MESSAGE = "前端工具等待用户提交超时，本次运行已结束。请重新发起或在超时前提交。";
-    private static final Map<String, Object> DEFAULT_PLACEHOLDER_PARAMETERS = Map.of(
-            "type", "object",
-            "properties", Map.of(),
-            "additionalProperties", true
-    );
 
     private final AgentDefinition definition;
     private final ChatWindowMemoryStore chatWindowMemoryStore;
@@ -69,6 +61,7 @@ public class DefinitionDrivenAgent implements Agent {
     private final ObjectMapper objectMapper;
     private final SkillRegistryService skillRegistryService;
     private final ActiveRunService activeRunService;
+    private final AgentRunSnapshotLogger snapshotLogger;
 
     public DefinitionDrivenAgent(
             AgentDefinition definition,
@@ -183,6 +176,14 @@ public class DefinitionDrivenAgent implements Agent {
         this.skillRegistryService = skillRegistryService;
         this.activeRunService = activeRunService;
         this.configuredToolsByName = resolveConfiguredTools(definition.tools());
+        this.snapshotLogger = new AgentRunSnapshotLogger(
+                log,
+                objectMapper,
+                definition,
+                toolRegistry,
+                this.configuredToolsByName,
+                skillRegistryService
+        );
 
         ToolArgumentResolver argumentResolver = new ToolArgumentResolver(objectMapper);
         ToolExecutionService toolExecutionService = new ToolExecutionService(
@@ -263,12 +264,12 @@ public class DefinitionDrivenAgent implements Agent {
                 definition.skills(),
                 normalize(request.message(), "")
         );
-        logRunSnapshot(request);
+        snapshotLogger.logRunSnapshot(request);
 
         return Flux.defer(() -> {
                     List<ChatMessage> historyMessages = loadHistoryMessages(request.chatId());
-                    ChatWindowMemoryStore.PlanSnapshot latestPlanSnapshot = loadLatestPlanSnapshot(request.chatId());
-                    ChatWindowMemoryStore.SystemSnapshot latestSystem = loadLatestSystemSnapshot(request.chatId());
+                    ChatMemoryTypes.PlanSnapshot latestPlanSnapshot = loadLatestPlanSnapshot(request.chatId());
+                    ChatMemoryTypes.SystemSnapshot latestSystem = loadLatestSystemSnapshot(request.chatId());
                     String runId = resolveRunId(request);
                     RunControl runControl = activeRunService == null
                             ? new RunControl()
@@ -394,9 +395,9 @@ public class DefinitionDrivenAgent implements Agent {
             ToolDescriptor descriptor = toolRegistry.descriptor(name).orElse(null);
             if (descriptor == null) {
                 log.warn("[agent:{}] configured tool currently not registered, keep runtime placeholder: {}", id(), name);
-                resolved.put(name, new DeclaredToolPlaceholder(name));
+                resolved.put(name, ConfiguredToolAdapters.declaredPlaceholder(name));
             } else {
-                resolved.put(name, new ResolvedConfiguredTool(name, descriptor));
+                resolved.put(name, ConfiguredToolAdapters.resolvedConfiguredTool(name, descriptor));
             }
         }
         return Map.copyOf(resolved);
@@ -457,7 +458,7 @@ public class DefinitionDrivenAgent implements Agent {
         }
     }
 
-    private ChatWindowMemoryStore.PlanSnapshot loadLatestPlanSnapshot(String chatId) {
+    private ChatMemoryTypes.PlanSnapshot loadLatestPlanSnapshot(String chatId) {
         if (chatWindowMemoryStore == null || !StringUtils.hasText(chatId)) {
             return null;
         }
@@ -469,7 +470,7 @@ public class DefinitionDrivenAgent implements Agent {
         }
     }
 
-    private ChatWindowMemoryStore.SystemSnapshot loadLatestSystemSnapshot(String chatId) {
+    private ChatMemoryTypes.SystemSnapshot loadLatestSystemSnapshot(String chatId) {
         if (chatWindowMemoryStore == null || !StringUtils.hasText(chatId)) {
             return null;
         }
@@ -481,12 +482,12 @@ public class DefinitionDrivenAgent implements Agent {
         }
     }
 
-    private List<AgentDelta.PlanTask> toPlanTasks(List<ChatWindowMemoryStore.PlanTaskSnapshot> snapshotTasks) {
+    private List<AgentDelta.PlanTask> toPlanTasks(List<ChatMemoryTypes.PlanTaskSnapshot> snapshotTasks) {
         if (snapshotTasks == null || snapshotTasks.isEmpty()) {
             return List.of();
         }
         List<AgentDelta.PlanTask> tasks = new ArrayList<>();
-        for (ChatWindowMemoryStore.PlanTaskSnapshot task : snapshotTasks) {
+        for (ChatMemoryTypes.PlanTaskSnapshot task : snapshotTasks) {
             if (task == null || !StringUtils.hasText(task.taskId) || !StringUtils.hasText(task.description)) {
                 continue;
             }
@@ -514,22 +515,22 @@ public class DefinitionDrivenAgent implements Agent {
         return RunIdGenerator.nextRunId();
     }
 
-    private ChatWindowMemoryStore.SystemSnapshot buildSystemSnapshot(AgentRequest request) {
-        ChatWindowMemoryStore.SystemSnapshot snapshot = new ChatWindowMemoryStore.SystemSnapshot();
+    private ChatMemoryTypes.SystemSnapshot buildSystemSnapshot(AgentRequest request) {
+        ChatMemoryTypes.SystemSnapshot snapshot = new ChatMemoryTypes.SystemSnapshot();
         snapshot.model = model();
 
         if (StringUtils.hasText(systemPrompt())) {
-            ChatWindowMemoryStore.SystemMessageSnapshot systemMessage = new ChatWindowMemoryStore.SystemMessageSnapshot();
+            ChatMemoryTypes.SystemMessageSnapshot systemMessage = new ChatMemoryTypes.SystemMessageSnapshot();
             systemMessage.role = "system";
             systemMessage.content = systemPrompt();
             snapshot.messages = List.of(systemMessage);
         }
 
         if (!configuredToolsByName.isEmpty()) {
-            List<ChatWindowMemoryStore.SystemToolSnapshot> tools = configuredToolsByName.values().stream()
+            List<ChatMemoryTypes.SystemToolSnapshot> tools = configuredToolsByName.values().stream()
                     .sorted(java.util.Comparator.comparing(BaseTool::name))
                     .map(tool -> {
-                        ChatWindowMemoryStore.SystemToolSnapshot item = new ChatWindowMemoryStore.SystemToolSnapshot();
+                        ChatMemoryTypes.SystemToolSnapshot item = new ChatMemoryTypes.SystemToolSnapshot();
                         item.type = toolRegistry.toolCallType(tool.name());
                         item.name = tool.name();
                         item.description = tool.description();
@@ -571,275 +572,4 @@ public class DefinitionDrivenAgent implements Agent {
         return AgentDelta.normalizePlanTaskStatus(raw);
     }
 
-    private void logRunSnapshot(AgentRequest request) {
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("request", requestSnapshot(request));
-        snapshot.put("agent", agentSnapshot());
-        snapshot.put("policy", policySnapshot());
-        snapshot.put("stages", stageSnapshot());
-        snapshot.put("tools", toolsSnapshot());
-        snapshot.put("skills", skillsSnapshot());
-        try {
-            String pretty = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(snapshot);
-            log.info("[agent:{}] run snapshot:\n{}", id(), pretty);
-        } catch (Exception ex) {
-            log.warn("[agent:{}] failed to serialize run snapshot", id(), ex);
-        }
-    }
-
-    private Map<String, Object> requestSnapshot(AgentRequest request) {
-        Map<String, Object> item = new LinkedHashMap<>();
-        item.put("runId", request == null ? null : request.runId());
-        item.put("chatId", request == null ? null : request.chatId());
-        item.put("requestId", request == null ? null : request.requestId());
-        item.put("message", request == null ? null : request.message());
-        return item;
-    }
-
-    private Map<String, Object> agentSnapshot() {
-        Map<String, Object> item = new LinkedHashMap<>();
-        item.put("id", definition.id());
-        item.put("name", definition.name());
-        item.put("mode", definition.mode());
-        item.put("provider", definition.providerKey());
-        item.put("model", definition.model());
-        item.put("skills", definition.skills());
-        return item;
-    }
-
-    private Map<String, Object> policySnapshot() {
-        RunSpec runSpec = definition.runSpec();
-        Map<String, Object> item = new LinkedHashMap<>();
-        item.put("toolChoice", runSpec.toolChoice());
-        Budget budget = runSpec.budget();
-        Map<String, Object> budgetMap = new LinkedHashMap<>();
-        budgetMap.put("runTimeoutMs", budget.runTimeoutMs());
-
-        Map<String, Object> modelBudget = new LinkedHashMap<>();
-        modelBudget.put("maxCalls", budget.model().maxCalls());
-        modelBudget.put("timeoutMs", budget.model().timeoutMs());
-        modelBudget.put("retryCount", budget.model().retryCount());
-        budgetMap.put("model", modelBudget);
-
-        Map<String, Object> toolBudget = new LinkedHashMap<>();
-        toolBudget.put("maxCalls", budget.tool().maxCalls());
-        toolBudget.put("timeoutMs", budget.tool().timeoutMs());
-        toolBudget.put("retryCount", budget.tool().retryCount());
-        budgetMap.put("tool", toolBudget);
-        item.put("budget", budgetMap);
-        return item;
-    }
-
-    private Map<String, Object> stageSnapshot() {
-        Map<String, Object> stages = new LinkedHashMap<>();
-        AgentMode modeImpl = definition.agentMode();
-        if (modeImpl instanceof OneshotMode oneshotMode) {
-            stages.put("oneshot", singleStageSnapshot(oneshotMode.stage()));
-            return stages;
-        }
-        if (modeImpl instanceof ReactMode reactMode) {
-            stages.put("react", singleStageSnapshot(reactMode.stage()));
-            return stages;
-        }
-        if (modeImpl instanceof PlanExecuteMode planExecuteMode) {
-            stages.put("plan", singleStageSnapshot(planExecuteMode.planStage(), true));
-            stages.put("execute", singleStageSnapshot(planExecuteMode.executeStage(), false));
-            stages.put("summary", singleStageSnapshot(planExecuteMode.summaryStage(), false));
-            return stages;
-        }
-        return stages;
-    }
-
-    private Map<String, Object> singleStageSnapshot(StageSettings stage) {
-        return singleStageSnapshot(stage, true);
-    }
-
-    private Map<String, Object> singleStageSnapshot(StageSettings stage, boolean includeDeepThinking) {
-        Map<String, Object> item = new LinkedHashMap<>();
-        if (stage == null) {
-            return item;
-        }
-        item.put("provider", normalize(stage.providerKey(), definition.providerKey()));
-        item.put("model", normalize(stage.model(), definition.model()));
-        item.put("systemPrompt", stage.systemPrompt());
-        if (includeDeepThinking) {
-            item.put("deepThinking", stage.deepThinking());
-        }
-        item.put("reasoningEnabled", stage.reasoningEnabled());
-        item.put("reasoningEffort", stage.reasoningEffort());
-        item.put("tools", groupToolNames(stage.tools()));
-        return item;
-    }
-
-    private Map<String, Object> toolsSnapshot() {
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        List<String> registered = currentlyRegisteredConfiguredTools();
-        snapshot.put("configured", groupToolNames(configuredToolsByName.keySet()));
-        snapshot.put("currentlyRegistered", groupToolNames(registered));
-        snapshot.put("enabled", groupToolNames(registered));
-
-        Map<String, Object> stageTools = new LinkedHashMap<>();
-        AgentMode modeImpl = definition.agentMode();
-        if (modeImpl instanceof OneshotMode oneshotMode) {
-            stageTools.put("oneshot", groupToolNames(oneshotMode.stage().tools()));
-        } else if (modeImpl instanceof ReactMode reactMode) {
-            stageTools.put("react", groupToolNames(reactMode.stage().tools()));
-        } else if (modeImpl instanceof PlanExecuteMode planExecuteMode) {
-            stageTools.put("plan", groupToolNames(planExecuteMode.planStage().tools()));
-            stageTools.put("execute", groupToolNames(planExecuteMode.executeStage().tools()));
-            stageTools.put("summary", groupToolNames(planExecuteMode.summaryStage().tools()));
-        }
-        snapshot.put("stageTools", stageTools);
-        return snapshot;
-    }
-
-    private List<String> currentlyRegisteredConfiguredTools() {
-        return configuredToolsByName.keySet().stream()
-                .filter(name -> toolRegistry.descriptor(name).isPresent())
-                .sorted()
-                .toList();
-    }
-
-    private Map<String, Object> skillsSnapshot() {
-        Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("configured", definition.skills());
-        if (skillRegistryService == null || definition.skills().isEmpty()) {
-            snapshot.put("resolved", List.of());
-            return snapshot;
-        }
-        List<Map<String, Object>> resolved = new ArrayList<>();
-        for (String configuredSkill : definition.skills()) {
-            String skillId = normalize(configuredSkill, "").trim().toLowerCase(Locale.ROOT);
-            if (!StringUtils.hasText(skillId)) {
-                continue;
-            }
-            SkillDescriptor descriptor = skillRegistryService.find(skillId).orElse(null);
-            if (descriptor == null) {
-                continue;
-            }
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", descriptor.id());
-            item.put("name", descriptor.name());
-            item.put("description", descriptor.description());
-            item.put("promptTruncated", descriptor.promptTruncated());
-            resolved.add(item);
-        }
-        snapshot.put("resolved", resolved);
-        return snapshot;
-    }
-
-    private Map<String, Object> groupToolNames(Iterable<String> toolNames) {
-        List<String> backend = new ArrayList<>();
-        List<String> frontend = new ArrayList<>();
-        List<String> action = new ArrayList<>();
-
-        if (toolNames != null) {
-            for (String raw : toolNames) {
-                String name = normalizeToolName(raw);
-                if (!StringUtils.hasText(name)) {
-                    continue;
-                }
-                switch (resolveToolGroup(name)) {
-                    case "action" -> action.add(name);
-                    case "frontend" -> frontend.add(name);
-                    default -> backend.add(name);
-                }
-            }
-        }
-
-        backend = backend.stream().distinct().sorted().toList();
-        frontend = frontend.stream().distinct().sorted().toList();
-        action = action.stream().distinct().sorted().toList();
-
-        Map<String, Object> grouped = new LinkedHashMap<>();
-        grouped.put("backend", backend);
-        grouped.put("frontend", frontend);
-        grouped.put("action", action);
-        return grouped;
-    }
-
-    private String resolveToolGroup(String toolName) {
-        ToolDescriptor descriptor = toolRegistry.descriptor(toolName).orElse(null);
-        if (descriptor != null) {
-            ToolKind kind = descriptor.kind();
-            if (kind == ToolKind.ACTION) {
-                return "action";
-            }
-            if (kind == ToolKind.FRONTEND) {
-                return "frontend";
-            }
-            return "backend";
-        }
-        String callType = normalize(toolRegistry.toolCallType(toolName), "function").toLowerCase(Locale.ROOT);
-        if ("action".equals(callType)) {
-            return "action";
-        }
-        if (!"function".equals(callType)) {
-            return "frontend";
-        }
-        return "backend";
-    }
-
-    private static final class DeclaredToolPlaceholder implements BaseTool {
-        private final String name;
-
-        private DeclaredToolPlaceholder(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public String description() {
-            return "Configured tool placeholder. Runtime will validate registration when invoked.";
-        }
-
-        @Override
-        public Map<String, Object> parametersSchema() {
-            return DEFAULT_PLACEHOLDER_PARAMETERS;
-        }
-
-        @Override
-        public JsonNode invoke(Map<String, Object> args) {
-            throw new IllegalStateException("Declared tool placeholder cannot be invoked directly: " + name);
-        }
-    }
-
-    private static final class ResolvedConfiguredTool implements BaseTool {
-        private final String configuredName;
-        private final ToolDescriptor descriptor;
-
-        private ResolvedConfiguredTool(String configuredName, ToolDescriptor descriptor) {
-            this.configuredName = configuredName;
-            this.descriptor = descriptor;
-        }
-
-        @Override
-        public String name() {
-            return configuredName;
-        }
-
-        @Override
-        public String description() {
-            return descriptor.description();
-        }
-
-        @Override
-        public String afterCallHint() {
-            return descriptor.afterCallHint();
-        }
-
-        @Override
-        public Map<String, Object> parametersSchema() {
-            return descriptor.parameters();
-        }
-
-        @Override
-        public JsonNode invoke(Map<String, Object> args) {
-            throw new IllegalStateException("Resolved configured tool cannot be invoked directly: " + configuredName);
-        }
-    }
 }

@@ -44,9 +44,9 @@ class ChatWindowMemoryStoreTest {
                 systemSnapshot("gpt-5.2", "你是一个有用的助手", true),
                 null,
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.user("请帮我切换主题", 1770945237570L),
-                        ChatWindowMemoryStore.RunMessage.assistantReasoning("准备调用前端动作", 1770945237571L, 10L, null),
-                        ChatWindowMemoryStore.RunMessage.assistantToolCall(
+                        ChatMemoryTypes.RunMessage.user("请帮我切换主题", 1770945237570L),
+                        ChatMemoryTypes.RunMessage.assistantReasoning("准备调用前端动作", 1770945237571L, 10L, null),
+                        ChatMemoryTypes.RunMessage.assistantToolCall(
                                 "switch_frontend_theme",
                                 "call_tool_1",
                                 "{\"theme\":\"dark\"}",
@@ -54,14 +54,14 @@ class ChatWindowMemoryStoreTest {
                                 50L,
                                 null
                         ),
-                        ChatWindowMemoryStore.RunMessage.toolResult(
+                        ChatMemoryTypes.RunMessage.toolResult(
                                 "switch_frontend_theme",
                                 "call_tool_1",
                                 "OK",
                                 1770945237573L,
                                 5L
                         ),
-                        ChatWindowMemoryStore.RunMessage.assistantContent("已切换到 dark 主题", 1770945237574L, 20L, null)
+                        ChatMemoryTypes.RunMessage.assistantContent("已切换到 dark 主题", 1770945237574L, 20L, null)
                 )
         );
 
@@ -138,8 +138,8 @@ class ChatWindowMemoryStoreTest {
                 )),
                 null,
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.user("放烟花", 1772438369610L),
-                        ChatWindowMemoryStore.RunMessage.assistantToolCall(
+                        ChatMemoryTypes.RunMessage.user("放烟花", 1772438369610L),
+                        ChatMemoryTypes.RunMessage.assistantToolCall(
                                 "launch_fireworks",
                                 callId,
                                 "function",
@@ -148,8 +148,8 @@ class ChatWindowMemoryStoreTest {
                                 366L,
                                 null
                         ),
-                        ChatWindowMemoryStore.RunMessage.toolResult("launch_fireworks", callId, "OK", 1772438367295L, 366L),
-                        ChatWindowMemoryStore.RunMessage.assistantContent("烟花已成功绽放！", 1772438369380L, 230L, Map.of("total_tokens", 529))
+                        ChatMemoryTypes.RunMessage.toolResult("launch_fireworks", callId, "OK", 1772438367295L, 366L),
+                        ChatMemoryTypes.RunMessage.assistantContent("烟花已成功绽放！", 1772438369380L, 230L, Map.of("total_tokens", 529))
                 )
         );
 
@@ -188,8 +188,8 @@ class ChatWindowMemoryStoreTest {
                 )),
                 null,
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.user("执行动作", 1000L),
-                        ChatWindowMemoryStore.RunMessage.assistantToolCall(
+                        ChatMemoryTypes.RunMessage.user("执行动作", 1000L),
+                        ChatMemoryTypes.RunMessage.assistantToolCall(
                                 "launch_fireworks",
                                 callId,
                                 "action",
@@ -198,7 +198,7 @@ class ChatWindowMemoryStoreTest {
                                 20L,
                                 null
                         ),
-                        ChatWindowMemoryStore.RunMessage.toolResult("launch_fireworks", callId, "OK", 1002L, 10L)
+                        ChatMemoryTypes.RunMessage.toolResult("launch_fireworks", callId, "OK", 1002L, 10L)
                 )
         );
 
@@ -229,25 +229,25 @@ class ChatWindowMemoryStoreTest {
         store.appendStepLine(chatId, "run_001", "oneshot", 1, null,
                 systemSnapshot("gpt-5.2", "system", true), null,
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.user("u1", 1000L),
-                        ChatWindowMemoryStore.RunMessage.assistantReasoning("r1", 1001L, 1L, null),
-                        ChatWindowMemoryStore.RunMessage.assistantContent("a1", 1002L, 2L, null)
+                        ChatMemoryTypes.RunMessage.user("u1", 1000L),
+                        ChatMemoryTypes.RunMessage.assistantReasoning("r1", 1001L, 1L, null),
+                        ChatMemoryTypes.RunMessage.assistantContent("a1", 1002L, 2L, null)
                 ));
 
         // Run 2
         store.appendQueryLine(chatId, "run_002", query("run_002", chatId, "u2"));
         store.appendStepLine(chatId, "run_002", "oneshot", 1, null, null, null,
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.user("u2", 2000L),
-                        ChatWindowMemoryStore.RunMessage.assistantContent("a2", 2001L, 2L, null)
+                        ChatMemoryTypes.RunMessage.user("u2", 2000L),
+                        ChatMemoryTypes.RunMessage.assistantContent("a2", 2001L, 2L, null)
                 ));
 
         // Run 3
         store.appendQueryLine(chatId, "run_003", query("run_003", chatId, "u3"));
         store.appendStepLine(chatId, "run_003", "oneshot", 1, null, null, null,
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.user("u3", 3000L),
-                        ChatWindowMemoryStore.RunMessage.assistantContent("a3", 3001L, 2L, null)
+                        ChatMemoryTypes.RunMessage.user("u3", 3000L),
+                        ChatMemoryTypes.RunMessage.assistantContent("a3", 3001L, 2L, null)
                 ));
 
         // Trim
@@ -286,21 +286,21 @@ class ChatWindowMemoryStoreTest {
         store.appendStepLine(chatId, "run_001", "react", 1, null,
                 systemSnapshot("gpt-5.2", "你是一个有用的助手", true), null,
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.user("第一轮", 1000L),
-                        ChatWindowMemoryStore.RunMessage.assistantContent("ok", 1001L, 1L, null)
+                        ChatMemoryTypes.RunMessage.user("第一轮", 1000L),
+                        ChatMemoryTypes.RunMessage.assistantContent("ok", 1001L, 1L, null)
                 ));
 
         // Step 2: without system (null)
         store.appendStepLine(chatId, "run_001", "react", 2, null, null, null,
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.assistantContent("ok2", 2001L, 1L, null)
+                        ChatMemoryTypes.RunMessage.assistantContent("ok2", 2001L, 1L, null)
                 ));
 
         // Step 3: with different system
         store.appendStepLine(chatId, "run_001", "react", 3, null,
                 systemSnapshot("gpt-5.2", "你是另一个系统提示", true), null,
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.assistantContent("ok3", 3001L, 1L, null)
+                        ChatMemoryTypes.RunMessage.assistantContent("ok3", 3001L, 1L, null)
                 ));
 
         Path file = tempDir.resolve("chats").resolve(chatId + ".json");
@@ -317,7 +317,7 @@ class ChatWindowMemoryStoreTest {
         assertThat(third.path("system").path("messages").get(0).path("content").asText()).isEqualTo("你是另一个系统提示");
 
         // loadLatestSystemSnapshot returns the last one
-        ChatWindowMemoryStore.SystemSnapshot latest = store.loadLatestSystemSnapshot(chatId);
+        ChatMemoryTypes.SystemSnapshot latest = store.loadLatestSystemSnapshot(chatId);
         assertThat(latest).isNotNull();
         assertThat(latest.messages.getFirst().content).isEqualTo("你是另一个系统提示");
     }
@@ -340,8 +340,8 @@ class ChatWindowMemoryStoreTest {
                         task("task1", "执行任务", "init")
                 )),
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.user("第一轮", 1000L),
-                        ChatWindowMemoryStore.RunMessage.assistantContent("ok", 1001L, 1L, null)
+                        ChatMemoryTypes.RunMessage.user("第一轮", 1000L),
+                        ChatMemoryTypes.RunMessage.assistantContent("ok", 1001L, 1L, null)
                 ));
 
         // Execute step with updated plan
@@ -351,7 +351,7 @@ class ChatWindowMemoryStoreTest {
                         task("task1", "执行任务", "init")
                 )),
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.assistantContent("done task0", 2001L, 1L, null)
+                        ChatMemoryTypes.RunMessage.assistantContent("done task0", 2001L, 1L, null)
                 ));
 
         Path file = tempDir.resolve("chats").resolve(chatId + ".json");
@@ -366,7 +366,7 @@ class ChatWindowMemoryStoreTest {
         assertThat(executeStep.path("_stage").asText()).isEqualTo("execute");
         assertThat(executeStep.path("_seq").asInt()).isEqualTo(2);
 
-        ChatWindowMemoryStore.PlanSnapshot latest = store.loadLatestPlanSnapshot(chatId);
+        ChatMemoryTypes.PlanSnapshot latest = store.loadLatestPlanSnapshot(chatId);
         assertThat(latest).isNotNull();
         assertThat(latest.planId).isEqualTo("plan_chat_001");
         assertThat(latest.tasks).hasSize(2);
@@ -389,15 +389,15 @@ class ChatWindowMemoryStoreTest {
         store.appendStepLine(chatId, "run_001", "react", 1, null,
                 systemSnapshot("qwen3-max", "sys", true), null,
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.user("help", 1000L),
-                        ChatWindowMemoryStore.RunMessage.assistantToolCall("_bash_", "call_1", "{\"cmd\":\"ls\"}", 1001L, 10L, null),
-                        ChatWindowMemoryStore.RunMessage.toolResult("_bash_", "call_1", "file.txt", 1002L, 5L)
+                        ChatMemoryTypes.RunMessage.user("help", 1000L),
+                        ChatMemoryTypes.RunMessage.assistantToolCall("_bash_", "call_1", "{\"cmd\":\"ls\"}", 1001L, 10L, null),
+                        ChatMemoryTypes.RunMessage.toolResult("_bash_", "call_1", "file.txt", 1002L, 5L)
                 ));
 
         // React step 2
         store.appendStepLine(chatId, "run_001", "react", 2, null, null, null,
                 List.of(
-                        ChatWindowMemoryStore.RunMessage.assistantContent("found file.txt", 2000L, 20L, null)
+                        ChatMemoryTypes.RunMessage.assistantContent("found file.txt", 2000L, 20L, null)
                 ));
 
         List<ChatMessage> messages = store.loadHistoryMessages(chatId);
@@ -422,16 +422,16 @@ class ChatWindowMemoryStoreTest {
 
         store.appendQueryLine(chatId, runId, query(runId, chatId, "连续 step"));
         store.appendStepLine(chatId, runId, "execute", 1, "task_1", null, null, List.of(
-                ChatWindowMemoryStore.RunMessage.user("连续 step", 1000L),
-                ChatWindowMemoryStore.RunMessage.assistantReasoning("r1", 1001L, 5L, null),
-                ChatWindowMemoryStore.RunMessage.assistantContent("c1", 1002L, 5L, null)
+                ChatMemoryTypes.RunMessage.user("连续 step", 1000L),
+                ChatMemoryTypes.RunMessage.assistantReasoning("r1", 1001L, 5L, null),
+                ChatMemoryTypes.RunMessage.assistantContent("c1", 1002L, 5L, null)
         ));
         store.appendStepLine(chatId, runId, "execute", 2, "task_2", null, null, List.of(
-                ChatWindowMemoryStore.RunMessage.assistantContent("c2", 2000L, 5L, null)
+                ChatMemoryTypes.RunMessage.assistantContent("c2", 2000L, 5L, null)
         ));
         store.appendStepLine(chatId, runId, "summary", 3, null, null, null, List.of(
-                ChatWindowMemoryStore.RunMessage.assistantReasoning("r2", 3000L, 5L, null),
-                ChatWindowMemoryStore.RunMessage.assistantContent("c3", 3001L, 5L, null)
+                ChatMemoryTypes.RunMessage.assistantReasoning("r2", 3000L, 5L, null),
+                ChatMemoryTypes.RunMessage.assistantContent("c3", 3001L, 5L, null)
         ));
 
         Path file = tempDir.resolve("chats").resolve(chatId + ".json");
@@ -455,9 +455,9 @@ class ChatWindowMemoryStoreTest {
 
         ChatWindowMemoryStore store = new ChatWindowMemoryStore(objectMapper, properties);
 
-        ChatWindowMemoryStore.SystemSnapshot a = systemSnapshot("gpt-5.2", "prompt", true);
-        ChatWindowMemoryStore.SystemSnapshot b = systemSnapshot("gpt-5.2", "prompt", true);
-        ChatWindowMemoryStore.SystemSnapshot c = systemSnapshot("gpt-5.2", "different", true);
+        ChatMemoryTypes.SystemSnapshot a = systemSnapshot("gpt-5.2", "prompt", true);
+        ChatMemoryTypes.SystemSnapshot b = systemSnapshot("gpt-5.2", "prompt", true);
+        ChatMemoryTypes.SystemSnapshot c = systemSnapshot("gpt-5.2", "different", true);
 
         assertThat(store.isSameSystem(a, b)).isTrue();
         assertThat(store.isSameSystem(a, c)).isFalse();
@@ -477,23 +477,23 @@ class ChatWindowMemoryStoreTest {
         return query;
     }
 
-    private ChatWindowMemoryStore.SystemSnapshot systemSnapshot(String model, String prompt, boolean stream) {
+    private ChatMemoryTypes.SystemSnapshot systemSnapshot(String model, String prompt, boolean stream) {
         return systemSnapshotWithTools(model, prompt, stream, List.of(
                 toolSnapshot("function", "mock.sensitive-data.detect")
         ));
     }
 
-    private ChatWindowMemoryStore.SystemSnapshot systemSnapshotWithTools(
+    private ChatMemoryTypes.SystemSnapshot systemSnapshotWithTools(
             String model,
             String prompt,
             boolean stream,
-            List<ChatWindowMemoryStore.SystemToolSnapshot> tools
+            List<ChatMemoryTypes.SystemToolSnapshot> tools
     ) {
-        ChatWindowMemoryStore.SystemSnapshot snapshot = new ChatWindowMemoryStore.SystemSnapshot();
+        ChatMemoryTypes.SystemSnapshot snapshot = new ChatMemoryTypes.SystemSnapshot();
         snapshot.model = model;
         snapshot.stream = stream;
 
-        ChatWindowMemoryStore.SystemMessageSnapshot systemMessage = new ChatWindowMemoryStore.SystemMessageSnapshot();
+        ChatMemoryTypes.SystemMessageSnapshot systemMessage = new ChatMemoryTypes.SystemMessageSnapshot();
         systemMessage.role = "system";
         systemMessage.content = prompt;
         snapshot.messages = List.of(systemMessage);
@@ -501,8 +501,8 @@ class ChatWindowMemoryStoreTest {
         return snapshot;
     }
 
-    private ChatWindowMemoryStore.SystemToolSnapshot toolSnapshot(String type, String name) {
-        ChatWindowMemoryStore.SystemToolSnapshot tool = new ChatWindowMemoryStore.SystemToolSnapshot();
+    private ChatMemoryTypes.SystemToolSnapshot toolSnapshot(String type, String name) {
+        ChatMemoryTypes.SystemToolSnapshot tool = new ChatMemoryTypes.SystemToolSnapshot();
         tool.type = type;
         tool.name = name;
         tool.description = "检测敏感信息";
@@ -510,18 +510,18 @@ class ChatWindowMemoryStoreTest {
         return tool;
     }
 
-    private ChatWindowMemoryStore.PlanSnapshot planSnapshot(
+    private ChatMemoryTypes.PlanSnapshot planSnapshot(
             String planId,
-            List<ChatWindowMemoryStore.PlanTaskSnapshot> tasks
+            List<ChatMemoryTypes.PlanTaskSnapshot> tasks
     ) {
-        ChatWindowMemoryStore.PlanSnapshot snapshot = new ChatWindowMemoryStore.PlanSnapshot();
+        ChatMemoryTypes.PlanSnapshot snapshot = new ChatMemoryTypes.PlanSnapshot();
         snapshot.planId = planId;
         snapshot.tasks = tasks;
         return snapshot;
     }
 
-    private ChatWindowMemoryStore.PlanTaskSnapshot task(String taskId, String description, String status) {
-        ChatWindowMemoryStore.PlanTaskSnapshot task = new ChatWindowMemoryStore.PlanTaskSnapshot();
+    private ChatMemoryTypes.PlanTaskSnapshot task(String taskId, String description, String status) {
+        ChatMemoryTypes.PlanTaskSnapshot task = new ChatMemoryTypes.PlanTaskSnapshot();
         task.taskId = taskId;
         task.description = description;
         task.status = status;

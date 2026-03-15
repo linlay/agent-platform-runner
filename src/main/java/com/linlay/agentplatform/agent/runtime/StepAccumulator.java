@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.agent.runtime;
 
-import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.memory.ChatMemoryTypes;
 import com.linlay.agentplatform.util.IdGenerators;
 import org.springframework.util.StringUtils;
 
@@ -20,9 +20,9 @@ final class StepAccumulator {
     final StringBuilder pendingAssistant = new StringBuilder();
     String pendingAssistantContentId;
     long pendingAssistantStartedAt;
-    final List<ChatWindowMemoryStore.RunMessage> orderedMessages = new ArrayList<>();
+    final List<ChatMemoryTypes.RunMessage> orderedMessages = new ArrayList<>();
     final Map<String, ToolTrace> toolByCallId = new LinkedHashMap<>();
-    ChatWindowMemoryStore.PlanSnapshot plan;
+    ChatMemoryTypes.PlanSnapshot plan;
     Map<String, Object> capturedUsage;
     String currentMsgId;
     boolean needNewMsgId;
@@ -44,7 +44,7 @@ final class StepAccumulator {
                 && toolByCallId.isEmpty();
     }
 
-    List<ChatWindowMemoryStore.RunMessage> runMessages() {
+    List<ChatMemoryTypes.RunMessage> runMessages() {
         long now = System.currentTimeMillis();
         flushReasoning(now);
         flushAssistantContent(now);
@@ -54,7 +54,7 @@ final class StepAccumulator {
         ));
         if (capturedUsage != null && !capturedUsage.isEmpty()) {
             for (int i = orderedMessages.size() - 1; i >= 0; i--) {
-                ChatWindowMemoryStore.RunMessage msg = orderedMessages.get(i);
+                ChatMemoryTypes.RunMessage msg = orderedMessages.get(i);
                 if ("assistant".equals(msg.role())) {
                     orderedMessages.set(i, withUsage(msg, capturedUsage));
                     break;
@@ -71,7 +71,7 @@ final class StepAccumulator {
         if (!StringUtils.hasText(trace.toolName)) {
             return;
         }
-        orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantToolCall(
+        orderedMessages.add(ChatMemoryTypes.RunMessage.assistantToolCall(
                 trace.toolName,
                 trace.toolCallId,
                 trace.toolType,
@@ -91,7 +91,7 @@ final class StepAccumulator {
             return;
         }
         long startedAt = pendingReasoningStartedAt > 0 ? pendingReasoningStartedAt : now;
-        orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantReasoning(
+        orderedMessages.add(ChatMemoryTypes.RunMessage.assistantReasoning(
                 pendingReasoning.toString(),
                 pendingReasoningId,
                 currentMsgId,
@@ -109,7 +109,7 @@ final class StepAccumulator {
             return;
         }
         long startedAt = pendingAssistantStartedAt > 0 ? pendingAssistantStartedAt : now;
-        orderedMessages.add(ChatWindowMemoryStore.RunMessage.assistantContent(
+        orderedMessages.add(ChatMemoryTypes.RunMessage.assistantContent(
                 pendingAssistant.toString(),
                 pendingAssistantContentId,
                 currentMsgId,
@@ -128,7 +128,7 @@ final class StepAccumulator {
         }
         flushReasoning(now);
         flushAssistantContent(now);
-        orderedMessages.add(ChatWindowMemoryStore.RunMessage.user(text, now));
+        orderedMessages.add(ChatMemoryTypes.RunMessage.user(text, now));
         needNewMsgId = true;
     }
 
@@ -150,11 +150,11 @@ final class StepAccumulator {
         }
     }
 
-    private static ChatWindowMemoryStore.RunMessage withUsage(
-            ChatWindowMemoryStore.RunMessage original,
+    private static ChatMemoryTypes.RunMessage withUsage(
+            ChatMemoryTypes.RunMessage original,
             Map<String, Object> usage
     ) {
-        return new ChatWindowMemoryStore.RunMessage(
+        return new ChatMemoryTypes.RunMessage(
                 original.role(),
                 original.kind(),
                 original.text(),

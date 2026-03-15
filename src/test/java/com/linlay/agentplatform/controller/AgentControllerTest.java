@@ -68,6 +68,9 @@ import static org.mockito.Mockito.when;
                 "agent.providers.bailian.base-url=https://example.com/v1",
                 "agent.providers.bailian.api-key=test-bailian-key",
                 "agent.providers.bailian.model=test-bailian-model",
+                "agent.providers.babelark.base-url=https://example.com/v1",
+                "agent.providers.babelark.api-key=test-babelark-key",
+                "agent.providers.babelark.model=test-babelark-model",
                 "agent.providers.siliconflow.base-url=https://example.com/v1",
                 "agent.providers.siliconflow.api-key=test-siliconflow-key",
                 "agent.providers.siliconflow.model=test-siliconflow-model",
@@ -247,7 +250,6 @@ class AgentControllerTest {
                 .jsonPath("$.data[?(@.key=='demoModePlanExecute')]").exists()
                 .jsonPath("$.data[?(@.key=='demoViewport')]").exists()
                 .jsonPath("$.data[?(@.key=='demoAction')]").exists()
-                .jsonPath("$.data[?(@.key=='demoAgentCreator')]").exists()
                 .jsonPath("$.data[?(@.key=='demoScheduleManager')]").exists()
                 .jsonPath("$.data[?(@.key=='demoMathSkill')]").exists()
                 .jsonPath("$.data[?(@.key=='demoConfirmDialog')]").exists()
