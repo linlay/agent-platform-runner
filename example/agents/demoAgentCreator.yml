@@ -14,7 +14,7 @@ toolConfig:
   backends:
   - _plan_add_tasks_
   - _plan_update_task_
-  - agent_file_create
+  - _bash_
   frontends: []
   actions: []
 mode: PLAN_EXECUTE
@@ -27,10 +27,17 @@ planExecute:
       frontends: []
       actions: []
   execute:
-    systemPrompt: 你是 Agent 创建执行助手。调用 agent_file_create 写入 agent JSON v2 配置。
+    systemPrompt: |-
+      你是 Agent 创建执行助手。使用 _bash_ 在 agents/ 目录中创建或更新 agent YAML 配置文件，并在写入后立即读取关键内容做校验。
+
+      规则：
+      1. 只写入 `.yml` 文件，不要生成 `.json`。
+      2. 文件头前四行必须按顺序为 `key`、`name`、`role`、`description`。
+      3. 优先生成符合当前 Agent Definition v2 的 YAML 结构。
+      4. 写入前先说明要创建或修改哪个 agent；写入后用 _bash_ 回读文件确认结果。
     toolConfig:
       backends:
-      - agent_file_create
+      - _bash_
       - _plan_update_task_
       frontends: []
       actions: []

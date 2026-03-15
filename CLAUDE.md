@@ -287,7 +287,6 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。
 - `mock_city_weather`：模拟城市天气数据。
-- `agent_file_create`：创建/更新 agent JSON 文件。
 
 `demoScheduleManager` 会优先读取每个 `.yml` 文件前两到三行的 `name` / `description` 披露信息，并默认用中文 Markdown 表格展示计划任务摘要。
 
@@ -569,7 +568,6 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `AGENT_TOOLS_EXTERNAL_DIR` | `agent.tools.external-dir` | `tools` | 工具定义文件目录 |
 | `AGENT_TOOLS_REFRESH_INTERVAL_MS` | `agent.tools.refresh-interval-ms` | `30000` | 工具目录刷新间隔（ms） |
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `agent.tools.frontend.submit-timeout-ms` | `300000` | 前端工具提交等待超时（ms） |
-| `AGENT_TOOLS_AGENT_FILE_CREATE_DEFAULT_SYSTEM_PROMPT` | `agent.tools.agent-file-create.default-system-prompt` | `你是通用助理，回答要清晰和可执行。` | `agent_file_create` 默认 system prompt |
 | `AGENT_BASH_WORKING_DIRECTORY` | `agent.tools.bash.working-directory` | 项目运行根目录（通常为 `configs/` 上级目录） | Bash 工具工作目录 |
 | `AGENT_BASH_ALLOWED_PATHS` | `agent.tools.bash.allowed-paths` | （空） | Bash 工具路径白名单（逗号分隔） |
 | `AGENT_BASH_ALLOWED_COMMANDS` | `agent.tools.bash.allowed-commands` | （空=拒绝执行） | Bash 允许命令列表（逗号分隔） |

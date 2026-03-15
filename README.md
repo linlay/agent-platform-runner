@@ -595,7 +595,6 @@ toolConfig:
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。
 - `mock_city_weather`：模拟城市天气数据。
-- `agent_file_create`：创建/更新 agent YAML 文件（校验 key 仅允许 `A-Za-z0-9_-`，最长 64）。
 
 ## Bash 工具配置
 
