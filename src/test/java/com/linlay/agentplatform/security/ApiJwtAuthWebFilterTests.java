@@ -84,15 +84,15 @@ class ApiJwtAuthWebFilterTests {
     @Test
     void shouldRejectApiRequestWithoutTokenWithSingleRequestLog(CapturedOutput output) {
         webTestClient.get()
-            .uri("/api/ap/agents")
+            .uri("/api/agents")
             .exchange()
             .expectStatus().isUnauthorized();
 
         String logs = output.getOut() + output.getErr();
-        assertThat(logs).contains("GET /api/ap/agents -> 401");
+        assertThat(logs).contains("GET /api/agents -> 401");
         assertThat(logs).contains("auth=missing_auth_header");
         assertThat(logs).doesNotContain("api.auth.reject");
-        assertThat(logs.lines().filter(line -> line.contains("GET /api/ap/agents -> 401")).count()).isEqualTo(1);
+        assertThat(logs.lines().filter(line -> line.contains("GET /api/agents -> 401")).count()).isEqualTo(1);
     }
 
     @Test
@@ -100,7 +100,7 @@ class ApiJwtAuthWebFilterTests {
         String token = issueToken("app-user", "device-1");
 
         webTestClient.get()
-            .uri("/api/ap/agents")
+            .uri("/api/agents")
             .header("Authorization", "Bearer " + token)
             .exchange()
             .expectStatus().isOk()

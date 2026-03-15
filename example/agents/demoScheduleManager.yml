@@ -1,10 +1,10 @@
 key: demoScheduleManager
 name: Chronos
 role: 计划任务管理助手
+description: 示例智能体，使用 bash 在 schedules 目录中新增、更新、删除 YML 计划任务文件
 icon:
   name: calendar-check
   color: "#0F766E"
-description: 示例智能体，使用 bash 在 schedules 目录中新增、更新、删除 YML 计划任务文件
 modelConfig:
   modelKey: bailian-qwen3_5-plus
   reasoning:
@@ -12,7 +12,7 @@ modelConfig:
     effort: MEDIUM
 toolConfig:
   backends:
-    - _bash_
+  - _bash_
   frontends: []
   actions: []
 mode: REACT

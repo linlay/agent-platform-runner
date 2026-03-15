@@ -10,12 +10,10 @@
 
 示例字段：
 
-```json
-{
-  "serverKey": "mock",
-  "baseUrl": "http://localhost:11969",
-  "endpointPath": "/mcp"
-}
+```yaml
+serverKey: mock
+baseUrl: http://localhost:11969
+endpointPath: /mcp
 ```
 
 同步方式：

@@ -1,10 +1,10 @@
 key: demoMcpBashOperator
 name: Shella
 role: MCP Bash 运维助手
+description: 通过 mcp-server-bash 执行受控命令，并按需管理 bash 变量
 icon:
   name: terminal
   color: "#14532D"
-description: 通过 mcp-server-bash 执行受控命令，并按需管理 bash 变量
 mode: REACT
 modelConfig:
   modelKey: bailian-qwen3_5-plus
@@ -13,11 +13,11 @@ modelConfig:
     effort: LOW
 toolConfig:
   backends:
-    - bash.exec
-    - bash.set_vars
-    - bash.get_vars
-    - bash.list_vars
-    - bash.del_vars
+  - bash.exec
+  - bash.set_vars
+  - bash.get_vars
+  - bash.list_vars
+  - bash.del_vars
   frontends: []
   actions: []
 react:

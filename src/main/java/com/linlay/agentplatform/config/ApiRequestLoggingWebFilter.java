@@ -39,7 +39,7 @@ public class ApiRequestLoggingWebFilter implements WebFilter {
             return chain.filter(exchange);
         }
         String path = exchange.getRequest().getPath().value();
-        if (!StringUtils.hasText(path) || !path.startsWith("/api/ap/")) {
+        if (!StringUtils.hasText(path) || !path.startsWith("/api/")) {
             return chain.filter(exchange);
         }
 

@@ -18,15 +18,12 @@ class McpServerRegistryServiceTest {
     void shouldLoadServerFromRegistryFile() throws Exception {
         Path registryDir = tempDir.resolve("mcp-servers");
         Files.createDirectories(registryDir);
-        Files.writeString(registryDir.resolve("mock.json"), """
-                {
-                  "serverKey": "mock",
-                  "baseUrl": "http://dynamic-host:18080",
-                  "endpointPath": "/mcp",
-                  "headers": {
-                    "x-dynamic": "1"
-                  }
-                }
+        Files.writeString(registryDir.resolve("mock.yml"), """
+                serverKey: mock
+                baseUrl: http://dynamic-host:18080
+                endpointPath: /mcp
+                headers:
+                  x-dynamic: "1"
                 """);
 
         McpProperties properties = new McpProperties();
@@ -44,15 +41,13 @@ class McpServerRegistryServiceTest {
     void shouldLoadAliasMapAndPerServerReadTimeoutFromRegistryFile() throws Exception {
         Path registryDir = tempDir.resolve("mcp-servers");
         Files.createDirectories(registryDir);
-        Files.writeString(registryDir.resolve("mock.json"), """
-                {
-                  "serverKey": "mock",
-                  "baseUrl": "http://localhost:18080",
-                  "readTimeoutMs": 19000,
-                  "aliasMap": {
-                    "legacy_weather": "mock.weather.query"
-                  }
-                }
+        Files.writeString(registryDir.resolve("mock.yml"), """
+                serverKey: mock
+                baseUrl: http://localhost:18080
+                endpointPath: /mcp
+                readTimeoutMs: 19000
+                aliasMap:
+                  legacy_weather: mock.weather.query
                 """);
 
         McpProperties properties = new McpProperties();
@@ -71,11 +66,10 @@ class McpServerRegistryServiceTest {
     void shouldUseDefaultReadTimeoutWhenRegistryFileDoesNotProvideIt() throws Exception {
         Path registryDir = tempDir.resolve("mcp-servers");
         Files.createDirectories(registryDir);
-        Files.writeString(registryDir.resolve("mock.json"), """
-                {
-                  "serverKey": "mock",
-                  "baseUrl": "http://localhost:18080"
-                }
+        Files.writeString(registryDir.resolve("mock.yml"), """
+                serverKey: mock
+                baseUrl: http://localhost:18080
+                endpointPath: /mcp
                 """);
 
         McpProperties properties = new McpProperties();
@@ -92,11 +86,10 @@ class McpServerRegistryServiceTest {
     void shouldIncreaseRegistryVersionAfterRefresh() throws Exception {
         Path registryDir = tempDir.resolve("mcp-servers");
         Files.createDirectories(registryDir);
-        Files.writeString(registryDir.resolve("mock.json"), """
-                {
-                  "serverKey": "mock",
-                  "baseUrl": "http://localhost:18080"
-                }
+        Files.writeString(registryDir.resolve("mock.yml"), """
+                serverKey: mock
+                baseUrl: http://localhost:18080
+                endpointPath: /mcp
                 """);
 
         McpProperties properties = new McpProperties();

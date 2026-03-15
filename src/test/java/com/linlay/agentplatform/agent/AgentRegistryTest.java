@@ -35,22 +35,7 @@ class AgentRegistryTest {
         Path agentsDir = tempDir.resolve("agents");
         Files.createDirectories(agentsDir);
 
-        Files.writeString(agentsDir.resolve("demo_one.json"), """
-                {
-                  "description": "demo one",
-                  "key": "demo_one",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "toolConfig": {
-                    "backends": ["_bash_"],
-                    "frontends": [],
-                    "actions": []
-                  },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "你是 demo one" }
-                }
-                """);
+        Files.writeString(agentsDir.resolve("demo_one.yml"), oneshotAgentYaml("demo_one", "Demo One", "demo one", "_bash_", "你是 demo one"));
 
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(agentsDir.toString());
@@ -84,22 +69,7 @@ class AgentRegistryTest {
         assertThatThrownBy(() -> registry.get("demo_two"))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        Files.writeString(agentsDir.resolve("demo_two.json"), """
-                {
-                  "description": "demo two",
-                  "key": "demo_two",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "toolConfig": {
-                    "backends": ["_bash_"],
-                    "frontends": [],
-                    "actions": []
-                  },
-                  "mode": "REACT",
-                  "react": { "systemPrompt": "你是 demo two" }
-                }
-                """);
+        Files.writeString(agentsDir.resolve("demo_two.yml"), reactAgentYaml("demo_two", "Demo Two", "demo two", "_bash_", "你是 demo two"));
 
         assertThatThrownBy(() -> registry.get("demo_two"))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -107,7 +77,7 @@ class AgentRegistryTest {
         registry.refreshAgents();
         assertThat(registry.get("demo_two").id()).isEqualTo("demo_two");
 
-        Files.delete(agentsDir.resolve("demo_two.json"));
+        Files.delete(agentsDir.resolve("demo_two.yml"));
         assertThat(registry.listIds()).contains("demo_two");
 
         registry.refreshAgents();
@@ -120,26 +90,8 @@ class AgentRegistryTest {
         Path agentsDir = tempDir.resolve("agents");
         Files.createDirectories(agentsDir);
 
-        Files.writeString(agentsDir.resolve("agent_alpha.json"), """
-                {
-                  "description": "alpha",
-                  "key": "agent_alpha",
-                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
-                  "toolConfig": { "backends": ["_bash_"], "frontends": [], "actions": [] },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "alpha" }
-                }
-                """);
-        Files.writeString(agentsDir.resolve("agent_beta.json"), """
-                {
-                  "description": "beta",
-                  "key": "agent_beta",
-                  "modelConfig": { "modelKey": "siliconflow-deepseek-v3_2" },
-                  "toolConfig": { "backends": ["datetime"], "frontends": [], "actions": [] },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "beta" }
-                }
-                """);
+        Files.writeString(agentsDir.resolve("agent_alpha.yml"), oneshotAgentYaml("agent_alpha", "Agent Alpha", "alpha", "_bash_", "alpha"));
+        Files.writeString(agentsDir.resolve("agent_beta.yml"), oneshotAgentYaml("agent_beta", "Agent Beta", "beta", "datetime", "beta", "siliconflow-deepseek-v3_2"));
 
         AgentRegistry registry = createRegistry(agentsDir);
 
@@ -150,25 +102,19 @@ class AgentRegistryTest {
     }
 
     @Test
-    void shouldLoadMixedJsonAndYamlAgentsAfterRefresh() throws Exception {
+    void shouldLoadYamlAgentsAfterRefresh() throws Exception {
         Path agentsDir = tempDir.resolve("agents");
         Files.createDirectories(agentsDir);
 
-        Files.writeString(agentsDir.resolve("json_agent.json"), """
-                {
-                  "description": "json agent",
-                  "key": "json_agent",
-                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "json prompt" }
-                }
-                """);
+        Files.writeString(agentsDir.resolve("agent_one.yml"), oneshotAgentYaml("agent_one", "Agent One", "yaml agent one", null, "yaml prompt one"));
 
         AgentRegistry registry = createRegistry(agentsDir);
-        assertThat(registry.listIds()).containsExactly("json_agent");
+        assertThat(registry.listIds()).containsExactly("agent_one");
 
         Files.writeString(agentsDir.resolve("yaml_agent.yml"), """
                 key: yaml_agent
+                name: YAML Agent
+                role: YAML 示例
                 description: yaml agent
                 modelConfig:
                   modelKey: bailian-qwen3-max
@@ -181,8 +127,19 @@ class AgentRegistryTest {
 
         registry.refreshAgents();
 
-        assertThat(registry.listIds()).containsExactlyInAnyOrder("json_agent", "yaml_agent");
+        assertThat(registry.listIds()).containsExactlyInAnyOrder("agent_one", "yaml_agent");
         assertThat(registry.get("yaml_agent").systemPrompt()).isEqualTo("yaml prompt\nsecond line");
+    }
+
+    @Test
+    void shouldFailFastOnLegacyJsonAgents() throws Exception {
+        Path agentsDir = tempDir.resolve("agents");
+        Files.createDirectories(agentsDir);
+        Files.writeString(agentsDir.resolve("legacy.json"), "{\"key\":\"legacy\"}");
+
+        assertThatThrownBy(() -> createRegistry(agentsDir))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Legacy JSON agent files are no longer supported");
     }
 
     @Test
@@ -190,42 +147,15 @@ class AgentRegistryTest {
         Path agentsDir = tempDir.resolve("agents");
         Files.createDirectories(agentsDir);
 
-        Files.writeString(agentsDir.resolve("agent_alpha.json"), """
-                {
-                  "description": "alpha",
-                  "key": "agent_alpha",
-                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
-                  "toolConfig": { "backends": ["_bash_"], "frontends": [], "actions": [] },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "alpha-v1" }
-                }
-                """);
-        Files.writeString(agentsDir.resolve("agent_beta.json"), """
-                {
-                  "description": "beta",
-                  "key": "agent_beta",
-                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
-                  "toolConfig": { "backends": ["_bash_"], "frontends": [], "actions": [] },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "beta-v1" }
-                }
-                """);
+        Files.writeString(agentsDir.resolve("agent_alpha.yml"), oneshotAgentYaml("agent_alpha", "Agent Alpha", "alpha", "_bash_", "alpha-v1"));
+        Files.writeString(agentsDir.resolve("agent_beta.yml"), oneshotAgentYaml("agent_beta", "Agent Beta", "beta", "_bash_", "beta-v1"));
 
         AgentRegistry registry = createRegistry(agentsDir);
 
         Agent alphaBefore = registry.get("agent_alpha");
         Agent betaBefore = registry.get("agent_beta");
 
-        Files.writeString(agentsDir.resolve("agent_alpha.json"), """
-                {
-                  "description": "alpha",
-                  "key": "agent_alpha",
-                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
-                  "toolConfig": { "backends": ["_bash_"], "frontends": [], "actions": [] },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "alpha-v2" }
-                }
-                """);
+        Files.writeString(agentsDir.resolve("agent_alpha.yml"), oneshotAgentYaml("agent_alpha", "Agent Alpha", "alpha", "_bash_", "alpha-v2"));
 
         registry.refreshAgentsByIds(Set.of("agent_alpha"), "test-selective");
 
@@ -263,5 +193,59 @@ class AgentRegistryTest {
                 null,
                 toolInvokerRouter
         );
+    }
+
+    private String oneshotAgentYaml(String key, String name, String description, String backendTool, String prompt) {
+        return oneshotAgentYaml(key, name, description, backendTool, prompt, "bailian-qwen3-max");
+    }
+
+    private String oneshotAgentYaml(
+            String key,
+            String name,
+            String description,
+            String backendTool,
+            String prompt,
+            String modelKey
+    ) {
+        String toolConfig = backendTool == null
+                ? "toolConfig: null"
+                : """
+                        toolConfig:
+                          backends:
+                            - %s
+                          frontends: []
+                          actions: []
+                        """.formatted(backendTool).stripTrailing();
+        return """
+                key: %s
+                name: %s
+                role: Test Agent
+                description: %s
+                modelConfig:
+                  modelKey: %s
+                %s
+                mode: ONESHOT
+                plain:
+                  systemPrompt: %s
+                """.formatted(key, name, description, modelKey, toolConfig, prompt);
+    }
+
+    private String reactAgentYaml(String key, String name, String description, String backendTool, String prompt) {
+        return """
+                key: %s
+                name: %s
+                role: Test Agent
+                description: %s
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - %s
+                  frontends: []
+                  actions: []
+                mode: REACT
+                react:
+                  systemPrompt: %s
+                """.formatted(key, name, description, backendTool, prompt);
     }
 }

@@ -159,7 +159,7 @@ class ChatImageTokenIntegrationTest {
         String authToken = issueAuthToken("user-chat-api");
 
         byte[] responseBody = webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/ap/chat").queryParam("chatId", chatId).build())
+                .uri(uriBuilder -> uriBuilder.path("/api/chat").queryParam("chatId", chatId).build())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + authToken)
                 .exchange()
                 .expectStatus().isOk()
@@ -179,7 +179,7 @@ class ChatImageTokenIntegrationTest {
     void querySseChatStartShouldContainChatImageToken() throws Exception {
         String authToken = issueAuthToken("user-sse");
         FluxExchangeResult<String> result = webTestClient.post()
-                .uri("/api/ap/query")
+                .uri("/api/query")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + authToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of(
@@ -214,7 +214,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/ap/data")
+                        .path("/api/data")
                         .queryParam("file", "sample_photo.jpg")
                         .queryParam("t", chatImageToken)
                         .build())
@@ -238,7 +238,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/ap/data")
+                        .path("/api/data")
                         .queryParam("file", "/data/" + chatId + "/cover.png")
                         .queryParam("t", chatImageToken)
                         .build())
@@ -254,7 +254,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/ap/data")
+                        .path("/api/data")
                         .queryParam("file", "sample_photo.jpg")
                         .queryParam("t", "invalid-token")
                         .build())
@@ -279,7 +279,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/ap/data")
+                        .path("/api/data")
                         .queryParam("file", "sample_photo.jpg")
                         .queryParam("t", expiredToken)
                         .build())
@@ -303,7 +303,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/ap/data")
+                        .path("/api/data")
                         .queryParam("file", "other_photo.jpg")
                         .queryParam("t", chatImageToken)
                         .build())
@@ -325,7 +325,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/ap/data")
+                        .path("/api/data")
                         .queryParam("file", "missing.jpg")
                         .queryParam("t", chatImageToken)
                         .build())
@@ -340,7 +340,7 @@ class ChatImageTokenIntegrationTest {
         String authToken = issueAuthToken("user-auth-compat");
 
         webTestClient.get()
-                .uri(UriComponentsBuilder.fromPath("/api/ap/data")
+                .uri(UriComponentsBuilder.fromPath("/api/data")
                         .queryParam("file", "sample_photo.jpg")
                         .build()
                         .toUriString())
@@ -396,7 +396,7 @@ class ChatImageTokenIntegrationTest {
 
     private String fetchChatImageToken(String chatId, String authToken) throws Exception {
         byte[] responseBody = webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/ap/chat").queryParam("chatId", chatId).build())
+                .uri(uriBuilder -> uriBuilder.path("/api/chat").queryParam("chatId", chatId).build())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + authToken)
                 .exchange()
                 .expectStatus().isOk()

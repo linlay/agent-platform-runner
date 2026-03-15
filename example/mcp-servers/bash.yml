@@ -1,0 +1,12 @@
+serverKey: bash
+baseUrl: http://127.0.0.1:11963
+endpointPath: "/mcp"
+enabled: true
+toolPrefix: bash
+readTimeoutMs: 20000
+aliasMap:
+  bash.exec: bash
+  bash.set_vars: bash.variables.set
+  bash.get_vars: bash.variables.get
+  bash.list_vars: bash.variables.list
+  bash.del_vars: bash.variables.delete

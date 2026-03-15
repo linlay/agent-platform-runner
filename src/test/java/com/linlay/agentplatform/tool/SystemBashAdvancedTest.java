@@ -124,7 +124,7 @@ class SystemBashAdvancedTest {
     void shouldAllowRedirectToDevNullInShellMode(@TempDir Path tempDir) throws IOException {
         Path schedulesDir = tempDir.resolve("schedules");
         Files.createDirectories(schedulesDir);
-        Files.writeString(schedulesDir.resolve("demo.json"), "{}");
+        Files.writeString(schedulesDir.resolve("demo.yml"), "{}");
 
         SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
@@ -141,7 +141,7 @@ class SystemBashAdvancedTest {
 
         assertThat(result.asText()).contains("exitCode: 0");
         assertThat(result.asText()).contains("mode: shell");
-        assertThat(result.asText()).contains("demo.json");
+        assertThat(result.asText()).contains("demo.yml");
         assertThat(result.asText()).doesNotContain("Path not allowed outside authorized directories: /dev/null");
     }
 
@@ -339,7 +339,7 @@ class SystemBashAdvancedTest {
         Path outsideDir = tempDir.resolve("outside");
         Files.createDirectories(schedulesDir);
         Files.createDirectories(outsideDir);
-        Files.writeString(schedulesDir.resolve("demo.json"), "{}");
+        Files.writeString(schedulesDir.resolve("demo.yml"), "{}");
 
         SystemBash bash = TestSystemBashFactory.bash(
                 outsideDir,
@@ -363,7 +363,7 @@ class SystemBashAdvancedTest {
         Path projectDir = tempDir.resolve("project");
         Path schedulesDir = projectDir.resolve("schedules");
         Files.createDirectories(schedulesDir);
-        Files.writeString(schedulesDir.resolve("demo.json"), "{}");
+        Files.writeString(schedulesDir.resolve("demo.yml"), "{}");
 
         SystemBash bash = TestSystemBashFactory.bash(
                 projectDir,
@@ -379,7 +379,7 @@ class SystemBashAdvancedTest {
         JsonNode result = bash.invoke(Map.of("command", "ls schedules/"));
 
         assertThat(result.asText()).contains("exitCode: 0");
-        assertThat(result.asText()).contains("demo.json");
+        assertThat(result.asText()).contains("demo.yml");
     }
 
     @Test
@@ -387,7 +387,7 @@ class SystemBashAdvancedTest {
         Path projectDir = tempDir.resolve("project");
         Path schedulesDir = projectDir.resolve("schedules");
         Files.createDirectories(schedulesDir);
-        Files.writeString(schedulesDir.resolve("demo.json"), "{}");
+        Files.writeString(schedulesDir.resolve("demo.yml"), "{}");
 
         SystemBash bash = TestSystemBashFactory.bash(
                 projectDir,
@@ -403,7 +403,7 @@ class SystemBashAdvancedTest {
         JsonNode result = bash.invoke(Map.of("command", "ls ./schedules/"));
 
         assertThat(result.asText()).contains("exitCode: 0");
-        assertThat(result.asText()).contains("demo.json");
+        assertThat(result.asText()).contains("demo.yml");
     }
 
     @Test

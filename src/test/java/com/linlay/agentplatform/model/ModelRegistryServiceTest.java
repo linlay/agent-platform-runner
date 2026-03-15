@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ModelRegistryServiceTest {
 
@@ -22,31 +23,25 @@ class ModelRegistryServiceTest {
     void shouldLoadValidModelWithPricingTiers() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);
-        Files.writeString(modelsDir.resolve("bailian-qwen3-max.json"), """
-                {
-                  "key": "bailian-qwen3-max",
-                  "provider": "bailian",
-                  "protocol": "OPENAI",
-                  "modelId": "qwen3-max",
-                  "isReasoner": true,
-                  "isFunction": true,
-                  "pricing": {
-                    "promptPointsPer1k": 10,
-                    "completionPointsPer1k": 30,
-                    "perCallPoints": 1,
-                    "priceRatio": 1.2,
-                    "tiers": [
-                      {
-                        "minInputTokens": 0,
-                        "maxInputTokens": 8000,
-                        "promptPointsPer1k": 8,
-                        "completionPointsPer1k": 24,
-                        "perCallPoints": 1,
-                        "priceRatio": 1.0
-                      }
-                    ]
-                  }
-                }
+        Files.writeString(modelsDir.resolve("bailian-qwen3-max.yml"), """
+                key: bailian-qwen3-max
+                provider: bailian
+                protocol: OPENAI
+                modelId: qwen3-max
+                isReasoner: true
+                isFunction: true
+                pricing:
+                  promptPointsPer1k: 10
+                  completionPointsPer1k: 30
+                  perCallPoints: 1
+                  priceRatio: 1.2
+                  tiers:
+                    - minInputTokens: 0
+                      maxInputTokens: 8000
+                      promptPointsPer1k: 8
+                      completionPointsPer1k: 24
+                      perCallPoints: 1
+                      priceRatio: 1.0
                 """);
 
         ModelRegistryService service = new ModelRegistryService(
@@ -69,13 +64,11 @@ class ModelRegistryServiceTest {
     void shouldRejectModelWhenProviderIsMissing() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);
-        Files.writeString(modelsDir.resolve("unknown-provider.json"), """
-                {
-                  "key": "unknown-provider",
-                  "provider": "missing",
-                  "protocol": "OPENAI",
-                  "modelId": "qwen3-max"
-                }
+        Files.writeString(modelsDir.resolve("unknown-provider.yml"), """
+                key: unknown-provider
+                provider: missing
+                protocol: OPENAI
+                modelId: qwen3-max
                 """);
 
         ModelRegistryService service = new ModelRegistryService(
@@ -91,21 +84,17 @@ class ModelRegistryServiceTest {
     void shouldKeepFirstOnDuplicateModelKey() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);
-        Files.writeString(modelsDir.resolve("a.json"), """
-                {
-                  "key": "dup-key",
-                  "provider": "bailian",
-                  "protocol": "OPENAI",
-                  "modelId": "first-model"
-                }
+        Files.writeString(modelsDir.resolve("a.yml"), """
+                key: dup-key
+                provider: bailian
+                protocol: OPENAI
+                modelId: first-model
                 """);
-        Files.writeString(modelsDir.resolve("b.json"), """
-                {
-                  "key": "dup-key",
-                  "provider": "bailian",
-                  "protocol": "OPENAI",
-                  "modelId": "second-model"
-                }
+        Files.writeString(modelsDir.resolve("b.yml"), """
+                key: dup-key
+                provider: bailian
+                protocol: OPENAI
+                modelId: second-model
                 """);
 
         ModelRegistryService service = new ModelRegistryService(
@@ -121,13 +110,11 @@ class ModelRegistryServiceTest {
     void shouldRejectInvalidProtocol() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);
-        Files.writeString(modelsDir.resolve("bad-protocol.json"), """
-                {
-                  "key": "bad-protocol",
-                  "provider": "bailian",
-                  "protocol": "FOO_PROTOCOL",
-                  "modelId": "qwen3-max"
-                }
+        Files.writeString(modelsDir.resolve("bad-protocol.yml"), """
+                key: bad-protocol
+                provider: bailian
+                protocol: FOO_PROTOCOL
+                modelId: qwen3-max
                 """);
 
         ModelRegistryService service = new ModelRegistryService(
@@ -143,13 +130,11 @@ class ModelRegistryServiceTest {
     void shouldRejectLegacyNewApiCompatibleProtocol() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);
-        Files.writeString(modelsDir.resolve("legacy-protocol.json"), """
-                {
-                  "key": "legacy-protocol",
-                  "provider": "bailian",
-                  "protocol": "NEWAPI_OPENAI_COMPATIBLE",
-                  "modelId": "qwen3-max"
-                }
+        Files.writeString(modelsDir.resolve("legacy-protocol.yml"), """
+                key: legacy-protocol
+                provider: bailian
+                protocol: NEWAPI_OPENAI_COMPATIBLE
+                modelId: qwen3-max
                 """);
 
         ModelRegistryService service = new ModelRegistryService(
@@ -165,13 +150,11 @@ class ModelRegistryServiceTest {
     void shouldRejectAnthropicProtocolUntilImplemented() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);
-        Files.writeString(modelsDir.resolve("anthropic.json"), """
-                {
-                  "key": "anthropic-model",
-                  "provider": "bailian",
-                  "protocol": "ANTHROPIC",
-                  "modelId": "claude-sonnet"
-                }
+        Files.writeString(modelsDir.resolve("anthropic.yml"), """
+                key: anthropic-model
+                provider: bailian
+                protocol: ANTHROPIC
+                modelId: claude-sonnet
                 """);
 
         ModelRegistryService service = new ModelRegistryService(
@@ -187,13 +170,11 @@ class ModelRegistryServiceTest {
     void shouldReturnCatalogDiffWhenModelsChanged() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);
-        Files.writeString(modelsDir.resolve("a.json"), """
-                {
-                  "key": "model-a",
-                  "provider": "bailian",
-                  "protocol": "OPENAI",
-                  "modelId": "model-a"
-                }
+        Files.writeString(modelsDir.resolve("a.yml"), """
+                key: model-a
+                provider: bailian
+                protocol: OPENAI
+                modelId: model-a
                 """);
 
         ModelRegistryService service = new ModelRegistryService(
@@ -202,18 +183,31 @@ class ModelRegistryServiceTest {
                 providerProperties(Map.of("bailian", provider()))
         );
 
-        Files.writeString(modelsDir.resolve("b.json"), """
-                {
-                  "key": "model-b",
-                  "provider": "bailian",
-                  "protocol": "OPENAI",
-                  "modelId": "model-b"
-                }
+        Files.writeString(modelsDir.resolve("b.yml"), """
+                key: model-b
+                provider: bailian
+                protocol: OPENAI
+                modelId: model-b
                 """);
 
         CatalogDiff diff = service.refreshModels();
         assertThat(diff.addedKeys()).contains("model-b");
         assertThat(diff.changedKeys()).contains("model-b");
+    }
+
+    @Test
+    void shouldFailFastOnLegacyJsonModelFile() throws Exception {
+        Path modelsDir = tempDir.resolve("models");
+        Files.createDirectories(modelsDir);
+        Files.writeString(modelsDir.resolve("legacy.json"), "{\"key\":\"legacy\"}");
+
+        assertThatThrownBy(() -> new ModelRegistryService(
+                new ObjectMapper(),
+                modelProperties(modelsDir),
+                providerProperties(Map.of("bailian", provider()))
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Legacy JSON model files are no longer supported");
     }
 
     private ModelProperties modelProperties(Path modelsDir) {

@@ -38,12 +38,10 @@ class McpRunnerMockChainTest {
     void shouldRunInitializeListAndCallChainWithMcpMetadata() throws Exception {
         Path registryDir = tempDir.resolve("mcp-servers");
         Files.createDirectories(registryDir);
-        Files.writeString(registryDir.resolve("mock.json"), """
-                {
-                  "serverKey": "mock",
-                  "baseUrl": "http://mock.local",
-                  "endpointPath": "/mcp"
-                }
+        Files.writeString(registryDir.resolve("mock.yml"), """
+                serverKey: mock
+                baseUrl: http://mock.local
+                endpointPath: /mcp
                 """);
 
         McpProperties properties = new McpProperties();
@@ -118,15 +116,13 @@ class McpRunnerMockChainTest {
         Path viewportRegistryDir = tempDir.resolve("viewport-servers");
         Files.createDirectories(mcpRegistryDir);
         Files.createDirectories(viewportRegistryDir);
-        String serverJson = """
-                {
-                  "serverKey": "mock",
-                  "baseUrl": "http://mock.local",
-                  "endpointPath": "/mcp"
-                }
+        String serverYaml = """
+                serverKey: mock
+                baseUrl: http://mock.local
+                endpointPath: /mcp
                 """;
-        Files.writeString(mcpRegistryDir.resolve("mock.json"), serverJson);
-        Files.writeString(viewportRegistryDir.resolve("mock.json"), serverJson);
+        Files.writeString(mcpRegistryDir.resolve("mock.yml"), serverYaml);
+        Files.writeString(viewportRegistryDir.resolve("mock.yml"), serverYaml);
 
         McpProperties mcpProperties = new McpProperties();
         mcpProperties.setEnabled(true);

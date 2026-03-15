@@ -90,22 +90,22 @@ class ToolRegistryTest {
     void backendToolMetadataShouldOverrideNativeToolDefinition(@TempDir Path tempDir) throws IOException {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("datetime.json"), """
-                {
-                  "type": "function",
-                  "name": "datetime",
-                  "description": "city datetime from backend",
-                  "afterCallHint": "use city datetime prompt",
-                  "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                      "timezone": {"type": "string"},
-                      "offset": {"type": "string"}
-                    },
-                    "required": ["timezone"],
-                    "additionalProperties": false
-                  }
-                }
+        Files.writeString(toolsDir.resolve("datetime.yml"), """
+                name: datetime
+                label: 日期时间
+                description: city datetime from backend
+                type: function
+                afterCallHint: use city datetime prompt
+                inputSchema:
+                  type: object
+                  properties:
+                    timezone:
+                      type: string
+                    offset:
+                      type: string
+                  required:
+                    - timezone
+                  additionalProperties: false
                 """);
 
         ToolProperties properties = new ToolProperties();
@@ -139,21 +139,19 @@ class ToolRegistryTest {
     void backendMetadataShouldKeepRuntimeDescriptionForNativeBashTool(@TempDir Path tempDir) throws IOException {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("_bash_.json"), """
-                {
-                  "type": "function",
-                  "name": "_bash_",
-                  "label": "Bash命令执行",
-                  "description": "static backend bash description",
-                  "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                      "command": {"type": "string"}
-                    },
-                    "required": ["command"],
-                    "additionalProperties": false
-                  }
-                }
+        Files.writeString(toolsDir.resolve("_bash_.yml"), """
+                name: _bash_
+                label: Bash命令执行
+                description: static backend bash description
+                type: function
+                inputSchema:
+                  type: object
+                  properties:
+                    command:
+                      type: string
+                  required:
+                    - command
+                  additionalProperties: false
                 """);
 
         Path projectDir = tempDir.resolve("project");

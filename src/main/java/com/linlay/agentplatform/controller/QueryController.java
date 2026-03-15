@@ -35,7 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/ap")
+@RequestMapping("/api")
 public class QueryController {
 
     private static final Logger log = LoggerFactory.getLogger(QueryController.class);

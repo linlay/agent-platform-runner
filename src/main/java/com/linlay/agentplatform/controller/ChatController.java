@@ -18,7 +18,7 @@ import org.springframework.web.server.ServerWebExchange;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/ap")
+@RequestMapping("/api")
 public class ChatController {
 
     private final ChatRecordStore chatRecordStore;

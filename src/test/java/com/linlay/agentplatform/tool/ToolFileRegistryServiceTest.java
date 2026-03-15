@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.tool;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,32 +23,9 @@ class ToolFileRegistryServiceTest {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
 
-        Files.writeString(toolsDir.resolve("bash.yml"), """
-                type: function
-                name: bash
-                description: bash tool
-                afterCallHint: bash prompt
-                inputSchema:
-                  type: object
-                """);
-        Files.writeString(toolsDir.resolve("confirm_dialog.yml"), """
-                type: function
-                name: confirm_dialog
-                label: 确认弹窗
-                description: confirm
-                toolType: html
-                viewportKey: confirm_dialog
-                inputSchema:
-                  type: object
-                """);
-        Files.writeString(toolsDir.resolve("switch_theme.yml"), """
-                type: function
-                name: switch_theme
-                description: switch
-                toolAction: true
-                inputSchema:
-                  type: object
-                """);
+        Files.writeString(toolsDir.resolve("bash.yml"), backendToolYaml("bash", "Bash", "bash tool", "bash prompt"));
+        Files.writeString(toolsDir.resolve("confirm_dialog.yml"), frontendToolYaml("confirm_dialog", "确认弹窗", "confirm", "html", "confirm_dialog"));
+        Files.writeString(toolsDir.resolve("switch_theme.yml"), actionToolYaml("switch_theme", "切换主题", "switch"));
 
         ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
 
@@ -77,30 +55,33 @@ class ToolFileRegistryServiceTest {
         Files.createDirectories(toolsDir);
 
         Files.writeString(toolsDir.resolve("missing_schema.yml"), """
-                type: function
                 name: missing_schema
+                label: Missing Schema
                 description: missing schema
+                type: function
                 """);
         Files.writeString(toolsDir.resolve("blank_label.yml"), """
-                type: function
                 name: blank_label
                 label: ""
                 description: blank label
+                type: function
                 inputSchema:
                   type: object
                 """);
         Files.writeString(toolsDir.resolve("tool_type_only.yml"), """
-                type: function
                 name: tool_type_only
+                label: Tool Type Only
                 description: invalid frontend metadata
+                type: function
                 toolType: html
                 inputSchema:
                   type: object
                 """);
         Files.writeString(toolsDir.resolve("action_and_viewport.yml"), """
-                type: function
                 name: action_and_viewport
+                label: Action And Viewport
                 description: invalid action metadata
+                type: function
                 toolAction: true
                 toolType: html
                 viewportKey: dialog
@@ -122,10 +103,10 @@ class ToolFileRegistryServiceTest {
         Files.createDirectories(toolsDir);
 
         Files.writeString(toolsDir.resolve("mixed_case.yml"), """
-                type: function
                 name: Weather.Query
                 label: 天气查询
                 description: mixed case name
+                type: function
                 inputSchema:
                   type: object
                 """);
@@ -139,29 +120,14 @@ class ToolFileRegistryServiceTest {
     }
 
     @Test
-    void shouldSkipConflictedToolNames() throws Exception {
+    void shouldFailFastOnLegacyJsonToolFiles() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
+        Files.writeString(toolsDir.resolve("legacy.json"), "{\"name\":\"legacy\"}");
 
-        Files.writeString(toolsDir.resolve("a.yml"), """
-                type: function
-                name: dup_name
-                description: a
-                inputSchema:
-                  type: object
-                """);
-        Files.writeString(toolsDir.resolve("b.json"), """
-                {
-                  "type": "function",
-                  "name": "dup_name",
-                  "description": "b",
-                  "inputSchema": {"type": "object"}
-                }
-                """);
-
-        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
-
-        assertThat(service.find("dup_name")).isEmpty();
+        assertThatThrownBy(() -> new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Legacy JSON tool files are no longer supported");
     }
 
     @Test
@@ -170,10 +136,14 @@ class ToolFileRegistryServiceTest {
         Files.createDirectories(toolsDir);
 
         Files.writeString(toolsDir.resolve("legacy.yml"), """
+                name: legacy_tool
+                label: Legacy Tool
+                description: legacy
+                type: function
                 tools:
                   - type: function
-                    name: legacy_tool
-                    description: legacy
+                    name: ignored
+                    description: ignored
                     inputSchema:
                       type: object
                 """);
@@ -189,9 +159,10 @@ class ToolFileRegistryServiceTest {
         Files.createDirectories(toolsDir);
 
         Files.writeString(toolsDir.resolve("hidden_yaml.yml"), """
-                type: function
                 name: hidden_yaml_tool
+                label: Hidden YAML Tool
                 description: hidden yaml tool
+                type: function
                 clientVisible: false
                 inputSchema:
                   type: object
@@ -209,9 +180,10 @@ class ToolFileRegistryServiceTest {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
         Files.writeString(toolsDir.resolve("a.yml"), """
-                type: function
                 name: a_tool
+                label: A Tool
                 description: a
+                type: function
                 inputSchema:
                   type: object
                 """);
@@ -219,9 +191,10 @@ class ToolFileRegistryServiceTest {
         ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
 
         Files.writeString(toolsDir.resolve("b.yml"), """
-                type: function
                 name: b_tool
+                label: B Tool
                 description: b
+                type: function
                 inputSchema:
                   type: object
                 """);
@@ -235,5 +208,42 @@ class ToolFileRegistryServiceTest {
         ToolProperties properties = new ToolProperties();
         properties.setExternalDir(toolsDir.toString());
         return properties;
+    }
+
+    private String backendToolYaml(String name, String label, String description, String afterCallHint) {
+        return """
+                name: %s
+                label: %s
+                description: %s
+                type: function
+                afterCallHint: %s
+                inputSchema:
+                  type: object
+                """.formatted(name, label, description, afterCallHint);
+    }
+
+    private String frontendToolYaml(String name, String label, String description, String toolType, String viewportKey) {
+        return """
+                name: %s
+                label: %s
+                description: %s
+                type: function
+                toolType: %s
+                viewportKey: %s
+                inputSchema:
+                  type: object
+                """.formatted(name, label, description, toolType, viewportKey);
+    }
+
+    private String actionToolYaml(String name, String label, String description) {
+        return """
+                name: %s
+                label: %s
+                description: %s
+                type: function
+                toolAction: true
+                inputSchema:
+                  type: object
+                """.formatted(name, label, description);
     }
 }

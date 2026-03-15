@@ -2,6 +2,8 @@ package com.linlay.agentplatform.team;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.DependsOn;
@@ -30,6 +32,7 @@ public class TeamRegistryService {
     private static final Pattern TEAM_ID_PATTERN = Pattern.compile("^[0-9a-f]{12}$");
 
     private final ObjectMapper objectMapper;
+    private final ObjectMapper yamlMapper;
     private final TeamProperties properties;
 
     private final Object reloadLock = new Object();
@@ -37,6 +40,7 @@ public class TeamRegistryService {
 
     public TeamRegistryService(ObjectMapper objectMapper, TeamProperties properties) {
         this.objectMapper = objectMapper;
+        this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.properties = properties;
         refreshTeams();
     }
@@ -69,8 +73,7 @@ public class TeamRegistryService {
             }
 
             try (Stream<Path> stream = Files.list(dir)) {
-                stream.filter(path -> Files.isRegularFile(path) && path.getFileName().toString().endsWith(".json"))
-                        .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                YamlCatalogSupport.selectYamlFiles(stream.filter(Files::isRegularFile).toList(), "team", log)
                         .forEach(path -> tryLoad(path).ifPresent(team -> {
                             if (loaded.containsKey(team.id())) {
                                 log.warn("Duplicate team id '{}' found in {}, keep the first one", team.id(), path);
@@ -88,8 +91,7 @@ public class TeamRegistryService {
     }
 
     private Optional<TeamDescriptor> tryLoad(Path file) {
-        String fileName = file.getFileName().toString();
-        String fileBasedId = fileName.substring(0, fileName.length() - ".json".length()).trim();
+        String fileBasedId = YamlCatalogSupport.fileBaseName(file).trim();
         String teamId = normalizeTeamId(fileBasedId);
         if (!isValidTeamId(teamId)) {
             log.warn("Skip team file with invalid teamId '{}': {}", fileBasedId, file);
@@ -97,7 +99,16 @@ public class TeamRegistryService {
         }
 
         try {
-            JsonNode root = objectMapper.readTree(Files.readString(file));
+            String raw = Files.readString(file);
+            YamlCatalogSupport.HeaderError headerError = YamlCatalogSupport.validateHeader(
+                    raw,
+                    List.of("name", "defaultagentkey")
+            );
+            if (headerError.isPresent()) {
+                log.warn("Skip team '{}' due to invalid header: {} ({})", teamId, headerError.value(), file);
+                return Optional.empty();
+            }
+            JsonNode root = yamlMapper.readTree(raw);
             String name = root.path("name").asText("").trim();
             if (name.isBlank()) {
                 log.warn("Skip team '{}' without non-blank name: {}", teamId, file);

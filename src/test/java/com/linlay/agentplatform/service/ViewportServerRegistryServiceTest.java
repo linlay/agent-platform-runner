@@ -19,15 +19,12 @@ class ViewportServerRegistryServiceTest {
     void shouldLoadServerFromRegistryFile() throws Exception {
         Path registryDir = tempDir.resolve("viewport-servers");
         Files.createDirectories(registryDir);
-        Files.writeString(registryDir.resolve("mock.json"), """
-                {
-                  "serverKey": "viewport-mock",
-                  "baseUrl": "http://dynamic-host:11969",
-                  "endpointPath": "/mcp",
-                  "headers": {
-                    "x-viewport": "1"
-                  }
-                }
+        Files.writeString(registryDir.resolve("mock.yml"), """
+                serverKey: viewport-mock
+                baseUrl: http://dynamic-host:11969
+                endpointPath: /mcp
+                headers:
+                  x-viewport: "1"
                 """);
 
         ViewportServerProperties properties = new ViewportServerProperties();
@@ -46,14 +43,13 @@ class ViewportServerRegistryServiceTest {
     void shouldBindTimeoutAndRetryFromRegistryFile() throws Exception {
         Path registryDir = tempDir.resolve("viewport-servers");
         Files.createDirectories(registryDir);
-        Files.writeString(registryDir.resolve("mock.json"), """
-                {
-                  "serverKey": "viewport-mock",
-                  "baseUrl": "http://localhost:11969",
-                  "connectTimeoutMs": 2100,
-                  "readTimeoutMs": 19000,
-                  "retry": 4
-                }
+        Files.writeString(registryDir.resolve("mock.yml"), """
+                serverKey: viewport-mock
+                baseUrl: http://localhost:11969
+                endpointPath: /mcp
+                connectTimeoutMs: 2100
+                readTimeoutMs: 19000
+                retry: 4
                 """);
 
         ViewportServerProperties properties = new ViewportServerProperties();
@@ -72,11 +68,10 @@ class ViewportServerRegistryServiceTest {
     void shouldIncreaseRegistryVersionAfterRefresh() throws Exception {
         Path registryDir = tempDir.resolve("viewport-servers");
         Files.createDirectories(registryDir);
-        Files.writeString(registryDir.resolve("mock.json"), """
-                {
-                  "serverKey": "viewport-mock",
-                  "baseUrl": "http://localhost:11969"
-                }
+        Files.writeString(registryDir.resolve("mock.yml"), """
+                serverKey: viewport-mock
+                baseUrl: http://localhost:11969
+                endpointPath: /mcp
                 """);
 
         ViewportServerProperties properties = new ViewportServerProperties();

@@ -9,7 +9,7 @@ import java.util.Locale;
 
 public final class DataFilePathNormalizer {
 
-    private static final String DATA_API_PATH = "/api/ap/data";
+    private static final String DATA_API_PATH = "/api/data";
 
     private DataFilePathNormalizer() {
     }

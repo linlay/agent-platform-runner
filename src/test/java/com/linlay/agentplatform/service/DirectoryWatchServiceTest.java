@@ -29,7 +29,7 @@ class DirectoryWatchServiceTest {
 
         DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
         try {
-            Files.writeString(watchedDir.resolve("test.json"), "{}");
+            Files.writeString(watchedDir.resolve("test.yml"), "name: test\n");
             boolean triggered = latch.await(10, TimeUnit.SECONDS);
             assertThat(triggered).isTrue();
         } finally {
@@ -48,7 +48,7 @@ class DirectoryWatchServiceTest {
 
         DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
         try {
-            Files.writeString(watchedDir.resolve("once.json"), "{}");
+            Files.writeString(watchedDir.resolve("once.yml"), "name: once\n");
 
             boolean firstTriggered = waitForCountAtLeast(counter, 1, 10_000);
             assertThat(firstTriggered).isTrue();
@@ -67,18 +67,18 @@ class DirectoryWatchServiceTest {
         Files.createDirectories(watchedDir);
 
         AtomicInteger counter = new AtomicInteger();
-        Path file = watchedDir.resolve("twice.json");
+        Path file = watchedDir.resolve("twice.yml");
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(watchedDir, counter::incrementAndGet);
 
         DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
         try {
-            Files.writeString(file, "{\"v\":1}");
+            Files.writeString(file, "name: twice\nvalue: 1\n");
             boolean firstTriggered = waitForCountAtLeast(counter, 1, 10_000);
             assertThat(firstTriggered).isTrue();
 
             TimeUnit.MILLISECONDS.sleep(650);
-            Files.writeString(file, "{\"v\":2}");
+            Files.writeString(file, "name: twice\nvalue: 2\n");
 
             boolean secondTriggered = waitForCountAtLeast(counter, 2, 10_000);
             assertThat(secondTriggered).isTrue();
@@ -135,7 +135,7 @@ class DirectoryWatchServiceTest {
 
         DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
         try {
-            Files.writeString(modelsDir.resolve("demo-model.json"), "{}");
+            Files.writeString(modelsDir.resolve("demo-model.yml"), "key: demo-model\nprovider: demo\nprotocol: OPENAI\nmodelId: demo\n");
             boolean triggered = latch.await(10, TimeUnit.SECONDS);
             assertThat(triggered).isTrue();
         } finally {
@@ -154,7 +154,7 @@ class DirectoryWatchServiceTest {
 
         DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
         try {
-            Files.writeString(teamsDir.resolve("a1b2c3d4e5f6.json"), "{}");
+            Files.writeString(teamsDir.resolve("a1b2c3d4e5f6.yml"), "name: Team\ndefaultAgentKey: demo\n");
             boolean triggered = latch.await(10, TimeUnit.SECONDS);
             assertThat(triggered).isTrue();
         } finally {

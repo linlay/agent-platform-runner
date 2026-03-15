@@ -6,23 +6,22 @@
 
 ## 命名规范
 
-- 文件后缀：`.json`
-- 文件命名：`<team-id>.json`
+- 文件后缀：`.yml`、`.yaml`
+- 文件命名：`<team-id>.yml`
 - `team-id`：12 位小写十六进制，例如 `a1b2c3d4e5f6`
 
 ## 最小示例
 
-```json
-{
-  "name": "Default Team",
-  "defaultAgentKey": "demoModeReact",
-  "agentKeys": ["demoModeReact"]
-}
+```yaml
+name: Default Team
+defaultAgentKey: demoModeReact
+agentKeys:
+  - demoModeReact
 ```
 
 ## 如何新增
 
-1. 新建 `<team-id>.json`。
+1. 新建 `<team-id>.yml`。
 2. 在 `agentKeys` 中填写已存在的 agent key。
 3. 可选设置 `defaultAgentKey`，用于计划任务仅配置 `teamId` 时选择默认执行智能体。
 4. 执行示例安装脚本同步到外层 `teams/`。

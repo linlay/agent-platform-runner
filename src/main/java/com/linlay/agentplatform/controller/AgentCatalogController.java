@@ -27,7 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/ap")
+@RequestMapping("/api")
 public class AgentCatalogController {
 
     private final AgentRegistry agentRegistry;

@@ -29,10 +29,10 @@ class RuntimeResourceSyncServiceTest {
         Files.createDirectories(skillsDir);
         Files.createDirectories(schedulesDir);
 
-        Path modePlainAgent = agentsDir.resolve("demoModePlain.json");
+        Path modePlainAgent = agentsDir.resolve("demoModePlain.yml");
         Path weatherTool = toolsDir.resolve("datetime.yml");
         Path skillScriptTool = toolsDir.resolve("_skill_run_script_.yml");
-        Path extraAgent = agentsDir.resolve("custom_agent.json");
+        Path extraAgent = agentsDir.resolve("custom_agent.yml");
         Path extraTool = toolsDir.resolve("custom.yml");
         Path mathBasicSkillFile = skillsDir.resolve("math_basic").resolve("SKILL.md");
         Path extraSkillFile = skillsDir.resolve("custom_skill").resolve("SKILL.md");
@@ -63,8 +63,8 @@ class RuntimeResourceSyncServiceTest {
         String syncedSkill = Files.readString(mathBasicSkillFile);
         String syncedSchedule = Files.readString(builtInSchedule);
 
-        assertThat(syncedTool).contains("\"name\": \"datetime\"");
-        assertThat(syncedSkillScriptTool).contains("\"name\": \"_skill_run_script_\"");
+        assertThat(syncedTool).contains("name: datetime");
+        assertThat(syncedSkillScriptTool).contains("name: _skill_run_script_");
         assertThat(syncedSkill).contains("name: \"math_basic\"");
         assertThat(syncedSchedule).contains("name: 内置占位计划任务")
                 .contains("description: 预留内置计划任务同步链路的占位任务，默认禁用")
@@ -77,7 +77,7 @@ class RuntimeResourceSyncServiceTest {
         assertThat(toolsDir.resolve("show_modal.yml")).doesNotExist();
         assertThat(toolsDir.resolve("switch_theme.yml")).doesNotExist();
         assertThat(Files.readString(modePlainAgent)).isEqualTo("old-agent-content");
-        assertThat(agentsDir.resolve("demoAction.json")).doesNotExist();
+        assertThat(agentsDir.resolve("demoAction.yml")).doesNotExist();
         assertThat(Files.readString(extraAgent)).isEqualTo("custom agent content");
         assertThat(Files.readString(extraTool)).isEqualTo("custom tool content");
         assertThat(Files.readString(extraSkillFile)).isEqualTo("custom skill content");
@@ -169,7 +169,7 @@ class RuntimeResourceSyncServiceTest {
 
         Path canonicalSkillScript = toolsDir.resolve("_skill_run_script_.yml");
         assertThat(canonicalSkillScript).exists();
-        assertThat(Files.readString(canonicalSkillScript)).contains("\"name\": \"_skill_run_script_\"");
+        assertThat(Files.readString(canonicalSkillScript)).contains("name: _skill_run_script_");
         assertThat(legacySkillScript).exists();
     }
 }

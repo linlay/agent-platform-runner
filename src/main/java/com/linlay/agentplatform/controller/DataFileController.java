@@ -76,7 +76,7 @@ public class DataFileController {
         this.loggingAgentProperties = loggingAgentProperties;
     }
 
-    @GetMapping("/api/ap/data")
+    @GetMapping("/api/data")
     public Mono<ResponseEntity<?>> serveFile(
             @RequestParam("file") String file,
             @RequestParam(value = "download", required = false, defaultValue = "false") boolean download,

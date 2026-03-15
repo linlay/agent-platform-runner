@@ -34,7 +34,7 @@ class ScheduledQueryDispatchServiceTest {
                 "Default Team",
                 List.of("demoModeReact"),
                 "demoModeReact",
-                "/tmp/a1b2c3d4e5f6.json"
+                "/tmp/a1b2c3d4e5f6.yml"
         );
         when(teamRegistryService.find("a1b2c3d4e5f6")).thenReturn(Optional.of(team));
 

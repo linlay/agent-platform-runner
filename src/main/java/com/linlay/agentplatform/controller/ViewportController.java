@@ -20,7 +20,7 @@ import reactor.core.scheduler.Schedulers;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/ap")
+@RequestMapping("/api")
 public class ViewportController {
 
     private static final Logger log = LoggerFactory.getLogger(ViewportController.class);

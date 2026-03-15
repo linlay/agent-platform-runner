@@ -132,7 +132,7 @@ class DataApiTokenValidationToggleIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/ap/data")
+                        .path("/api/data")
                         .queryParam("file", "sample_photo.jpg")
                         .build())
                 .exchange()
@@ -147,7 +147,7 @@ class DataApiTokenValidationToggleIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/ap/data")
+                        .path("/api/data")
                         .queryParam("file", "sample_photo.jpg")
                         .queryParam("t", "invalid-token")
                         .build())
@@ -164,7 +164,7 @@ class DataApiTokenValidationToggleIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/ap/data")
+                        .path("/api/data")
                         .queryParam("file", "sample_photo.jpg")
                         .build())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + authToken)

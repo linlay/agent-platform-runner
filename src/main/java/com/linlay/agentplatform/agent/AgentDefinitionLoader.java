@@ -1,6 +1,5 @@
 package com.linlay.agentplatform.agent;
 
-import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -9,6 +8,7 @@ import com.linlay.agentplatform.agent.mode.AgentModeFactory;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.util.StringHelpers;
+import com.linlay.agentplatform.util.YamlCatalogSupport;
 import com.linlay.agentplatform.model.ModelDefinition;
 import com.linlay.agentplatform.model.ModelProtocol;
 import com.linlay.agentplatform.model.ModelRegistryService;
@@ -28,19 +28,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @Component
 public class AgentDefinitionLoader {
 
     private static final Logger log = LoggerFactory.getLogger(AgentDefinitionLoader.class);
-    private static final Set<String> YAML_EXTENSIONS = Set.of(".yml", ".yaml");
-    private static final Pattern MULTILINE_PROMPT_PATTERN =
-            Pattern.compile("(\"[a-zA-Z0-9_]*systemPrompt\"\\s*:\\s*)\"\"\"([\\s\\S]*?)\"\"\"", Pattern.CASE_INSENSITIVE);
-
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final AgentProperties properties;
@@ -71,10 +64,11 @@ public class AgentDefinitionLoader {
 
         List<Path> filesToLoad;
         try (Stream<Path> stream = Files.list(dir)) {
-            filesToLoad = selectFilesToLoad(stream
-                    .filter(Files::isRegularFile)
-                    .filter(this::isSupportedAgentFile)
-                    .toList());
+            filesToLoad = YamlCatalogSupport.selectYamlFiles(
+                    stream.filter(Files::isRegularFile).toList(),
+                    "agent",
+                    log
+            );
         } catch (IOException ex) {
             log.warn("Cannot list external agents from {}", dir, ex);
             return List.of();
@@ -100,52 +94,25 @@ public class AgentDefinitionLoader {
         return new ArrayList<>(loaded.values());
     }
 
-    private List<Path> selectFilesToLoad(List<Path> candidates) {
-        if (candidates == null || candidates.isEmpty()) {
-            return List.of();
-        }
-        Comparator<Path> priorityComparator = Comparator
-                .comparingInt(this::formatPriority)
-                .thenComparing(path -> path.getFileName().toString());
-
-        Map<String, List<Path>> byBaseName = new LinkedHashMap<>();
-        for (Path candidate : candidates) {
-            byBaseName.computeIfAbsent(fileBaseName(candidate), ignored -> new ArrayList<>()).add(candidate);
-        }
-
-        List<Path> selected = new ArrayList<>();
-        for (Map.Entry<String, List<Path>> entry : byBaseName.entrySet()) {
-            List<Path> files = new ArrayList<>(entry.getValue());
-            files.sort(priorityComparator);
-            Path chosen = files.getFirst();
-            if (files.size() > 1) {
-                List<String> ignored = files.stream()
-                        .skip(1)
-                        .map(path -> path.getFileName().toString())
-                        .toList();
-                log.warn(
-                        "Found multiple agent files for basename '{}', choose '{}' and ignore {}",
-                        entry.getKey(),
-                        chosen.getFileName(),
-                        ignored
-                );
-            }
-            selected.add(chosen);
-        }
-        selected.sort(priorityComparator);
-        return List.copyOf(selected);
-    }
-
     private Optional<AgentDefinition> tryLoadExternal(Path file) {
         String fileName = file.getFileName().toString();
-        String fileBasedId = fileBaseName(file).trim();
+        String fileBasedId = YamlCatalogSupport.fileBaseName(file).trim();
         if (fileBasedId.isEmpty()) {
             log.warn("Skip external agent with empty name: {}", file);
             return Optional.empty();
         }
 
         try {
-            JsonNode root = parseConfig(file);
+            String raw = Files.readString(file);
+            YamlCatalogSupport.HeaderError headerError = YamlCatalogSupport.validateHeader(
+                    raw,
+                    List.of("key", "name", "role", "description")
+            );
+            if (headerError.isPresent()) {
+                log.warn("Skip agent '{}' due to invalid header: {} ({})", fileBasedId, headerError.value(), file);
+                return Optional.empty();
+            }
+            JsonNode root = yamlMapper.readTree(raw);
             if (AgentDefinitionValidator.isLegacyConfig(root)) {
                 log.warn("Skip legacy agent config {}. Only Agent Definition v2 is supported.", file);
                 return Optional.empty();
@@ -204,75 +171,6 @@ public class AgentDefinitionLoader {
             log.warn("Skip invalid external agent file: {}", file, ex);
             return Optional.empty();
         }
-    }
-
-    private JsonNode parseConfig(Path file) throws IOException {
-        String raw = Files.readString(file);
-        if (isYamlFile(file)) {
-            return yamlMapper.readTree(raw);
-        }
-        String normalizedJson = normalizeMultilinePrompts(raw);
-        return objectMapper
-                .reader()
-                .with(JsonReadFeature.ALLOW_JAVA_COMMENTS.mappedFeature())
-                .with(JsonReadFeature.ALLOW_YAML_COMMENTS.mappedFeature())
-                .readTree(normalizedJson);
-    }
-
-    private boolean isSupportedAgentFile(Path path) {
-        String fileName = path.getFileName().toString().toLowerCase(Locale.ROOT);
-        return fileName.endsWith(".json") || YAML_EXTENSIONS.stream().anyMatch(fileName::endsWith);
-    }
-
-    private boolean isYamlFile(Path file) {
-        String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
-        return YAML_EXTENSIONS.stream().anyMatch(fileName::endsWith);
-    }
-
-    private int formatPriority(Path file) {
-        return isYamlFile(file) ? 0 : 1;
-    }
-
-    private String fileBaseName(Path file) {
-        String fileName = file.getFileName().toString();
-        String lowerName = fileName.toLowerCase(Locale.ROOT);
-        if (lowerName.endsWith(".yaml")) {
-            return fileName.substring(0, fileName.length() - ".yaml".length());
-        }
-        if (lowerName.endsWith(".yml")) {
-            return fileName.substring(0, fileName.length() - ".yml".length());
-        }
-        if (lowerName.endsWith(".json")) {
-            return fileName.substring(0, fileName.length() - ".json".length());
-        }
-        return fileName;
-    }
-
-    private String normalizeMultilinePrompts(String rawJson) throws IOException {
-        Matcher matcher = MULTILINE_PROMPT_PATTERN.matcher(rawJson);
-        if (!matcher.find()) {
-            return rawJson;
-        }
-
-        StringBuffer rewritten = new StringBuffer();
-        do {
-            String content = stripOuterLineBreak(matcher.group(2));
-            String escaped = objectMapper.writeValueAsString(content);
-            matcher.appendReplacement(rewritten, Matcher.quoteReplacement(matcher.group(1) + escaped));
-        } while (matcher.find());
-        matcher.appendTail(rewritten);
-        return rewritten.toString();
-    }
-
-    private String stripOuterLineBreak(String content) {
-        String normalized = content.replace("\r\n", "\n");
-        if (normalized.startsWith("\n")) {
-            normalized = normalized.substring(1);
-        }
-        if (normalized.endsWith("\n")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        return normalized;
     }
 
     private String normalize(String value, String fallback) {

@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AgentDefinitionLoaderTest {
 
@@ -23,81 +24,62 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void shouldLoadExternalAgentWithKeyNameIcon() throws IOException {
-        Files.writeString(tempDir.resolve("ops_daily.json"), """
-                {
-                  "key": "ops_daily",
-                  "name": "运维日报助手",
-                  "icon": "emoji:📅",
-                  "description": "运维助手",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "toolConfig": {
-                    "backends": ["_bash_"],
-                    "frontends": [],
-                    "actions": []
-                  },
-                  "mode": "PLAN_EXECUTE",
-                  "planExecute": {
-                    "plan": { "systemPrompt": "先规划" },
-                    "execute": { "systemPrompt": "再执行" },
-                    "summary": { "systemPrompt": "最后总结" }
-                  }
-                }
+        writeYaml("ops_daily.yml", """
+                key: ops_daily
+                name: 运维日报助手
+                role: 运维助手
+                description: 运维助手
+                icon: "emoji:📅"
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - _bash_
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: 先规划
+                  execute:
+                    systemPrompt: 再执行
+                  summary:
+                    systemPrompt: 最后总结
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        AgentDefinition definition = loadById().get("ops_daily");
 
-        Map<String, AgentDefinition> byId = loader.loadAll().stream()
-                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
-
-        assertThat(byId).containsKey("ops_daily");
-        AgentDefinition definition = byId.get("ops_daily");
+        assertThat(definition).isNotNull();
         assertThat(definition.name()).isEqualTo("运维日报助手");
         assertThat(definition.icon()).isEqualTo("emoji:📅");
         assertThat(definition.mode()).isEqualTo(AgentRuntimeMode.PLAN_EXECUTE);
         assertThat(definition.tools()).containsExactlyInAnyOrder("_bash_", "_plan_add_tasks_", "_plan_update_task_");
-        assertThat(definition.agentMode()).isInstanceOf(PlanExecuteMode.class);
 
-        PlanExecuteMode peMode = (PlanExecuteMode) definition.agentMode();
-        assertThat(peMode.planStage().systemPrompt()).isEqualTo("先规划");
-        assertThat(peMode.planStage().deepThinking()).isFalse();
-        assertThat(peMode.executeStage().systemPrompt()).isEqualTo("再执行");
-        assertThat(peMode.summaryStage().systemPrompt()).isEqualTo("最后总结");
+        PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
+        assertThat(mode.planStage().systemPrompt()).isEqualTo("先规划");
+        assertThat(mode.planStage().deepThinking()).isFalse();
+        assertThat(mode.executeStage().systemPrompt()).isEqualTo("再执行");
+        assertThat(mode.summaryStage().systemPrompt()).isEqualTo("最后总结");
     }
 
     @Test
     void shouldLoadExternalAgentWithIconObject() throws IOException {
-        Files.writeString(tempDir.resolve("demo_icon_object.json"), """
-                {
-                  "key": "demo_icon_object",
-                  "name": "图标对象",
-                  "icon": {
-                    "name": "rocket",
-                    "color": "#3F7BFA"
-                  },
-                  "description": "对象图标",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "mode": "ONESHOT",
-                  "plain": {
-                    "systemPrompt": "你好"
-                  }
-                }
+        writeYaml("demo_icon_object.yml", """
+                key: demo_icon_object
+                name: 图标对象
+                role: 图标对象
+                description: 对象图标
+                icon:
+                  name: rocket
+                  color: "#3F7BFA"
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: 你好
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        AgentDefinition definition = loadById().get("demo_icon_object");
 
-        Map<String, AgentDefinition> byId = loader.loadAll().stream()
-                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
-
-        assertThat(byId).containsKey("demo_icon_object");
-        AgentDefinition definition = byId.get("demo_icon_object");
+        assertThat(definition).isNotNull();
         assertThat(definition.icon()).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> icon = (Map<String, Object>) definition.icon();
@@ -107,154 +89,117 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void shouldRejectAvatarAlias() throws IOException {
-        Files.writeString(tempDir.resolve("legacy_avatar.json"), """
-                {
-                  "key": "legacy_avatar",
-                  "name": "旧头像字段",
-                  "avatar": "emoji:📦",
-                  "description": "legacy avatar",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "test" }
-                }
+        writeYaml("legacy_avatar.yml", """
+                key: legacy_avatar
+                name: 旧头像字段
+                role: 旧头像字段
+                description: legacy avatar
+                avatar: "emoji:📦"
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
-        Map<String, AgentDefinition> byId = loader.loadAll().stream()
-                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
-
-        assertThat(byId).doesNotContainKey("legacy_avatar");
+        assertThat(loadById()).doesNotContainKey("legacy_avatar");
     }
 
     @Test
     void shouldRejectLegacyAgentConfig() throws IOException {
-        Files.writeString(tempDir.resolve("legacy.json"), """
-                {
-                  "description":"legacy",
-                  "providerKey":"bailian",
-                  "model":"qwen3-max",
-                  "mode":"ONESHOT",
-                  "plain":{"systemPrompt":"旧模式"}
-                }
+        writeYaml("legacy.yml", """
+                key: legacy
+                name: Legacy Agent
+                role: Legacy Agent
+                description: legacy
+                providerKey: bailian
+                model: qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: 旧模式
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
-        Map<String, AgentDefinition> byId = loader.loadAll().stream()
-                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
-
-        assertThat(byId).doesNotContainKey("legacy");
+        assertThat(loadById()).doesNotContainKey("legacy");
     }
 
     @Test
     void shouldRejectModelConfigWithProviderAndModelFields() throws IOException {
-        Files.writeString(tempDir.resolve("legacy_model_config.json"), """
-                {
-                  "key": "legacy_model_config",
-                  "description": "legacy modelConfig",
-                  "modelConfig": {
-                    "providerKey": "bailian",
-                    "model": "qwen3-max"
-                  },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "test" }
-                }
+        writeYaml("legacy_model_config.yml", """
+                key: legacy_model_config
+                name: Legacy Model Config
+                role: Legacy Model Config
+                description: legacy modelConfig
+                modelConfig:
+                  providerKey: bailian
+                  model: qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
-        Map<String, AgentDefinition> byId = loader.loadAll().stream()
-                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
-
-        assertThat(byId).doesNotContainKey("legacy_model_config");
+        assertThat(loadById()).doesNotContainKey("legacy_model_config");
     }
 
     @Test
-    void shouldLoadTripleQuotedPromptForOneshot() throws IOException {
-        Files.writeString(tempDir.resolve("fortune_teller.json"), "{" + "\n"
-                + "  \"key\": \"fortune_teller\",\n"
-                + "  \"description\": \"算命大师\",\n"
-                + "  \"modelConfig\": {\n"
-                + "    \"modelKey\": \"bailian-qwen3-max\"\n"
-                + "  },\n"
-                + "  \"toolConfig\": null,\n"
-                + "  \"mode\": \"ONESHOT\",\n"
-                + "  \"plain\": {\n"
-                + "    \"systemPrompt\": \"\"\"\n"
-                + "你是算命大师\n"
-                + "请先问出生日期\n"
-                + "\"\"\"\n"
-                + "  }\n"
-                + "}\n");
+    void shouldRejectAgentWhenHeaderOrderIsWrong() throws IOException {
+        writeYaml("wrong_header.yml", """
+                key: wrong_header
+                name: Wrong Header
+                description: wrong order
+                role: Wrong Header
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test
+                """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
-
-        Map<String, AgentDefinition> byId = loader.loadAll().stream()
-                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
-
-        assertThat(byId).containsKey("fortune_teller");
-        assertThat(byId.get("fortune_teller").systemPrompt()).isEqualTo("你是算命大师\n请先问出生日期");
-        assertThat(byId.get("fortune_teller").mode()).isEqualTo(AgentRuntimeMode.ONESHOT);
+        assertThat(loadById()).doesNotContainKey("wrong_header");
     }
 
     @Test
-    void shouldLoadPlanExecuteWithCommentsAndTripleQuotedPrompts() throws IOException {
-        Files.writeString(tempDir.resolve("demoModePlanExecute.json"), "{" + "\n"
-                + "  \"key\": \"demoModePlanExecute\",\n"
-                + "  \"description\": \"plan execute with comments\",\n"
-                + "  \"modelConfig\": {\n"
-                + "    \"modelKey\": \"bailian-qwen3-max\"\n"
-                + "  },\n"
-                + "  \"mode\": \"PLAN_EXECUTE\",\n"
-                + "  \"planExecute\": {\n"
-                + "    \"plan\": {\n"
-                + "      // \"deepThinking\": true,\n"
-                + "      \"systemPrompt\": \"\"\"\n"
-                + "你是高级规划助手。\n"
-                + "先规划任务。\n"
-                + "\"\"\"\n"
-                + "    },\n"
-                + "    \"execute\": {\n"
-                + "      /* 执行阶段系统提示 */\n"
-                + "      \"systemPrompt\": \"\"\"\n"
-                + "你是执行助手。\n"
-                + "根据taskId执行任务。\n"
-                + "\"\"\"\n"
-                + "    },\n"
-                + "    \"summary\": {\n"
-                + "      \"systemPrompt\": \"总结\"\n"
-                + "    }\n"
-                + "  }\n"
-                + "}\n");
+    void shouldRejectAgentWhenCommentAppearsBeforeHeader() throws IOException {
+        writeYaml("comment_before_header.yml", """
+                # comment
+                key: comment_before_header
+                name: Comment Before Header
+                role: Comment Before Header
+                description: comment before header
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test
+                """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        assertThat(loadById()).doesNotContainKey("comment_before_header");
+    }
 
-        AgentDefinition definition = loader.loadAll().stream()
-                .filter(item -> "demoModePlanExecute".equals(item.id()))
-                .findFirst()
-                .orElseThrow();
-        PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
+    @Test
+    void shouldRejectAgentWhenDescriptionUsesBlockScalarInHeader() throws IOException {
+        writeYaml("multiline_description.yml", """
+                key: multiline_description
+                name: Multiline Description
+                role: Multiline Description
+                description: |
+                  line 1
+                  line 2
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test
+                """);
 
-        assertThat(mode.planStage().systemPrompt()).isEqualTo("你是高级规划助手。\n先规划任务。");
-        assertThat(mode.executeStage().systemPrompt()).isEqualTo("你是执行助手。\n根据taskId执行任务。");
-        assertThat(mode.summaryStage().systemPrompt()).isEqualTo("总结");
+        assertThat(loadById()).doesNotContainKey("multiline_description");
     }
 
     @Test
     void shouldLoadYamlAgentDefinitionsAcrossModes() throws IOException {
-        Files.writeString(tempDir.resolve("yaml_oneshot.yml"), """
+        writeYaml("yaml_oneshot.yml", """
                 key: yaml_oneshot
                 name: YAML Oneshot
+                role: YAML Oneshot
                 description: yaml oneshot
                 modelConfig:
                   modelKey: bailian-qwen3-max
@@ -264,8 +209,10 @@ class AgentDefinitionLoaderTest {
                     你是 YAML 助手
                     请保留多行
                 """);
-        Files.writeString(tempDir.resolve("yaml_react.yaml"), """
+        writeYaml("yaml_react.yaml", """
                 key: yaml_react
+                name: YAML React
+                role: YAML React
                 description: yaml react
                 modelConfig:
                   modelKey: bailian-qwen3-max
@@ -274,8 +221,10 @@ class AgentDefinitionLoaderTest {
                   systemPrompt: react prompt
                   maxSteps: 4
                 """);
-        Files.writeString(tempDir.resolve("yaml_plan_execute.yml"), """
+        writeYaml("yaml_plan_execute.yml", """
                 key: yaml_plan_execute
+                name: YAML Plan Execute
+                role: YAML Plan Execute
                 description: yaml plan execute
                 modelConfig:
                   modelKey: bailian-qwen3-max
@@ -291,12 +240,7 @@ class AgentDefinitionLoaderTest {
                     systemPrompt: 总结结果
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
-
-        Map<String, AgentDefinition> byId = loader.loadAll().stream()
-                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
+        Map<String, AgentDefinition> byId = loadById();
 
         assertThat(byId).containsKeys("yaml_oneshot", "yaml_react", "yaml_plan_execute");
         assertThat(byId.get("yaml_oneshot").mode()).isEqualTo(AgentRuntimeMode.ONESHOT);
@@ -311,55 +255,38 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
-    void shouldUseFileBasenameAcrossJsonAndYamlWhenKeyMissing() throws IOException {
-        Files.writeString(tempDir.resolve("basename_json.json"), """
+    void shouldFailFastOnLegacyJsonFiles() throws IOException {
+        Files.writeString(tempDir.resolve("legacy.json"), """
                 {
-                  "description": "json fallback",
-                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "json prompt" }
+                  "key": "legacy",
+                  "name": "legacy",
+                  "role": "legacy",
+                  "description": "legacy"
                 }
                 """);
-        Files.writeString(tempDir.resolve("basename_yml.yml"), """
-                description: yml fallback
+
+        assertThatThrownBy(this::loadById)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Legacy JSON agent files are no longer supported");
+    }
+
+    @Test
+    void shouldPreferYmlWhenBasenameConflictsAcrossYamlExtensions() throws IOException {
+        writeYaml("conflict_agent.yml", """
+                key: conflict_agent
+                name: Conflict Agent
+                role: Conflict Agent
+                description: yml version
                 modelConfig:
                   modelKey: bailian-qwen3-max
                 mode: ONESHOT
                 plain:
                   systemPrompt: yml prompt
                 """);
-        Files.writeString(tempDir.resolve("basename_yaml.yaml"), """
-                description: yaml fallback
-                modelConfig:
-                  modelKey: bailian-qwen3-max
-                mode: ONESHOT
-                plain:
-                  systemPrompt: yaml prompt
-                """);
-
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
-
-        Map<String, AgentDefinition> byId = loader.loadAll().stream()
-                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
-
-        assertThat(byId).containsKeys("basename_json", "basename_yml", "basename_yaml");
-    }
-
-    @Test
-    void shouldPreferYamlWhenBasenameConflictsAcrossFormats() throws IOException {
-        Files.writeString(tempDir.resolve("conflict_agent.json"), """
-                {
-                  "key": "conflict_agent",
-                  "description": "json version",
-                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "json prompt" }
-                }
-                """);
-        Files.writeString(tempDir.resolve("conflict_agent.yml"), """
+        writeYaml("conflict_agent.yaml", """
                 key: conflict_agent
+                name: Conflict Agent
+                role: Conflict Agent
                 description: yaml version
                 modelConfig:
                   modelKey: bailian-qwen3-max
@@ -368,104 +295,59 @@ class AgentDefinitionLoaderTest {
                   systemPrompt: yaml prompt
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        AgentDefinition definition = loadById().get("conflict_agent");
 
-        AgentDefinition definition = loader.loadAll().stream()
-                .filter(item -> "conflict_agent".equals(item.id()))
-                .findFirst()
-                .orElseThrow();
-
-        assertThat(definition.description()).isEqualTo("yaml version");
-        assertThat(definition.systemPrompt()).isEqualTo("yaml prompt");
-    }
-
-    @Test
-    void shouldPreferYamlWhenKeyDuplicatedAcrossFormats() throws IOException {
-        Files.writeString(tempDir.resolve("alpha_duplicate.json"), """
-                {
-                  "key": "dup_agent",
-                  "description": "json duplicate",
-                  "modelConfig": { "modelKey": "bailian-qwen3-max" },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "json duplicate" }
-                }
-                """);
-        Files.writeString(tempDir.resolve("beta_duplicate.yml"), """
-                key: dup_agent
-                description: yaml duplicate
-                modelConfig:
-                  modelKey: bailian-qwen3-max
-                mode: ONESHOT
-                plain:
-                  systemPrompt: yaml duplicate
-                """);
-
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
-
-        AgentDefinition definition = loader.loadAll().stream()
-                .filter(item -> "dup_agent".equals(item.id()))
-                .findFirst()
-                .orElseThrow();
-
-        assertThat(definition.description()).isEqualTo("yaml duplicate");
-        assertThat(definition.systemPrompt()).isEqualTo("yaml duplicate");
+        assertThat(definition).isNotNull();
+        assertThat(definition.description()).isEqualTo("yml version");
+        assertThat(definition.systemPrompt()).isEqualTo("yml prompt");
     }
 
     @Test
     void shouldParseAllThreeModes() throws IOException {
-        Files.writeString(tempDir.resolve("m_oneshot.json"), """
-                {
-                  "key": "m_oneshot",
-                  "description": "oneshot",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "toolConfig": null,
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "oneshot prompt" }
-                }
+        writeYaml("m_oneshot.yml", """
+                key: m_oneshot
+                name: M Oneshot
+                role: M Oneshot
+                description: oneshot
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig: null
+                mode: ONESHOT
+                plain:
+                  systemPrompt: oneshot prompt
                 """);
-        Files.writeString(tempDir.resolve("m_react.json"), """
-                {
-                  "key": "m_react",
-                  "description": "react",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "toolConfig": null,
-                  "mode": "REACT",
-                  "react": {
-                    "systemPrompt": "react prompt",
-                    "maxSteps": 5
-                  }
-                }
+        writeYaml("m_react.yml", """
+                key: m_react
+                name: M React
+                role: M React
+                description: react
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig: null
+                mode: REACT
+                react:
+                  systemPrompt: react prompt
+                  maxSteps: 5
                 """);
-        Files.writeString(tempDir.resolve("m_plan_execute.json"), """
-                {
-                  "key": "m_plan_execute",
-                  "description": "plan execute",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "toolConfig": null,
-                  "mode": "PLAN_EXECUTE",
-                  "planExecute": {
-                    "plan": { "systemPrompt": "plan prompt" },
-                    "execute": { "systemPrompt": "execute prompt" },
-                    "summary": { "systemPrompt": "summary prompt" }
-                  }
-                }
+        writeYaml("m_plan_execute.yml", """
+                key: m_plan_execute
+                name: M Plan Execute
+                role: M Plan Execute
+                description: plan execute
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig: null
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: plan prompt
+                  execute:
+                    systemPrompt: execute prompt
+                  summary:
+                    systemPrompt: summary prompt
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
-        Map<String, AgentDefinition> byId = loader.loadAll().stream()
-                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
+        Map<String, AgentDefinition> byId = loadById();
 
         assertThat(byId).hasSize(3);
         assertThat(byId.get("m_oneshot").mode()).isEqualTo(AgentRuntimeMode.ONESHOT);
@@ -475,124 +357,103 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void shouldLoadTopLevelSkillConfig() throws IOException {
-        Files.writeString(tempDir.resolve("skills_top_level.json"), """
-                {
-                  "key": "skills_top_level",
-                  "description": "skills top level",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "skillConfig": {
-                    "skills": ["screenshot", "Doc", "screenshot"]
-                  },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "test prompt" }
-                }
+        writeYaml("skills_top_level.yml", """
+                key: skills_top_level
+                name: Skills Top Level
+                role: Skills Top Level
+                description: skills top level
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                skillConfig:
+                  skills:
+                    - screenshot
+                    - Doc
+                    - screenshot
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test prompt
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        AgentDefinition definition = loadById().get("skills_top_level");
 
-        AgentDefinition definition = loader.loadAll().stream()
-                .filter(item -> "skills_top_level".equals(item.id()))
-                .findFirst()
-                .orElseThrow();
-
+        assertThat(definition).isNotNull();
         assertThat(definition.skills()).containsExactly("screenshot", "doc");
     }
 
     @Test
     void shouldMergeSkillsAliasAndSkillConfig() throws IOException {
-        Files.writeString(tempDir.resolve("skills_alias.json"), """
-                {
-                  "key": "skills_alias",
-                  "description": "skills alias",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "skills": ["pdf", "doc"],
-                  "skillConfig": {
-                    "skills": ["screenshot", "PDF"]
-                  },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "test prompt" }
-                }
+        writeYaml("skills_alias.yml", """
+                key: skills_alias
+                name: Skills Alias
+                role: Skills Alias
+                description: skills alias
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                skills:
+                  - pdf
+                  - doc
+                skillConfig:
+                  skills:
+                    - screenshot
+                    - PDF
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test prompt
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        AgentDefinition definition = loadById().get("skills_alias");
 
-        AgentDefinition definition = loader.loadAll().stream()
-                .filter(item -> "skills_alias".equals(item.id()))
-                .findFirst()
-                .orElseThrow();
-
+        assertThat(definition).isNotNull();
         assertThat(definition.skills()).containsExactly("pdf", "doc", "screenshot");
     }
 
     @Test
     void shouldLoadSkillMathDemoWithSystemSkillToolName() throws IOException {
-        Files.writeString(tempDir.resolve("demo_mode_plain_skill_math.json"), """
-                {
-                  "key": "demoModePlainSkillMath",
-                  "description": "skill math demo",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "toolConfig": {
-                    "backends": ["_skill_run_script_"],
-                    "frontends": [],
-                    "actions": []
-                  },
-                  "skillConfig": {
-                    "skills": ["math_basic", "math_stats", "text_utils"]
-                  },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "test prompt" }
-                }
+        writeYaml("demo_mode_plain_skill_math.yml", """
+                key: demoModePlainSkillMath
+                name: Demo Mode Plain Skill Math
+                role: Demo Mode Plain Skill Math
+                description: skill math demo
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - _skill_run_script_
+                skillConfig:
+                  skills:
+                    - math_basic
+                    - math_stats
+                    - text_utils
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test prompt
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        AgentDefinition definition = loadById().get("demoModePlainSkillMath");
 
-        AgentDefinition definition = loader.loadAll().stream()
-                .filter(item -> "demoModePlainSkillMath".equals(item.id()))
-                .findFirst()
-                .orElseThrow();
-
+        assertThat(definition).isNotNull();
         assertThat(definition.tools()).containsExactly("_skill_run_script_");
         assertThat(definition.skills()).containsExactly("math_basic", "math_stats", "text_utils");
     }
 
     @Test
     void shouldAllowMissingTopLevelModelConfigWhenStageModelExists() throws IOException {
-        Files.writeString(tempDir.resolve("inner_model_only.json"), """
-                {
-                  "key": "inner_model_only",
-                  "description": "inner model only",
-                  "toolConfig": null,
-                  "mode": "ONESHOT",
-                  "plain": {
-                    "systemPrompt": "inner model prompt",
-                    "modelConfig": {
-                    "modelKey": "siliconflow-deepseek-v3_2"
-                  }
-                  }
-                }
+        writeYaml("inner_model_only.yml", """
+                key: inner_model_only
+                name: Inner Model Only
+                role: Inner Model Only
+                description: inner model only
+                toolConfig: null
+                mode: ONESHOT
+                plain:
+                  systemPrompt: inner model prompt
+                  modelConfig:
+                    modelKey: siliconflow-deepseek-v3_2
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        AgentDefinition definition = loadById().get("inner_model_only");
 
-        AgentDefinition definition = loader.loadAll().stream()
-                .filter(item -> "inner_model_only".equals(item.id()))
-                .findFirst()
-                .orElseThrow();
-
+        assertThat(definition).isNotNull();
         assertThat(definition.providerKey()).isEqualTo("siliconflow");
         assertThat(definition.model()).isEqualTo("deepseek-ai/DeepSeek-V3.2");
         assertThat(definition.mode()).isEqualTo(AgentRuntimeMode.ONESHOT);
@@ -604,57 +465,50 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void shouldRejectAgentWithoutAnyModelConfig() throws IOException {
-        Files.writeString(tempDir.resolve("missing_model_config.json"), """
-                {
-                  "key": "missing_model_config",
-                  "description": "missing model config",
-                  "toolConfig": null,
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "plain prompt" }
-                }
+        writeYaml("missing_model_config.yml", """
+                key: missing_model_config
+                name: Missing Model Config
+                role: Missing Model Config
+                description: missing model config
+                toolConfig: null
+                mode: ONESHOT
+                plain:
+                  systemPrompt: plain prompt
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
-        Map<String, AgentDefinition> byId = loader.loadAll().stream()
-                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
-
-        assertThat(byId).doesNotContainKey("missing_model_config");
+        assertThat(loadById()).doesNotContainKey("missing_model_config");
     }
 
     @Test
     void shouldInheritStageModelAndForcePlanExecuteRequiredTools() throws IOException {
-        Files.writeString(tempDir.resolve("inherit_plan.json"), """
-                {
-                  "key": "inherit_plan",
-                  "description": "inherit test",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max",
-                    "reasoning": { "enabled": true, "effort": "HIGH" }
-                  },
-                  "toolConfig": {
-                    "backends": ["_bash_", "datetime"],
-                    "frontends": [],
-                    "actions": []
-                  },
-                  "mode": "PLAN_EXECUTE",
-                  "planExecute": {
-                    "plan": { "systemPrompt": "plan stage" },
-                    "execute": { "systemPrompt": "execute stage", "toolConfig": null },
-                    "summary": { "systemPrompt": "summary stage" }
-                  }
-                }
+        writeYaml("inherit_plan.yml", """
+                key: inherit_plan
+                name: Inherit Plan
+                role: Inherit Plan
+                description: inherit test
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                  reasoning:
+                    enabled: true
+                    effort: HIGH
+                toolConfig:
+                  backends:
+                    - _bash_
+                    - datetime
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: plan stage
+                  execute:
+                    systemPrompt: execute stage
+                    toolConfig: null
+                  summary:
+                    systemPrompt: summary stage
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        AgentDefinition definition = loadById().get("inherit_plan");
 
-        AgentDefinition definition = loader.loadAll().stream()
-                .filter(item -> "inherit_plan".equals(item.id()))
-                .findFirst()
-                .orElseThrow();
+        assertThat(definition).isNotNull();
         PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
 
         assertThat(mode.planStage().providerKey()).isEqualTo("bailian");
@@ -674,37 +528,31 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void shouldParsePlanDeepThinkingFlag() throws IOException {
-        Files.writeString(tempDir.resolve("deep_thinking_plan.json"), """
-                {
-                  "key": "deep_thinking_plan",
-                  "description": "deep thinking test",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "toolConfig": {
-                    "backends": ["datetime"],
-                    "frontends": [],
-                    "actions": []
-                  },
-                  "mode": "PLAN_EXECUTE",
-                  "planExecute": {
-                    "plan": { "systemPrompt": "plan", "deepThinking": true },
-                    "execute": { "systemPrompt": "execute" },
-                    "summary": { "systemPrompt": "summary" }
-                  }
-                }
+        writeYaml("deep_thinking_plan.yml", """
+                key: deep_thinking_plan
+                name: Deep Thinking Plan
+                role: Deep Thinking Plan
+                description: deep thinking test
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - datetime
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: plan
+                    deepThinking: true
+                  execute:
+                    systemPrompt: execute
+                  summary:
+                    systemPrompt: summary
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        AgentDefinition definition = loadById().get("deep_thinking_plan");
 
-        AgentDefinition definition = loader.loadAll().stream()
-                .filter(item -> "deep_thinking_plan".equals(item.id()))
-                .findFirst()
-                .orElseThrow();
+        assertThat(definition).isNotNull();
         PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
-
         assertThat(mode.planStage().deepThinking()).isTrue();
         assertThat(mode.executeStage().deepThinking()).isFalse();
         assertThat(mode.summaryStage().deepThinking()).isFalse();
@@ -712,64 +560,54 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void shouldRejectPlanExecuteWhenExecuteDeepThinkingTrue() throws IOException {
-        writePlanExecuteWithDisallowedDeepThinking("execute_deep_true.json", "execute_deep_true", "execute", true);
+        writePlanExecuteWithDisallowedDeepThinking("execute_deep_true.yml", "execute_deep_true", "execute", true);
         assertThat(loadById()).doesNotContainKey("execute_deep_true");
     }
 
     @Test
     void shouldRejectPlanExecuteWhenExecuteDeepThinkingFalse() throws IOException {
-        writePlanExecuteWithDisallowedDeepThinking("execute_deep_false.json", "execute_deep_false", "execute", false);
+        writePlanExecuteWithDisallowedDeepThinking("execute_deep_false.yml", "execute_deep_false", "execute", false);
         assertThat(loadById()).doesNotContainKey("execute_deep_false");
     }
 
     @Test
     void shouldRejectPlanExecuteWhenSummaryDeepThinkingTrue() throws IOException {
-        writePlanExecuteWithDisallowedDeepThinking("summary_deep_true.json", "summary_deep_true", "summary", true);
+        writePlanExecuteWithDisallowedDeepThinking("summary_deep_true.yml", "summary_deep_true", "summary", true);
         assertThat(loadById()).doesNotContainKey("summary_deep_true");
     }
 
     @Test
     void shouldRejectPlanExecuteWhenSummaryDeepThinkingFalse() throws IOException {
-        writePlanExecuteWithDisallowedDeepThinking("summary_deep_false.json", "summary_deep_false", "summary", false);
+        writePlanExecuteWithDisallowedDeepThinking("summary_deep_false.yml", "summary_deep_false", "summary", false);
         assertThat(loadById()).doesNotContainKey("summary_deep_false");
     }
 
     @Test
     void shouldParseSupportedRuntimePromptsAndFallbackToDefaults() throws IOException {
-        Files.writeString(tempDir.resolve("runtime_prompts.json"), """
-                {
-                  "key": "runtime_prompts",
-                  "description": "runtime prompts",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "plain prompt" },
-                  "runtimePrompts": {
-                    "planExecute": {
-                      "taskExecutionPromptTemplate": "TASK={{task_id}}|{{task_description}}"
-                    },
-                    "skill": {
-                      "catalogHeader": "skills-header-override"
-                    },
-                    "toolAppendix": {
-                      "toolDescriptionTitle": "tool-desc-title-override"
-                    }
-                  }
-                }
+        writeYaml("runtime_prompts.yml", """
+                key: runtime_prompts
+                name: Runtime Prompts
+                role: Runtime Prompts
+                description: runtime prompts
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: plain prompt
+                runtimePrompts:
+                  planExecute:
+                    taskExecutionPromptTemplate: TASK={{task_id}}|{{task_description}}
+                  skill:
+                    catalogHeader: skills-header-override
+                  toolAppendix:
+                    toolDescriptionTitle: tool-desc-title-override
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        AgentDefinition definition = loadById().get("runtime_prompts");
 
-        AgentDefinition definition = loader.loadAll().stream()
-                .filter(item -> "runtime_prompts".equals(item.id()))
-                .findFirst()
-                .orElseThrow();
+        assertThat(definition).isNotNull();
         SkillAppend skillAppend = definition.agentMode().skillAppend();
         ToolAppend toolAppend = definition.agentMode().toolAppend();
-
         assertThat(skillAppend.catalogHeader()).isEqualTo("skills-header-override");
         assertThat(skillAppend.disclosureHeader()).isEqualTo(SkillAppend.DEFAULTS.disclosureHeader());
         assertThat(toolAppend.toolDescriptionTitle()).isEqualTo("tool-desc-title-override");
@@ -778,22 +616,20 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void shouldRejectRemovedVerifyAndRuntimePromptFields() throws IOException {
-        Files.writeString(tempDir.resolve("removed_fields.json"), """
-                {
-                  "key": "removed_fields",
-                  "description": "removed fields",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "verify": "NONE",
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "plain prompt" },
-                  "runtimePrompts": {
-                    "verify": {
-                      "systemPrompt": "legacy"
-                    }
-                  }
-                }
+        writeYaml("removed_fields.yml", """
+                key: removed_fields
+                name: Removed Fields
+                role: Removed Fields
+                description: removed fields
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                verify: NONE
+                mode: ONESHOT
+                plain:
+                  systemPrompt: plain prompt
+                runtimePrompts:
+                  verify:
+                    systemPrompt: legacy
                 """);
 
         assertThat(loadById()).doesNotContainKey("removed_fields");
@@ -801,32 +637,30 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void shouldParseBudgetV2Config() throws IOException {
-        Files.writeString(tempDir.resolve("budget_v2.json"), """
-                {
-                  "key": "budget_v2",
-                  "description": "budget v2",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "budget": {
-                    "runTimeoutMs": 180000,
-                    "model": {
-                      "maxCalls": 18,
-                      "timeoutMs": 45000,
-                      "retryCount": 2
-                    },
-                    "tool": {
-                      "maxCalls": 36,
-                      "timeoutMs": 90000,
-                      "retryCount": 3
-                    }
-                  },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "budget test" }
-                }
+        writeYaml("budget_v2.yml", """
+                key: budget_v2
+                name: Budget V2
+                role: Budget V2
+                description: budget v2
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                budget:
+                  runTimeoutMs: 180000
+                  model:
+                    maxCalls: 18
+                    timeoutMs: 45000
+                    retryCount: 2
+                  tool:
+                    maxCalls: 36
+                    timeoutMs: 90000
+                    retryCount: 3
+                mode: ONESHOT
+                plain:
+                  systemPrompt: budget test
                 """);
 
         AgentDefinition definition = loadById().get("budget_v2");
+
         assertThat(definition).isNotNull();
         assertThat(definition.runSpec().budget().runTimeoutMs()).isEqualTo(180000);
         assertThat(definition.runSpec().budget().model().maxCalls()).isEqualTo(18);
@@ -839,66 +673,64 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void shouldRejectLegacyBudgetFields() throws IOException {
-        Files.writeString(tempDir.resolve("budget_legacy.json"), """
-                {
-                  "key": "budget_legacy",
-                  "description": "budget legacy",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "budget": {
-                    "maxModelCalls": 8,
-                    "maxToolCalls": 16,
-                    "timeoutMs": 120000,
-                    "retryCount": 1
-                  },
-                  "mode": "ONESHOT",
-                  "plain": { "systemPrompt": "budget legacy test" }
-                }
+        writeYaml("budget_legacy.yml", """
+                key: budget_legacy
+                name: Budget Legacy
+                role: Budget Legacy
+                description: budget legacy
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                budget:
+                  maxModelCalls: 8
+                  maxToolCalls: 16
+                  timeoutMs: 120000
+                  retryCount: 1
+                mode: ONESHOT
+                plain:
+                  systemPrompt: budget legacy test
                 """);
 
         assertThat(loadById()).doesNotContainKey("budget_legacy");
     }
 
     @Test
-    void shouldLoadBothPlanExecuteVariantsWhenJsonFileAndUniqueKeys() throws IOException {
-        Files.writeString(tempDir.resolve("demoModePlanExecute.json"), """
-                {
-                  "key": "demoModePlanExecute",
-                  "description": "main demo",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "mode": "PLAN_EXECUTE",
-                  "planExecute": {
-                    "plan": { "systemPrompt": "plan" },
-                    "execute": { "systemPrompt": "execute" },
-                    "summary": { "systemPrompt": "summary" }
-                  }
-                }
+    void shouldLoadBothPlanExecuteVariantsWhenKeysAreUnique() throws IOException {
+        writeYaml("demoModePlanExecute.yml", """
+                key: demoModePlanExecute
+                name: Demo Mode Plan Execute
+                role: Demo Mode Plan Execute
+                description: main demo
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: plan
+                  execute:
+                    systemPrompt: execute
+                  summary:
+                    systemPrompt: summary
                 """);
-        Files.writeString(tempDir.resolve("demoModePlanExecuteDeepThinking.json"), """
-                {
-                  "key": "demoModePlanExecuteDeepThinking",
-                  "description": "deep demo",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "mode": "PLAN_EXECUTE",
-                  "planExecute": {
-                    "plan": { "systemPrompt": "plan", "deepThinking": true },
-                    "execute": { "systemPrompt": "execute" },
-                    "summary": { "systemPrompt": "summary" }
-                  }
-                }
+        writeYaml("demoModePlanExecuteDeepThinking.yml", """
+                key: demoModePlanExecuteDeepThinking
+                name: Demo Mode Plan Execute Deep Thinking
+                role: Demo Mode Plan Execute Deep Thinking
+                description: deep demo
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: plan
+                    deepThinking: true
+                  execute:
+                    systemPrompt: execute
+                  summary:
+                    systemPrompt: summary
                 """);
 
-        AgentProperties properties = new AgentProperties();
-        properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        Map<String, AgentDefinition> byId = loadById();
 
-        Map<String, AgentDefinition> byId = loader.loadAll().stream()
-                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
         assertThat(byId).containsKeys("demoModePlanExecute", "demoModePlanExecuteDeepThinking");
         assertThat(byId.get("demoModePlanExecute").mode()).isEqualTo(AgentRuntimeMode.PLAN_EXECUTE);
         assertThat(byId.get("demoModePlanExecuteDeepThinking").mode()).isEqualTo(AgentRuntimeMode.PLAN_EXECUTE);
@@ -916,31 +748,39 @@ class AgentDefinitionLoaderTest {
         return new AgentDefinitionLoader(new ObjectMapper(), properties, TestModelRegistryServices.standardRegistry());
     }
 
+    private void writeYaml(String fileName, String content) throws IOException {
+        Files.writeString(tempDir.resolve(fileName), content);
+    }
+
     private void writePlanExecuteWithDisallowedDeepThinking(
             String fileName,
             String key,
             String stage,
             boolean deepThinking
     ) throws IOException {
-        String deepThinkingValue = deepThinking ? "true" : "false";
-        Files.writeString(tempDir.resolve(fileName), """
-                {
-                  "key": "%s",
-                  "description": "invalid deepThinking stage config",
-                  "modelConfig": {
-                    "modelKey": "bailian-qwen3-max"
-                  },
-                  "mode": "PLAN_EXECUTE",
-                  "planExecute": {
-                    "plan": { "systemPrompt": "plan", "deepThinking": true },
-                    "execute": { "systemPrompt": "execute"%s },
-                    "summary": { "systemPrompt": "summary"%s }
-                  }
-                }
+        String deepThinkingSection = deepThinking ? "true" : "false";
+        writeYaml(fileName, """
+                key: %s
+                name: %s
+                role: %s
+                description: invalid deepThinking stage config
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: plan
+                    deepThinking: true
+                  execute:
+                    systemPrompt: execute%s
+                  summary:
+                    systemPrompt: summary%s
                 """.formatted(
                 key,
-                "execute".equals(stage) ? ", \"deepThinking\": " + deepThinkingValue : "",
-                "summary".equals(stage) ? ", \"deepThinking\": " + deepThinkingValue : ""
+                key,
+                key,
+                "execute".equals(stage) ? "\n    deepThinking: " + deepThinkingSection : "",
+                "summary".equals(stage) ? "\n    deepThinking: " + deepThinkingSection : ""
         ));
     }
 }

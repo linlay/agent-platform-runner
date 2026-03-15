@@ -267,6 +267,11 @@ public class AgentRegistry {
         } catch (Exception ex) {
             long costMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
             log.warn("Failed to refresh agents cache, keep previous snapshot, reason={}, costMs={}", reason, costMs, ex);
+            if (agents.isEmpty() && definitionsById.isEmpty()) {
+                throw ex instanceof IllegalStateException illegalStateException
+                        ? illegalStateException
+                        : new IllegalStateException("Failed to initialize agents cache", ex);
+            }
         }
     }
 

@@ -62,7 +62,7 @@ class ApiJwtAuthWebFilterLocalKeyOfflineTests {
         String token = issueToken(LOCAL_RSA_KEY, "app-user", "device-local");
 
         webTestClient.get()
-            .uri("/api/ap/agents")
+            .uri("/api/agents")
             .header("Authorization", "Bearer " + token)
             .exchange()
             .expectStatus().isOk()

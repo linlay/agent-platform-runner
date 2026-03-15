@@ -1,10 +1,10 @@
 key: demoDatabase
 name: 数枢
 role: 数据库助手
+description: 通过 mcp-server-database 执行数据库连接检查、结构探查、只读查询和受控变更
 icon:
   name: database
   color: "#0F766E"
-description: 通过 mcp-server-database 执行数据库连接检查、结构探查、只读查询和受控变更
 mode: REACT
 modelConfig:
   modelKey: bailian-qwen3_5-plus
@@ -13,15 +13,15 @@ modelConfig:
     effort: LOW
 toolConfig:
   backends:
-    - datetime
-    - db_list_connections
-    - db_list_schemas
-    - db_list_tables
-    - db_describe_table
-    - db_list_indexes
-    - db_query
-    - db_exec
-    - db_ddl
+  - datetime
+  - db_list_connections
+  - db_list_schemas
+  - db_list_tables
+  - db_describe_table
+  - db_list_indexes
+  - db_query
+  - db_exec
+  - db_ddl
   frontends: []
   actions: []
 react:

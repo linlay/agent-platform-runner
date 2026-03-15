@@ -1,10 +1,11 @@
 package com.linlay.agentplatform.model;
 
-import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.config.AgentProviderProperties;
 import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.DependsOn;
@@ -30,6 +31,7 @@ public class ModelRegistryService {
     private static final Logger log = LoggerFactory.getLogger(ModelRegistryService.class);
 
     private final ObjectMapper objectMapper;
+    private final ObjectMapper yamlMapper;
     private final ModelProperties properties;
     private final AgentProviderProperties providerProperties;
 
@@ -42,6 +44,7 @@ public class ModelRegistryService {
             AgentProviderProperties providerProperties
     ) {
         this.objectMapper = objectMapper;
+        this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.properties = properties;
         this.providerProperties = providerProperties;
         refreshModels();
@@ -77,8 +80,7 @@ public class ModelRegistryService {
             }
 
             try (Stream<Path> stream = Files.list(dir)) {
-                stream.filter(path -> Files.isRegularFile(path) && path.getFileName().toString().endsWith(".json"))
-                        .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                YamlCatalogSupport.selectYamlFiles(stream.filter(Files::isRegularFile).toList(), "model", log)
                         .forEach(path -> tryLoad(path).ifPresent(model -> {
                             if (loaded.containsKey(model.key())) {
                                 log.warn("Duplicate model key '{}' found in {}, keep the first one", model.key(), path);
@@ -98,19 +100,23 @@ public class ModelRegistryService {
     }
 
     private Optional<ModelDefinition> tryLoad(Path file) {
-        String fileName = file.getFileName().toString();
-        String fileBasedKey = fileName.substring(0, fileName.length() - ".json".length()).trim();
+        String fileBasedKey = YamlCatalogSupport.fileBaseName(file).trim();
         if (fileBasedKey.isBlank()) {
             log.warn("Skip model file with empty name: {}", file);
             return Optional.empty();
         }
 
         try {
-            JsonNode root = objectMapper
-                    .reader()
-                    .with(JsonReadFeature.ALLOW_JAVA_COMMENTS.mappedFeature())
-                    .with(JsonReadFeature.ALLOW_YAML_COMMENTS.mappedFeature())
-                    .readTree(Files.readString(file));
+            String raw = Files.readString(file);
+            YamlCatalogSupport.HeaderError headerError = YamlCatalogSupport.validateHeader(
+                    raw,
+                    List.of("key", "provider", "protocol", "modelid")
+            );
+            if (headerError.isPresent()) {
+                log.warn("Skip model '{}' due to invalid header: {} ({})", fileBasedKey, headerError.value(), file);
+                return Optional.empty();
+            }
+            JsonNode root = yamlMapper.readTree(raw);
 
             String key = normalize(root.path("key").asText(fileBasedKey));
             if (key.isBlank()) {

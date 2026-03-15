@@ -1,19 +1,14 @@
-{
-  "type": "function",
-  "name": "launch_fireworks",
-  "label": "播放烟花",
-  "description": "播放烟花特效",
-  "toolAction": true,
-  "inputSchema": {
-        "type": "object",
-        "properties": {
-          "durationMs": {
-            "type": "integer",
-            "minimum": 1000,
-            "maximum": 30000,
-            "description": "烟花持续时长（毫秒）"
-          }
-        },
-        "additionalProperties": false
-  }
-}
+name: launch_fireworks
+label: 播放烟花
+description: 播放烟花特效
+type: function
+toolAction: true
+inputSchema:
+  type: object
+  properties:
+    durationMs:
+      type: integer
+      minimum: 1000
+      maximum: 30000
+      description: 烟花持续时长（毫秒）
+  additionalProperties: false

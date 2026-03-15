@@ -48,7 +48,7 @@ public class ApiJwtAuthWebFilter implements WebFilter {
         }
 
         String path = exchange.getRequest().getPath().value();
-        if (!StringUtils.hasText(path) || !path.startsWith("/api/ap/")) {
+        if (!StringUtils.hasText(path) || !path.startsWith("/api/")) {
             return chain.filter(exchange);
         }
 
@@ -95,7 +95,7 @@ public class ApiJwtAuthWebFilter implements WebFilter {
             return false;
         }
         String path = exchange.getRequest().getPath().value();
-        if (!"/api/ap/data".equals(path)) {
+        if (!"/api/data".equals(path)) {
             return false;
         }
         if (!chatImageTokenProperties.isDataTokenValidationEnabled()) {

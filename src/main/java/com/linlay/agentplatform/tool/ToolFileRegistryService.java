@@ -27,6 +27,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.service.CatalogDiff;
 import com.linlay.agentplatform.util.StringHelpers;
+import com.linlay.agentplatform.util.YamlCatalogSupport;
 
 @Service
 @DependsOn("runtimeResourceSyncService")
@@ -35,8 +36,6 @@ public class ToolFileRegistryService {
     private static final Logger log = LoggerFactory.getLogger(ToolFileRegistryService.class);
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
-    private static final Set<String> SUPPORTED_SUFFIXES = Set.of(".json", ".yml", ".yaml");
-
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final ToolProperties properties;
@@ -90,10 +89,7 @@ public class ToolFileRegistryService {
             log.warn("Configured tools directory is not a directory: {}", dir);
             return;
         }
-        for (Path file : sortedFiles(dir)) {
-            if (!isSupported(file)) {
-                continue;
-            }
+        for (Path file : YamlCatalogSupport.selectYamlFiles(sortedFiles(dir), "tool", log)) {
             parseFile(file, loaded, conflicts);
         }
     }
@@ -103,9 +99,24 @@ public class ToolFileRegistryService {
             Map<String, ToolDescriptor> loaded,
             Set<String> conflicts
     ) {
+        String raw;
+        try {
+            raw = Files.readString(file);
+        } catch (Exception ex) {
+            log.warn("Skip invalid tool file: {}", file, ex);
+            return;
+        }
+        YamlCatalogSupport.HeaderError headerError = YamlCatalogSupport.validateHeader(
+                raw,
+                List.of("name", "label", "description", "type")
+        );
+        if (headerError.isPresent()) {
+            log.warn("Skip tool '{}' due to invalid header: {} ({})", file.getFileName(), headerError.value(), file);
+            return;
+        }
         JsonNode root;
         try {
-            root = yamlMapper.readTree(Files.readString(file));
+            root = yamlMapper.readTree(raw);
         } catch (Exception ex) {
             log.warn("Skip invalid tool file: {}", file, ex);
             return;
@@ -197,11 +208,6 @@ public class ToolFileRegistryService {
             log.warn("Cannot list tool files from {}", dir, ex);
         }
         return files;
-    }
-
-    private boolean isSupported(Path file) {
-        String fileName = file.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
-        return SUPPORTED_SUFFIXES.stream().anyMatch(fileName::endsWith);
     }
 
     private Map<String, Object> parseInputSchema(JsonNode node) {

@@ -3,6 +3,8 @@ package com.linlay.agentplatform.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;
 import org.springframework.util.StringUtils;
 
@@ -22,6 +24,7 @@ final class RemoteServerConfigSupport {
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
+    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
 
     private RemoteServerConfigSupport() {
     }
@@ -31,10 +34,7 @@ final class RemoteServerConfigSupport {
             return List.of();
         }
         List<ServerSpec> loaded = new ArrayList<>();
-        for (Path file : sortedFiles(dir, log)) {
-            if (!file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".json")) {
-                continue;
-            }
+        for (Path file : YamlCatalogSupport.selectYamlFiles(sortedFiles(dir, log), "remote server", log)) {
             loaded.addAll(parseServerFile(file, objectMapper, log));
         }
         return List.copyOf(loaded);
@@ -42,26 +42,16 @@ final class RemoteServerConfigSupport {
 
     static List<ServerSpec> parseServerFile(Path file, ObjectMapper objectMapper, Logger log) {
         try {
-            JsonNode root = objectMapper.readTree(Files.readString(file));
-            if (root.isArray()) {
-                List<ServerSpec> servers = new ArrayList<>();
-                for (JsonNode item : root) {
-                    if (item != null && item.isObject()) {
-                        servers.add(toServerSpec(item, objectMapper));
-                    }
-                }
-                return List.copyOf(servers);
+            String raw = Files.readString(file);
+            YamlCatalogSupport.HeaderError headerError = YamlCatalogSupport.validateHeader(
+                    raw,
+                    List.of("serverkey", "baseurl", "endpointpath")
+            );
+            if (headerError.isPresent()) {
+                throw new IllegalStateException("Invalid header: " + headerError.value());
             }
-            if (root.isObject()) {
-                if (root.has("servers") && root.get("servers").isArray()) {
-                    List<ServerSpec> servers = new ArrayList<>();
-                    for (JsonNode item : root.get("servers")) {
-                        if (item != null && item.isObject()) {
-                            servers.add(toServerSpec(item, objectMapper));
-                        }
-                    }
-                    return List.copyOf(servers);
-                }
+            JsonNode root = YAML_MAPPER.readTree(raw);
+            if (root != null && root.isObject()) {
                 return List.of(toServerSpec(root, objectMapper));
             }
         } catch (Exception ex) {

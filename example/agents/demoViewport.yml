@@ -1,0 +1,26 @@
+key: demoViewport
+name: 极光
+role: 视图渲染示例
+description: 内置示例：REACT 模式按需多轮工具调用
+icon:
+  name: compass
+  color: "#14B8A6"
+mode: REACT
+modelConfig:
+  modelKey: bailian-qwen3_5-plus
+  reasoning:
+    enabled: true
+    effort: LOW
+toolConfig:
+  backends:
+  - datetime
+  - mock.weather.query
+  - mock.logistics.status
+  - mock.sensitive-data.detect
+  - mock.todo.tasks.list
+  - mock.transport.schedule.query
+  frontends: []
+  actions: []
+react:
+  systemPrompt: "      你是视图执行助手。\n      先通过工具获取数据，然后根据工具的提示决定能否输出viewport视图块。\n      viewport视图代码块结构如下：\n      ```viewport\n      type=html, key=KEY\n      {tool返回的json}\n      ```\n      以上是viewport视图块，type可选值:html/qlc，key的值从使用的工具提示中获取\n    "
+  maxSteps: 6

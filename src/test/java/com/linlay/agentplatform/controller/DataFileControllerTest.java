@@ -213,7 +213,7 @@ class DataFileControllerTest {
     @Test
     void shouldReturn400WhenFileParamEscapesWithEncodedTraversal() {
         webTestClient.get()
-                .uri("/api/ap/data?file=..%2Fa.png")
+                .uri("/api/data?file=..%2Fa.png")
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -228,7 +228,7 @@ class DataFileControllerTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/ap/data")
+                        .path("/api/data")
                         .queryParam("file", "sample_photo.jpg")
                         .queryParam("download", "true")
                         .build())
@@ -259,7 +259,7 @@ class DataFileControllerTest {
         Files.write(dataDir.resolve("legacy_image.png"), png);
 
         webTestClient.get()
-                .uri("/api/ap/data/legacy_image.png")
+                .uri("/api/data/legacy_image.png")
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -277,7 +277,7 @@ class DataFileControllerTest {
     }
 
     private String dataApiUri(String file) {
-        return UriComponentsBuilder.fromPath("/api/ap/data")
+        return UriComponentsBuilder.fromPath("/api/data")
                 .queryParam("file", file)
                 .build()
                 .encode()
