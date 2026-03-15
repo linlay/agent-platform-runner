@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.agent.runtime;
 
+import com.linlay.agentplatform.memory.ChatMemoryTypes;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.AgentRequest;
@@ -15,21 +16,21 @@ import java.util.function.Supplier;
 public final class TurnTraceWriter {
 
     private final ChatWindowMemoryStore chatWindowMemoryStore;
-    private final Supplier<ChatWindowMemoryStore.SystemSnapshot> systemSnapshotSupplier;
+    private final Supplier<ChatMemoryTypes.SystemSnapshot> systemSnapshotSupplier;
     private final AgentRequest request;
     private final String runId;
-    private ChatWindowMemoryStore.SystemSnapshot lastWrittenSystem;
+    private ChatMemoryTypes.SystemSnapshot lastWrittenSystem;
     private StepAccumulator currentStep;
     private int seqCounter;
     private boolean queryLineWritten;
-    private ChatWindowMemoryStore.PlanSnapshot latestPlan;
+    private ChatMemoryTypes.PlanSnapshot latestPlan;
 
     public TurnTraceWriter(
             ChatWindowMemoryStore chatWindowMemoryStore,
-            Supplier<ChatWindowMemoryStore.SystemSnapshot> systemSnapshotSupplier,
+            Supplier<ChatMemoryTypes.SystemSnapshot> systemSnapshotSupplier,
             AgentRequest request,
             String runId,
-            ChatWindowMemoryStore.SystemSnapshot lastWrittenSystem
+            ChatMemoryTypes.SystemSnapshot lastWrittenSystem
     ) {
         this.chatWindowMemoryStore = chatWindowMemoryStore;
         this.systemSnapshotSupplier = Objects.requireNonNull(systemSnapshotSupplier);
@@ -135,7 +136,7 @@ public final class TurnTraceWriter {
                 trace.resultAt = now;
                 currentStep.appendAssistantToolCallIfNeeded(trace, now);
                 String result = StringUtils.hasText(toolResult.result()) ? toolResult.result() : "null";
-                currentStep.orderedMessages.add(ChatWindowMemoryStore.RunMessage.toolResult(
+                currentStep.orderedMessages.add(ChatMemoryTypes.RunMessage.toolResult(
                         trace.toolName,
                         trace.toolCallId,
                         result,
@@ -178,9 +179,9 @@ public final class TurnTraceWriter {
 
         seqCounter++;
 
-        List<ChatWindowMemoryStore.RunMessage> stepMessages = new ArrayList<>();
+        List<ChatMemoryTypes.RunMessage> stepMessages = new ArrayList<>();
         if (seqCounter == 1 && StringUtils.hasText(request.message())) {
-            stepMessages.add(ChatWindowMemoryStore.RunMessage.user(request.message(), System.currentTimeMillis()));
+            stepMessages.add(ChatMemoryTypes.RunMessage.user(request.message(), System.currentTimeMillis()));
         }
         stepMessages.addAll(currentStep.runMessages());
         if (stepMessages.isEmpty()) {
@@ -188,8 +189,8 @@ public final class TurnTraceWriter {
             return;
         }
 
-        ChatWindowMemoryStore.SystemSnapshot stepSystem = null;
-        ChatWindowMemoryStore.SystemSnapshot currentSystem = systemSnapshotSupplier.get();
+        ChatMemoryTypes.SystemSnapshot stepSystem = null;
+        ChatMemoryTypes.SystemSnapshot currentSystem = systemSnapshotSupplier.get();
         if (seqCounter == 1) {
             stepSystem = currentSystem;
         } else if (currentSystem != null && (lastWrittenSystem == null
@@ -244,16 +245,16 @@ public final class TurnTraceWriter {
         return null;
     }
 
-    private static ChatWindowMemoryStore.PlanSnapshot toPlanSnapshot(AgentDelta.PlanUpdate planUpdate) {
+    private static ChatMemoryTypes.PlanSnapshot toPlanSnapshot(AgentDelta.PlanUpdate planUpdate) {
         if (planUpdate == null || !StringUtils.hasText(planUpdate.planId()) || planUpdate.plan() == null || planUpdate.plan().isEmpty()) {
             return null;
         }
-        List<ChatWindowMemoryStore.PlanTaskSnapshot> tasks = new ArrayList<>();
+        List<ChatMemoryTypes.PlanTaskSnapshot> tasks = new ArrayList<>();
         for (AgentDelta.PlanTask task : planUpdate.plan()) {
             if (task == null || !StringUtils.hasText(task.taskId()) || !StringUtils.hasText(task.description())) {
                 continue;
             }
-            ChatWindowMemoryStore.PlanTaskSnapshot item = new ChatWindowMemoryStore.PlanTaskSnapshot();
+            ChatMemoryTypes.PlanTaskSnapshot item = new ChatMemoryTypes.PlanTaskSnapshot();
             item.taskId = task.taskId().trim();
             item.description = task.description().trim();
             item.status = AgentDelta.normalizePlanTaskStatus(task.status());
@@ -262,7 +263,7 @@ public final class TurnTraceWriter {
         if (tasks.isEmpty()) {
             return null;
         }
-        ChatWindowMemoryStore.PlanSnapshot snapshot = new ChatWindowMemoryStore.PlanSnapshot();
+        ChatMemoryTypes.PlanSnapshot snapshot = new ChatMemoryTypes.PlanSnapshot();
         snapshot.planId = planUpdate.planId().trim();
         snapshot.tasks = List.copyOf(tasks);
         return snapshot;

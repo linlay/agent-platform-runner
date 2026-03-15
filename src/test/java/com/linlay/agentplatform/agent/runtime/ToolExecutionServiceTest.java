@@ -48,6 +48,8 @@ class ToolExecutionServiceTest {
                 toolRegistry,
                 new ToolArgumentResolver(objectMapper),
                 objectMapper,
+                null,
+                null,
                 null
         );
 
@@ -101,6 +103,8 @@ class ToolExecutionServiceTest {
                 toolRegistry,
                 new ToolArgumentResolver(objectMapper),
                 objectMapper,
+                null,
+                null,
                 null
         );
 
@@ -137,6 +141,8 @@ class ToolExecutionServiceTest {
                 toolRegistry,
                 new ToolArgumentResolver(objectMapper),
                 objectMapper,
+                null,
+                null,
                 null
         );
 
@@ -178,7 +184,9 @@ class ToolExecutionServiceTest {
                 toolRegistry,
                 new ToolArgumentResolver(objectMapper),
                 objectMapper,
-                submitCoordinator
+                submitCoordinator,
+                null,
+                null
         );
 
         ExecutionContext context = new ExecutionContext(
@@ -243,7 +251,9 @@ class ToolExecutionServiceTest {
                 toolRegistry,
                 new ToolArgumentResolver(objectMapper),
                 objectMapper,
-                submitCoordinator
+                submitCoordinator,
+                null,
+                null
         );
 
         ExecutionContext context = new ExecutionContext(
@@ -310,6 +320,8 @@ class ToolExecutionServiceTest {
                 toolRegistry,
                 new ToolArgumentResolver(objectMapper),
                 objectMapper,
+                null,
+                null,
                 null
         );
 
@@ -347,6 +359,8 @@ class ToolExecutionServiceTest {
                 toolRegistry,
                 new ToolArgumentResolver(objectMapper),
                 objectMapper,
+                null,
+                null,
                 null
         );
 
@@ -480,6 +494,8 @@ class ToolExecutionServiceTest {
                 toolRegistry,
                 new ToolArgumentResolver(objectMapper),
                 objectMapper,
+                null,
+                null,
                 null
         );
 

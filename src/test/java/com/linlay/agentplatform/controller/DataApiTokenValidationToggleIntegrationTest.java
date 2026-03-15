@@ -44,6 +44,9 @@ import java.util.Date;
                 "agent.providers.bailian.base-url=https://example.com/v1",
                 "agent.providers.bailian.api-key=test-bailian-key",
                 "agent.providers.bailian.model=test-bailian-model",
+                "agent.providers.babelark.base-url=https://example.com/v1",
+                "agent.providers.babelark.api-key=test-babelark-key",
+                "agent.providers.babelark.model=test-babelark-model",
                 "agent.providers.siliconflow.base-url=https://example.com/v1",
                 "agent.providers.siliconflow.api-key=test-siliconflow-key",
                 "agent.providers.siliconflow.model=test-siliconflow-model",
@@ -117,6 +120,7 @@ class DataApiTokenValidationToggleIntegrationTest {
 
     @DynamicPropertySource
     static void dynamicProperties(DynamicPropertyRegistry registry) {
+        registry.add("agent.auth.local-public-key-file", () -> "");
         registry.add("agent.auth.jwks-uri", () -> jwksFile.toUri().toString());
         registry.add("agent.auth.jwks-cache-seconds", () -> 60);
     }

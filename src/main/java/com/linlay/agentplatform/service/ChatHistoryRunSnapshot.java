@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.service;
 
-import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.memory.ChatMemoryTypes;
 
 import java.util.List;
 import java.util.Map;
@@ -9,9 +9,9 @@ record ChatHistoryRunSnapshot(
         String runId,
         long updatedAt,
         Map<String, Object> query,
-        ChatWindowMemoryStore.SystemSnapshot system,
-        ChatWindowMemoryStore.PlanSnapshot plan,
-        List<ChatWindowMemoryStore.StoredMessage> messages,
+        ChatMemoryTypes.SystemSnapshot system,
+        ChatMemoryTypes.PlanSnapshot plan,
+        List<ChatMemoryTypes.StoredMessage> messages,
         List<PersistedChatEvent> persistedEvents,
         int lineIndex
 ) {

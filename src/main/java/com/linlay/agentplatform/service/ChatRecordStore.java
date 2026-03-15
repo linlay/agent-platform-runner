@@ -2,6 +2,7 @@ package com.linlay.agentplatform.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.memory.ChatMemoryTypes;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.AgentDelta;
@@ -211,7 +212,7 @@ public class ChatRecordStore {
         );
 
         for (ChatHistoryRunSnapshot run : content.runs) {
-            for (ChatWindowMemoryStore.StoredMessage message : run.messages()) {
+            for (ChatMemoryTypes.StoredMessage message : run.messages()) {
                 Map<String, Object> raw = toRawMessageMap(run.runId(), message);
                 if (!raw.isEmpty()) {
                     content.rawMessages.add(raw);
@@ -254,7 +255,7 @@ public class ChatRecordStore {
     }
 
     private Map<String, Object> planUpdatePayload(
-            ChatWindowMemoryStore.PlanSnapshot planSnapshot,
+            ChatMemoryTypes.PlanSnapshot planSnapshot,
             String chatId
     ) {
         if (planSnapshot == null
@@ -265,7 +266,7 @@ public class ChatRecordStore {
         }
 
         List<Map<String, Object>> plan = new ArrayList<>();
-        for (ChatWindowMemoryStore.PlanTaskSnapshot task : planSnapshot.tasks) {
+        for (ChatMemoryTypes.PlanTaskSnapshot task : planSnapshot.tasks) {
             if (task == null || !StringUtils.hasText(task.taskId) || !StringUtils.hasText(task.description)) {
                 continue;
             }
@@ -290,7 +291,7 @@ public class ChatRecordStore {
         return AgentDelta.normalizePlanTaskStatus(raw);
     }
 
-    private Map<String, Object> toRawMessageMap(String runId, ChatWindowMemoryStore.StoredMessage message) {
+    private Map<String, Object> toRawMessageMap(String runId, ChatMemoryTypes.StoredMessage message) {
         if (message == null || !StringUtils.hasText(message.role)) {
             return Map.of();
         }

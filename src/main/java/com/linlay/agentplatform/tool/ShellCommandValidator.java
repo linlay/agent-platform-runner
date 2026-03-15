@@ -67,15 +67,15 @@ final class ShellCommandValidator {
             return substitutionError;
         }
 
-        TokenizeResult tokenizeResult = tokenize(script);
-        if (tokenizeResult.error != null) {
-            return tokenizeResult.error;
+        ShellTokenizer.TokenizeResult tokenizeResult = ShellTokenizer.tokenize(script);
+        if (tokenizeResult.error() != null) {
+            return tokenizeResult.error();
         }
-        if (tokenizeResult.tokens.isEmpty()) {
+        if (tokenizeResult.tokens().isEmpty()) {
             return "Cannot parse command";
         }
 
-        return validateTokenStream(tokenizeResult.tokens);
+        return validateTokenStream(tokenizeResult.tokens());
     }
 
     private String unsupportedSyntaxError(String script) {
@@ -411,143 +411,21 @@ final class ShellCommandValidator {
         return ch == ';' || ch == '|' || ch == '&' || ch == '(' || ch == ')' || ch == '{' || ch == '}' || ch == '<' || ch == '>';
     }
 
-    private TokenizeResult tokenize(String script) {
-        List<Token> tokens = new ArrayList<>();
-        StringBuilder word = new StringBuilder();
-        boolean singleQuoted = false;
-        boolean doubleQuoted = false;
-        boolean escaped = false;
-
-        for (int i = 0; i < script.length(); i++) {
-            char ch = script.charAt(i);
-            if (escaped) {
-                word.append(ch);
-                escaped = false;
-                continue;
-            }
-            if (singleQuoted) {
-                word.append(ch);
-                if (ch == '\'') {
-                    singleQuoted = false;
-                }
-                continue;
-            }
-            if (doubleQuoted) {
-                word.append(ch);
-                if (ch == '"') {
-                    doubleQuoted = false;
-                } else if (ch == '\\') {
-                    escaped = true;
-                }
-                continue;
-            }
-
-            if (ch == '\\') {
-                word.append(ch);
-                escaped = true;
-                continue;
-            }
-            if (ch == '\'') {
-                word.append(ch);
-                singleQuoted = true;
-                continue;
-            }
-            if (ch == '"') {
-                word.append(ch);
-                doubleQuoted = true;
-                continue;
-            }
-            if (ch == '#' && word.length() == 0) {
-                while (i < script.length() && script.charAt(i) != '\n') {
-                    i++;
-                }
-                if (i < script.length() && script.charAt(i) == '\n') {
-                    tokens.add(Token.newline());
-                }
-                continue;
-            }
-            if (Character.isWhitespace(ch)) {
-                flushWord(tokens, word);
-                if (ch == '\n') {
-                    tokens.add(Token.newline());
-                }
-                continue;
-            }
-
-            String op = matchOperator(script, i);
-            if (op != null) {
-                flushWord(tokens, word);
-                tokens.add(Token.op(op));
-                i += op.length() - 1;
-                continue;
-            }
-
-            word.append(ch);
-        }
-
-        if (singleQuoted || doubleQuoted) {
-            return new TokenizeResult(List.of(), "Cannot parse command: unterminated quote");
-        }
-
-        flushWord(tokens, word);
-        return new TokenizeResult(tokens, null);
-    }
-
-    private void flushWord(List<Token> tokens, StringBuilder word) {
-        if (word.length() == 0) {
-            return;
-        }
-        tokens.add(Token.word(word.toString()));
-        word.setLength(0);
-    }
-
-    private String matchOperator(String script, int index) {
-        String[] multiCharOps = {"|&", "||", "&&", "<<-", "<<<", "<<", ">>", "2>&1", ";;&", ";&", ";;", "&>"};
-        for (String op : multiCharOps) {
-            if (script.startsWith(op, index)) {
-                return op;
-            }
-        }
-
-        char ch = script.charAt(index);
-        if (Character.isDigit(ch)) {
-            int cursor = index;
-            while (cursor < script.length() && Character.isDigit(script.charAt(cursor))) {
-                cursor++;
-            }
-            if (cursor < script.length()) {
-                if (script.startsWith(">>", cursor)) {
-                    return script.substring(index, cursor + 2);
-                }
-                char redir = script.charAt(cursor);
-                if (redir == '>' || redir == '<') {
-                    return script.substring(index, cursor + 1);
-                }
-            }
-        }
-
-        if (ch == '|' || ch == '&' || ch == ';' || ch == '(' || ch == ')' || ch == '{' || ch == '}' || ch == '>' || ch == '<') {
-            return String.valueOf(ch);
-        }
-
-        return null;
-    }
-
-    private String validateTokenStream(List<Token> tokens) {
+    private String validateTokenStream(List<ShellTokenizer.Token> tokens) {
         ParseContext context = ParseContext.NORMAL;
         int caseDepth = 0;
 
         int index = 0;
         while (index < tokens.size()) {
-            Token token = tokens.get(index);
+            ShellTokenizer.Token token = tokens.get(index);
             if (token.isSeparator()) {
-                if ("&".equals(token.text)) {
+                if ("&".equals(token.text())) {
                     return "Unsupported syntax for _bash_: background/job control";
                 }
-                if (context == ParseContext.CASE_PATTERN && ")".equals(token.text)) {
+                if (context == ParseContext.CASE_PATTERN && ")".equals(token.text())) {
                     context = ParseContext.NORMAL;
                 }
-                if (context == ParseContext.NORMAL && caseDepth > 0 && isCaseArmSeparator(token.text)) {
+                if (context == ParseContext.NORMAL && caseDepth > 0 && isCaseArmSeparator(token.text())) {
                     context = ParseContext.CASE_PATTERN;
                 }
                 index++;
@@ -559,7 +437,7 @@ final class ShellCommandValidator {
                 continue;
             }
 
-            String word = normalizeWord(token.text);
+            String word = ShellTokenizer.normalizeWord(token.text());
             if (word.isEmpty()) {
                 index++;
                 continue;
@@ -634,19 +512,19 @@ final class ShellCommandValidator {
         return null;
     }
 
-    private ParseCommandResult parseSimpleCommand(List<Token> tokens, int startIndex) {
+    private ParseCommandResult parseSimpleCommand(List<ShellTokenizer.Token> tokens, int startIndex) {
         List<String> words = new ArrayList<>();
         List<String> redirectionTargets = new ArrayList<>();
 
         int index = startIndex;
         while (index < tokens.size()) {
-            Token token = tokens.get(index);
+            ShellTokenizer.Token token = tokens.get(index);
             if (token.isSeparator()) {
                 break;
             }
 
-            if (token.isOperator() && isRedirectionOperator(token.text)) {
-                if ("2>&1".equals(token.text)) {
+            if (token.isOperator() && isRedirectionOperator(token.text())) {
+                if ("2>&1".equals(token.text())) {
                     index++;
                     continue;
                 }
@@ -655,12 +533,12 @@ final class ShellCommandValidator {
                     return new ParseCommandResult(index, null, "Cannot parse command: malformed redirection");
                 }
 
-                String target = normalizeWord(tokens.get(index + 1).text);
+                String target = ShellTokenizer.normalizeWord(tokens.get(index + 1).text());
                 if (target.isEmpty()) {
                     return new ParseCommandResult(index, null, "Cannot parse command: malformed redirection target");
                 }
 
-                if (!isHereDocOperator(token.text) && !"<<<".equals(token.text)) {
+                if (!isHereDocOperator(token.text()) && !"<<<".equals(token.text())) {
                     redirectionTargets.add(target);
                 }
 
@@ -669,7 +547,7 @@ final class ShellCommandValidator {
             }
 
             if (token.isWord()) {
-                words.add(normalizeWord(token.text));
+                words.add(ShellTokenizer.normalizeWord(token.text()));
                 index++;
                 continue;
             }
@@ -844,78 +722,11 @@ final class ShellCommandValidator {
         return token.contains("*") || token.contains("?") || token.contains("[");
     }
 
-    private String normalizeWord(String word) {
-        if (word == null) {
-            return "";
-        }
-        String result = word.trim();
-        while (result.length() >= 2) {
-            if ((result.startsWith("\"") && result.endsWith("\""))
-                    || (result.startsWith("'") && result.endsWith("'"))) {
-                result = result.substring(1, result.length() - 1);
-                continue;
-            }
-            break;
-        }
-        return result;
-    }
-
-    private enum TokenType {
-        WORD,
-        OP,
-        NEWLINE
-    }
-
     private enum ParseContext {
         NORMAL,
         FOR_HEADER,
         CASE_HEADER,
         CASE_PATTERN
-    }
-
-    private record Token(TokenType type, String text) {
-
-        private static Token word(String text) {
-            return new Token(TokenType.WORD, text);
-        }
-
-        private static Token op(String text) {
-            return new Token(TokenType.OP, text);
-        }
-
-        private static Token newline() {
-            return new Token(TokenType.NEWLINE, "\\n");
-        }
-
-        private boolean isWord() {
-            return type == TokenType.WORD;
-        }
-
-        private boolean isOperator() {
-            return type == TokenType.OP;
-        }
-
-        private boolean isSeparator() {
-            if (type == TokenType.NEWLINE) {
-                return true;
-            }
-            if (type != TokenType.OP) {
-                return false;
-            }
-            return "|".equals(text)
-                    || "|&".equals(text)
-                    || "||".equals(text)
-                    || "&&".equals(text)
-                    || ";".equals(text)
-                    || ";;".equals(text)
-                    || ";&".equals(text)
-                    || ";;&".equals(text)
-                    || "&".equals(text)
-                    || "(".equals(text)
-                    || ")".equals(text)
-                    || "{".equals(text)
-                    || "}".equals(text);
-        }
     }
 
     private record StripHereDocResult(String script, String error) {
@@ -925,9 +736,6 @@ final class ShellCommandValidator {
     }
 
     private record DetectHereDocResult(List<HereDocSpec> specs, String error) {
-    }
-
-    private record TokenizeResult(List<Token> tokens, String error) {
     }
 
     private record ParseCommandResult(int nextIndex, CommandSpec command, String error) {

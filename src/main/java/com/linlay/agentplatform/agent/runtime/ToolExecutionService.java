@@ -12,12 +12,10 @@ import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
-import com.linlay.agentplatform.service.LoggingSanitizer;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import com.linlay.agentplatform.util.IdGenerators;
-import com.linlay.agentplatform.util.MapReaders;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,31 +61,8 @@ public class ToolExecutionService {
     private final FrontendSubmitCoordinator frontendSubmitCoordinator;
     private final LoggingAgentProperties loggingAgentProperties;
     private final ToolInvoker toolInvoker;
-
-    public ToolExecutionService(
-            ToolRegistry toolRegistry,
-            ToolArgumentResolver toolArgumentResolver,
-            ObjectMapper objectMapper,
-            FrontendSubmitCoordinator frontendSubmitCoordinator
-    ) {
-        this(
-                toolRegistry,
-                toolArgumentResolver,
-                objectMapper,
-                frontendSubmitCoordinator,
-                new LoggingAgentProperties()
-        );
-    }
-
-    public ToolExecutionService(
-            ToolRegistry toolRegistry,
-            ToolArgumentResolver toolArgumentResolver,
-            ObjectMapper objectMapper,
-            FrontendSubmitCoordinator frontendSubmitCoordinator,
-            LoggingAgentProperties loggingAgentProperties
-    ) {
-        this(toolRegistry, toolArgumentResolver, objectMapper, frontendSubmitCoordinator, loggingAgentProperties, null);
-    }
+    private final PlanTaskDeltaBuilder planTaskDeltaBuilder;
+    private final ToolInvocationLogger toolInvocationLogger;
 
     public ToolExecutionService(
             ToolRegistry toolRegistry,
@@ -101,10 +76,12 @@ public class ToolExecutionService {
         this.toolArgumentResolver = toolArgumentResolver;
         this.objectMapper = objectMapper;
         this.frontendSubmitCoordinator = frontendSubmitCoordinator;
-        this.loggingAgentProperties = loggingAgentProperties;
+        this.loggingAgentProperties = loggingAgentProperties == null ? new LoggingAgentProperties() : loggingAgentProperties;
         this.toolInvoker = toolInvoker == null
                 ? (name, args, context) -> this.toolRegistry.invoke(name, args)
                 : toolInvoker;
+        this.planTaskDeltaBuilder = new PlanTaskDeltaBuilder(objectMapper);
+        this.toolInvocationLogger = new ToolInvocationLogger(log, this.loggingAgentProperties);
     }
 
     public ToolExecutionBatch executeToolCalls(
@@ -176,7 +153,14 @@ public class ToolExecutionService {
         for (PreparedToolCall call : preparedCalls) {
             failIfInterrupted(context);
             long invokeStartNanos = System.nanoTime();
-            logInvocationStart(runId, taskId, call);
+            toolInvocationLogger.logInvocationStart(
+                    runId,
+                    taskId,
+                    call.callId(),
+                    call.toolName(),
+                    call.toolType(),
+                    call.argsJson()
+            );
             InvokeResult invokeResult = invokeByKind(
                     runId,
                     call.callId(),
@@ -194,9 +178,17 @@ public class ToolExecutionService {
             deltas.add(AgentDelta.toolResult(call.callId(), resultText));
             records.add(buildToolRecord(call.callId(), call.toolName(), call.toolType(), call.resolvedArgs(), resultNode));
             events.add(new ToolExecutionEvent(call.callId(), call.toolName(), call.toolType(), call.argsJson(), resultText));
-            logInvocationEnd(runId, taskId, call, resultNode, (System.nanoTime() - invokeStartNanos) / 1_000_000L);
+            toolInvocationLogger.logInvocationEnd(
+                    runId,
+                    taskId,
+                    call.callId(),
+                    call.toolName(),
+                    call.toolType(),
+                    resultNode,
+                    (System.nanoTime() - invokeStartNanos) / 1_000_000L
+            );
 
-            AgentDelta planDelta = planUpdateDelta(context, call.toolName(), call.resolvedArgs(), resultNode);
+            AgentDelta planDelta = planTaskDeltaBuilder.planUpdateDelta(context, call.toolName(), call.resolvedArgs(), resultNode);
             if (planDelta != null) {
                 deltas.add(planDelta);
             }
@@ -361,7 +353,7 @@ public class ToolExecutionService {
         }
 
         if (PlanToolConstants.PLAN_GET_TASKS_TOOL.equals(toolName)) {
-            return new InvokeResult(planGetResult(planSnapshot(context)), null);
+            return new InvokeResult(planTaskDeltaBuilder.planGetResult(planSnapshot(context)), null);
         }
 
         if ("action".equalsIgnoreCase(toolType)) {
@@ -440,15 +432,15 @@ public class ToolExecutionService {
             try {
                 return invokeBackendOnce(toolName, args, timeoutMs, context);
             } catch (IllegalArgumentException ex) {
-                logToolExecutionFailure(toolName, attempt, retries, ex);
+                toolInvocationLogger.logToolExecutionFailure(toolName, attempt, retries, ex);
                 return errorResult(toolName, ex.getMessage());
             } catch (TimeoutException ex) {
-                logToolExecutionFailure(toolName, attempt, retries, ex);
+                toolInvocationLogger.logToolExecutionFailure(toolName, attempt, retries, ex);
                 if (attempt >= retries) {
                     return errorResult(toolName, ex.getMessage());
                 }
             } catch (RuntimeException ex) {
-                logToolExecutionFailure(toolName, attempt, retries, ex);
+                toolInvocationLogger.logToolExecutionFailure(toolName, attempt, retries, ex);
                 if (attempt >= retries) {
                     return errorResult(toolName, ex.getMessage());
                 }
@@ -529,163 +521,8 @@ public class ToolExecutionService {
         return "action".equalsIgnoreCase(toolType);
     }
 
-    private JsonNode planGetResult(PlanSnapshot snapshot) {
-        return objectMapper.getNodeFactory().textNode(planSnapshotText(snapshot));
-    }
-
-    private String planSnapshotText(PlanSnapshot snapshot) {
-        StringBuilder text = new StringBuilder();
-        text.append("计划ID: ").append(normalize(snapshot.planId())).append('\n');
-        text.append("任务列表:");
-        if (snapshot.tasks().isEmpty()) {
-            text.append("\n- (空)");
-        } else {
-            for (AgentDelta.PlanTask task : snapshot.tasks()) {
-                if (task == null) {
-                    continue;
-                }
-                text.append("\n- ")
-                        .append(normalize(task.taskId()))
-                        .append(" | ")
-                        .append(normalizeStatus(task.status()))
-                        .append(" | ")
-                        .append(normalize(task.description()));
-            }
-        }
-        text.append('\n')
-                .append("当前应执行 taskId: ")
-                .append(firstUnfinishedTaskId(snapshot.tasks()));
-        return text.toString();
-    }
-
-    private String firstUnfinishedTaskId(List<AgentDelta.PlanTask> tasks) {
-        if (tasks == null || tasks.isEmpty()) {
-            return "none";
-        }
-        for (AgentDelta.PlanTask task : tasks) {
-            if (task == null || !StringUtils.hasText(task.taskId())) {
-                continue;
-            }
-            String status = normalizeStatus(task.status());
-            if (!"completed".equals(status) && !"canceled".equals(status) && !"failed".equals(status)) {
-                return task.taskId().trim();
-            }
-        }
-        return "none";
-    }
-
     private String normalizeToolName(String raw) {
         return normalize(raw).toLowerCase(Locale.ROOT);
-    }
-
-    private void logInvocationStart(String runId, String taskId, PreparedToolCall call) {
-        LoggingAgentProperties.Tool config = resolveInvocationLoggingConfig(call.toolType());
-        if (config == null || !config.isEnabled()) {
-            return;
-        }
-        String channel = isActionType(call.toolType()) ? "action" : "tool";
-        if (config.isIncludeArgs()) {
-            log.info(
-                    "agent.{}.start runId={}, taskId={}, id={}, name={}, type={}, args={}",
-                    channel,
-                    runId,
-                    taskId,
-                    call.callId(),
-                    call.toolName(),
-                    call.toolType(),
-                    LoggingSanitizer.sanitizeText(call.argsJson())
-            );
-            return;
-        }
-        log.info(
-                "agent.{}.start runId={}, taskId={}, id={}, name={}, type={}",
-                channel,
-                runId,
-                taskId,
-                call.callId(),
-                call.toolName(),
-                call.toolType()
-        );
-    }
-
-    private void logInvocationEnd(String runId, String taskId, PreparedToolCall call, JsonNode resultNode, long elapsedMs) {
-        LoggingAgentProperties.Tool config = resolveInvocationLoggingConfig(call.toolType());
-        if (config == null || !config.isEnabled()) {
-            return;
-        }
-        String channel = isActionType(call.toolType()) ? "action" : "tool";
-        boolean failed = resultNode != null
-                && resultNode.isObject()
-                && resultNode.has("ok")
-                && !resultNode.path("ok").asBoolean(true);
-        if (config.isIncludeResult()) {
-            String resultText = resultNode == null ? "" : LoggingSanitizer.sanitizeText(resultNode.toString());
-            if (failed) {
-                log.warn(
-                        "agent.{}.end runId={}, taskId={}, id={}, name={}, elapsedMs={}, ok=false, result={}",
-                        channel,
-                        runId,
-                        taskId,
-                        call.callId(),
-                        call.toolName(),
-                        elapsedMs,
-                        resultText
-                );
-            } else {
-                log.info(
-                        "agent.{}.end runId={}, taskId={}, id={}, name={}, elapsedMs={}, result={}",
-                        channel,
-                        runId,
-                        taskId,
-                        call.callId(),
-                        call.toolName(),
-                        elapsedMs,
-                        resultText
-                );
-            }
-            return;
-        }
-        if (failed) {
-            log.warn(
-                    "agent.{}.end runId={}, taskId={}, id={}, name={}, elapsedMs={}, ok=false",
-                    channel,
-                    runId,
-                    taskId,
-                    call.callId(),
-                    call.toolName(),
-                    elapsedMs
-            );
-        } else {
-            log.info(
-                    "agent.{}.end runId={}, taskId={}, id={}, name={}, elapsedMs={}",
-                    channel,
-                    runId,
-                    taskId,
-                    call.callId(),
-                    call.toolName(),
-                    elapsedMs
-            );
-        }
-    }
-
-    private void logToolExecutionFailure(String toolName, int attempt, int retries, Exception ex) {
-        if (loggingAgentProperties == null || !loggingAgentProperties.getTool().isEnabled()) {
-            return;
-        }
-        log.warn(
-                "agent.tool.failure toolName={}, attempt={}, retries={}, reason={}",
-                toolName,
-                attempt,
-                retries,
-                LoggingSanitizer.sanitizeText(ex == null ? "" : ex.getMessage())
-        );
-    }
-
-    private LoggingAgentProperties.Tool resolveInvocationLoggingConfig(String toolType) {
-        if (loggingAgentProperties == null) {
-            return null;
-        }
-        return isActionType(toolType) ? loggingAgentProperties.getAction() : loggingAgentProperties.getTool();
     }
 
     private String normalize(String value) {
@@ -696,111 +533,8 @@ public class ToolExecutionService {
         return IdGenerators.shortHexId();
     }
 
-    private AgentDelta planUpdateDelta(
-            ExecutionContext context,
-            String toolName,
-            Map<String, Object> args,
-            JsonNode resultNode
-    ) {
-        if (context == null || toolName == null || toolName.isBlank()) {
-            return null;
-        }
-        String normalizedName = toolName.trim().toLowerCase(Locale.ROOT);
-        if (PlanToolConstants.PLAN_ADD_TASKS_TOOL.equals(normalizedName)) {
-            String resultText = toResultText(resultNode);
-            if (isFailedPlanToolResult(resultText)) {
-                return null;
-            }
-            List<AgentDelta.PlanTask> created = parsePlanTasksFromResult(resultText);
-            if (created.isEmpty()) {
-                return null;
-            }
-            context.appendPlanTasks(created);
-            return AgentDelta.planUpdate(context.planId(), context.request().chatId(), context.planTasks());
-        }
-        if (PlanToolConstants.PLAN_UPDATE_TASK_TOOL.equals(normalizedName)) {
-            String resultText = toResultText(resultNode);
-            if (!isSuccessfulPlanUpdateResult(resultText, resultNode)) {
-                return null;
-            }
-            String taskId = asString(args, "taskId");
-            String status = asString(args, "status");
-            if (!StringUtils.hasText(taskId) || !StringUtils.hasText(status)) {
-                return null;
-            }
-            String description = asString(args, "description");
-            boolean updated = context.updatePlanTask(taskId, status, description);
-            if (!updated) {
-                return null;
-            }
-            return AgentDelta.planUpdate(context.planId(), context.request().chatId(), context.planTasks());
-        }
-        return null;
-    }
-
-    private List<AgentDelta.PlanTask> parsePlanTasksFromResult(String resultText) {
-        if (!StringUtils.hasText(resultText)) {
-            return List.of();
-        }
-        String normalized = resultText.replace("\r\n", "\n");
-        List<AgentDelta.PlanTask> tasks = new ArrayList<>();
-        for (String line : normalized.split("\n")) {
-            String trimmed = line == null ? "" : line.trim();
-            if (!StringUtils.hasText(trimmed)) {
-                continue;
-            }
-            String[] parts = trimmed.split("\\|", 3);
-            if (parts.length != 3) {
-                continue;
-            }
-            String taskId = normalize(parts[0]);
-            String status = parseLineStatus(parts[1]);
-            String description = normalize(parts[2]);
-            if (!StringUtils.hasText(taskId) || !StringUtils.hasText(description) || !StringUtils.hasText(status)) {
-                continue;
-            }
-            tasks.add(new AgentDelta.PlanTask(taskId, description, status));
-        }
-        return tasks.isEmpty() ? List.of() : List.copyOf(tasks);
-    }
-
-    private String asString(Map<String, Object> args, String key) {
-        return MapReaders.readString(args, key);
-    }
-
     private String normalizeStatus(String raw) {
         return AgentDelta.normalizePlanTaskStatus(raw);
-    }
-
-    private String parseLineStatus(String raw) {
-        if (!StringUtils.hasText(raw)) {
-            return "init";
-        }
-        String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "init", "completed", "failed", "canceled" -> normalized;
-            default -> null;
-        };
-    }
-
-    private boolean isFailedPlanToolResult(String resultText) {
-        if (!StringUtils.hasText(resultText)) {
-            return true;
-        }
-        return normalize(resultText).startsWith("失败:");
-    }
-
-    private boolean isSuccessfulPlanUpdateResult(String resultText, JsonNode resultNode) {
-        if ("OK".equals(normalize(resultText))) {
-            return true;
-        }
-        if (resultNode == null || resultNode.isNull()) {
-            return false;
-        }
-        if (resultNode.isObject() && resultNode.has("ok")) {
-            return resultNode.path("ok").asBoolean(false);
-        }
-        return false;
     }
 
     private boolean isBackendTool(String toolName) {

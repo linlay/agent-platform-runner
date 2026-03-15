@@ -2,7 +2,7 @@ package com.linlay.agentplatform.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.memory.ChatMemoryTypes;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,22 +81,24 @@ final class ChatHistoryFileReader {
                             ? node.path("taskId").asText(null)
                             : null;
 
-                    ChatWindowMemoryStore.SystemSnapshot system = null;
+                    ChatMemoryTypes.SystemSnapshot system = null;
                     if (node.has("system") && !node.get("system").isNull()) {
-                        system = objectMapper.treeToValue(node.get("system"), ChatWindowMemoryStore.SystemSnapshot.class);
+                        system = objectMapper.treeToValue(node.get("system"), ChatMemoryTypes.SystemSnapshot.class);
                     }
 
-                    ChatWindowMemoryStore.PlanSnapshot plan = null;
+                    ChatMemoryTypes.PlanSnapshot plan = null;
                     if (node.has("plan") && !node.get("plan").isNull()) {
-                        plan = objectMapper.treeToValue(node.get("plan"), ChatWindowMemoryStore.PlanSnapshot.class);
+                        plan = objectMapper.treeToValue(node.get("plan"), ChatMemoryTypes.PlanSnapshot.class);
+                    } else if (node.has("planSnapshot") && !node.get("planSnapshot").isNull()) {
+                        plan = objectMapper.treeToValue(node.get("planSnapshot"), ChatMemoryTypes.PlanSnapshot.class);
                     }
 
-                    List<ChatWindowMemoryStore.StoredMessage> messages = new ArrayList<>();
+                    List<ChatMemoryTypes.StoredMessage> messages = new ArrayList<>();
                     if (node.has("messages") && node.get("messages").isArray()) {
                         for (JsonNode msgNode : node.get("messages")) {
-                            ChatWindowMemoryStore.StoredMessage message = objectMapper.treeToValue(
+                            ChatMemoryTypes.StoredMessage message = objectMapper.treeToValue(
                                     msgNode,
-                                    ChatWindowMemoryStore.StoredMessage.class
+                                    ChatMemoryTypes.StoredMessage.class
                             );
                             if (message != null) {
                                 messages.add(message);
@@ -155,9 +157,9 @@ final class ChatHistoryFileReader {
                         persistedEvents.stream().mapToLong(PersistedChatEvent::timestamp).max().orElse(0)
                 );
 
-                List<ChatWindowMemoryStore.StoredMessage> allMessages = new ArrayList<>();
-                ChatWindowMemoryStore.SystemSnapshot firstSystem = null;
-                ChatWindowMemoryStore.PlanSnapshot latestPlan = null;
+                List<ChatMemoryTypes.StoredMessage> allMessages = new ArrayList<>();
+                ChatMemoryTypes.SystemSnapshot firstSystem = null;
+                ChatMemoryTypes.PlanSnapshot latestPlan = null;
                 for (StepEntry step : steps) {
                     if (firstSystem == null && step.system() != null) {
                         firstSystem = step.system();
@@ -243,9 +245,9 @@ final class ChatHistoryFileReader {
             int seq,
             String taskId,
             long updatedAt,
-            ChatWindowMemoryStore.SystemSnapshot system,
-            ChatWindowMemoryStore.PlanSnapshot plan,
-            List<ChatWindowMemoryStore.StoredMessage> messages,
+            ChatMemoryTypes.SystemSnapshot system,
+            ChatMemoryTypes.PlanSnapshot plan,
+            List<ChatMemoryTypes.StoredMessage> messages,
             int lineIndex
     ) {
     }
