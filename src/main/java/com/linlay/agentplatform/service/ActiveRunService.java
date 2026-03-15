@@ -49,13 +49,6 @@ public class ActiveRunService {
         String steerId = resolveSteerId(request.steerId());
         String message = normalizeRequired(request.message(), "message");
         session.control().enqueueSteer(new RunControl.SteerEnvelope(request.requestId(), steerId, message));
-        session.emit(new StreamInput.RequestSteer(
-                normalize(request.requestId()),
-                session.chatId(),
-                runId,
-                steerId,
-                message
-        ));
         return new SteerAck(true, "accepted", runId, steerId, "Steer accepted for runId=" + runId + ", steerId=" + steerId);
     }
 

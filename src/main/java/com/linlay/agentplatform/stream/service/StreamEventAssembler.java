@@ -378,6 +378,7 @@ public class StreamEventAssembler {
             }
             if (input instanceof StreamInput.RequestSteer value) {
                 ensureRunContext();
+                closeTextBlocks(events);
                 if (!chatId.equals(value.chatId())) {
                     throw new IllegalStateException("request.steer chatId does not match stream chatId");
                 }

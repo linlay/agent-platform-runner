@@ -344,7 +344,7 @@ class AgentQueryServiceTest {
     }
 
     @Test
-    void streamShouldEmitRequestSteerFromActiveRunSession() {
+    void streamShouldNotEmitRequestSteerUntilNextModelTurnConsumesIt() {
         Agent agent = mock(Agent.class);
         Sinks.Many<AgentDelta> upstream = Sinks.many().unicast().onBackpressureBuffer();
         when(agent.stream(any(AgentRequest.class))).thenReturn(upstream.asFlux());
@@ -410,7 +410,7 @@ class AgentQueryServiceTest {
             payloads.add(event.data());
         }
 
-        assertThat(payloads).anyMatch(item -> item != null && item.contains("\"type\":\"request.steer\"") && item.contains("\"steerId\":\"steer-1\""));
+        assertThat(payloads).noneMatch(item -> item != null && item.contains("\"type\":\"request.steer\""));
         assertThat(payloads).anyMatch(item -> item != null && item.contains("\"type\":\"content.delta\""));
         assertThat(payloads).anyMatch(item -> item != null && item.contains("\"type\":\"run.complete\""));
     }

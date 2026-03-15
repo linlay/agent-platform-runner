@@ -210,7 +210,7 @@ public class AgentQueryService {
                 ? null
                 : activeRunService.register(session.request().runId(), session.request().chatId(), session.request().agentKey());
         Flux<AgentDelta> deltas = session.agent().stream(session.agentRequest());
-        Flux<StreamInput> mappedInputs = new AgentDeltaToStreamInputMapper(session.request().runId(), toolRegistry)
+        Flux<StreamInput> mappedInputs = new AgentDeltaToStreamInputMapper(session.request().runId(), session.request().chatId(), toolRegistry)
                 .map(deltas);
         if (activeSession != null) {
             mappedInputs = mappedInputs.takeUntilOther(activeSession.control().cancelSignal());

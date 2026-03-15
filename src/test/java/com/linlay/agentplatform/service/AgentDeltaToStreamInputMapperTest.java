@@ -387,6 +387,25 @@ class AgentDeltaToStreamInputMapperTest {
     }
 
     @Test
+    void shouldMapConsumedSteerDeltaToRequestSteerEvent() {
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", "chat_1", null);
+        List<StreamEvent> events = assembleEvents(mapper, List.of(
+                AgentDelta.requestSteer("req_steer_1", "steer_1", "keep going")
+        ));
+
+        StreamEvent event = events.stream()
+                .filter(item -> "request.steer".equals(item.type()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(event.payload()).containsEntry("requestId", "req_steer_1");
+        assertThat(event.payload()).containsEntry("chatId", "chat_1");
+        assertThat(event.payload()).containsEntry("runId", "run_1");
+        assertThat(event.payload()).containsEntry("steerId", "steer_1");
+        assertThat(event.payload()).containsEntry("message", "keep going");
+        assertThat(event.payload()).containsEntry("role", "user");
+    }
+
+    @Test
     void shouldIncludeAgentKeyInRunStartBootstrapEvent() {
         StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
                 .begin(new StreamRequest.Query(
@@ -495,6 +514,37 @@ class AgentDeltaToStreamInputMapperTest {
         assertThat(requestSteer.payload()).containsEntry("steerId", "steer_1");
         assertThat(requestSteer.payload()).containsEntry("message", "keep going");
         assertThat(requestSteer.payload()).containsEntry("role", "user");
+    }
+
+    @Test
+    void requestSteerShouldCloseOpenContentBeforeConfirmEvent() {
+        StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
+                .begin(new StreamRequest.Query(
+                        "req_1",
+                        "chat_1",
+                        "user",
+                        "test",
+                        "demoModePlain",
+                        null,
+                        null,
+                        null,
+                        null,
+                        true,
+                        "chat_1",
+                        "run_1"
+                ));
+
+        List<StreamEvent> contentEvents = state.consume(new StreamInput.ContentDelta("content_1", "hello", null));
+        List<StreamEvent> steerEvents = state.consume(new StreamInput.RequestSteer(
+                "req_steer_1",
+                "chat_1",
+                "run_1",
+                "steer_1",
+                "keep going"
+        ));
+
+        assertThat(contentEvents).anyMatch(event -> "content.delta".equals(event.type()));
+        assertThat(steerEvents).extracting(StreamEvent::type).containsExactly("content.end", "request.steer");
     }
 
     @Test

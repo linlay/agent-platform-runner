@@ -289,8 +289,20 @@ class OrchestratorServicesTest {
 
         assertThat(modelMessages.get()).extracting(ChatMessage::role).containsExactly("user", "user", "user");
         assertThat(modelMessages.get()).extracting(ChatMessage::text).containsExactly("hello", "first steer", "second steer");
-        assertThat(emitted).extracting(AgentDelta::userMessage)
-                .containsExactly("first steer", "second steer");
+        assertThat(emitted.stream()
+                .map(AgentDelta::userMessage)
+                .filter(java.util.Objects::nonNull)
+                .toList()).containsExactly("first steer", "second steer");
+        assertThat(emitted.stream()
+                .map(AgentDelta::requestSteer)
+                .filter(java.util.Objects::nonNull)
+                .map(AgentDelta.RequestSteer::steerId)
+                .toList()).containsExactly("steer_1", "steer_2");
+        assertThat(emitted.stream()
+                .map(AgentDelta::requestSteer)
+                .filter(java.util.Objects::nonNull)
+                .map(AgentDelta.RequestSteer::message)
+                .toList()).containsExactly("first steer", "second steer");
     }
 
     private ExecutionContext contextWithBudget(Budget budget) {

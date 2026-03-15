@@ -35,6 +35,7 @@ public class AgentDeltaToStreamInputMapper {
     private final Set<String> closedActionToolIds = new HashSet<>();
     private final Set<String> closedToolIds = new HashSet<>();
     private final String runPrefix;
+    private final String chatId;
     private final ToolRegistry toolRegistry;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -44,15 +45,20 @@ public class AgentDeltaToStreamInputMapper {
     private String activeContentId;
 
     public AgentDeltaToStreamInputMapper() {
-        this(null, null);
+        this(null, null, null);
     }
 
     public AgentDeltaToStreamInputMapper(String runId) {
-        this(runId, null);
+        this(runId, null, null);
     }
 
     public AgentDeltaToStreamInputMapper(String runId, ToolRegistry toolRegistry) {
+        this(runId, null, toolRegistry);
+    }
+
+    public AgentDeltaToStreamInputMapper(String runId, String chatId, ToolRegistry toolRegistry) {
         this.runPrefix = hasText(runId) ? runId : "run";
+        this.chatId = hasText(chatId) ? chatId.trim() : null;
         this.toolRegistry = toolRegistry;
     }
 
@@ -198,6 +204,17 @@ public class AgentDeltaToStreamInputMapper {
             }
         }
 
+        if (delta.requestSteer() != null && hasText(chatId)) {
+            AgentDelta.RequestSteer requestSteer = delta.requestSteer();
+            inputs.add(new StreamInput.RequestSteer(
+                    requestSteer.requestId(),
+                    chatId,
+                    runPrefix,
+                    requestSteer.steerId(),
+                    requestSteer.message()
+            ));
+        }
+
         if (hasText(delta.finishReason())) {
             inputs.add(new StreamInput.RunComplete(delta.finishReason()));
         }
@@ -219,6 +236,7 @@ public class AgentDeltaToStreamInputMapper {
                 || (delta.toolResults() != null && !delta.toolResults().isEmpty())
                 || delta.planUpdate() != null
                 || delta.requestSubmit() != null
+                || delta.requestSteer() != null
                 || hasText(delta.finishReason());
     }
 

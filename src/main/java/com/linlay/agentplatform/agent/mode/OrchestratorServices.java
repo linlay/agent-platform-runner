@@ -641,6 +641,7 @@ public class OrchestratorServices {
             String message = steer.message().trim();
             context.appendHumanMessageToAllContexts(message);
             emit(sink, AgentDelta.userMessage(message, context.activeTaskId()));
+            emit(sink, AgentDelta.requestSteer(steer.requestId(), steer.steerId(), message));
         }
     }
 
