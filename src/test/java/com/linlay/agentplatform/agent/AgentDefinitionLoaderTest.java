@@ -106,6 +106,31 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldRejectAvatarAlias() throws IOException {
+        Files.writeString(tempDir.resolve("legacy_avatar.json"), """
+                {
+                  "key": "legacy_avatar",
+                  "name": "旧头像字段",
+                  "avatar": "emoji:📦",
+                  "description": "legacy avatar",
+                  "modelConfig": {
+                    "modelKey": "bailian-qwen3-max"
+                  },
+                  "mode": "ONESHOT",
+                  "plain": { "systemPrompt": "test" }
+                }
+                """);
+
+        AgentProperties properties = new AgentProperties();
+        properties.setExternalDir(tempDir.toString());
+        AgentDefinitionLoader loader = newLoader(properties);
+        Map<String, AgentDefinition> byId = loader.loadAll().stream()
+                .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
+
+        assertThat(byId).doesNotContainKey("legacy_avatar");
+    }
+
+    @Test
     void shouldRejectLegacyAgentConfig() throws IOException {
         Files.writeString(tempDir.resolve("legacy.json"), """
                 {

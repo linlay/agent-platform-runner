@@ -45,6 +45,11 @@ public class JwksJwtVerifier {
 
     @PostConstruct
     void initialize() {
+        if (!authProperties.isEnabled()) {
+            localRsaKey = null;
+            cachedJwkSet = null;
+            return;
+        }
         validateJwksConfiguration();
         validateLocalKeyConfiguration();
         localRsaKey = resolveLocalRsaKey();

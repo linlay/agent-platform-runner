@@ -36,9 +36,8 @@ class RuntimeResourceSyncServiceTest {
         Path extraTool = toolsDir.resolve("custom.yml");
         Path mathBasicSkillFile = skillsDir.resolve("math_basic").resolve("SKILL.md");
         Path extraSkillFile = skillsDir.resolve("custom_skill").resolve("SKILL.md");
-        Path builtInSchedule = schedulesDir.resolve("demo_daily_summary.yml");
+        Path builtInSchedule = schedulesDir.resolve("builtin_placeholder_daily.yml");
         Path extraSchedule = schedulesDir.resolve("custom_schedule.yml");
-
         Files.writeString(modePlainAgent, "old-agent-content");
         Files.writeString(weatherTool, "old-tool-content");
         Files.writeString(extraAgent, "custom agent content");
@@ -67,18 +66,13 @@ class RuntimeResourceSyncServiceTest {
         assertThat(syncedTool).contains("\"name\": \"datetime\"");
         assertThat(syncedSkillScriptTool).contains("\"name\": \"_skill_run_script_\"");
         assertThat(syncedSkill).contains("name: \"math_basic\"");
-        assertThat(syncedSchedule).contains("name: 每日摘要")
-                .contains("description: 每天早上 9 点触发 demoModePlain 输出三条摘要建议")
-                .contains("cron: \"0 0 9 * * *\"");
+        assertThat(syncedSchedule).contains("name: 内置占位计划任务")
+                .contains("description: 预留内置计划任务同步链路的占位任务，默认禁用")
+                .contains("cron: \"0 0 0 * * *\"");
         assertThat(skillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
         assertThat(skillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
         assertThat(skillsDir.resolve("text_utils").resolve("SKILL.md")).exists();
-        assertThat(schedulesDir.resolve("demo_daily_summary.yml")).exists();
-        assertThat(schedulesDir.resolve("demo_viewport_weather_minutely.yml")).exists();
-        assertThat(Files.readString(schedulesDir.resolve("demo_viewport_weather_minutely.yml")))
-                .contains("agentKey: demoViewport")
-                .contains("description: 每分钟触发一次 demoViewport，随机选择一个城市查询天气并尽量输出 viewport")
-                .contains("cron: \"0 * * * * *\"");
+        assertThat(schedulesDir.resolve("builtin_placeholder_daily.yml")).exists();
         assertThat(toolsDir.resolve("launch_fireworks.yml")).doesNotExist();
         assertThat(toolsDir.resolve("show_modal.yml")).doesNotExist();
         assertThat(toolsDir.resolve("switch_theme.yml")).doesNotExist();
@@ -125,8 +119,7 @@ class RuntimeResourceSyncServiceTest {
         assertThat(configuredSkillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
         assertThat(configuredSkillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
         assertThat(configuredSkillsDir.resolve("text_utils").resolve("SKILL.md")).exists();
-        assertThat(configuredSchedulesDir.resolve("demo_daily_summary.yml")).exists();
-        assertThat(configuredSchedulesDir.resolve("demo_viewport_weather_minutely.yml")).exists();
+        assertThat(configuredSchedulesDir.resolve("builtin_placeholder_daily.yml")).exists();
         assertThat(legacyUserDir.resolve("tools")).doesNotExist();
         assertThat(legacyUserDir.resolve("skills")).doesNotExist();
         assertThat(legacyUserDir.resolve("schedules")).doesNotExist();

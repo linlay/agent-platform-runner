@@ -231,20 +231,6 @@ class ToolFileRegistryServiceTest {
         assertThat(diff.changedKeys()).contains("b_tool");
     }
 
-    @Test
-    void shouldLoadTerminalCommandReviewExampleTool() {
-        Path toolsDir = Path.of("example/tools").toAbsolutePath().normalize();
-
-        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
-
-        ToolDescriptor descriptor = service.find("terminal_command_review").orElseThrow();
-        assertThat(descriptor.kind()).isEqualTo(ToolKind.FRONTEND);
-        assertThat(descriptor.label()).isEqualTo("命令审查面板");
-        assertThat(descriptor.toolType()).isEqualTo("html");
-        assertThat(descriptor.viewportKey()).isEqualTo("terminal_command_review");
-        assertThat(descriptor.description()).contains("命令清单");
-    }
-
     private ToolProperties properties(Path toolsDir) {
         ToolProperties properties = new ToolProperties();
         properties.setExternalDir(toolsDir.toString());

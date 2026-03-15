@@ -252,9 +252,7 @@ public record AgentDelta(
         if (normalized == null) {
             return "init";
         }
-        // COMPAT(V3): Keep mapping historical persisted "in_progress" task states until V3/V3.1 task snapshots are no longer read.
         return switch (normalized.toLowerCase()) {
-            case "in_progress" -> "init";
             case "init", "completed", "failed", "canceled" -> normalized.toLowerCase();
             default -> "init";
         };

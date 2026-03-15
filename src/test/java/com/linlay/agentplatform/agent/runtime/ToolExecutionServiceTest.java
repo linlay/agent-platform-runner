@@ -60,7 +60,7 @@ class ToolExecutionServiceTest {
                 "plan_chat_1",
                 List.of(
                         new AgentDelta.PlanTask("task1", "检查环境", "init"),
-                        new AgentDelta.PlanTask("task2", "执行迁移", "in_progress")
+                        new AgentDelta.PlanTask("task2", "执行迁移", "init")
                 )
         );
 

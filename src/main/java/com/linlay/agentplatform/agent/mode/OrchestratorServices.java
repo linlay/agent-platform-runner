@@ -495,7 +495,7 @@ public class OrchestratorServices {
                 }
                 String rawMessage = result.path("error").asText(null);
                 String message = StringUtils.hasText(rawMessage) ? rawMessage.trim() : FRONTEND_TIMEOUT_MESSAGE;
-                return new FrontendSubmitTimeoutException(message);
+                return new FrontendSubmitTimeoutException(message, event.callId(), event.resultText());
             } catch (Exception ignored) {
                 // ignore malformed tool results and continue scanning
             }

@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 @Component
@@ -37,7 +36,7 @@ public class SystemPlanAddTasks extends AbstractDeterministicTool {
                 if (description == null || description.isBlank()) {
                     continue;
                 }
-                String status = normalizeStatusStrict(readString(map, "status"));
+                String status = PlanTaskStatusNormalizer.normalizeStrict(readString(map, "status"));
                 if (status == null) {
                     return OBJECT_MAPPER.getNodeFactory().textNode("失败: 非法状态，仅支持 init/completed/failed/canceled");
                 }
@@ -47,7 +46,7 @@ public class SystemPlanAddTasks extends AbstractDeterministicTool {
 
         String singleDescription = args == null ? null : readString(args, "description");
         if (tasks.isEmpty() && singleDescription != null && !singleDescription.isBlank()) {
-            String status = normalizeStatusStrict(args == null ? null : readString(args, "status"));
+            String status = PlanTaskStatusNormalizer.normalizeStrict(args == null ? null : readString(args, "status"));
             if (status == null) {
                 return OBJECT_MAPPER.getNodeFactory().textNode("失败: 非法状态，仅支持 init/completed/failed/canceled");
             }
@@ -74,17 +73,6 @@ public class SystemPlanAddTasks extends AbstractDeterministicTool {
 
     private String readString(Map<?, ?> map, String key) {
         return MapReaders.readString(map, key);
-    }
-
-    private String normalizeStatusStrict(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return "init";
-        }
-        String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "init", "completed", "failed", "canceled" -> normalized;
-            default -> null;
-        };
     }
 
     private String shortId() {

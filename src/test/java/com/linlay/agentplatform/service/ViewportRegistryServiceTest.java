@@ -55,19 +55,4 @@ class ViewportRegistryServiceTest {
         assertThat(service.find("bad")).isEmpty();
     }
 
-    @Test
-    void shouldLoadTerminalCommandReviewExampleViewport() {
-        ViewportProperties properties = new ViewportProperties();
-        properties.setExternalDir(Path.of("example/viewports").toAbsolutePath().normalize().toString());
-        ViewportRegistryService service = new ViewportRegistryService(
-                new ObjectMapper(),
-                properties
-        );
-
-        Optional<ViewportRegistryService.ViewportEntry> viewport = service.find("terminal_command_review");
-        assertThat(viewport).isPresent();
-        assertThat(viewport.get().viewportType()).isEqualTo(ViewportType.HTML);
-        assertThat(String.valueOf(viewport.get().payload())).contains("Approve All");
-    }
-
 }

@@ -28,7 +28,6 @@ public class LlmService {
     private static final long DEFAULT_STREAM_TIMEOUT_MS = 60_000L;
 
     private final OpenAiCompatibleSseClient openAiCompatibleSseClient;
-    private final AnthropicSseClient anthropicSseClient;
     private final LlmCallLogger callLogger;
 
     public record LlmFunctionTool(
@@ -58,7 +57,6 @@ public class LlmService {
         AgentProviderProperties resolvedProviderProperties = providerProperties == null ? new AgentProviderProperties() : providerProperties;
         this.callLogger = new LlmCallLogger(logProperties);
         this.openAiCompatibleSseClient = new OpenAiCompatibleSseClient(resolvedProviderProperties, objectMapper, this.callLogger, llmConnectionProvider);
-        this.anthropicSseClient = new AnthropicSseClient();
     }
 
     public Flux<String> streamContent(LlmCallSpec spec) {
@@ -104,9 +102,6 @@ public class LlmService {
             String userPrompt,
             String stage
     ) {
-        if (protocol == ModelProtocol.ANTHROPIC) {
-            return anthropicSseClient.streamContentRawSse(providerKey, model, systemPrompt, historyMessages, userPrompt, stage);
-        }
         return openAiCompatibleSseClient.streamContentRawSse(
                 providerKey,
                 model,
@@ -133,16 +128,6 @@ public class LlmService {
     }
 
     private Flux<String> streamContentInternal(LlmCallSpec spec) {
-        if (spec.protocol() == ModelProtocol.ANTHROPIC) {
-            return anthropicSseClient.streamContentRawSse(
-                    spec.providerKey(),
-                    spec.model(),
-                    spec.systemPrompt(),
-                    spec.messages(),
-                    spec.userPrompt(),
-                    spec.stage()
-            );
-        }
         return openAiCompatibleSseClient.streamContentRawSse(
                 spec.providerKey(),
                 spec.model(),
@@ -184,43 +169,23 @@ public class LlmService {
             callLogger.logHistoryMessages(log, traceId, spec.stage(), spec.messages());
             callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream user prompt:\n{}"), callLogger.normalizePrompt(spec.userPrompt()));
 
-            Flux<LlmDelta> deltaFlux;
-            if (spec.protocol() == ModelProtocol.ANTHROPIC) {
-                deltaFlux = anthropicSseClient.streamDeltasRawSse(
-                        spec.providerKey(),
-                        spec.model(),
-                        spec.systemPrompt(),
-                        spec.messages(),
-                        spec.userPrompt(),
-                        spec.tools(),
-                        spec.parallelToolCalls(),
-                        spec.toolChoice(),
-                        spec.jsonSchema(),
-                        spec.compute(),
-                        spec.reasoningEnabled(),
-                        spec.maxTokens(),
-                        traceId,
-                        spec.stage()
-                );
-            } else {
-                deltaFlux = openAiCompatibleSseClient.streamDeltasRawSse(
-                        spec.providerKey(),
-                        spec.model(),
-                        spec.protocol(),
-                        spec.systemPrompt(),
-                        spec.messages(),
-                        spec.userPrompt(),
-                        spec.tools(),
-                        spec.parallelToolCalls(),
-                        spec.toolChoice(),
-                        spec.jsonSchema(),
-                        spec.compute(),
-                        spec.reasoningEnabled(),
-                        spec.maxTokens(),
-                        traceId,
-                        spec.stage()
-                );
-            }
+            Flux<LlmDelta> deltaFlux = openAiCompatibleSseClient.streamDeltasRawSse(
+                    spec.providerKey(),
+                    spec.model(),
+                    spec.protocol(),
+                    spec.systemPrompt(),
+                    spec.messages(),
+                    spec.userPrompt(),
+                    spec.tools(),
+                    spec.parallelToolCalls(),
+                    spec.toolChoice(),
+                    spec.jsonSchema(),
+                    spec.compute(),
+                    spec.reasoningEnabled(),
+                    spec.maxTokens(),
+                    traceId,
+                    spec.stage()
+            );
 
             Flux<LlmDelta> cancelAwareFlux = deltaFlux.takeUntilOther(spec.cancelSignal());
             return cancelAwareFlux
@@ -268,9 +233,6 @@ public class LlmService {
             String userPrompt,
             String stage
     ) {
-        if (protocol == ModelProtocol.ANTHROPIC) {
-            return Mono.error(anthropicSseClient.notImplemented(providerKey));
-        }
         return streamContentRawSse(
                 providerKey,
                 model,

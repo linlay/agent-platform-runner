@@ -583,7 +583,7 @@ class ChatRecordStoreTest {
                         "planId", "plan_chat_001",
                         "plan", List.of(
                                 Map.of("taskId", "task0", "description", "收集信息", "status", "init"),
-                                Map.of("taskId", "task1", "description", "执行任务", "status", "in_progress")
+                                Map.of("taskId", "task1", "description", "执行任务", "status", "init")
                         )
                 )));
 

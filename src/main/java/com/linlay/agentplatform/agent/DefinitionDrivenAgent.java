@@ -328,6 +328,9 @@ public class DefinitionDrivenAgent implements Agent {
             }
         } catch (FrontendSubmitTimeoutException ex) {
             log.info("[agent:{}] frontend submit timeout: {}", definition.id(), ex.getMessage());
+            if (StringUtils.hasText(ex.toolId()) && StringUtils.hasText(ex.resultText())) {
+                services.emit(sink, AgentDelta.toolResult(ex.toolId(), ex.resultText()));
+            }
             String timeoutMessage = resolveFrontendTimeoutMessage(ex);
             services.emit(sink, AgentDelta.content(timeoutMessage));
             services.emit(sink, AgentDelta.finish("timeout"));

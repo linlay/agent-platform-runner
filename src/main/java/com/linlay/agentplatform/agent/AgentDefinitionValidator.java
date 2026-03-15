@@ -2,7 +2,54 @@ package com.linlay.agentplatform.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.Set;
+
 public final class AgentDefinitionValidator {
+
+    private static final Set<String> LEGACY_ROOT_FIELDS = Set.of(
+            "deepThink",
+            "systemPrompt",
+            "providerKey",
+            "model",
+            "reasoning",
+            "tools"
+    );
+    private static final Set<String> LEGACY_STAGE_FIELDS = Set.of(
+            "providerKey",
+            "model",
+            "reasoning",
+            "tools"
+    );
+    private static final Set<String> LEGACY_MODEL_CONFIG_FIELDS = Set.of(
+            "providerKey",
+            "model"
+    );
+    private static final Set<String> REMOVED_ROOT_FIELDS = Set.of(
+            "avatar",
+            "verify",
+            "output",
+            "toolPolicy"
+    );
+    private static final Set<String> REMOVED_RUNTIME_PROMPT_FIELDS = Set.of(
+            "verify",
+            "finalAnswer",
+            "oneshot",
+            "react"
+    );
+    private static final Set<String> REMOVED_PLAN_EXECUTE_RUNTIME_PROMPT_FIELDS = Set.of(
+            "executeToolsTitle",
+            "planCallableToolsTitle",
+            "draftInstructionBlock",
+            "generateInstructionBlockFromDraft",
+            "generateInstructionBlockDirect",
+            "taskRequireToolUserPrompt",
+            "taskMultipleToolsUserPrompt",
+            "taskUpdateNoProgressUserPrompt",
+            "taskContinueUserPrompt",
+            "updateRoundPromptTemplate",
+            "updateRoundMultipleToolsUserPrompt",
+            "allStepsCompletedUserPrompt"
+    );
 
     private AgentDefinitionValidator() {
     }
@@ -11,32 +58,29 @@ public final class AgentDefinitionValidator {
         if (root == null || !root.isObject()) {
             return true;
         }
-        if (root.has("deepThink")
-                || root.has("systemPrompt")
-                || root.has("providerKey")
-                || root.has("model")
-                || root.has("reasoning")
-                || root.has("tools")) {
+        if (hasAnyField(root, LEGACY_ROOT_FIELDS)) {
             return true;
         }
-        return hasLegacyStageFields(root.path("plain"))
-                || hasLegacyStageFields(root.path("react"))
-                || hasLegacyPlanExecuteStageFields(root.path("planExecute"));
+        return hasAnyField(root.path("plain"), LEGACY_STAGE_FIELDS)
+                || hasAnyField(root.path("react"), LEGACY_STAGE_FIELDS)
+                || hasAnyField(root.path("planExecute").path("plan"), LEGACY_STAGE_FIELDS)
+                || hasAnyField(root.path("planExecute").path("execute"), LEGACY_STAGE_FIELDS)
+                || hasAnyField(root.path("planExecute").path("summary"), LEGACY_STAGE_FIELDS);
     }
 
     public static boolean hasRemovedFields(JsonNode root) {
         if (root == null || !root.isObject()) {
             return false;
         }
-        if (hasLegacyModelConfigFields(root.path("modelConfig"))
-                || hasLegacyModelConfigFields(root.path("plain").path("modelConfig"))
-                || hasLegacyModelConfigFields(root.path("react").path("modelConfig"))
-                || hasLegacyModelConfigFields(root.path("planExecute").path("plan").path("modelConfig"))
-                || hasLegacyModelConfigFields(root.path("planExecute").path("execute").path("modelConfig"))
-                || hasLegacyModelConfigFields(root.path("planExecute").path("summary").path("modelConfig"))) {
+        if (hasAnyField(root, REMOVED_ROOT_FIELDS)) {
             return true;
         }
-        if (root.has("verify") || root.has("output") || root.has("toolPolicy")) {
+        if (hasAnyField(root.path("modelConfig"), LEGACY_MODEL_CONFIG_FIELDS)
+                || hasAnyField(root.path("plain").path("modelConfig"), LEGACY_MODEL_CONFIG_FIELDS)
+                || hasAnyField(root.path("react").path("modelConfig"), LEGACY_MODEL_CONFIG_FIELDS)
+                || hasAnyField(root.path("planExecute").path("plan").path("modelConfig"), LEGACY_MODEL_CONFIG_FIELDS)
+                || hasAnyField(root.path("planExecute").path("execute").path("modelConfig"), LEGACY_MODEL_CONFIG_FIELDS)
+                || hasAnyField(root.path("planExecute").path("summary").path("modelConfig"), LEGACY_MODEL_CONFIG_FIELDS)) {
             return true;
         }
         JsonNode budget = root.path("budget");
@@ -47,53 +91,21 @@ public final class AgentDefinitionValidator {
         if (!runtimePrompts.isObject()) {
             return false;
         }
-        if (runtimePrompts.has("verify")
-                || runtimePrompts.has("finalAnswer")
-                || runtimePrompts.has("oneshot")
-                || runtimePrompts.has("react")) {
+        if (hasAnyField(runtimePrompts, REMOVED_RUNTIME_PROMPT_FIELDS)) {
             return true;
         }
-        JsonNode planExecute = runtimePrompts.path("planExecute");
-        if (!planExecute.isObject()) {
-            return false;
-        }
-        return planExecute.has("executeToolsTitle")
-                || planExecute.has("planCallableToolsTitle")
-                || planExecute.has("draftInstructionBlock")
-                || planExecute.has("generateInstructionBlockFromDraft")
-                || planExecute.has("generateInstructionBlockDirect")
-                || planExecute.has("taskRequireToolUserPrompt")
-                || planExecute.has("taskMultipleToolsUserPrompt")
-                || planExecute.has("taskUpdateNoProgressUserPrompt")
-                || planExecute.has("taskContinueUserPrompt")
-                || planExecute.has("updateRoundPromptTemplate")
-                || planExecute.has("updateRoundMultipleToolsUserPrompt")
-                || planExecute.has("allStepsCompletedUserPrompt");
+        return hasAnyField(runtimePrompts.path("planExecute"), REMOVED_PLAN_EXECUTE_RUNTIME_PROMPT_FIELDS);
     }
 
-    private static boolean hasLegacyPlanExecuteStageFields(JsonNode node) {
+    private static boolean hasAnyField(JsonNode node, Set<String> fields) {
         if (node == null || !node.isObject()) {
             return false;
         }
-        return hasLegacyStageFields(node.path("plan"))
-                || hasLegacyStageFields(node.path("execute"))
-                || hasLegacyStageFields(node.path("summary"));
-    }
-
-    private static boolean hasLegacyStageFields(JsonNode node) {
-        if (node == null || !node.isObject()) {
-            return false;
+        for (String field : fields) {
+            if (node.has(field)) {
+                return true;
+            }
         }
-        return node.has("providerKey")
-                || node.has("model")
-                || node.has("reasoning")
-                || node.has("tools");
-    }
-
-    private static boolean hasLegacyModelConfigFields(JsonNode modelConfig) {
-        if (modelConfig == null || !modelConfig.isObject()) {
-            return false;
-        }
-        return modelConfig.has("providerKey") || modelConfig.has("model");
+        return false;
     }
 }

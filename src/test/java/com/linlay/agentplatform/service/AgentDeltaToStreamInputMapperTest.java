@@ -289,7 +289,7 @@ class AgentDeltaToStreamInputMapperTest {
                         "chat_1",
                         List.of(
                                 new AgentDelta.PlanTask("task0", "收集信息", "init"),
-                                new AgentDelta.PlanTask("task1", "执行任务", "in_progress")
+                                new AgentDelta.PlanTask("task1", "执行任务", "init")
                         )
                 )
         ));

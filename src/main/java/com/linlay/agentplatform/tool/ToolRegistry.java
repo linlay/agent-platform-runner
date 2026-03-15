@@ -156,7 +156,10 @@ public class ToolRegistry {
     }
 
     public boolean requiresFrontendSubmit(String toolName) {
-        return descriptor(toolName).map(ToolDescriptor::requiresFrontendSubmit).orElse(false);
+        return descriptor(toolName)
+                .map(descriptor -> descriptor.requiresFrontendSubmit()
+                        || (!descriptor.hasViewport() && isFrontend(toolName)))
+                .orElse(false);
     }
 
     public String description(String toolName) {

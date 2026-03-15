@@ -57,6 +57,7 @@ class ApiJwtAuthWebFilterLocalKeyFallbackTests {
     @DynamicPropertySource
     static void dynamicProperties(DynamicPropertyRegistry registry) {
         registry.add("agent.auth.local-public-key", () -> toPem(LOCAL_RSA_KEY));
+        registry.add("agent.auth.local-public-key-file", () -> "");
         registry.add("agent.auth.jwks-uri", () -> JWKS_FILE.toUri().toString());
         registry.add("agent.auth.jwks-cache-seconds", () -> 60);
     }

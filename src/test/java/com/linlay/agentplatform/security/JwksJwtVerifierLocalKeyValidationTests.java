@@ -24,16 +24,14 @@ class JwksJwtVerifierLocalKeyValidationTests {
         .withUserConfiguration(LocalKeyValidationTestConfiguration.class);
 
     @Test
-    void shouldFailFastWhenLocalKeyIsBlank() {
+    void shouldTreatBlankLocalKeyAsUnconfigured() {
         contextRunner
             .withPropertyValues(
                 "agent.auth.local-public-key="
             )
             .run(context -> {
-                assertThat(context).hasFailed();
-                assertThat(context.getStartupFailure()).hasCauseInstanceOf(IllegalStateException.class);
-                assertThat(context.getStartupFailure())
-                    .hasStackTraceContaining("agent.auth.local-public-key cannot be blank");
+                assertThat(context).hasNotFailed();
+                assertThat(context.getBean(JwksJwtVerifier.class)).isNotNull();
             });
     }
 

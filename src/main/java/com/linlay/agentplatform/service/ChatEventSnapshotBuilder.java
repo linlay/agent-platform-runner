@@ -42,7 +42,6 @@ final class ChatEventSnapshotBuilder {
             int contentIndex = 0;
             int toolIndex = 0;
             int actionIndex = 0;
-            Map<String, IdBinding> bindingByCallId = new LinkedHashMap<>();
             List<String> hiddenToolCallIds = new ArrayList<>();
             List<String> hiddenToolBindingIds = new ArrayList<>();
             List<PersistedChatEvent> persistedEvents = run.persistedEvents().stream()
@@ -147,10 +146,6 @@ final class ChatEventSnapshotBuilder {
                                 hiddenToolBindingIds.add(binding.id());
                                 continue;
                             }
-                            if (StringUtils.hasText(toolCall.id)) {
-                                bindingByCallId.put(toolCall.id.trim(), binding);
-                            }
-
                             Map<String, Object> payload = new LinkedHashMap<>();
                             payload.put(binding.action() ? "actionId" : "toolId", binding.id());
                             payload.put(binding.action() ? "actionName" : "toolName", toolCall.function.name);
@@ -190,7 +185,7 @@ final class ChatEventSnapshotBuilder {
                     continue;
                 }
 
-                IdBinding binding = resolveBindingForToolResult(run.runId(), message, bindingByCallId, toolIndex, actionIndex);
+                IdBinding binding = resolveBindingForToolResult(run.runId(), message, toolIndex, actionIndex);
                 if (binding == null) {
                     continue;
                 }
@@ -299,7 +294,6 @@ final class ChatEventSnapshotBuilder {
     private IdBinding resolveBindingForToolResult(
             String runId,
             ChatWindowMemoryStore.StoredMessage message,
-            Map<String, IdBinding> bindingByCallId,
             int toolIndex,
             int actionIndex
     ) {
@@ -308,13 +302,6 @@ final class ChatEventSnapshotBuilder {
         }
         if (StringUtils.hasText(message.toolId)) {
             return new IdBinding(message.toolId.trim(), false);
-        }
-        if (StringUtils.hasText(message.toolCallId)) {
-            IdBinding binding = bindingByCallId.get(message.toolCallId.trim());
-            if (binding != null) {
-                return binding;
-            }
-            return new IdBinding(message.toolCallId.trim(), false);
         }
         if (!StringUtils.hasText(message.name)) {
             return null;

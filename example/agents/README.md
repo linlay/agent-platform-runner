@@ -32,7 +32,6 @@ modelConfig:
 ## 附带示例
 
 - `demoScheduleManager`：计划任务管理示例（REACT + `_bash_`），用于维护 `schedules/*.yml`，按“渐进式披露阅读”优先使用 `head -n 3 *.yml` 读取文件头，并默认用中文 Markdown 表格展示计划任务摘要。
-- `terminalAssistant`：终端辅助智能体示例（PLAN_EXECUTE + `terminal_command_review`），用于把完整命令清单交给外部前端逐步审批或批量放行。
 - `demoImageGenerator`：图像生成示例（REACT + `image.generate/image.edit/image.import`），用于通过 `mcp-server-image` 在当前 chat 目录中生成、导入和编辑图片。
 
 ## 与外层目录关系

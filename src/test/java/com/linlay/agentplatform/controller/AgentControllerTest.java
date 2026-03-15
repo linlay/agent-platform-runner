@@ -1353,7 +1353,7 @@ class AgentControllerTest {
                 "planId", "plan_chat_001",
                 "tasks", List.of(
                         Map.of("taskId", "task0", "description", "收集信息", "status", "init"),
-                        Map.of("taskId", "task1", "description", "执行任务", "status", "in_progress")
+                        Map.of("taskId", "task1", "description", "执行任务", "status", "init")
                 )
         ));
         writeJsonLine(chatDir.resolve(chatId + ".json"), stepLine);
@@ -1435,7 +1435,7 @@ class AgentControllerTest {
                 "planId", "plan_chat_seed_001",
                 "tasks", List.of(
                         Map.of("taskId", "task0", "description", "收集信息", "status", "init"),
-                        Map.of("taskId", "task1", "description", "执行任务", "status", "in_progress")
+                        Map.of("taskId", "task1", "description", "执行任务", "status", "init")
                 )
         ));
         writeJsonLine(chatDir.resolve(chatId + ".json"), stepLine);

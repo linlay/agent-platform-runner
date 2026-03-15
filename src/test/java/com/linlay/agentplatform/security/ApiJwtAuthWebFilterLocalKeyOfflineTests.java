@@ -52,6 +52,7 @@ class ApiJwtAuthWebFilterLocalKeyOfflineTests {
     @DynamicPropertySource
     static void dynamicProperties(DynamicPropertyRegistry registry) {
         registry.add("agent.auth.local-public-key", () -> LOCAL_PUBLIC_KEY_PEM);
+        registry.add("agent.auth.local-public-key-file", () -> "");
         registry.add("agent.auth.jwks-uri", () -> "http://127.0.0.1:9/api/auth/jwks");
         registry.add("agent.auth.jwks-cache-seconds", () -> 60);
     }

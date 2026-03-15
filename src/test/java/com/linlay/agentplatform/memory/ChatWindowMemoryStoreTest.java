@@ -348,7 +348,7 @@ class ChatWindowMemoryStoreTest {
         store.appendStepLine(chatId, "run_001", "execute", 2, "task0", null,
                 planSnapshot("plan_chat_001", List.of(
                         task("task0", "收集信息", "completed"),
-                        task("task1", "执行任务", "in_progress")
+                        task("task1", "执行任务", "init")
                 )),
                 List.of(
                         ChatWindowMemoryStore.RunMessage.assistantContent("done task0", 2001L, 1L, null)
@@ -371,7 +371,7 @@ class ChatWindowMemoryStoreTest {
         assertThat(latest.planId).isEqualTo("plan_chat_001");
         assertThat(latest.tasks).hasSize(2);
         assertThat(latest.tasks.get(0).status).isEqualTo("completed");
-        assertThat(latest.tasks.get(1).status).isEqualTo("init"); // in_progress normalized to init
+        assertThat(latest.tasks.get(1).status).isEqualTo("init");
     }
 
     @Test

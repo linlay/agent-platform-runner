@@ -5,7 +5,6 @@ import com.linlay.agentplatform.agent.PlanToolConstants;
 import com.linlay.agentplatform.util.MapReaders;
 import org.springframework.stereotype.Component;
 
-import java.util.Locale;
 import java.util.Map;
 
 @Component
@@ -27,7 +26,7 @@ public class SystemPlanUpdateTask extends AbstractDeterministicTool {
         if (taskId == null || taskId.isBlank()) {
             return OBJECT_MAPPER.getNodeFactory().textNode("失败: 缺少 taskId");
         }
-        String status = normalizeStatusStrict(readString(args, "status"));
+        String status = PlanTaskStatusNormalizer.normalizeStrict(readString(args, "status"));
         if (status == null) {
             return OBJECT_MAPPER.getNodeFactory().textNode("失败: 非法状态，仅支持 init/completed/failed/canceled");
         }
@@ -36,16 +35,5 @@ public class SystemPlanUpdateTask extends AbstractDeterministicTool {
 
     private String readString(Map<String, Object> args, String key) {
         return MapReaders.readString(args, key);
-    }
-
-    private String normalizeStatusStrict(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return "init";
-        }
-        String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "init", "completed", "failed", "canceled" -> normalized;
-            default -> null;
-        };
     }
 }
