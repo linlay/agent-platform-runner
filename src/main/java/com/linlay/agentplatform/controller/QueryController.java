@@ -110,11 +110,7 @@ public class QueryController {
                 "toolId", request.toolId(),
                 "hasParams", request.params() != null
         ));
-        FrontendSubmitCoordinator.SubmitAck ack = frontendSubmitCoordinator.submit(
-                request.runId(),
-                request.toolId(),
-                request.params()
-        );
+        ActiveRunService.SubmitAck ack = activeRunService.submit(request);
         log.info(
                 "Received human-in-the-loop submit runId={}, toolId={}, accepted={}, status={}",
                 request.runId(),

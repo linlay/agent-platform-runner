@@ -1,7 +1,9 @@
 package com.linlay.agentplatform.service;
 
-import com.linlay.agentplatform.stream.model.StreamInput;
+import com.linlay.agentplatform.stream.model.RunActor;
+import com.linlay.agentplatform.stream.model.StreamEnvelope;
 import com.linlay.agentplatform.stream.model.StreamRequest;
+import com.linlay.agentplatform.stream.service.RenderQueue;
 import com.linlay.agentplatform.stream.service.StreamEventAssembler;
 import com.linlay.agentplatform.stream.service.StreamSseStreamer;
 import com.linlay.agentplatform.config.FrontendToolProperties;
@@ -64,6 +66,7 @@ public class AgentQueryService {
     private final LoggingAgentProperties loggingAgentProperties;
     private final ChatAssetCatalogService chatAssetCatalogService;
     private final ActiveRunService activeRunService;
+    private final RenderQueue renderQueue;
     private final SseEventNormalizer sseEventNormalizer;
 
     public AgentQueryService(
@@ -86,6 +89,7 @@ public class AgentQueryService {
                 frontendToolProperties,
                 teamRegistryService,
                 new LoggingAgentProperties(),
+                null,
                 null,
                 null
         );
@@ -114,6 +118,36 @@ public class AgentQueryService {
                 teamRegistryService,
                 loggingAgentProperties,
                 chatAssetCatalogService,
+                null,
+                null
+        );
+    }
+
+    public AgentQueryService(
+            AgentRegistry agentRegistry,
+            StreamSseStreamer streamSseStreamer,
+            ObjectMapper objectMapper,
+            ChatRecordStore chatRecordStore,
+            ToolRegistry toolRegistry,
+            ViewportRegistryService viewportRegistryService,
+            FrontendToolProperties frontendToolProperties,
+            TeamRegistryService teamRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            ChatAssetCatalogService chatAssetCatalogService,
+            ActiveRunService activeRunService
+    ) {
+        this(
+                agentRegistry,
+                streamSseStreamer,
+                objectMapper,
+                chatRecordStore,
+                toolRegistry,
+                viewportRegistryService,
+                frontendToolProperties,
+                teamRegistryService,
+                loggingAgentProperties,
+                chatAssetCatalogService,
+                activeRunService,
                 null
         );
     }
@@ -130,7 +164,8 @@ public class AgentQueryService {
             TeamRegistryService teamRegistryService,
             LoggingAgentProperties loggingAgentProperties,
             ChatAssetCatalogService chatAssetCatalogService,
-            ActiveRunService activeRunService
+            ActiveRunService activeRunService,
+            RenderQueue renderQueue
     ) {
         this.agentRegistry = agentRegistry;
         this.streamSseStreamer = streamSseStreamer;
@@ -143,6 +178,7 @@ public class AgentQueryService {
         this.loggingAgentProperties = loggingAgentProperties;
         this.chatAssetCatalogService = chatAssetCatalogService;
         this.activeRunService = activeRunService;
+        this.renderQueue = renderQueue;
         this.sseEventNormalizer = new SseEventNormalizer(objectMapper, toolRegistry, viewportRegistryService, frontendToolProperties);
     }
 
@@ -194,7 +230,8 @@ public class AgentQueryService {
                 request.stream(),
                 request.hidden(),
                 chatName,
-                runId
+                runId,
+                RunActor.primary(agent.name())
         );
 
         AgentRequest agentRequest = new AgentRequest(
@@ -212,12 +249,17 @@ public class AgentQueryService {
                 ? null
                 : activeRunService.register(session.request().runId(), session.request().chatId(), session.request().agentKey());
         Flux<AgentDelta> deltas = session.agent().stream(session.agentRequest());
-        Flux<StreamInput> mappedInputs = new AgentDeltaToStreamInputMapper(session.request().runId(), session.request().chatId(), toolRegistry)
-                .map(deltas);
+        Flux<StreamEnvelope> mappedInputs = new AgentDeltaToStreamInputMapper(
+                session.request().runId(),
+                session.request().chatId(),
+                toolRegistry,
+                session.request().actor()
+        )
+                .mapEnvelopes(deltas);
         if (activeSession != null) {
             mappedInputs = mappedInputs.takeUntilOther(activeSession.control().cancelSignal());
         }
-        Flux<StreamInput> inputs = activeSession == null
+        Flux<StreamEnvelope> inputs = activeSession == null
                 ? mappedInputs
                 : mappedInputs.publish(sharedInputs -> Flux.merge(
                 activeSession.injectedInputs().takeUntilOther(sharedInputs.ignoreElements()),
@@ -286,6 +328,9 @@ public class AgentQueryService {
                 .doOnNext(event -> chatRecordStore.appendEvent(session.request().chatId(), event.data()));
         if (activeSession != null) {
             stream = stream.doFinally(signalType -> activeRunService.finish(session.request().runId()));
+        }
+        if (renderQueue != null) {
+            stream = renderQueue.buffer(stream);
         }
         return stream;
     }

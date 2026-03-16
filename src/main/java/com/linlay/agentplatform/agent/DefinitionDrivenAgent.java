@@ -13,6 +13,8 @@ import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
 import com.linlay.agentplatform.agent.runtime.RunControl;
 import com.linlay.agentplatform.agent.runtime.RunInterruptedException;
+import com.linlay.agentplatform.agent.runtime.RunInputBroker;
+import com.linlay.agentplatform.agent.runtime.RunLoopState;
 import com.linlay.agentplatform.agent.runtime.SkillPromptBundle;
 import com.linlay.agentplatform.agent.runtime.TextBlockIdAssigner;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
@@ -274,6 +276,7 @@ public class DefinitionDrivenAgent implements Agent {
                     RunControl runControl = activeRunService == null
                             ? new RunControl()
                             : activeRunService.findControl(runId).orElseGet(RunControl::new);
+                    runControl.enqueueQuery(new RunInputBroker.QueryEnvelope(request.requestId(), request.message()));
                     TurnTraceWriter trace = new TurnTraceWriter(
                             chatWindowMemoryStore,
                             () -> buildSystemSnapshot(request),
@@ -304,6 +307,7 @@ public class DefinitionDrivenAgent implements Agent {
 
     private void runWithMode(ExecutionContext context, FluxSink<AgentDelta> sink) {
         context.bindRunnerThread(Thread.currentThread());
+        context.runControl().transitionState(RunLoopState.IDLE);
         try {
             if (context.hasPlan()) {
                 services.emit(sink, AgentDelta.planUpdate(context.planId(), context.request().chatId(), context.planTasks()));
@@ -313,10 +317,12 @@ public class DefinitionDrivenAgent implements Agent {
                 throw new RunInterruptedException();
             }
             services.emit(sink, AgentDelta.finish("stop"));
+            context.runControl().transitionState(RunLoopState.COMPLETED);
             if (!sink.isCancelled()) {
                 sink.complete();
             }
         } catch (RunInterruptedException ex) {
+            context.runControl().transitionState(RunLoopState.CANCELLED);
             if (!sink.isCancelled()) {
                 sink.complete();
             }
@@ -324,6 +330,7 @@ public class DefinitionDrivenAgent implements Agent {
             log.info("[agent:{}] fatal tool error code={}, message={}", definition.id(), ex.code(), ex.getMessage());
             services.emit(sink, AgentDelta.content(resolveFatalToolMessage(ex)));
             services.emit(sink, AgentDelta.finish("tool_error"));
+            context.runControl().transitionState(RunLoopState.FAILED);
             if (!sink.isCancelled()) {
                 sink.complete();
             }
@@ -335,6 +342,7 @@ public class DefinitionDrivenAgent implements Agent {
             String timeoutMessage = resolveFrontendTimeoutMessage(ex);
             services.emit(sink, AgentDelta.content(timeoutMessage));
             services.emit(sink, AgentDelta.finish("timeout"));
+            context.runControl().transitionState(RunLoopState.FAILED);
             if (!sink.isCancelled()) {
                 sink.complete();
             }
@@ -343,6 +351,7 @@ public class DefinitionDrivenAgent implements Agent {
             String budgetMessage = resolveBudgetExceededMessage(ex);
             services.emit(sink, AgentDelta.content(budgetMessage));
             services.emit(sink, AgentDelta.finish("budget_exceeded"));
+            context.runControl().transitionState(RunLoopState.FAILED);
             if (!sink.isCancelled()) {
                 sink.complete();
             }
@@ -350,6 +359,7 @@ public class DefinitionDrivenAgent implements Agent {
             log.warn("[agent:{}] orchestration failed", definition.id(), ex);
             services.emit(sink, AgentDelta.content("模型调用失败，请稍后重试。"));
             services.emit(sink, AgentDelta.finish("stop"));
+            context.runControl().transitionState(RunLoopState.FAILED);
             if (!sink.isCancelled()) {
                 sink.complete();
             }

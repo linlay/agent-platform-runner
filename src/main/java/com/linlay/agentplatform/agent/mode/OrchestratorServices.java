@@ -11,6 +11,7 @@ import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
 import com.linlay.agentplatform.agent.runtime.RunControl;
 import com.linlay.agentplatform.agent.runtime.RunInterruptedException;
+import com.linlay.agentplatform.agent.runtime.RunLoopState;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
@@ -157,108 +158,115 @@ public class OrchestratorServices {
         String activeStreamedToolCallId = null;
         Map<String, Object> capturedUsage = null;
 
-        for (LlmDelta delta : llmService.streamDeltas(new LlmCallSpec(
-                resolveProvider(stageSettings, context),
-                resolveModel(stageSettings, context),
-                resolveProtocol(stageSettings, context),
-                effectiveSystemPrompt,
-                messages,
-                userPrompt,
-                tools,
-                toolChoice,
-                null,
-                resolveEffort(stageSettings),
-                stageSettings.reasoningEnabled(),
-                4096,
-                context.budget().model().timeoutMs(),
-                stage,
-                parallelToolCalls,
-                context.runControl().cancelSignal()
-        )).toIterable()) {
-            if (delta == null) {
-                continue;
-            }
-            deltaSeq++;
-
-            boolean hasToolCalls = delta.toolCalls() != null && !delta.toolCalls().isEmpty();
-            if (hasToolCalls) {
-                toolCallObserved = true;
-            }
-
-            if (StringUtils.hasText(delta.reasoning())) {
-                reasoning.append(delta.reasoning());
-                if (emitReasoning && !toolCallObserved) {
-                    emit(sink, AgentDelta.reasoning(delta.reasoning(), context.activeTaskId()));
+        context.runControl().transitionState(RunLoopState.MODEL_STREAMING);
+        try {
+            for (LlmDelta delta : llmService.streamDeltas(new LlmCallSpec(
+                    resolveProvider(stageSettings, context),
+                    resolveModel(stageSettings, context),
+                    resolveProtocol(stageSettings, context),
+                    effectiveSystemPrompt,
+                    messages,
+                    userPrompt,
+                    tools,
+                    toolChoice,
+                    null,
+                    resolveEffort(stageSettings),
+                    stageSettings.reasoningEnabled(),
+                    4096,
+                    context.budget().model().timeoutMs(),
+                    stage,
+                    parallelToolCalls,
+                    context.runControl().cancelSignal()
+            )).toIterable()) {
+                if (delta == null) {
+                    continue;
                 }
-            }
+                deltaSeq++;
 
-            if (StringUtils.hasText(delta.content())) {
-                content.append(delta.content());
-                if (emitContent && !toolCallObserved) {
-                    emit(sink, AgentDelta.content(delta.content(), context.activeTaskId()));
+                boolean hasToolCalls = delta.toolCalls() != null && !delta.toolCalls().isEmpty();
+                if (hasToolCalls) {
+                    toolCallObserved = true;
                 }
-            }
 
-            if (hasToolCalls) {
-                for (ToolCallDelta call : delta.toolCalls()) {
-                    if (call == null) {
-                        continue;
+                if (StringUtils.hasText(delta.reasoning())) {
+                    reasoning.append(delta.reasoning());
+                    if (emitReasoning && !toolCallObserved) {
+                        emit(sink, AgentDelta.reasoning(delta.reasoning(), context.activeTaskId()));
                     }
-                    String callId = normalize(call.id());
-                    if (!StringUtils.hasText(callId)) {
-                        callId = latest == null ? "call_native_" + (++seq) : latest.callId;
-                    }
-
-                    ToolAccumulator acc = toolsById.computeIfAbsent(callId, ToolAccumulator::new);
-                    if (StringUtils.hasText(call.name())) {
-                        acc.toolName = call.name();
-                    }
-                    if (StringUtils.hasText(call.type())) {
-                        acc.toolType = call.type();
-                    }
-                    if (StringUtils.hasText(call.arguments())) {
-                        acc.arguments.append(call.arguments());
-                    }
-                    String emittedName = StringUtils.hasText(call.name()) ? call.name() : acc.toolName;
-                    String argumentsDelta = call.arguments();
-                    if (emitToolCalls
-                            && StringUtils.hasText(activeStreamedToolCallId)
-                            && !activeStreamedToolCallId.equals(callId)) {
-                        emit(sink, AgentDelta.toolEnd(activeStreamedToolCallId));
-                        activeStreamedToolCallId = null;
-                    }
-                    latest = acc;
-                    if (isPlanGenerateStage(stage) && StringUtils.hasText(argumentsDelta)) {
-                        log.info(
-                                "[plan-delta] runId={}, stage={}, deltaSeq={}, toolCallId={}, toolName={}, argumentsDelta={}",
-                                context.request().runId(),
-                                stage,
-                                deltaSeq,
-                                callId,
-                                emittedName,
-                                argumentsDelta
-                        );
-                    }
-
-                    if (!emitToolCalls || !StringUtils.hasText(call.arguments())) {
-                        continue;
-                    }
-                    String emittedType = StringUtils.hasText(call.type())
-                            ? call.type()
-                            : (StringUtils.hasText(acc.toolType) ? acc.toolType : "function");
-                    emit(sink, AgentDelta.toolCalls(
-                            List.of(new ToolCallDelta(callId, emittedType, emittedName, call.arguments())),
-                            context.activeTaskId()
-                    ));
-                    activeStreamedToolCallId = callId;
                 }
-            }
 
-            if (delta.usage() != null && !delta.usage().isEmpty()) {
-                capturedUsage = delta.usage();
-                emit(sink, AgentDelta.usage(capturedUsage));
+                if (StringUtils.hasText(delta.content())) {
+                    content.append(delta.content());
+                    if (emitContent && !toolCallObserved) {
+                        emit(sink, AgentDelta.content(delta.content(), context.activeTaskId()));
+                    }
+                }
+
+                if (hasToolCalls) {
+                    for (ToolCallDelta call : delta.toolCalls()) {
+                        if (call == null) {
+                            continue;
+                        }
+                        String callId = normalize(call.id());
+                        if (!StringUtils.hasText(callId)) {
+                            callId = latest == null ? "call_native_" + (++seq) : latest.callId;
+                        }
+
+                        ToolAccumulator acc = toolsById.computeIfAbsent(callId, ToolAccumulator::new);
+                        if (StringUtils.hasText(call.name())) {
+                            acc.toolName = call.name();
+                        }
+                        if (StringUtils.hasText(call.type())) {
+                            acc.toolType = call.type();
+                        }
+                        if (StringUtils.hasText(call.arguments())) {
+                            acc.arguments.append(call.arguments());
+                        }
+                        String emittedName = StringUtils.hasText(call.name()) ? call.name() : acc.toolName;
+                        String argumentsDelta = call.arguments();
+                        if (emitToolCalls
+                                && StringUtils.hasText(activeStreamedToolCallId)
+                                && !activeStreamedToolCallId.equals(callId)) {
+                            emit(sink, AgentDelta.toolEnd(activeStreamedToolCallId));
+                            activeStreamedToolCallId = null;
+                        }
+                        latest = acc;
+                        if (isPlanGenerateStage(stage) && StringUtils.hasText(argumentsDelta)) {
+                            log.info(
+                                    "[plan-delta] runId={}, stage={}, deltaSeq={}, toolCallId={}, toolName={}, argumentsDelta={}",
+                                    context.request().runId(),
+                                    stage,
+                                    deltaSeq,
+                                    callId,
+                                    emittedName,
+                                    argumentsDelta
+                            );
+                        }
+
+                        if (!emitToolCalls || !StringUtils.hasText(call.arguments())) {
+                            continue;
+                        }
+                        String emittedType = StringUtils.hasText(call.type())
+                                ? call.type()
+                                : (StringUtils.hasText(acc.toolType) ? acc.toolType : "function");
+                        emit(sink, AgentDelta.toolCalls(
+                                List.of(new ToolCallDelta(callId, emittedType, emittedName, call.arguments())),
+                                context.activeTaskId()
+                        ));
+                        activeStreamedToolCallId = callId;
+                    }
+                }
+
+                if (delta.usage() != null && !delta.usage().isEmpty()) {
+                    capturedUsage = delta.usage();
+                    emit(sink, AgentDelta.usage(capturedUsage));
+                }
+                failIfInterrupted(context);
             }
-            failIfInterrupted(context);
+        } finally {
+            if (!context.isInterrupted()) {
+                context.runControl().transitionState(RunLoopState.IDLE);
+            }
         }
 
         failIfInterrupted(context);

@@ -1,7 +1,9 @@
 package com.linlay.agentplatform.stream.service;
 
 import com.linlay.agentplatform.stream.model.StreamEvent;
+import com.linlay.agentplatform.stream.model.StreamEnvelope;
 import com.linlay.agentplatform.stream.model.StreamInput;
+import com.linlay.agentplatform.stream.model.RunActor;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +40,7 @@ public class StreamEventAssembler {
         private final String chatName;
         private final String runId;
         private final boolean emitChatStart;
+        private final RunActor requestActor;
 
         private String planId;
         private String activeTaskId;
@@ -59,6 +62,7 @@ public class StreamEventAssembler {
             this.chatName = request instanceof StreamRequest.Query q ? defaultIfBlank(q.chatName(), "default") : null;
             this.runId = resolveRunId(request);
             this.emitChatStart = request instanceof StreamRequest.Query query ? resolveEmitChatStart(query.params()) : false;
+            this.requestActor = request instanceof StreamRequest.Query query ? query.actor() : null;
             bootstrap();
         }
 
@@ -66,18 +70,18 @@ public class StreamEventAssembler {
             return List.copyOf(bootstrapEvents);
         }
 
-        public List<StreamEvent> consume(StreamInput input) {
+        public List<StreamEvent> consume(StreamEnvelope envelope) {
             List<StreamEvent> events = new ArrayList<>();
-            if (input == null) {
+            if (envelope == null || envelope.input() == null) {
                 return events;
             }
             if (terminated) {
-                log.warn("consume() called after stream already terminated; input ignored: {}", input);
+                log.warn("consume() called after stream already terminated; input ignored: {}", envelope.input());
                 return events;
             }
 
             try {
-                dispatch(events, input);
+                dispatch(events, envelope.input(), envelope.actor());
             } catch (RuntimeException ex) {
                 if (!hasRunContext()) {
                     throw ex;
@@ -85,6 +89,10 @@ public class StreamEventAssembler {
                 events.addAll(fail(ex));
             }
             return events;
+        }
+
+        public List<StreamEvent> consume(StreamInput input) {
+            return consume(StreamEnvelope.of(input, requestActor));
         }
 
         public List<StreamEvent> complete() {
@@ -96,7 +104,7 @@ public class StreamEventAssembler {
                 terminated = true;
                 return events;
             }
-            completeRun(events, null);
+            completeRun(events, null, requestActor);
             return events;
         }
 
@@ -118,6 +126,7 @@ public class StreamEventAssembler {
             Map<String, Object> runError = new LinkedHashMap<>();
             runError.put("runId", runId);
             runError.put("error", error);
+            putActor(runError, requestActor);
             events.add(next("run.error", runError));
             return events;
         }
@@ -137,12 +146,14 @@ public class StreamEventAssembler {
                 putIfNonNull(requestPayload, "scene", query.scene());
                 putIfNonNull(requestPayload, "stream", query.stream());
                 putIfNonNull(requestPayload, "hidden", query.hidden());
+                putActor(requestPayload, query.actor());
                 bootstrapEvents.add(next("request.query", requestPayload));
 
                 if (emitChatStart) {
                     Map<String, Object> chatPayload = new LinkedHashMap<>();
                     chatPayload.put("chatId", query.chatId());
                     putIfNonNull(chatPayload, "chatName", chatName);
+                    putActor(chatPayload, query.actor());
                     bootstrapEvents.add(next("chat.start", chatPayload));
                 }
 
@@ -151,6 +162,7 @@ public class StreamEventAssembler {
                 runPayload.put("runId", runId);
                 runPayload.put("chatId", query.chatId());
                 runPayload.put("agentKey", runAgentKey);
+                putActor(runPayload, query.actor());
                 bootstrapEvents.add(next("run.start", runPayload));
                 return;
             }
@@ -181,7 +193,7 @@ public class StreamEventAssembler {
             bootstrapEvents.add(next("request.submit", requestPayload));
         }
 
-        private void dispatch(List<StreamEvent> events, StreamInput input) {
+        private void dispatch(List<StreamEvent> events, StreamInput input, RunActor actor) {
             if (input instanceof StreamInput.PlanUpdate value) {
                 ensureChatContext();
                 if (value.chatId() != null && !chatId.equals(value.chatId())) {
@@ -195,6 +207,7 @@ public class StreamEventAssembler {
                 payload.put("planId", value.planId());
                 payload.put("plan", value.plan());
                 putIfNonNull(payload, "chatId", value.chatId() != null ? value.chatId() : chatId);
+                putActor(payload, actor);
                 events.add(next("plan.update", payload));
                 return;
             }
@@ -241,6 +254,7 @@ public class StreamEventAssembler {
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("reasoningId", value.reasoningId());
                 payload.put("delta", value.delta());
+                putActor(payload, actor);
                 events.add(next("reasoning.delta", payload));
                 return;
             }
@@ -252,6 +266,7 @@ public class StreamEventAssembler {
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("contentId", value.contentId());
                 payload.put("delta", value.delta());
+                putActor(payload, actor);
                 events.add(next("content.delta", payload));
                 return;
             }
@@ -272,6 +287,7 @@ public class StreamEventAssembler {
                     }
                     putIfNonNull(payload, "toolLabel", value.toolLabel());
                     putIfNonNull(payload, "toolDescription", value.toolDescription());
+                    putActor(payload, actor);
                     events.add(next("tool.start", payload));
                 } else if (!openToolIds.contains(value.toolId())) {
                     throw new IllegalStateException("tool.args for closed toolId: " + value.toolId());
@@ -282,6 +298,7 @@ public class StreamEventAssembler {
                 payload.put("chunkIndex", value.chunkIndex() != null
                         ? value.chunkIndex()
                         : toolArgChunkCounters.computeIfAbsent(value.toolId(), k -> new AtomicInteger(0)).getAndIncrement());
+                putActor(payload, actor);
                 events.add(next("tool.args", payload));
                 return;
             }
@@ -293,6 +310,7 @@ public class StreamEventAssembler {
                 }
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("toolId", value.toolId());
+                putActor(payload, actor);
                 events.add(next("tool.end", payload));
                 return;
             }
@@ -310,6 +328,7 @@ public class StreamEventAssembler {
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("toolId", value.toolId());
                 payload.put("result", value.result());
+                putActor(payload, actor);
                 events.add(next("tool.result", payload));
                 return;
             }
@@ -326,6 +345,7 @@ public class StreamEventAssembler {
                     putIfNonNull(startPayload, "taskId", taskId);
                     putIfNonNull(startPayload, "actionName", value.actionName());
                     putIfNonNull(startPayload, "description", value.description());
+                    putActor(startPayload, actor);
                     events.add(next("action.start", startPayload));
                 } else if (!openActionIds.contains(value.actionId())) {
                     throw new IllegalStateException("action.args for closed actionId: " + value.actionId());
@@ -333,6 +353,7 @@ public class StreamEventAssembler {
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("actionId", value.actionId());
                 payload.put("delta", value.delta());
+                putActor(payload, actor);
                 events.add(next("action.args", payload));
                 return;
             }
@@ -344,6 +365,7 @@ public class StreamEventAssembler {
                 }
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("actionId", value.actionId());
+                putActor(payload, actor);
                 events.add(next("action.end", payload));
                 return;
             }
@@ -356,6 +378,7 @@ public class StreamEventAssembler {
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("actionId", value.actionId());
                 payload.put("result", value.result());
+                putActor(payload, actor);
                 events.add(next("action.result", payload));
                 return;
             }
@@ -374,6 +397,7 @@ public class StreamEventAssembler {
                 payload.put("toolId", value.toolId());
                 payload.put("payload", value.payload());
                 putIfNonNull(payload, "viewId", value.viewId());
+                putActor(payload, actor);
                 events.add(next("request.submit", payload));
                 return;
             }
@@ -393,6 +417,7 @@ public class StreamEventAssembler {
                 payload.put("steerId", value.steerId());
                 payload.put("message", value.message());
                 payload.put("role", "user");
+                putActor(payload, actor);
                 events.add(next("request.steer", payload));
                 return;
             }
@@ -404,13 +429,14 @@ public class StreamEventAssembler {
                 closeOpenBlocks(events);
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("runId", value.runId());
+                putActor(payload, actor == null ? requestActor : actor);
                 events.add(next("run.cancel", payload));
                 terminated = true;
                 return;
             }
             if (input instanceof StreamInput.RunComplete value) {
                 ensureRunContext();
-                completeRun(events, value.finishReason());
+                completeRun(events, value.finishReason(), actor);
                 return;
             }
             throw new IllegalStateException("Unknown input type: " + input.getClass().getName());
@@ -439,6 +465,7 @@ public class StreamEventAssembler {
                 payload.put("reasoningId", reasoningId);
                 payload.put("runId", runId);
                 putIfNonNull(payload, "taskId", taskId);
+                putActor(payload, requestActor);
                 events.add(next("reasoning.start", payload));
                 activeReasoningId = reasoningId;
                 return;
@@ -455,6 +482,7 @@ public class StreamEventAssembler {
                 payload.put("contentId", contentId);
                 payload.put("runId", runId);
                 putIfNonNull(payload, "taskId", taskId);
+                putActor(payload, requestActor);
                 events.add(next("content.start", payload));
                 activeContentId = contentId;
                 return;
@@ -465,7 +493,7 @@ public class StreamEventAssembler {
             }
         }
 
-        private void completeRun(List<StreamEvent> events, String finishReason) {
+        private void completeRun(List<StreamEvent> events, String finishReason, RunActor actor) {
             if (terminated) {
                 return;
             }
@@ -476,6 +504,7 @@ public class StreamEventAssembler {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("runId", runId);
             payload.put("finishReason", defaultIfBlank(finishReason, "end_turn"));
+            putActor(payload, actor == null ? requestActor : actor);
             events.add(next("run.complete", payload));
             terminated = true;
         }
@@ -497,6 +526,7 @@ public class StreamEventAssembler {
             }
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("reasoningId", activeReasoningId);
+            putActor(payload, requestActor);
             events.add(next("reasoning.end", payload));
             activeReasoningId = null;
         }
@@ -507,6 +537,7 @@ public class StreamEventAssembler {
             }
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("contentId", activeContentId);
+            putActor(payload, requestActor);
             events.add(next("content.end", payload));
             activeContentId = null;
         }
@@ -518,6 +549,7 @@ public class StreamEventAssembler {
             for (String toolId : List.copyOf(openToolIds)) {
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("toolId", toolId);
+                putActor(payload, requestActor);
                 events.add(next("tool.end", payload));
                 openToolIds.remove(toolId);
             }
@@ -530,6 +562,7 @@ public class StreamEventAssembler {
             for (String actionId : List.copyOf(openActionIds)) {
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("actionId", actionId);
+                putActor(payload, requestActor);
                 events.add(next("action.end", payload));
                 openActionIds.remove(actionId);
             }
@@ -541,6 +574,7 @@ public class StreamEventAssembler {
             payload.put("runId", runId);
             putIfNonNull(payload, "taskName", taskName);
             putIfNonNull(payload, "description", description);
+            putActor(payload, requestActor);
             events.add(next("task.start", payload));
             activeTaskId = taskId;
         }
@@ -548,6 +582,7 @@ public class StreamEventAssembler {
         private void emitTaskComplete(List<StreamEvent> events, String taskId) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("taskId", taskId);
+            putActor(payload, requestActor);
             events.add(next("task.complete", payload));
             activeTaskId = null;
         }
@@ -555,6 +590,7 @@ public class StreamEventAssembler {
         private void emitTaskCancel(List<StreamEvent> events, String taskId) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("taskId", taskId);
+            putActor(payload, requestActor);
             events.add(next("task.cancel", payload));
             activeTaskId = null;
         }
@@ -563,6 +599,7 @@ public class StreamEventAssembler {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("taskId", taskId);
             payload.put("error", error);
+            putActor(payload, requestActor);
             events.add(next("task.fail", payload));
             activeTaskId = null;
         }
@@ -691,6 +728,15 @@ public class StreamEventAssembler {
         if (value != null) {
             payload.put(key, value);
         }
+    }
+
+    private static void putActor(Map<String, Object> payload, RunActor actor) {
+        if (payload == null || actor == null || !actor.isPresent()) {
+            return;
+        }
+        putIfNonNull(payload, "actorId", actor.actorId());
+        putIfNonNull(payload, "actorType", actor.actorType());
+        putIfNonNull(payload, "actorName", actor.actorName());
     }
 
     private static boolean shouldEmitToolType(String toolType) {

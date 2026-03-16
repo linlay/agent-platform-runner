@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.stream.service;
 
 import com.linlay.agentplatform.stream.model.StreamEvent;
+import com.linlay.agentplatform.stream.model.StreamEnvelope;
 import com.linlay.agentplatform.stream.model.StreamInput;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -40,7 +41,7 @@ public class StreamSseStreamer {
         this.heartbeatInterval = heartbeatInterval != null ? heartbeatInterval : DEFAULT_HEARTBEAT_INTERVAL;
     }
 
-    public Flux<ServerSentEvent<String>> stream(StreamRequest request, Flux<StreamInput> inputs) {
+    public Flux<ServerSentEvent<String>> stream(StreamRequest request, Flux<StreamEnvelope> inputs) {
         Objects.requireNonNull(request, "request cannot be null");
         Objects.requireNonNull(inputs, "inputs cannot be null");
 

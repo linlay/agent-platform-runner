@@ -152,6 +152,9 @@ public class ToolExecutionService {
 
         for (PreparedToolCall call : preparedCalls) {
             failIfInterrupted(context);
+            if (context != null) {
+                context.runControl().transitionState(RunLoopState.TOOL_EXECUTING);
+            }
             long invokeStartNanos = System.nanoTime();
             toolInvocationLogger.logInvocationStart(
                     runId,
@@ -196,6 +199,10 @@ public class ToolExecutionService {
             if (isFatalToolError(resultNode)) {
                 break;
             }
+        }
+
+        if (context != null && !context.isInterrupted()) {
+            context.runControl().transitionState(RunLoopState.IDLE);
         }
 
         return new ToolExecutionBatch(List.copyOf(deltas), List.copyOf(events));
@@ -361,14 +368,18 @@ public class ToolExecutionService {
         }
 
         if (toolRegistry.requiresFrontendSubmit(toolName)) {
-            if (frontendSubmitCoordinator == null) {
+            if (context == null) {
+                return new InvokeResult(errorResult(toolName, "Execution context is required for frontend tool submission"), null);
+            }
+            if (frontendSubmitCoordinator == null && context.runControl() == null) {
                 return new InvokeResult(errorResult(toolName, "Frontend submit coordinator is not configured"), null);
             }
             if (!StringUtils.hasText(runId)) {
                 return new InvokeResult(errorResult(toolName, "Missing runId for frontend tool submission"), null);
             }
             try {
-                Object payload = frontendSubmitCoordinator.awaitSubmit(runId.trim(), toolId).block();
+                context.runControl().transitionState(RunLoopState.WAITING_SUBMIT);
+                Object payload = awaitFrontendSubmit(runId.trim(), toolId, context);
                 failIfInterrupted(context);
                 Object normalized = payload == null ? Map.of() : payload;
                 return new InvokeResult(
@@ -383,6 +394,10 @@ public class ToolExecutionService {
                     return new InvokeResult(errorResult(toolName, FRONTEND_SUBMIT_TIMEOUT_CODE, resolveErrorMessage(ex)), null);
                 }
                 return new InvokeResult(errorResult(toolName, resolveErrorMessage(ex)), null);
+            } finally {
+                if (!context.isInterrupted()) {
+                    context.runControl().transitionState(RunLoopState.TOOL_EXECUTING);
+                }
             }
         }
 
@@ -414,6 +429,16 @@ public class ToolExecutionService {
                 payload == null ? Map.of() : payload,
                 null
         );
+    }
+
+    private Object awaitFrontendSubmit(String runId, String toolId, ExecutionContext context) throws TimeoutException {
+        Budget.Scope scope = context == null || context.budget() == null
+                ? Budget.DEFAULT.tool()
+                : context.budget().tool();
+        if (context != null && context.runControl() != null) {
+            return context.runControl().awaitSubmit(runId, toolId, scope.timeoutMs());
+        }
+        return frontendSubmitCoordinator.awaitSubmit(runId.trim(), toolId).block();
     }
 
     private JsonNode invokeBackendWithPolicy(

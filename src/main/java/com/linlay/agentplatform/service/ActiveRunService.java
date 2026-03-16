@@ -1,8 +1,12 @@
 package com.linlay.agentplatform.service;
 
 import com.linlay.agentplatform.agent.runtime.RunControl;
+import com.linlay.agentplatform.agent.runtime.RunInputBroker;
 import com.linlay.agentplatform.model.api.InterruptRequest;
+import com.linlay.agentplatform.model.api.SubmitRequest;
 import com.linlay.agentplatform.model.api.SteerRequest;
+import com.linlay.agentplatform.stream.model.RunScope;
+import com.linlay.agentplatform.stream.model.StreamEnvelope;
 import com.linlay.agentplatform.stream.model.StreamInput;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -27,7 +31,13 @@ public class ActiveRunService {
 
     public ActiveRunSession register(String runId, String chatId, String agentKey) {
         String normalizedRunId = normalizeRequired(runId, "runId");
-        ActiveRunSession session = new ActiveRunSession(normalizedRunId, normalize(chatId), normalize(agentKey));
+        String normalizedChatId = normalizeRequired(chatId, "chatId");
+        ActiveRunSession session = new ActiveRunSession(
+                normalizedRunId,
+                normalizedChatId,
+                normalize(agentKey),
+                RunScope.primary(normalizedChatId, normalizedRunId, normalize(agentKey))
+        );
         sessionsByRunId.put(normalizedRunId, session);
         return session;
     }
@@ -52,6 +62,28 @@ public class ActiveRunService {
         return new SteerAck(true, "accepted", runId, steerId, "Steer accepted for runId=" + runId + ", steerId=" + steerId);
     }
 
+    public SubmitAck submit(SubmitRequest request) {
+        String runId = normalizeRequired(request.runId(), "runId");
+        ActiveRunSession session = sessionsByRunId.get(runId);
+        if (session == null) {
+            if (frontendSubmitCoordinator == null) {
+                return new SubmitAck(false, "unmatched", "No active run found for runId=" + runId + ", toolId=" + request.toolId());
+            }
+            FrontendSubmitCoordinator.SubmitAck ack = frontendSubmitCoordinator.submit(runId, request.toolId(), request.params());
+            return new SubmitAck(ack.accepted(), ack.status(), ack.detail());
+        }
+        RunInputBroker.SubmitAck ack = session.control().submit(request.toolId(), request.params());
+        if (!ack.accepted() && frontendSubmitCoordinator != null) {
+            FrontendSubmitCoordinator.SubmitAck fallback = frontendSubmitCoordinator.submit(runId, request.toolId(), request.params());
+            return new SubmitAck(fallback.accepted(), fallback.status(), fallback.detail());
+        }
+        return new SubmitAck(
+                ack.accepted(),
+                ack.status(),
+                "Frontend submit " + ack.status() + " for runId=" + runId + ", toolId=" + request.toolId()
+        );
+    }
+
     public InterruptAck interrupt(InterruptRequest request) {
         String runId = normalizeRequired(request.runId(), "runId");
         ActiveRunSession session = sessionsByRunId.get(runId);
@@ -59,7 +91,7 @@ public class ActiveRunService {
             return new InterruptAck(false, "unmatched", runId, "No active run found for runId=" + runId);
         }
         session.emit(new StreamInput.RunCancel(runId));
-        session.control().interrupt();
+        session.control().interrupt(request.requestId(), request.message());
         if (frontendSubmitCoordinator != null) {
             frontendSubmitCoordinator.cancelRun(runId);
         }
@@ -116,19 +148,28 @@ public class ActiveRunService {
     ) {
     }
 
+    public record SubmitAck(
+            boolean accepted,
+            String status,
+            String detail
+    ) {
+    }
+
     public static final class ActiveRunSession {
 
         private final String runId;
         private final String chatId;
         private final String agentKey;
+        private final RunScope scope;
         private final RunControl control;
-        private final Sinks.Many<StreamInput> injectedInputs;
+        private final Sinks.Many<StreamEnvelope> injectedInputs;
         private final AtomicReference<LifecycleState> state = new AtomicReference<>(LifecycleState.ACTIVE);
 
-        private ActiveRunSession(String runId, String chatId, String agentKey) {
+        private ActiveRunSession(String runId, String chatId, String agentKey, RunScope scope) {
             this.runId = runId;
             this.chatId = chatId;
             this.agentKey = agentKey;
+            this.scope = scope;
             this.control = new RunControl();
             this.injectedInputs = Sinks.many().unicast().onBackpressureBuffer();
         }
@@ -149,7 +190,11 @@ public class ActiveRunService {
             return control;
         }
 
-        public Flux<StreamInput> injectedInputs() {
+        public RunScope scope() {
+            return scope;
+        }
+
+        public Flux<StreamEnvelope> injectedInputs() {
             return injectedInputs.asFlux();
         }
 
@@ -165,7 +210,7 @@ public class ActiveRunService {
             if (input == null) {
                 return;
             }
-            injectedInputs.tryEmitNext(input);
+            injectedInputs.tryEmitNext(StreamEnvelope.of(input, scope.actor()));
         }
 
         public void completeInjectedInputs() {

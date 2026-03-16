@@ -1,6 +1,8 @@
 package com.linlay.agentplatform.service;
 
 import com.linlay.agentplatform.stream.model.StreamInput;
+import com.linlay.agentplatform.stream.model.RunActor;
+import com.linlay.agentplatform.stream.model.StreamEnvelope;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.model.AgentDelta;
@@ -37,6 +39,7 @@ public class AgentDeltaToStreamInputMapper {
     private final String runPrefix;
     private final String chatId;
     private final ToolRegistry toolRegistry;
+    private final RunActor actor;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private int reasoningSeq = 0;
@@ -45,26 +48,42 @@ public class AgentDeltaToStreamInputMapper {
     private String activeContentId;
 
     public AgentDeltaToStreamInputMapper() {
-        this(null, null, null);
+        this(null, null, null, null);
     }
 
     public AgentDeltaToStreamInputMapper(String runId) {
-        this(runId, null, null);
+        this(runId, null, null, null);
     }
 
     public AgentDeltaToStreamInputMapper(String runId, ToolRegistry toolRegistry) {
-        this(runId, null, toolRegistry);
+        this(runId, null, toolRegistry, null);
     }
 
     public AgentDeltaToStreamInputMapper(String runId, String chatId, ToolRegistry toolRegistry) {
+        this(runId, chatId, toolRegistry, null);
+    }
+
+    public AgentDeltaToStreamInputMapper(String runId, String chatId, ToolRegistry toolRegistry, RunActor actor) {
         this.runPrefix = hasText(runId) ? runId : "run";
         this.chatId = hasText(chatId) ? chatId.trim() : null;
         this.toolRegistry = toolRegistry;
+        this.actor = actor == null ? RunActor.primary(null) : actor;
     }
 
     public Flux<StreamInput> map(Flux<AgentDelta> deltas) {
         Objects.requireNonNull(deltas, "deltas must not be null");
         return deltas.concatMapIterable(this::mapOrEmpty);
+    }
+
+    public Flux<StreamEnvelope> mapEnvelopes(Flux<AgentDelta> deltas) {
+        Objects.requireNonNull(deltas, "deltas must not be null");
+        return deltas.concatMapIterable(this::mapEnvelopesOrEmpty);
+    }
+
+    public List<StreamEnvelope> mapEnvelopesOrEmpty(AgentDelta delta) {
+        return mapOrEmpty(delta).stream()
+                .map(input -> StreamEnvelope.of(input, actor))
+                .toList();
     }
 
     public List<StreamInput> mapOrEmpty(AgentDelta delta) {
@@ -223,7 +242,7 @@ public class AgentDeltaToStreamInputMapper {
             closeTextBlocks();
         }
 
-        return inputs;
+        return List.copyOf(inputs);
     }
 
     private boolean hasNonTextPayload(AgentDelta delta) {

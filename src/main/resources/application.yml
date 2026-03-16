@@ -65,6 +65,12 @@ agent:
       shell-executable: ${AGENT_BASH_SHELL_EXECUTABLE:bash}
       shell-timeout-ms: ${AGENT_BASH_SHELL_TIMEOUT_MS:10000}
       max-command-chars: ${AGENT_BASH_MAX_COMMAND_CHARS:16000}
+  h2a:
+    render:
+      flush-interval-ms: ${AGENT_H2A_RENDER_FLUSH_INTERVAL_MS:0}
+      max-buffered-chars: ${AGENT_H2A_RENDER_MAX_BUFFERED_CHARS:0}
+      max-buffered-events: ${AGENT_H2A_RENDER_MAX_BUFFERED_EVENTS:0}
+      heartbeat-pass-through: ${AGENT_H2A_RENDER_HEARTBEAT_PASS_THROUGH:true}
   auth:
     enabled: ${AGENT_AUTH_ENABLED:true}
     jwks-uri: ${AGENT_AUTH_JWKS_URI:}

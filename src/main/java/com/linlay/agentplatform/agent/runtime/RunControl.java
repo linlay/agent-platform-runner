@@ -3,45 +3,54 @@ package com.linlay.agentplatform.agent.runtime;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class RunControl {
 
-    private final Queue<SteerEnvelope> pendingSteers = new ConcurrentLinkedQueue<>();
+    private final RunInputBroker inputBroker = new RunInputBroker();
     private final AtomicBoolean interrupted = new AtomicBoolean(false);
     private final Sinks.One<Void> cancelSink = Sinks.one();
     private final AtomicReference<Thread> runnerThread = new AtomicReference<>();
+    private final AtomicReference<RunLoopState> state = new AtomicReference<>(RunLoopState.IDLE);
+
+    public void enqueueQuery(RunInputBroker.QueryEnvelope query) {
+        if (query == null || interrupted.get()) {
+            return;
+        }
+        inputBroker.enqueueQuery(query);
+    }
 
     public void enqueueSteer(SteerEnvelope steer) {
         if (steer == null || interrupted.get()) {
             return;
         }
-        pendingSteers.add(steer);
+        inputBroker.enqueueSteer(new RunInputBroker.SteerEnvelope(steer.requestId(), steer.steerId(), steer.message()));
     }
 
     public List<SteerEnvelope> drainPendingSteers() {
-        List<SteerEnvelope> drained = new ArrayList<>();
-        while (true) {
-            SteerEnvelope next = pendingSteers.poll();
-            if (next == null) {
-                return List.copyOf(drained);
-            }
-            drained.add(next);
-        }
+        return inputBroker.drainPendingSteers().stream()
+                .map(steer -> new SteerEnvelope(steer.requestId(), steer.steerId(), steer.message()))
+                .toList();
     }
 
     public void interrupt() {
+        interrupt(null, null);
+    }
+
+    public void interrupt(String requestId, String message) {
         if (!interrupted.compareAndSet(false, true)) {
             return;
         }
+        inputBroker.enqueueInterrupt(new RunInputBroker.InterruptEnvelope(requestId, message));
         cancelSink.tryEmitEmpty();
+        inputBroker.clearPendingSteers();
+        inputBroker.cancelPendingSubmits("Run interrupted");
+        state.set(RunLoopState.CANCELLED);
         interruptRunnerThread();
-        pendingSteers.clear();
     }
 
     public boolean isInterrupted() {
@@ -64,6 +73,27 @@ public final class RunControl {
         Thread thread = runnerThread.get();
         if (thread != null) {
             thread.interrupt();
+        }
+    }
+
+    public Object awaitSubmit(String runId, String toolId, long timeoutMs) throws TimeoutException {
+        if (interrupted.get()) {
+            throw new CancellationException("Run interrupted: runId=" + runId);
+        }
+        return inputBroker.awaitSubmit(toolId, java.time.Duration.ofMillis(Math.max(1L, timeoutMs)), cancelSignal());
+    }
+
+    public RunInputBroker.SubmitAck submit(String toolId, Object payload) {
+        return inputBroker.submit(toolId, payload);
+    }
+
+    public RunLoopState state() {
+        return state.get();
+    }
+
+    public void transitionState(RunLoopState next) {
+        if (next != null) {
+            state.set(next);
         }
     }
 
