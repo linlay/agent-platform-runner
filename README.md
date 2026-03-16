@@ -614,6 +614,7 @@ toolConfig:
 - `_skill_run_script_`：执行 skills 目录下脚本或临时 Python 脚本。
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。
+- `mock_city_weather`：模拟城市天气数据。
 
 ## Bash 工具配置
 

@@ -289,6 +289,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - `_skill_run_script_`：执行 `skills/<skill>/` 目录下脚本或临时 Python 脚本。`script` 与 `pythonCode` 二选一；支持 `.py` / `.sh`；内联 Python 写入 `/tmp/agent-platform-skill-inline/`，执行后清理。
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。
+- `mock_city_weather`：模拟城市天气数据。
 
 ### tools/ 目录定义的前端与动作工具
 
