@@ -68,11 +68,22 @@ public class ScheduledQueryDispatchService {
 
         try {
             AgentQueryService.QuerySession session = agentQueryService.prepare(request);
+            log.info(
+                    "Scheduled query started scheduleId={}, scheduleName={}, cron={}, agentKey={}, teamId={}, chatId={}",
+                    descriptor.id(),
+                    descriptor.name(),
+                    descriptor.cron(),
+                    session.request().agentKey(),
+                    session.request().teamId(),
+                    session.request().chatId()
+            );
             Flux<ServerSentEvent<String>> stream = agentQueryService.stream(session);
             stream.blockLast();
             log.info(
-                    "Scheduled query completed scheduleId={}, runId={}, chatId={}, agentKey={}, teamId={}",
+                    "Scheduled query completed scheduleId={}, scheduleName={}, cron={}, runId={}, chatId={}, agentKey={}, teamId={}",
                     descriptor.id(),
+                    descriptor.name(),
+                    descriptor.cron(),
                     session.request().runId(),
                     session.request().chatId(),
                     session.request().agentKey(),
@@ -80,10 +91,13 @@ public class ScheduledQueryDispatchService {
             );
         } catch (Exception ex) {
             log.warn(
-                    "Scheduled query failed scheduleId={}, agentKey={}, teamId={}",
+                    "Scheduled query failed scheduleId={}, scheduleName={}, cron={}, agentKey={}, teamId={}, chatId={}",
                     descriptor.id(),
+                    descriptor.name(),
+                    descriptor.cron(),
                     target.agentKey(),
                     target.teamId(),
+                    request.chatId(),
                     ex
             );
         }

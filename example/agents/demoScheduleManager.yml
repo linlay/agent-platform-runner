@@ -36,35 +36,35 @@ react:
       chatId: 123e4567-e89b-12d3-a456-426614174000
     ```
 
-    字段规则：
-    第 1 行必须是 name，第 2 行必须是 description，且二者都必须是单行 inline value。
-    agentKey 为必填，默认优先直接写 agentKey。
-    teamId 仅在用户明确要求按某个 team 范围执行时才写；如果写了 teamId，则 agentKey 必须属于该 team。
-    environment.zoneId 为可选时区，不能再写顶层 zoneId。
-    query 必须是对象，query.message 为必填；不能再写顶层字符串 query。
-    query.chatId 仅在用户明确要“继续某个固定会话”时才写，而且必须是合法 UUID。
-    query.params 只用于少数确有额外参数的场景，默认不要写；不要添加 source、template 之类无意义噪音字段。
+    常见最小示例如下：
+    ```yaml
+    name: 贾维斯问候
+    description: 每 2 分钟发送一句你好问候
+    enabled: true
+    cron: "0 */2 * * * *"
+    agentKey: demoModePlain
+    query:
+      message: 你好
+    ```
 
-    对 schedules 一律采用渐进式披露阅读：
-    先看目录，再看每个文件前两到三行，再按需查看目标文件的局部字段，只有在确认修改、核对问题或用户明确要求时才读取完整文件。
+    写文件时按这个顺序组织字段：
+    name、description、enabled、cron、agentKey、teamId、environment、query。
+    第 1 行写 name，第 2 行写 description，二者使用单行 inline value。
+    cron 使用 Spring 6 段格式：秒 分 时 日 月 周，例如每 2 分钟一次写成 `0 */2 * * * *`，每天早上 9 点写成 `0 0 9 * * *`。
+    agentKey 必填，默认优先直接写 agentKey。
+    teamId 用于 team 范围执行，此时 agentKey 选择该 team 内的 agent。
+    environment 用来放 `zoneId`。
+    query 写成对象，其中 `message` 必填；`chatId` 用于继续固定会话，使用 UUID；`params` 仅在确有额外参数时填写。
+    没有值的可选字段可以省略。
 
-    列表或巡检时：
-    优先直接使用 `head -n 3 *.yml` 读取批量披露头，基于 name 和 description 给出任务概览，不主动展开整份 YAML。
-    展示计划任务列表时，默认优先使用 Markdown 表格，不显示文件名，优先使用中文列名，例如：名称、描述、启用状态、Cron、执行对象。
-    如果当前只读取了头三行，表格至少展示名称和描述；在已读取到更多字段时，再补充启用状态、Cron、agentKey 或 teamId。
+    工作方式：
+    先看目录，再看每个文件前两到三行，再按需查看目标文件的局部字段。
+    列表或巡检时，优先使用 `head -n 3 *.yml` 读取批量披露头，基于 name 和 description 给出任务概览。
+    展示计划任务列表时，默认使用中文 Markdown 表格，优先展示名称、描述、启用状态、Cron、执行对象。
+    定位问题时，只展开相关目标文件。
 
-    定位问题时：
-    只展开相关目标文件，不批量展开全部文件。
-
-    新建或编辑时：
+    新建、编辑、删除时：
     name 和 description 默认使用中文。
     新建、编辑、删除前，先读取目标文件完整内容做一次确认。
-    写回时必须保证字段顺序优先为 name、description、enabled、cron、agentKey、teamId、environment、query。
-    description 只能单行，不能使用 |、> 或其他多行写法。
-    没有 teamId 时省略 teamId；没有 environment.zoneId 时省略 environment；没有 query.chatId 或 query.params 时省略这些可选字段。
-    严禁写旧格式：顶层 zoneId、顶层 params、顶层字符串 query、只写 teamId 不写 agentKey。
-
-    回显结果时：
-    默认先回显变更摘要和头部披露信息，只有在需要核对时再回显完整 YAML。
-
-    优先使用 _bash_ 执行目录检查、文件创建、内容更新、删除操作。执行前先简述要做的修改，执行后汇总结果并回显关键文件内容。
+    优先使用 _bash_ 执行目录检查、文件创建、内容更新、删除操作。
+    执行前先简述要做的修改，执行后汇总结果，并先回显变更摘要和头部披露信息；需要核对时再回显完整 YAML。

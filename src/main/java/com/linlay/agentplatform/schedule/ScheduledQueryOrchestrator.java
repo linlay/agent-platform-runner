@@ -6,16 +6,20 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.support.SimpleTriggerContext;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
+import java.util.stream.Collectors;
 
 @Service
 public class ScheduledQueryOrchestrator implements DisposableBean {
@@ -56,6 +60,7 @@ public class ScheduledQueryOrchestrator implements DisposableBean {
         synchronized (lock) {
             Map<String, ScheduledQueryDescriptor> desired = registryService.snapshot();
             if (!properties.isEnabled()) {
+                log.info("Schedule subsystem disabled, skip registration");
                 cancelAll();
                 return;
             }
@@ -89,6 +94,7 @@ public class ScheduledQueryOrchestrator implements DisposableBean {
                     cancelRegistration(registration);
                 }
             }
+            logRegistrationSummary();
         }
     }
 
@@ -96,6 +102,7 @@ public class ScheduledQueryOrchestrator implements DisposableBean {
         String preferredZoneId = descriptor.environment() == null ? null : descriptor.environment().zoneId();
         ZoneId zoneId = resolveZoneId(preferredZoneId, properties.getDefaultZoneId());
         CronTrigger trigger = new CronTrigger(descriptor.cron(), zoneId);
+        String nextFireTime = nextFireTime(trigger, zoneId);
         ScheduledFuture<?> future = taskScheduler.schedule(
                 () -> dispatchService.dispatch(descriptor),
                 trigger
@@ -106,10 +113,14 @@ public class ScheduledQueryOrchestrator implements DisposableBean {
         }
         registrations.put(descriptor.id(), new Registration(descriptor, future));
         log.info(
-                "Registered schedule id={}, cron={}, zoneId={}, source={}",
+                "Registered schedule id={}, name={}, cron={}, zoneId={}, agentKey={}, teamId={}, nextFireTime={}, source={}",
                 descriptor.id(),
+                descriptor.name(),
                 descriptor.cron(),
                 zoneId,
+                descriptor.agentKey(),
+                descriptor.teamId(),
+                nextFireTime,
                 descriptor.sourceFile()
         );
     }
@@ -142,10 +153,36 @@ public class ScheduledQueryOrchestrator implements DisposableBean {
     private void cancelRegistration(Registration registration) {
         try {
             registration.future().cancel(false);
-            log.info("Unregistered schedule id={}", registration.descriptor().id());
+            log.info(
+                    "Unregistered schedule id={}, name={}, cron={}",
+                    registration.descriptor().id(),
+                    registration.descriptor().name(),
+                    registration.descriptor().cron()
+            );
         } catch (Exception ex) {
             log.warn("Error cancelling schedule id={}", registration.descriptor().id(), ex);
         }
+    }
+
+    private void logRegistrationSummary() {
+        String summary = registrations.values().stream()
+                .map(Registration::descriptor)
+                .map(descriptor -> descriptor.name() + "(" + descriptor.id() + ")=" + descriptor.cron())
+                .collect(Collectors.joining(", "));
+        log.info(
+                "Schedule registry ready count={}, schedules={}",
+                registrations.size(),
+                StringUtils.hasText(summary) ? summary : "-"
+        );
+    }
+
+    private String nextFireTime(CronTrigger trigger, ZoneId zoneId) {
+        Instant now = Instant.now();
+        Instant next = trigger.nextExecution(new SimpleTriggerContext(now, now, now));
+        if (next == null) {
+            return "none";
+        }
+        return ZonedDateTime.ofInstant(next, zoneId).toString();
     }
 
     @Override
