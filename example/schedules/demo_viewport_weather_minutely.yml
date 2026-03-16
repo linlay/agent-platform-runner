@@ -1,7 +1,7 @@
 name: 分钟天气视图播报
-description: 每分钟触发一次 demoViewport，随机选择一个城市查询天气并尽量输出 viewport
-enabled: true
-cron: "0 * * * * *"
+description: 每5分钟触发一次 demoViewport，随机选择一个城市查询天气并尽量输出 viewport
+enabled: false
+cron: "0 */5 * * * *"
 agentKey: demoViewport
 environment:
   zoneId: Asia/Shanghai
