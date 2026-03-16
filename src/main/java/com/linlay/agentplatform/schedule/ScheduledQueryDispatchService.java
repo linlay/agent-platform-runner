@@ -54,16 +54,17 @@ public class ScheduledQueryDispatchService {
         ));
 
         QueryRequest request = new QueryRequest(
-                null,
+                descriptor.query() == null ? null : descriptor.query().requestId(),
                 descriptor.query() == null ? null : descriptor.query().chatId(),
                 target.agentKey(),
                 target.teamId(),
-                "user",
+                normalizeRole(descriptor.query() == null ? null : descriptor.query().role()),
                 descriptor.query() == null ? null : descriptor.query().message(),
-                null,
+                descriptor.query() == null || descriptor.query().references().isEmpty() ? null : descriptor.query().references(),
                 params,
-                null,
-                false
+                descriptor.query() == null ? null : descriptor.query().scene(),
+                false,
+                descriptor.query() == null ? null : descriptor.query().hidden()
         );
 
         try {
@@ -136,6 +137,10 @@ public class ScheduledQueryDispatchService {
             return null;
         }
         return raw.trim();
+    }
+
+    private String normalizeRole(String role) {
+        return StringUtils.hasText(role) ? role.trim() : "user";
     }
 
     private record DispatchTarget(String agentKey, String teamId) {

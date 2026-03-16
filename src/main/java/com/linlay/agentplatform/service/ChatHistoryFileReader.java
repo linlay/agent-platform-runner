@@ -37,6 +37,7 @@ final class ChatHistoryFileReader {
         try {
             List<String> lines = Files.readAllLines(historyPath, charsetSupplier.get());
             LinkedHashMap<String, Map<String, Object>> queryByRunId = new LinkedHashMap<>();
+            LinkedHashMap<String, Boolean> queryHiddenByRunId = new LinkedHashMap<>();
             LinkedHashMap<String, List<StepEntry>> stepsByRunId = new LinkedHashMap<>();
             LinkedHashMap<String, List<PersistedChatEvent>> eventsByRunId = new LinkedHashMap<>();
             LinkedHashMap<String, QueryRequest.Reference> references = new LinkedHashMap<>();
@@ -70,6 +71,7 @@ final class ChatHistoryFileReader {
                         );
                     }
                     queryByRunId.put(runId, query);
+                    queryHiddenByRunId.put(runId, node.path("hidden").asBoolean(false));
                     collectReferencesFromQuery(query, references);
                     stepsByRunId.computeIfAbsent(runId, key -> new ArrayList<>());
                     eventsByRunId.computeIfAbsent(runId, key -> new ArrayList<>());
@@ -176,6 +178,7 @@ final class ChatHistoryFileReader {
                 runs.add(new ChatHistoryRunSnapshot(
                         runId,
                         updatedAt,
+                        queryHiddenByRunId.getOrDefault(runId, false),
                         query,
                         firstSystem,
                         latestPlan,

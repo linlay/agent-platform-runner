@@ -136,6 +136,7 @@ public class StreamEventAssembler {
                 putIfNonNull(requestPayload, "params", visibleParams);
                 putIfNonNull(requestPayload, "scene", query.scene());
                 putIfNonNull(requestPayload, "stream", query.stream());
+                putIfNonNull(requestPayload, "hidden", query.hidden());
                 bootstrapEvents.add(next("request.query", requestPayload));
 
                 if (emitChatStart) {

@@ -16,7 +16,7 @@
 
 计划任务相关示例：
 
-- `example/agents/demoScheduleManager.yml`：维护 `schedules/*.yml` 的 REACT 智能体，采用“渐进式披露阅读”，并按结构化 schedule 契约读写 `agentKey / teamId / environment.zoneId / query.message / query.chatId`。
+- `example/agents/demoScheduleManager.yml`：维护 `schedules/*.yml` 的 REACT 智能体，采用“渐进式披露阅读”，并按结构化 schedule 契约读写 `agentKey / teamId / environment.zoneId / query` 支持字段（如 `message / chatId / hidden`）。
 - `example/schedules/demo_viewport_weather_minutely.yml`：每分钟触发 `demoViewport` 查询随机城市天气。
 
 图像生成相关示例：

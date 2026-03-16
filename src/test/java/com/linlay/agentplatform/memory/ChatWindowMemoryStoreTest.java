@@ -113,6 +113,31 @@ class ChatWindowMemoryStoreTest {
     }
 
     @Test
+    void shouldPersistHiddenOnQueryLineTopLevelOnly() throws Exception {
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        properties.setDir(tempDir.resolve("chats").toString());
+        properties.setK(20);
+
+        ChatWindowMemoryStore store = new ChatWindowMemoryStore(objectMapper, properties);
+
+        String chatId = "123e4567-e89b-12d3-a456-426614174008";
+        String runId = "run_hidden_001";
+
+        Map<String, Object> query = query(runId, chatId, "隐藏输入");
+        query.put("hidden", true);
+        store.appendQueryLine(chatId, runId, query);
+
+        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
+        JsonNode queryLine = objectMapper.readTree(lines.getFirst());
+
+        assertThat(queryLine.path("_type").asText()).isEqualTo("query");
+        assertThat(queryLine.path("hidden").asBoolean()).isTrue();
+        assertThat(queryLine.path("query").path("message").asText()).isEqualTo("隐藏输入");
+        assertThat(queryLine.path("query").has("hidden")).isFalse();
+    }
+
+    @Test
     void shouldPersistActionIdWhenToolCallTypeIsFunctionButSystemDeclaresActionTool() throws Exception {
         ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
         properties.setDir(tempDir.resolve("chats").toString());

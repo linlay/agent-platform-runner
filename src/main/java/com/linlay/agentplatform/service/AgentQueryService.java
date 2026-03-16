@@ -192,6 +192,7 @@ public class AgentQueryService {
                 queryParams,
                 serializeScene(request.scene()),
                 request.stream(),
+                request.hidden(),
                 chatName,
                 runId
         );
@@ -441,6 +442,7 @@ public class AgentQueryService {
         snapshot.put("params", request.params());
         snapshot.put("scene", request.scene());
         snapshot.put("stream", request.stream());
+        snapshot.put("hidden", request.hidden());
         return snapshot;
     }
 

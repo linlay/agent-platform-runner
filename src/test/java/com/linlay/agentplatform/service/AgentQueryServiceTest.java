@@ -216,6 +216,39 @@ class AgentQueryServiceTest {
     }
 
     @Test
+    void prepareShouldPreserveHiddenFlagInRequestAndSnapshot() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        Agent agent = mock(Agent.class);
+        when(agent.id()).thenReturn("demo-agent");
+        when(agent.name()).thenReturn("Demo Agent");
+        when(agentRegistry.get("demo-agent")).thenReturn(agent);
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        String chatId = UUID.randomUUID().toString();
+        when(chatRecordStore.findBoundAgentKey(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.findBoundTeamId(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.ensureChat(chatId, "demo-agent", "Demo Agent", null, "hello"))
+                .thenReturn(new ChatRecordStore.ChatSummary(chatId, "hello", "demo-agent", null, 1L, 2L, "", "", 1, 2L, false));
+
+        AgentQueryService service = new AgentQueryService(
+                agentRegistry,
+                mock(com.linlay.agentplatform.stream.service.StreamSseStreamer.class),
+                objectMapper,
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                mock(ViewportRegistryService.class),
+                new FrontendToolProperties(),
+                mock(TeamRegistryService.class)
+        );
+
+        QueryRequest request = new QueryRequest("req-1", chatId, "demo-agent", null, "user", "hello", null, null, null, true, true);
+        AgentQueryService.QuerySession session = service.prepare(request);
+
+        assertThat(session.request().hidden()).isTrue();
+        assertThat(session.agentRequest().query()).containsEntry("hidden", true);
+    }
+
+    @Test
     void prepareShouldMergeChatDirectoryAssetsIntoReferences() {
         AgentRegistry agentRegistry = mock(AgentRegistry.class);
         Agent agent = mock(Agent.class);

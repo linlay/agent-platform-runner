@@ -516,7 +516,8 @@ toolConfig:
   - 必填字段：`name`、`description`、`cron`、`agentKey`、`query.message`
   - `teamId` 可选；若填写，`agentKey` 必须属于该 team
   - `environment.zoneId` 可选；不再支持顶层 `zoneId`
-  - `query` 必须是对象；`query.chatId`、`query.params` 为可选字段
+  - `query` 必须是对象；支持 `requestId`、`chatId`、`role`、`message`、`references`、`params`、`scene`、`hidden`，其中 `message` 必填
+  - `query.stream` 不支持；`query.agentKey` / `query.teamId` 不支持，仍使用顶层字段
   - 不再支持旧扁平格式：顶层字符串 `query`、顶层 `params`、仅配置 `teamId`
   - 内置示例包含 `demo_daily_summary.yml`（每日摘要）和 `demo_viewport_weather_minutely.yml`（每分钟随机城市天气）
 - `models`:
@@ -622,7 +623,7 @@ toolConfig:
 
 `path-checked-commands` 为空时，默认等于 `allowed-commands`；并且只会对 `allowed-commands` 的交集生效。`working-directory` 既决定进程启动目录，也会自动作为 `_bash_` 的基础允许目录。`allowed-paths` 用于追加放行工作目录之外的目录。未配置 `working-directory` 时，`_bash_` 默认取项目运行根目录（通常是 `configs/` 的上级目录），而不是简单的 `${user.dir}`。
 
-`demoScheduleManager` 会优先读取每个 `.yml` 文件前两到三行的 `name` / `description` 披露信息，并按结构化 schedule 契约维护 `environment.zoneId` 与 `query.message/query.chatId`。
+`demoScheduleManager` 会优先读取每个 `.yml` 文件前两到三行的 `name` / `description` 披露信息，并按结构化 schedule 契约维护 `environment.zoneId` 与 `query` 对象中的受支持字段（如 `message`、`chatId`、`hidden`）。
 
 `_bash_` 的运行时工具描述会显示当前生效的 `workingDirectory` 与 `shellFeaturesEnabled`，便于定位命令实际执行位置。
 

@@ -146,6 +146,7 @@ public final class ChatMemoryTypes {
         public String chatId;
         public String runId;
         public long updatedAt;
+        public Boolean hidden;
         public Map<String, Object> query = new LinkedHashMap<>();
     }
 
@@ -266,6 +267,7 @@ record ParsedQueryLine(
         String chatId,
         String runId,
         long updatedAt,
+        boolean hidden,
         Map<String, Object> query
 ) implements ParsedLine {
 }

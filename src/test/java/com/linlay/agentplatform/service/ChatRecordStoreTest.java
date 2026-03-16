@@ -5,6 +5,7 @@ import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;
+import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
@@ -176,6 +177,39 @@ class ChatRecordStoreTest {
         assertThat(countType(detail.events(), "action.start")).isEqualTo(0);
         assertThat(countType(detail.events(), "action.args")).isEqualTo(0);
         assertThat(countType(detail.events(), "action.end")).isEqualTo(0);
+    }
+
+    @Test
+    void loadChatShouldOmitHiddenRequestQueryButKeepOtherReplayData() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174012";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "隐藏 query 会话", 1707000200000L, 1707000200000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".json");
+        List<Map<String, Object>> references = List.of(Map.of(
+                "id", "ref_hidden_001",
+                "type", "url",
+                "name", "doc",
+                "url", "https://example.com/hidden"
+        ));
+        writeJsonLine(historyPath, queryLine(chatId, "run_hidden_001", query("run_hidden_001", chatId, "隐藏输入", references), true));
+        writeJsonLine(historyPath, stepLine(chatId, "run_hidden_001", "oneshot", 1, null,
+                1707000200000L,
+                List.of(
+                        userMessage("隐藏输入", 1707000200000L),
+                        assistantContentMessage("已处理", 1707000200001L)
+                )));
+
+        ChatRecordStore store = newStore();
+        ChatDetailResponse detail = store.loadChat(chatId, true);
+
+        assertThat(detail.events()).extracting(event -> event.get("type"))
+                .doesNotContain("request.query")
+                .contains("chat.start", "run.start", "content.snapshot", "run.complete");
+        assertThat(detail.rawMessages()).isNotNull();
+        assertThat(detail.rawMessages().getFirst()).containsEntry("role", "user");
+        assertThat(detail.references()).isNotNull();
+        assertThat(detail.references()).extracting(QueryRequest.Reference::id).containsExactly("ref_hidden_001");
     }
 
     @Test
@@ -810,11 +844,18 @@ class ChatRecordStoreTest {
     }
 
     private Map<String, Object> queryLine(String chatId, String runId, Map<String, Object> query) {
+        return queryLine(chatId, runId, query, false);
+    }
+
+    private Map<String, Object> queryLine(String chatId, String runId, Map<String, Object> query, boolean hidden) {
         Map<String, Object> line = new LinkedHashMap<>();
         line.put("_type", "query");
         line.put("chatId", chatId);
         line.put("runId", runId);
         line.put("updatedAt", System.currentTimeMillis());
+        if (hidden) {
+            line.put("hidden", true);
+        }
         line.put("query", query);
         return line;
     }

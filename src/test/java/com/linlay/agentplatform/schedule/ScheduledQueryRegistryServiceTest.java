@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.schedule;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.team.TeamDescriptor;
 import com.linlay.agentplatform.team.TeamRegistryService;
 import org.junit.jupiter.api.Test;
@@ -31,10 +32,21 @@ class ScheduledQueryRegistryServiceTest {
                 environment:
                   zoneId: Asia/Shanghai
                 query:
+                  requestId: req_daily_001
+                  role: system
                   message: ping
                   chatId: 123e4567-e89b-12d3-a456-426614174000
+                  references:
+                    - id: ref_001
+                      type: url
+                      name: doc
+                      url: https://example.com/doc
                   params:
                     k: v
+                  scene:
+                    url: https://example.com/app
+                    title: demo
+                  hidden: true
                 """);
 
         ScheduledQueryRegistryService service = newService(mock(TeamRegistryService.class));
@@ -48,9 +60,24 @@ class ScheduledQueryRegistryServiceTest {
         assertThat(descriptor.agentKey()).isEqualTo("demoModePlain");
         assertThat(descriptor.teamId()).isNull();
         assertThat(descriptor.environment().zoneId()).isEqualTo("Asia/Shanghai");
+        assertThat(descriptor.query().requestId()).isEqualTo("req_daily_001");
+        assertThat(descriptor.query().role()).isEqualTo("system");
         assertThat(descriptor.query().message()).isEqualTo("ping");
         assertThat(descriptor.query().chatId()).isEqualTo("123e4567-e89b-12d3-a456-426614174000");
+        assertThat(descriptor.query().references()).hasSize(1);
+        assertThat(descriptor.query().references().getFirst()).isEqualTo(new QueryRequest.Reference(
+                "ref_001",
+                "url",
+                "doc",
+                null,
+                null,
+                "https://example.com/doc",
+                null,
+                null
+        ));
         assertThat(descriptor.query().params()).containsEntry("k", "v");
+        assertThat(descriptor.query().scene()).isEqualTo(new QueryRequest.Scene("https://example.com/app", "demo"));
+        assertThat(descriptor.query().hidden()).isTrue();
     }
 
     @Test
@@ -73,8 +100,13 @@ class ScheduledQueryRegistryServiceTest {
         assertThat(descriptor.enabled()).isTrue();
         assertThat(descriptor.environment().zoneId()).isEqualTo("Asia/Shanghai");
         assertThat(descriptor.query().message()).contains("北京").contains("东京").contains("viewport");
+        assertThat(descriptor.query().requestId()).isNull();
+        assertThat(descriptor.query().role()).isNull();
         assertThat(descriptor.query().chatId()).isNull();
+        assertThat(descriptor.query().references()).isEmpty();
         assertThat(descriptor.query().params()).isEmpty();
+        assertThat(descriptor.query().scene()).isNull();
+        assertThat(descriptor.query().hidden()).isNull();
     }
 
     @Test
@@ -121,6 +153,42 @@ class ScheduledQueryRegistryServiceTest {
                 teamId: a1b2c3d4e5f6
                 query:
                   message: ping
+                """);
+        Files.writeString(tempDir.resolve("query-stream.yml"), """
+                name: Query Stream
+                description: 不支持 stream
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                query:
+                  message: ping
+                  stream: true
+                """);
+        Files.writeString(tempDir.resolve("query-agent-key.yml"), """
+                name: Query AgentKey
+                description: query.agentKey 不允许
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                query:
+                  message: ping
+                  agentKey: demoModeReact
+                """);
+        Files.writeString(tempDir.resolve("query-team-id.yml"), """
+                name: Query TeamId
+                description: query.teamId 不允许
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                query:
+                  message: ping
+                  teamId: a1b2c3d4e5f6
+                """);
+        Files.writeString(tempDir.resolve("query-unknown.yml"), """
+                name: Query Unknown
+                description: query.foo 不允许
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                query:
+                  message: ping
+                  foo: bar
                 """);
 
         TeamRegistryService teamRegistryService = mock(TeamRegistryService.class);

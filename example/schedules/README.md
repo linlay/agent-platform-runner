@@ -20,8 +20,10 @@
 - `query` 必须是对象，不能再写成顶层字符串
 - `teamId` 可选；若填写，`agentKey` 必须属于该 team
 - `environment.zoneId` 可选；不再支持顶层 `zoneId`
+- `query` 支持字段：`requestId`、`chatId`、`role`、`message`、`references`、`params`、`scene`、`hidden`
 - `query.chatId` 可选；表示继续固定会话，必须是 UUID
-- `query.params` 可选；默认示例中不写
+- `query.hidden` 可选；为 `true` 时，chat replay 不返回该次 `request.query`
+- `query.stream` 不支持；`query.agentKey` / `query.teamId` 也不支持
 
 ## 附带示例
 
@@ -39,6 +41,7 @@ environment:
   zoneId: Asia/Shanghai
 query:
   message: 请输出今天待办摘要
+  hidden: true
 ```
 
 ## 与外层目录关系

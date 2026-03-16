@@ -86,7 +86,8 @@ public class ChatWindowMemoryStore {
         line.chatId = chatId;
         line.runId = normalizeRunId(runId);
         line.updatedAt = now;
-        line.query = normalizeQuery(query);
+        line.hidden = extractHiddenQueryFlag(query) ? Boolean.TRUE : null;
+        line.query = normalizeQueryWithoutHidden(query);
         appendLine(chatId, line);
     }
 
@@ -268,6 +269,7 @@ public class ChatWindowMemoryStore {
         String chatId = node.path("chatId").asText(null);
         String runId = node.path("runId").asText(null);
         long updatedAt = node.path("updatedAt").asLong(0);
+        boolean hidden = node.path("hidden").asBoolean(false);
         Map<String, Object> query;
         if (node.has("query") && node.get("query").isObject()) {
             query = objectMapper.convertValue(
@@ -277,7 +279,7 @@ public class ChatWindowMemoryStore {
         } else {
             query = new LinkedHashMap<>();
         }
-        return new ParsedQueryLine(chatId, runId, updatedAt, query);
+        return new ParsedQueryLine(chatId, runId, updatedAt, hidden, query);
     }
 
     private ParsedStepLine parseStepLineNode(JsonNode node) {
@@ -352,14 +354,33 @@ public class ChatWindowMemoryStore {
         }
     }
 
-    private Map<String, Object> normalizeQuery(Map<String, Object> query) {
+    private boolean extractHiddenQueryFlag(Map<String, Object> query) {
+        if (query == null) {
+            return false;
+        }
+        Object hidden = query.get("hidden");
+        if (hidden instanceof Boolean value) {
+            return value;
+        }
+        if (hidden instanceof Number value) {
+            return value.intValue() != 0;
+        }
+        if (hidden instanceof String value && !value.isBlank()) {
+            return Boolean.parseBoolean(value.trim());
+        }
+        return false;
+    }
+
+    private Map<String, Object> normalizeQueryWithoutHidden(Map<String, Object> query) {
         if (query == null) {
             return new LinkedHashMap<>();
         }
-        return objectMapper.convertValue(
+        Map<String, Object> normalized = objectMapper.convertValue(
                 query,
                 objectMapper.getTypeFactory().constructMapType(LinkedHashMap.class, String.class, Object.class)
         );
+        normalized.remove("hidden");
+        return normalized;
     }
 
     private String normalizeRunId(String runId) {

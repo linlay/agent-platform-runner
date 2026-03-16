@@ -16,8 +16,24 @@ public record QueryRequest(
         List<Reference> references,
         Map<String, Object> params,
         Scene scene,
-        Boolean stream
+        Boolean stream,
+        Boolean hidden
 ) {
+    public QueryRequest(
+            String requestId,
+            String chatId,
+            String agentKey,
+            String teamId,
+            String role,
+            String message,
+            List<Reference> references,
+            Map<String, Object> params,
+            Scene scene,
+            Boolean stream
+    ) {
+        this(requestId, chatId, agentKey, teamId, role, message, references, params, scene, stream, null);
+    }
+
     public record Scene(
             String url,
             String title

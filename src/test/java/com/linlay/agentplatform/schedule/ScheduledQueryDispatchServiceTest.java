@@ -75,9 +75,23 @@ class ScheduledQueryDispatchServiceTest {
                     "a1b2c3d4e5f6",
                     new ScheduledQueryDescriptor.Environment("Asia/Shanghai"),
                     new ScheduledQueryDescriptor.Query(
-                            "hello",
+                            "req_daily_001",
                             "123e4567-e89b-12d3-a456-426614174000",
-                            Map.of("x", 1)
+                            "assistant",
+                            "hello",
+                            List.of(new QueryRequest.Reference(
+                                    "ref_001",
+                                    "url",
+                                    "doc",
+                                    null,
+                                    null,
+                                    "https://example.com/doc",
+                                    null,
+                                    null
+                            )),
+                            Map.of("x", 1),
+                            new QueryRequest.Scene("https://example.com/app", "demo"),
+                            true
                     ),
                     "/tmp/daily.yml"
             );
@@ -88,11 +102,17 @@ class ScheduledQueryDispatchServiceTest {
             verify(agentQueryService).stream(any(AgentQueryService.QuerySession.class));
 
             QueryRequest request = requestCaptor.getValue();
+            assertThat(request.requestId()).isEqualTo("req_daily_001");
             assertThat(request.agentKey()).isEqualTo("demoModeReact");
             assertThat(request.teamId()).isEqualTo("a1b2c3d4e5f6");
             assertThat(request.chatId()).isEqualTo("123e4567-e89b-12d3-a456-426614174000");
             assertThat(request.message()).isEqualTo("hello");
+            assertThat(request.role()).isEqualTo("assistant");
+            assertThat(request.references()).hasSize(1);
+            assertThat(request.references().getFirst().url()).isEqualTo("https://example.com/doc");
             assertThat(request.stream()).isFalse();
+            assertThat(request.hidden()).isTrue();
+            assertThat(request.scene()).isEqualTo(new QueryRequest.Scene("https://example.com/app", "demo"));
             assertThat(request.params()).containsEntry("x", 1);
             assertThat(request.params()).containsKey("__schedule");
             @SuppressWarnings("unchecked")
@@ -145,7 +165,7 @@ class ScheduledQueryDispatchServiceTest {
                 "demoViewport",
                 null,
                 new ScheduledQueryDescriptor.Environment("Asia/Shanghai"),
-                new ScheduledQueryDescriptor.Query(query, null, Map.of()),
+                new ScheduledQueryDescriptor.Query(null, null, null, query, List.of(), Map.of(), null, null),
                 "/tmp/demo_viewport_weather_minutely.yml"
         );
 
@@ -158,6 +178,7 @@ class ScheduledQueryDispatchServiceTest {
         assertThat(request.teamId()).isNull();
         assertThat(request.chatId()).isNull();
         assertThat(request.message()).isEqualTo(query);
+        assertThat(request.role()).isEqualTo("user");
         assertThat(request.params()).containsOnlyKeys("__schedule");
     }
 
@@ -180,7 +201,7 @@ class ScheduledQueryDispatchServiceTest {
                     "demoViewport",
                     null,
                     new ScheduledQueryDescriptor.Environment("Asia/Shanghai"),
-                    new ScheduledQueryDescriptor.Query("hello", "123e4567-e89b-12d3-a456-426614174000", Map.of()),
+                    new ScheduledQueryDescriptor.Query(null, "123e4567-e89b-12d3-a456-426614174000", null, "hello", List.of(), Map.of(), null, null),
                     "/tmp/demo_viewport_weather_minutely.yml"
             );
 

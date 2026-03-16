@@ -1014,6 +1014,71 @@ class AgentControllerTest {
     }
 
     @Test
+    void chatReplayShouldOmitHiddenRequestQueryButKeepLiveSseAndRawMessages() throws Exception {
+        String message = "hidden query replay check";
+        FluxExchangeResult<String> result = webTestClient.post()
+                .uri("/api/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "agentKey", "demoModePlain",
+                        "message", message,
+                        "hidden", true
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(String.class);
+
+        List<String> chunks = result.getResponseBody()
+                .take(800)
+                .collectList()
+                .block(Duration.ofSeconds(8));
+        assertThat(chunks).isNotNull();
+
+        String joined = String.join("", chunks);
+        String chatId = extractFirstValue(joined, "chatId");
+        assertThat(chatId).isNotBlank();
+        assertThat(joined).contains("\"type\":\"request.query\"");
+        assertThat(joined).contains("\"hidden\":true");
+
+        Path historyPath = Path.of(chatWindowMemoryProperties.getDir()).resolve(chatId + ".json");
+        List<String> lines = Files.readAllLines(historyPath, StandardCharsets.UTF_8).stream()
+                .filter(line -> !line.isBlank())
+                .toList();
+        assertThat(lines).isNotEmpty();
+        Map<String, Object> queryLine = objectMapper.readValue(lines.getFirst(), new TypeReference<>() {
+        });
+        assertThat(queryLine).containsEntry("hidden", true);
+        Map<String, Object> nestedQuery = objectMapper.convertValue(queryLine.get("query"), new TypeReference<>() {
+        });
+        assertThat(nestedQuery).doesNotContainKey("hidden");
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/chat")
+                        .queryParam("chatId", chatId)
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.events[?(@.type=='request.query')]").doesNotExist()
+                .jsonPath("$.data.events[?(@.type=='run.start')]").exists()
+                .jsonPath("$.data.events[?(@.type=='content.snapshot')]").exists()
+                .jsonPath("$.data.events[?(@.type=='run.complete')]").exists();
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/chat")
+                        .queryParam("chatId", chatId)
+                        .queryParam("includeRawMessages", true)
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.rawMessages[0].role").isEqualTo("user")
+                .jsonPath("$.data.events[?(@.type=='request.query')]").doesNotExist();
+    }
+
+    @Test
     void chatReplayShouldNotContainDoneSentinel() {
         FluxExchangeResult<String> result = webTestClient.post()
                 .uri("/api/query")

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.team.TeamDescriptor;
 import com.linlay.agentplatform.team.TeamRegistryService;
 import org.slf4j.Logger;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -33,6 +35,17 @@ public class ScheduledQueryRegistryService {
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
     private static final String SUPPORTED_SUFFIX = ".yml";
+    private static final Set<String> SUPPORTED_QUERY_FIELDS = Set.of(
+            "requestId",
+            "chatId",
+            "role",
+            "message",
+            "references",
+            "params",
+            "scene",
+            "hidden"
+    );
+    private static final Set<String> DISALLOWED_QUERY_FIELDS = Set.of("agentKey", "teamId", "stream");
 
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
@@ -225,9 +238,19 @@ public class ScheduledQueryRegistryService {
             log.warn("Skip schedule '{}' with non-object query: {}", scheduleId, file);
             return Optional.empty();
         }
+        Optional<String> queryFieldError = validateQueryFields(queryNode);
+        if (queryFieldError.isPresent()) {
+            log.warn("Skip schedule '{}' with invalid query fields: {} ({})", scheduleId, queryFieldError.get(), file);
+            return Optional.empty();
+        }
         String queryMessage = readRequiredText(queryNode, "message");
         if (!StringUtils.hasText(queryMessage)) {
             log.warn("Skip schedule '{}' without query.message: {}", scheduleId, file);
+            return Optional.empty();
+        }
+        Optional<String> queryRequestId = readOptionalText(queryNode, "requestId");
+        if (queryRequestId.isEmpty() && queryNode.has("requestId") && !queryNode.get("requestId").isNull()) {
+            log.warn("Skip schedule '{}' with invalid query.requestId: {}", scheduleId, file);
             return Optional.empty();
         }
         String queryChatId = normalizeNullable(queryNode.path("chatId").asText(null));
@@ -239,9 +262,33 @@ public class ScheduledQueryRegistryService {
                 return Optional.empty();
             }
         }
+        Optional<String> queryRole = readOptionalText(queryNode, "role");
+        if (queryRole.isEmpty() && queryNode.has("role") && !queryNode.get("role").isNull()) {
+            log.warn("Skip schedule '{}' with invalid query.role: {}", scheduleId, file);
+            return Optional.empty();
+        }
+        Optional<List<QueryRequest.Reference>> references = parseReferences(queryNode.get("references"));
+        if (references.isEmpty()) {
+            log.warn("Skip schedule '{}' with invalid query.references: {}", scheduleId, file);
+            return Optional.empty();
+        }
         Optional<Map<String, Object>> params = parseParams(queryNode.get("params"));
         if (params.isEmpty()) {
             log.warn("Skip schedule '{}' with invalid query.params: {}", scheduleId, file);
+            return Optional.empty();
+        }
+        Optional<QueryRequest.Scene> scene = queryNode.has("scene")
+                ? parseScene(queryNode.get("scene"))
+                : Optional.of(new QueryRequest.Scene(null, null));
+        if (scene.isEmpty()) {
+            log.warn("Skip schedule '{}' with invalid query.scene: {}", scheduleId, file);
+            return Optional.empty();
+        }
+        Optional<Boolean> hidden = queryNode.has("hidden")
+                ? parseHidden(queryNode.get("hidden"))
+                : Optional.of(Boolean.FALSE);
+        if (hidden.isEmpty()) {
+            log.warn("Skip schedule '{}' with invalid query.hidden: {}", scheduleId, file);
             return Optional.empty();
         }
 
@@ -256,7 +303,16 @@ public class ScheduledQueryRegistryService {
                 agentKey,
                 teamId,
                 new ScheduledQueryDescriptor.Environment(zoneId),
-                new ScheduledQueryDescriptor.Query(queryMessage, queryChatId, params.orElse(Map.of())),
+                new ScheduledQueryDescriptor.Query(
+                        queryRequestId.orElse(null),
+                        queryChatId,
+                        queryRole.orElse(null),
+                        queryMessage,
+                        references.orElse(List.of()),
+                        params.orElse(Map.of()),
+                        normalizeScene(scene.orElse(null)),
+                        Boolean.TRUE.equals(hidden.orElse(Boolean.FALSE)) ? Boolean.TRUE : null
+                ),
                 file.toString()
         ));
     }
@@ -332,6 +388,83 @@ public class ScheduledQueryRegistryService {
         }
     }
 
+    private Optional<List<QueryRequest.Reference>> parseReferences(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return Optional.of(List.of());
+        }
+        if (!node.isArray()) {
+            return Optional.empty();
+        }
+        try {
+            List<QueryRequest.Reference> converted = objectMapper.convertValue(
+                    node,
+                    new TypeReference<List<QueryRequest.Reference>>() {
+                    }
+            );
+            return Optional.of(converted == null ? List.of() : List.copyOf(converted));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<QueryRequest.Scene> parseScene(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return Optional.ofNullable(null);
+        }
+        if (!node.isObject()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.ofNullable(objectMapper.convertValue(node, QueryRequest.Scene.class));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<Boolean> parseHidden(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return Optional.ofNullable(null);
+        }
+        if (!node.isBoolean()) {
+            return Optional.empty();
+        }
+        return Optional.of(node.booleanValue());
+    }
+
+    private Optional<String> validateQueryFields(JsonNode queryNode) {
+        if (queryNode == null || !queryNode.isObject()) {
+            return Optional.of("query must be an object");
+        }
+        var names = queryNode.fieldNames();
+        while (names.hasNext()) {
+            String field = names.next();
+            if (DISALLOWED_QUERY_FIELDS.contains(field)) {
+                if ("stream".equals(field)) {
+                    return Optional.of("query.stream is not supported");
+                }
+                return Optional.of("query." + field + " must not be provided; use the schedule top-level field instead");
+            }
+            if (!SUPPORTED_QUERY_FIELDS.contains(field)) {
+                return Optional.of("unsupported query field: " + field);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<String> readOptionalText(JsonNode root, String fieldName) {
+        if (root == null || fieldName == null || !root.has(fieldName)) {
+            return Optional.ofNullable(null);
+        }
+        JsonNode value = root.get(fieldName);
+        if (value == null || value.isNull()) {
+            return Optional.ofNullable(null);
+        }
+        if (!value.isTextual()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(normalizeNullable(value.asText(null)));
+    }
+
     private String readRequiredText(JsonNode root, String fieldName) {
         if (root == null || fieldName == null || !root.has(fieldName)) {
             return "";
@@ -352,6 +485,18 @@ public class ScheduledQueryRegistryService {
 
     private String normalize(String raw) {
         return raw == null ? "" : raw.trim();
+    }
+
+    private QueryRequest.Scene normalizeScene(QueryRequest.Scene scene) {
+        if (scene == null) {
+            return null;
+        }
+        String url = normalizeNullable(scene.url());
+        String title = normalizeNullable(scene.title());
+        if (url == null && title == null) {
+            return null;
+        }
+        return new QueryRequest.Scene(url, title);
     }
 
     private String normalizeNullable(String raw) {

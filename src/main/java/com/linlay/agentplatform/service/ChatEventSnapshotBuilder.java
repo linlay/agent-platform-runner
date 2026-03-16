@@ -53,7 +53,9 @@ final class ChatEventSnapshotBuilder {
 
             Map<String, Object> requestQueryPayload = buildRequestQueryPayload(chatId, run);
             String runAgentKey = requireRunStartAgentKey(chatId, run.runId(), requestQueryPayload.get("agentKey"), boundAgentKey);
-            events.add(event("request.query", timestampCursor, seq++, requestQueryPayload));
+            if (!run.hidden()) {
+                events.add(event("request.query", timestampCursor, seq++, requestQueryPayload));
+            }
 
             if (!emittedChatStart) {
                 timestampCursor = normalizeEventTimestamp(timestampCursor + 1, timestampCursor);
@@ -243,6 +245,9 @@ final class ChatEventSnapshotBuilder {
         putIfNonNull(payload, "params", query.get("params"));
         putIfNonNull(payload, "scene", query.get("scene"));
         putIfNonNull(payload, "stream", query.get("stream"));
+        if (run.hidden()) {
+            payload.put("hidden", true);
+        }
         return payload;
     }
 

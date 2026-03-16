@@ -45,7 +45,7 @@ class ScheduledQueryOrchestratorTest {
                     "demoModePlain",
                     null,
                     new ScheduledQueryDescriptor.Environment(null),
-                    new ScheduledQueryDescriptor.Query("hello", null, Map.of()),
+                    new ScheduledQueryDescriptor.Query(null, null, null, "hello", java.util.List.of(), Map.of(), null, null),
                     "/tmp/daily.yml"
             );
             when(registryService.snapshot()).thenReturn(Map.of("daily", descriptor)).thenReturn(Map.of("daily", descriptor)).thenReturn(Map.of());
@@ -125,9 +125,14 @@ class ScheduledQueryOrchestratorTest {
                     "a1b2c3d4e5f6",
                     new ScheduledQueryDescriptor.Environment("Asia/Shanghai"),
                     new ScheduledQueryDescriptor.Query(
-                            "请从以下城市中随机选择一个：北京、深圳、大连、广州、上海、纽约、巴黎、东京。",
                             null,
-                            Map.of()
+                            null,
+                            null,
+                            "请从以下城市中随机选择一个：北京、深圳、大连、广州、上海、纽约、巴黎、东京。",
+                            java.util.List.of(),
+                            Map.of(),
+                            null,
+                            null
                     ),
                     "/tmp/demo_viewport_weather_minutely.yml"
             );

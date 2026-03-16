@@ -7,3 +7,4 @@ environment:
   zoneId: Asia/Shanghai
 query:
   message: 请总结今天需要关注的三件事，并给出简短建议。
+  hidden: true

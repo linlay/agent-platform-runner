@@ -34,6 +34,7 @@ react:
     query:
       message: 请执行本次计划任务
       chatId: 123e4567-e89b-12d3-a456-426614174000
+      hidden: true
     ```
 
     常见最小示例如下：
@@ -54,7 +55,9 @@ react:
     agentKey 必填，默认优先直接写 agentKey。
     teamId 用于 team 范围执行，此时 agentKey 选择该 team 内的 agent。
     environment 用来放 `zoneId`。
-    query 写成对象，其中 `message` 必填；`chatId` 用于继续固定会话，使用 UUID；`params` 仅在确有额外参数时填写。
+    query 写成对象，其中 `message` 必填；还可按需填写 `requestId`、`chatId`、`role`、`references`、`params`、`scene`、`hidden`。
+    `chatId` 用于继续固定会话，使用 UUID；`hidden: true` 表示 chat replay 不返回该次 request.query。
+    不要写 `query.stream`，也不要把 `agentKey` / `teamId` 放进 query。
     没有值的可选字段可以省略。
 
     工作方式：

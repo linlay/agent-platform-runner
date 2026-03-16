@@ -8,6 +8,7 @@ import java.util.Map;
 record ChatHistoryRunSnapshot(
         String runId,
         long updatedAt,
+        boolean hidden,
         Map<String, Object> query,
         ChatMemoryTypes.SystemSnapshot system,
         ChatMemoryTypes.PlanSnapshot plan,

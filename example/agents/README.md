@@ -32,7 +32,7 @@ modelConfig:
 
 ## 附带示例
 
-- `demoScheduleManager`：计划任务管理示例（REACT + `_bash_`），用于维护 `schedules/*.yml`，按“渐进式披露阅读”读取文件头，并按结构化 schedule 契约写入 `environment.zoneId` 和 `query.message/query.chatId`。
+- `demoScheduleManager`：计划任务管理示例（REACT + `_bash_`），用于维护 `schedules/*.yml`，按“渐进式披露阅读”读取文件头，并按结构化 schedule 契约写入 `environment.zoneId` 和 `query` 支持字段（如 `message/chatId/hidden`）。
 - `demoImageGenerator`：图像生成示例（REACT + `image.generate/image.edit/image.import`），用于通过 `mcp-server-image` 在当前 chat 目录中生成、导入和编辑图片。
 
 ## 与外层目录关系
