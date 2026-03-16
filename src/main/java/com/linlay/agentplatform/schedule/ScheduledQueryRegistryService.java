@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.linlay.agentplatform.team.TeamDescriptor;
+import com.linlay.agentplatform.team.TeamRegistryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.DependsOn;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 @Service
@@ -34,17 +37,20 @@ public class ScheduledQueryRegistryService {
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final ScheduleProperties properties;
+    private final TeamRegistryService teamRegistryService;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, ScheduledQueryDescriptor> byId = Map.of();
 
     public ScheduledQueryRegistryService(
             ObjectMapper objectMapper,
-            ScheduleProperties properties
+            ScheduleProperties properties,
+            TeamRegistryService teamRegistryService
     ) {
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.properties = properties;
+        this.teamRegistryService = teamRegistryService;
         refreshSchedules();
     }
 
@@ -137,6 +143,15 @@ public class ScheduledQueryRegistryService {
             return Optional.empty();
         }
 
+        if (root.has("zoneId")) {
+            log.warn("Skip schedule '{}' with legacy top-level zoneId: {}", scheduleId, file);
+            return Optional.empty();
+        }
+        if (root.has("params")) {
+            log.warn("Skip schedule '{}' with legacy top-level params: {}", scheduleId, file);
+            return Optional.empty();
+        }
+
         String cron = normalize(root.path("cron").asText(""));
         if (!StringUtils.hasText(cron)) {
             log.warn("Skip schedule '{}' without cron: {}", scheduleId, file);
@@ -159,31 +174,78 @@ public class ScheduledQueryRegistryService {
             return Optional.empty();
         }
 
-        String query = readRequiredText(root, "query");
-        if (!StringUtils.hasText(query)) {
-            log.warn("Skip schedule '{}' without query: {}", scheduleId, file);
+        String agentKey = readRequiredText(root, "agentKey");
+        if (!StringUtils.hasText(agentKey)) {
+            log.warn("Skip schedule '{}' without agentKey: {}", scheduleId, file);
             return Optional.empty();
         }
 
-        String agentKey = normalizeNullable(root.path("agentKey").asText(null));
         String teamId = normalizeNullable(root.path("teamId").asText(null));
-        if (!StringUtils.hasText(agentKey) && !StringUtils.hasText(teamId)) {
-            log.warn("Skip schedule '{}' without agentKey/teamId: {}", scheduleId, file);
-            return Optional.empty();
-        }
-
-        String zoneId = normalizeNullable(root.path("zoneId").asText(null));
-        if (StringUtils.hasText(zoneId)) {
-            try {
-                java.time.ZoneId.of(zoneId);
-            } catch (Exception ex) {
-                log.warn("Skip schedule '{}' with invalid zoneId '{}': {}", scheduleId, zoneId, file);
+        if (StringUtils.hasText(teamId)) {
+            TeamDescriptor team = teamRegistryService.find(teamId).orElse(null);
+            if (team == null) {
+                log.warn("Skip schedule '{}' with missing teamId '{}': {}", scheduleId, teamId, file);
+                return Optional.empty();
+            }
+            boolean belongsToTeam = team.agentKeys().stream()
+                    .anyMatch(agent -> agentKey.equals(agent));
+            if (!belongsToTeam) {
+                log.warn(
+                        "Skip schedule '{}' because agentKey '{}' is not in team '{}': {}",
+                        scheduleId,
+                        agentKey,
+                        team.id(),
+                        file
+                );
                 return Optional.empty();
             }
         }
 
+        JsonNode environmentNode = root.get("environment");
+        if (environmentNode != null && !environmentNode.isObject()) {
+            log.warn("Skip schedule '{}' with non-object environment: {}", scheduleId, file);
+            return Optional.empty();
+        }
+        String zoneId = environmentNode == null ? null : normalizeNullable(environmentNode.path("zoneId").asText(null));
+        if (StringUtils.hasText(zoneId)) {
+            try {
+                java.time.ZoneId.of(zoneId);
+            } catch (Exception ex) {
+                log.warn("Skip schedule '{}' with invalid environment.zoneId '{}': {}", scheduleId, zoneId, file);
+                return Optional.empty();
+            }
+        }
+
+        JsonNode queryNode = root.get("query");
+        if (queryNode == null || queryNode.isNull()) {
+            log.warn("Skip schedule '{}' without query object: {}", scheduleId, file);
+            return Optional.empty();
+        }
+        if (!queryNode.isObject()) {
+            log.warn("Skip schedule '{}' with non-object query: {}", scheduleId, file);
+            return Optional.empty();
+        }
+        String queryMessage = readRequiredText(queryNode, "message");
+        if (!StringUtils.hasText(queryMessage)) {
+            log.warn("Skip schedule '{}' without query.message: {}", scheduleId, file);
+            return Optional.empty();
+        }
+        String queryChatId = normalizeNullable(queryNode.path("chatId").asText(null));
+        if (StringUtils.hasText(queryChatId)) {
+            try {
+                queryChatId = UUID.fromString(queryChatId).toString();
+            } catch (IllegalArgumentException ex) {
+                log.warn("Skip schedule '{}' with invalid query.chatId '{}': {}", scheduleId, queryChatId, file);
+                return Optional.empty();
+            }
+        }
+        Optional<Map<String, Object>> params = parseParams(queryNode.get("params"));
+        if (params.isEmpty()) {
+            log.warn("Skip schedule '{}' with invalid query.params: {}", scheduleId, file);
+            return Optional.empty();
+        }
+
         boolean enabled = !root.has("enabled") || root.path("enabled").asBoolean(true);
-        Map<String, Object> params = parseParams(root.get("params"));
 
         return Optional.of(new ScheduledQueryDescriptor(
                 scheduleId,
@@ -191,11 +253,10 @@ public class ScheduledQueryRegistryService {
                 description,
                 enabled,
                 cron,
-                zoneId,
                 agentKey,
                 teamId,
-                query,
-                params,
+                new ScheduledQueryDescriptor.Environment(zoneId),
+                new ScheduledQueryDescriptor.Query(queryMessage, queryChatId, params.orElse(Map.of())),
                 file.toString()
         ));
     }
@@ -253,21 +314,21 @@ public class ScheduledQueryRegistryService {
         return Optional.empty();
     }
 
-    private Map<String, Object> parseParams(JsonNode node) {
+    private Optional<Map<String, Object>> parseParams(JsonNode node) {
         if (node == null || node.isNull()) {
-            return Map.of();
+            return Optional.of(Map.of());
         }
         if (!node.isObject()) {
-            return Map.of();
+            return Optional.empty();
         }
         try {
             Map<String, Object> converted = objectMapper.convertValue(node, MAP_TYPE);
             if (converted == null || converted.isEmpty()) {
-                return Map.of();
+                return Optional.of(Map.of());
             }
-            return Map.copyOf(new LinkedHashMap<>(converted));
+            return Optional.of(Map.copyOf(new LinkedHashMap<>(converted)));
         } catch (IllegalArgumentException ex) {
-            return Map.of();
+            return Optional.empty();
         }
     }
 

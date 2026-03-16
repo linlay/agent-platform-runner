@@ -2,6 +2,8 @@ name: 分钟天气视图播报
 description: 每分钟触发一次 demoViewport，随机选择一个城市查询天气并尽量输出 viewport
 enabled: true
 cron: "0 * * * * *"
-zoneId: Asia/Shanghai
 agentKey: demoViewport
-query: 请从以下城市中选择：北京、深圳、大连、广州、上海、纽约、巴黎、东京，必须随机选择一个。调用天气工具查询该城市当前天气。
+environment:
+  zoneId: Asia/Shanghai
+query:
+  message: 请从以下城市中选择：北京、深圳、大连、广州、上海、纽约、巴黎、东京，必须随机选择一个。调用天气工具查询该城市当前天气。

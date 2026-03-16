@@ -93,7 +93,8 @@ public class ScheduledQueryOrchestrator implements DisposableBean {
     }
 
     private void schedule(ScheduledQueryDescriptor descriptor) {
-        ZoneId zoneId = resolveZoneId(descriptor.zoneId(), properties.getDefaultZoneId());
+        String preferredZoneId = descriptor.environment() == null ? null : descriptor.environment().zoneId();
+        ZoneId zoneId = resolveZoneId(preferredZoneId, properties.getDefaultZoneId());
         CronTrigger trigger = new CronTrigger(descriptor.cron(), zoneId);
         ScheduledFuture<?> future = taskScheduler.schedule(
                 () -> dispatchService.dispatch(descriptor),

@@ -23,7 +23,7 @@ agentKeys:
 
 1. 新建 `<team-id>.yml`。
 2. 在 `agentKeys` 中填写已存在的 agent key。
-3. 可选设置 `defaultAgentKey`，用于计划任务仅配置 `teamId` 时选择默认执行智能体。
+3. 可选设置 `defaultAgentKey`，用于 team 自身的默认执行语义；schedule 仍需显式填写 `agentKey`。
 4. 执行示例安装脚本同步到外层 `teams/`。
 
 ## 与外层目录关系

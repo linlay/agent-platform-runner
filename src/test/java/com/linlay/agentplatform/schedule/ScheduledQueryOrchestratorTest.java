@@ -36,11 +36,10 @@ class ScheduledQueryOrchestratorTest {
                 "每天早上汇总一次",
                 true,
                 "0 0 9 * * *",
-                null,
                 "demoModePlain",
                 null,
-                "hello",
-                Map.of(),
+                new ScheduledQueryDescriptor.Environment(null),
+                new ScheduledQueryDescriptor.Query("hello", null, Map.of()),
                 "/tmp/daily.yml"
         );
         when(registryService.snapshot()).thenReturn(Map.of("daily", descriptor)).thenReturn(Map.of("daily", descriptor)).thenReturn(Map.of());
@@ -97,11 +96,14 @@ class ScheduledQueryOrchestratorTest {
                 "每分钟触发一次天气视图查询",
                 true,
                 "0 * * * * *",
-                "Asia/Shanghai",
                 "demoViewport",
                 null,
-                "请从以下城市中随机选择一个：北京、深圳、大连、广州、上海、纽约、巴黎、东京。",
-                Map.of(),
+                new ScheduledQueryDescriptor.Environment("Asia/Shanghai"),
+                new ScheduledQueryDescriptor.Query(
+                        "请从以下城市中随机选择一个：北京、深圳、大连、广州、上海、纽约、巴黎、东京。",
+                        null,
+                        Map.of()
+                ),
                 "/tmp/demo_viewport_weather_minutely.yml"
         );
         when(registryService.snapshot()).thenReturn(Map.of(descriptor.id(), descriptor));

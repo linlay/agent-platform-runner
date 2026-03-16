@@ -16,9 +16,12 @@
   - 第 1 行：`name: ...`
   - 第 2 行：`description: ...`
 - `description` 必须为单行，不支持 `|` / `>` 多行写法
-- 必填：`name`、`description`、`cron`、`query`
-- 目标：`agentKey` 或 `teamId` 至少一个
-- 可选：`enabled`、`zoneId`、`params`
+- 必填：`name`、`description`、`cron`、`agentKey`、`query.message`
+- `query` 必须是对象，不能再写成顶层字符串
+- `teamId` 可选；若填写，`agentKey` 必须属于该 team
+- `environment.zoneId` 可选；不再支持顶层 `zoneId`
+- `query.chatId` 可选；表示继续固定会话，必须是 UUID
+- `query.params` 可选；默认示例中不写
 
 ## 附带示例
 
@@ -32,7 +35,10 @@ name: 每日摘要
 description: 每天上午九点触发一次今日待办摘要
 cron: "0 0 9 * * *"
 agentKey: demoModePlain
-query: 请输出今天待办摘要
+environment:
+  zoneId: Asia/Shanghai
+query:
+  message: 请输出今天待办摘要
 ```
 
 ## 与外层目录关系

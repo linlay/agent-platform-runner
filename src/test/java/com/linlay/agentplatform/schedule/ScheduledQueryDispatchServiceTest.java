@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 class ScheduledQueryDispatchServiceTest {
 
     @Test
-    void shouldResolveTeamDefaultAgentAndDispatchQuery() {
+    void shouldDispatchTeamScopedAgentWithChatIdAndParams() {
         AgentQueryService agentQueryService = mock(AgentQueryService.class);
         TeamRegistryService teamRegistryService = mock(TeamRegistryService.class);
         ScheduledQueryDispatchService service = new ScheduledQueryDispatchService(agentQueryService, teamRegistryService);
@@ -65,11 +65,14 @@ class ScheduledQueryDispatchServiceTest {
                 "每天早上汇总一次",
                 true,
                 "0 0 9 * * *",
-                null,
-                null,
+                "demoModeReact",
                 "a1b2c3d4e5f6",
-                "hello",
-                Map.of("x", 1),
+                new ScheduledQueryDescriptor.Environment("Asia/Shanghai"),
+                new ScheduledQueryDescriptor.Query(
+                        "hello",
+                        "123e4567-e89b-12d3-a456-426614174000",
+                        Map.of("x", 1)
+                ),
                 "/tmp/daily.yml"
         );
         service.dispatch(descriptor);
@@ -81,6 +84,7 @@ class ScheduledQueryDispatchServiceTest {
         QueryRequest request = requestCaptor.getValue();
         assertThat(request.agentKey()).isEqualTo("demoModeReact");
         assertThat(request.teamId()).isEqualTo("a1b2c3d4e5f6");
+        assertThat(request.chatId()).isEqualTo("123e4567-e89b-12d3-a456-426614174000");
         assertThat(request.message()).isEqualTo("hello");
         assertThat(request.stream()).isFalse();
         assertThat(request.params()).containsEntry("x", 1);
@@ -124,11 +128,10 @@ class ScheduledQueryDispatchServiceTest {
                 "每分钟触发一次天气视图查询",
                 true,
                 "0 * * * * *",
-                "Asia/Shanghai",
                 "demoViewport",
                 null,
-                query,
-                Map.of("source", "built-in"),
+                new ScheduledQueryDescriptor.Environment("Asia/Shanghai"),
+                new ScheduledQueryDescriptor.Query(query, null, Map.of()),
                 "/tmp/demo_viewport_weather_minutely.yml"
         );
 
@@ -139,8 +142,8 @@ class ScheduledQueryDispatchServiceTest {
         QueryRequest request = requestCaptor.getValue();
         assertThat(request.agentKey()).isEqualTo("demoViewport");
         assertThat(request.teamId()).isNull();
+        assertThat(request.chatId()).isNull();
         assertThat(request.message()).isEqualTo(query);
-        assertThat(request.params()).containsEntry("source", "built-in");
-        assertThat(request.params()).containsKey("__schedule");
+        assertThat(request.params()).containsOnlyKeys("__schedule");
     }
 }

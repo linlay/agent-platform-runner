@@ -68,7 +68,9 @@ class RuntimeResourceSyncServiceTest {
         assertThat(syncedSkill).contains("name: \"math_basic\"");
         assertThat(syncedSchedule).contains("name: 内置占位计划任务")
                 .contains("description: 预留内置计划任务同步链路的占位任务，默认禁用")
-                .contains("cron: \"0 0 0 * * *\"");
+                .contains("cron: \"0 0 0 * * *\"")
+                .contains("environment:")
+                .contains("query:");
         assertThat(skillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
         assertThat(skillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
         assertThat(skillsDir.resolve("text_utils").resolve("SKILL.md")).exists();

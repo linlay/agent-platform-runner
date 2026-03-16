@@ -8,14 +8,29 @@ public record ScheduledQueryDescriptor(
         String description,
         boolean enabled,
         String cron,
-        String zoneId,
         String agentKey,
         String teamId,
-        String query,
-        Map<String, Object> params,
+        Environment environment,
+        Query query,
         String sourceFile
 ) {
     public ScheduledQueryDescriptor {
-        params = params == null ? Map.of() : Map.copyOf(params);
+        environment = environment == null ? new Environment(null) : environment;
+        query = query == null ? new Query(null, null, Map.of()) : query;
+    }
+
+    public record Environment(
+            String zoneId
+    ) {
+    }
+
+    public record Query(
+            String message,
+            String chatId,
+            Map<String, Object> params
+    ) {
+        public Query {
+            params = params == null ? Map.of() : Map.copyOf(params);
+        }
     }
 }

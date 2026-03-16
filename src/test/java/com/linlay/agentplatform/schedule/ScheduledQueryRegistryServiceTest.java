@@ -1,13 +1,19 @@
 package com.linlay.agentplatform.schedule;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.team.TeamDescriptor;
+import com.linlay.agentplatform.team.TeamRegistryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ScheduledQueryRegistryServiceTest {
 
@@ -15,21 +21,23 @@ class ScheduledQueryRegistryServiceTest {
     Path tempDir;
 
     @Test
-    void shouldLoadValidScheduleFile() throws Exception {
+    void shouldLoadValidStructuredScheduleFile() throws Exception {
         Files.writeString(tempDir.resolve("daily.yml"), """
                 name: 每日摘要
                 description: 每天早上 9 点执行一次摘要查询
                 enabled: true
                 cron: "0 0 9 * * *"
                 agentKey: demoModePlain
-                query: ping
-                params:
-                  k: v
+                environment:
+                  zoneId: Asia/Shanghai
+                query:
+                  message: ping
+                  chatId: 123e4567-e89b-12d3-a456-426614174000
+                  params:
+                    k: v
                 """);
 
-        ScheduleProperties properties = new ScheduleProperties();
-        properties.setExternalDir(tempDir.toString());
-        ScheduledQueryRegistryService service = new ScheduledQueryRegistryService(new ObjectMapper(), properties);
+        ScheduledQueryRegistryService service = newService(mock(TeamRegistryService.class));
 
         ScheduledQueryDescriptor descriptor = service.find("daily").orElseThrow();
         assertThat(descriptor.id()).isEqualTo("daily");
@@ -39,68 +47,139 @@ class ScheduledQueryRegistryServiceTest {
         assertThat(descriptor.cron()).isEqualTo("0 0 9 * * *");
         assertThat(descriptor.agentKey()).isEqualTo("demoModePlain");
         assertThat(descriptor.teamId()).isNull();
-        assertThat(descriptor.query()).isEqualTo("ping");
-        assertThat(descriptor.params()).containsEntry("k", "v");
+        assertThat(descriptor.environment().zoneId()).isEqualTo("Asia/Shanghai");
+        assertThat(descriptor.query().message()).isEqualTo("ping");
+        assertThat(descriptor.query().chatId()).isEqualTo("123e4567-e89b-12d3-a456-426614174000");
+        assertThat(descriptor.query().params()).containsEntry("k", "v");
     }
 
     @Test
-    void shouldSkipInvalidCronOrMissingTarget() throws Exception {
-        Files.writeString(tempDir.resolve("invalid-cron.yml"), """
-                name: Invalid Cron
-                description: cron 非法
-                cron: "invalid cron"
-                agentKey: demoModePlain
-                query: ping
-                """);
-        Files.writeString(tempDir.resolve("missing-target.yml"), """
-                name: Missing Target
-                description: 缺少执行目标
-                cron: "0 0 9 * * *"
-                query: ping
-                """);
-
-        ScheduleProperties properties = new ScheduleProperties();
-        properties.setExternalDir(tempDir.toString());
-        ScheduledQueryRegistryService service = new ScheduledQueryRegistryService(new ObjectMapper(), properties);
-
-        assertThat(service.list()).isEmpty();
-    }
-
-    @Test
-    void shouldLoadViewportWeatherMinutelyExample() throws Exception {
+    void shouldLoadViewportWeatherScheduleWithoutOptionalQueryFields() throws Exception {
         Files.writeString(tempDir.resolve("demo_viewport_weather_minutely.yml"), """
                 name: 分钟天气视图播报
                 description: 每分钟触发 demoViewport 查询随机城市天气
                 enabled: true
                 cron: "0 * * * * *"
-                zoneId: Asia/Shanghai
                 agentKey: demoViewport
-                query: 请从以下城市中随机选择一个：北京、深圳、大连、广州、上海、纽约、巴黎、东京。调用天气工具查询该城市当前天气；如果工具返回了可用的 viewport 结果，请按约定输出 viewport 视图块。
+                environment:
+                  zoneId: Asia/Shanghai
+                query:
+                  message: 请从以下城市中随机选择一个：北京、深圳、大连、广州、上海、纽约、巴黎、东京。调用天气工具查询该城市当前天气；如果工具返回了可用的 viewport 结果，请按约定输出 viewport 视图块。
                 """);
 
-        ScheduleProperties properties = new ScheduleProperties();
-        properties.setExternalDir(tempDir.toString());
-        ScheduledQueryRegistryService service = new ScheduledQueryRegistryService(new ObjectMapper(), properties);
+        ScheduledQueryRegistryService service = newService(mock(TeamRegistryService.class));
 
         ScheduledQueryDescriptor descriptor = service.find("demo_viewport_weather_minutely").orElseThrow();
-        assertThat(descriptor.name()).isEqualTo("分钟天气视图播报");
-        assertThat(descriptor.description()).isEqualTo("每分钟触发 demoViewport 查询随机城市天气");
         assertThat(descriptor.enabled()).isTrue();
-        assertThat(descriptor.cron()).isEqualTo("0 * * * * *");
-        assertThat(descriptor.zoneId()).isEqualTo("Asia/Shanghai");
-        assertThat(descriptor.agentKey()).isEqualTo("demoViewport");
-        assertThat(descriptor.query()).contains("北京").contains("东京").contains("viewport");
+        assertThat(descriptor.environment().zoneId()).isEqualTo("Asia/Shanghai");
+        assertThat(descriptor.query().message()).contains("北京").contains("东京").contains("viewport");
+        assertThat(descriptor.query().chatId()).isNull();
+        assertThat(descriptor.query().params()).isEmpty();
+    }
+
+    @Test
+    void shouldRejectLegacyFlatFormatAndMissingStructuredFields() throws Exception {
+        Files.writeString(tempDir.resolve("legacy-flat.yml"), """
+                name: Legacy
+                description: 旧格式
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                zoneId: Asia/Shanghai
+                query: ping
+                """);
+        Files.writeString(tempDir.resolve("missing-query-message.yml"), """
+                name: Missing Query Message
+                description: query.message 缺失
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                query:
+                  chatId: 123e4567-e89b-12d3-a456-426614174000
+                """);
+        Files.writeString(tempDir.resolve("invalid-chat-id.yml"), """
+                name: Invalid Chat Id
+                description: chatId 非法
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                query:
+                  message: ping
+                  chatId: not-a-uuid
+                """);
+        Files.writeString(tempDir.resolve("invalid-zone.yml"), """
+                name: Invalid Zone
+                description: zoneId 非法
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                environment:
+                  zoneId: Mars/Base
+                query:
+                  message: ping
+                """);
+        Files.writeString(tempDir.resolve("team-only.yml"), """
+                name: Team Only
+                description: 仅 teamId
+                cron: "0 0 9 * * *"
+                teamId: a1b2c3d4e5f6
+                query:
+                  message: ping
+                """);
+
+        TeamRegistryService teamRegistryService = mock(TeamRegistryService.class);
+        when(teamRegistryService.find("a1b2c3d4e5f6")).thenReturn(Optional.of(new TeamDescriptor(
+                "a1b2c3d4e5f6",
+                "Default Team",
+                List.of("demoModeReact"),
+                "demoModeReact",
+                "/tmp/team.yml"
+        )));
+
+        ScheduledQueryRegistryService service = newService(teamRegistryService);
+
+        assertThat(service.list()).isEmpty();
+    }
+
+    @Test
+    void shouldRejectUnknownOrMismatchedTeamScopedAgent() throws Exception {
+        Files.writeString(tempDir.resolve("missing-team.yml"), """
+                name: Missing Team
+                description: team 不存在
+                cron: "0 0 9 * * *"
+                agentKey: demoModeReact
+                teamId: deadbeefcafe
+                query:
+                  message: ping
+                """);
+        Files.writeString(tempDir.resolve("team-mismatch.yml"), """
+                name: Team Mismatch
+                description: agent 不属于 team
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                teamId: a1b2c3d4e5f6
+                query:
+                  message: ping
+                """);
+
+        TeamRegistryService teamRegistryService = mock(TeamRegistryService.class);
+        when(teamRegistryService.find("a1b2c3d4e5f6")).thenReturn(Optional.of(new TeamDescriptor(
+                "a1b2c3d4e5f6",
+                "Default Team",
+                List.of("demoModeReact"),
+                "demoModeReact",
+                "/tmp/team.yml"
+        )));
+        when(teamRegistryService.find("deadbeefcafe")).thenReturn(Optional.empty());
+
+        ScheduledQueryRegistryService service = newService(teamRegistryService);
+
+        assertThat(service.list()).isEmpty();
     }
 
     @Test
     void shouldIgnoreLegacyJsonFiles() throws Exception {
         Files.writeString(tempDir.resolve("legacy.json"), """
-                {"name":"legacy","description":"legacy","cron":"0 0 9 * * *","agentKey":"demo","query":"ping"}
+                {"name":"legacy","description":"legacy","cron":"0 0 9 * * *","agentKey":"demo","query":{"message":"ping"}}
                 """);
 
-        ScheduleProperties properties = new ScheduleProperties();
-        properties.setExternalDir(tempDir.toString());
-        ScheduledQueryRegistryService service = new ScheduledQueryRegistryService(new ObjectMapper(), properties);
+        ScheduledQueryRegistryService service = newService(mock(TeamRegistryService.class));
 
         assertThat(service.list()).isEmpty();
     }
@@ -112,29 +191,36 @@ class ScheduledQueryRegistryServiceTest {
                 name: Bad
                 description: 有空行前缀
                 cron: "0 0 9 * * *"
-                agentKey: demo
-                query: ping
+                agentKey: demoModePlain
+                query:
+                  message: ping
                 """);
         Files.writeString(tempDir.resolve("wrong-order.yml"), """
                 description: 先写了描述
                 name: Wrong Order
                 cron: "0 0 9 * * *"
-                agentKey: demo
-                query: ping
+                agentKey: demoModePlain
+                query:
+                  message: ping
                 """);
         Files.writeString(tempDir.resolve("multi-line-description.yml"), """
                 name: Multi Line
                 description: |
                   不支持
                 cron: "0 0 9 * * *"
-                agentKey: demo
-                query: ping
+                agentKey: demoModePlain
+                query:
+                  message: ping
                 """);
 
-        ScheduleProperties properties = new ScheduleProperties();
-        properties.setExternalDir(tempDir.toString());
-        ScheduledQueryRegistryService service = new ScheduledQueryRegistryService(new ObjectMapper(), properties);
+        ScheduledQueryRegistryService service = newService(mock(TeamRegistryService.class));
 
         assertThat(service.list()).isEmpty();
+    }
+
+    private ScheduledQueryRegistryService newService(TeamRegistryService teamRegistryService) {
+        ScheduleProperties properties = new ScheduleProperties();
+        properties.setExternalDir(tempDir.toString());
+        return new ScheduledQueryRegistryService(new ObjectMapper(), properties, teamRegistryService);
     }
 }

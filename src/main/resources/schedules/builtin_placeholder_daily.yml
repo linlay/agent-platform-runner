@@ -2,8 +2,8 @@ name: 内置占位计划任务
 description: 预留内置计划任务同步链路的占位任务，默认禁用
 enabled: false
 cron: "0 0 0 * * *"
-zoneId: Asia/Shanghai
 agentKey: demoModePlain
-query: 这是一个内置占位计划任务，仅用于保留 schedules 资源同步能力，请忽略。
-params:
-  source: builtin-placeholder
+environment:
+  zoneId: Asia/Shanghai
+query:
+  message: 这是一个内置占位计划任务，仅用于保留 schedules 资源同步能力，请忽略。

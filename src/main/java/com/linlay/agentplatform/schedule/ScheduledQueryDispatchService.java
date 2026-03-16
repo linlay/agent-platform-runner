@@ -14,7 +14,6 @@ import reactor.core.publisher.Flux;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class ScheduledQueryDispatchService {
@@ -43,8 +42,8 @@ public class ScheduledQueryDispatchService {
         }
 
         Map<String, Object> params = new LinkedHashMap<>();
-        if (descriptor.params() != null && !descriptor.params().isEmpty()) {
-            params.putAll(descriptor.params());
+        if (descriptor.query() != null && descriptor.query().params() != null && !descriptor.query().params().isEmpty()) {
+            params.putAll(descriptor.query().params());
         }
         params.put("__schedule", Map.of(
                 "scheduleId", descriptor.id(),
@@ -56,11 +55,11 @@ public class ScheduledQueryDispatchService {
 
         QueryRequest request = new QueryRequest(
                 null,
-                UUID.randomUUID().toString(),
+                descriptor.query() == null ? null : descriptor.query().chatId(),
                 target.agentKey(),
                 target.teamId(),
                 "user",
-                descriptor.query(),
+                descriptor.query() == null ? null : descriptor.query().message(),
                 null,
                 params,
                 null,
@@ -94,38 +93,28 @@ public class ScheduledQueryDispatchService {
         String teamId = normalizeNullable(descriptor.teamId());
         String agentKey = normalizeNullable(descriptor.agentKey());
         if (StringUtils.hasText(agentKey)) {
+            if (!StringUtils.hasText(teamId)) {
+                return Optional.of(new DispatchTarget(agentKey, null));
+            }
+            TeamDescriptor team = teamRegistryService.find(teamId).orElse(null);
+            if (team == null) {
+                log.warn("Skip scheduled query '{}' due to missing teamId={}", descriptor.id(), teamId);
+                return Optional.empty();
+            }
+            boolean existsInTeam = team.agentKeys().stream().anyMatch(agentKey::equals);
+            if (!existsInTeam) {
+                log.warn(
+                        "Skip scheduled query '{}' because agentKey '{}' is not in team '{}'",
+                        descriptor.id(),
+                        agentKey,
+                        team.id()
+                );
+                return Optional.empty();
+            }
             return Optional.of(new DispatchTarget(agentKey, teamId));
         }
-        if (!StringUtils.hasText(teamId)) {
-            log.warn("Skip scheduled query '{}' due to missing target", descriptor.id());
-            return Optional.empty();
-        }
-
-        TeamDescriptor team = teamRegistryService.find(teamId).orElse(null);
-        if (team == null) {
-            log.warn("Skip scheduled query '{}' due to missing teamId={}", descriptor.id(), teamId);
-            return Optional.empty();
-        }
-        String defaultAgentKey = normalizeNullable(team.defaultAgentKey());
-        if (!StringUtils.hasText(defaultAgentKey)) {
-            log.warn(
-                    "Skip scheduled query '{}' because team '{}' has no defaultAgentKey",
-                    descriptor.id(),
-                    team.id()
-            );
-            return Optional.empty();
-        }
-        boolean existsInTeam = team.agentKeys().stream().anyMatch(defaultAgentKey::equals);
-        if (!existsInTeam) {
-            log.warn(
-                    "Skip scheduled query '{}' because team '{}' defaultAgentKey '{}' is not in agentKeys",
-                    descriptor.id(),
-                    team.id(),
-                    defaultAgentKey
-            );
-            return Optional.empty();
-        }
-        return Optional.of(new DispatchTarget(defaultAgentKey, team.id()));
+        log.warn("Skip scheduled query '{}' due to missing agentKey", descriptor.id());
+        return Optional.empty();
     }
 
     private String normalizeNullable(String raw) {
