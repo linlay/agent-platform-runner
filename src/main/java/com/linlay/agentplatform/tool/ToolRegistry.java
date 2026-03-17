@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.service.McpToolSyncService;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
@@ -25,37 +26,71 @@ import java.util.stream.Collectors;
 public class ToolRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(ToolRegistry.class);
+    private static final String CONTAINER_HUB_TOOL_NAME = "container_hub_bash";
 
     private final Map<String, BaseTool> nativeToolsByName;
     private final ToolFileRegistryService toolFileRegistryService;
     private final McpToolSyncService mcpToolSyncService;
+    private final ContainerHubToolProperties containerHubToolProperties;
     private final Set<String> missingBackendWarnings = ConcurrentHashMap.newKeySet();
     private final Set<String> localPriorityConflictWarnings = ConcurrentHashMap.newKeySet();
 
     public ToolRegistry(List<BaseTool> tools) {
-        this.nativeToolsByName = buildNativeToolsByName(tools);
-        this.toolFileRegistryService = null;
-        this.mcpToolSyncService = null;
+        this(tools, (ToolFileRegistryService) null, (McpToolSyncService) null, defaultContainerHubProperties());
     }
 
     @Autowired
     public ToolRegistry(
             List<BaseTool> tools,
             ObjectProvider<ToolFileRegistryService> toolFileRegistryServiceProvider,
-            ObjectProvider<McpToolSyncService> mcpToolSyncServiceProvider
+            ObjectProvider<McpToolSyncService> mcpToolSyncServiceProvider,
+            ContainerHubToolProperties containerHubToolProperties
     ) {
-        this.nativeToolsByName = buildNativeToolsByName(tools);
-        this.toolFileRegistryService = toolFileRegistryServiceProvider.getIfAvailable();
-        this.mcpToolSyncService = mcpToolSyncServiceProvider.getIfAvailable();
+        this(
+                tools,
+                toolFileRegistryServiceProvider.getIfAvailable(),
+                mcpToolSyncServiceProvider.getIfAvailable(),
+                containerHubToolProperties
+        );
     }
 
     public ToolRegistry(
             List<BaseTool> tools,
             ObjectProvider<ToolFileRegistryService> toolFileRegistryServiceProvider
     ) {
+        this(
+                tools,
+                toolFileRegistryServiceProvider == null ? null : toolFileRegistryServiceProvider.getIfAvailable(),
+                null,
+                defaultContainerHubProperties()
+        );
+    }
+
+    public ToolRegistry(
+            List<BaseTool> tools,
+            ObjectProvider<ToolFileRegistryService> toolFileRegistryServiceProvider,
+            ObjectProvider<McpToolSyncService> mcpToolSyncServiceProvider
+    ) {
+        this(
+                tools,
+                toolFileRegistryServiceProvider == null ? null : toolFileRegistryServiceProvider.getIfAvailable(),
+                mcpToolSyncServiceProvider == null ? null : mcpToolSyncServiceProvider.getIfAvailable(),
+                defaultContainerHubProperties()
+        );
+    }
+
+    private ToolRegistry(
+            List<BaseTool> tools,
+            ToolFileRegistryService toolFileRegistryService,
+            McpToolSyncService mcpToolSyncService,
+            ContainerHubToolProperties containerHubToolProperties
+    ) {
         this.nativeToolsByName = buildNativeToolsByName(tools);
-        this.toolFileRegistryService = toolFileRegistryServiceProvider.getIfAvailable();
-        this.mcpToolSyncService = null;
+        this.toolFileRegistryService = toolFileRegistryService;
+        this.mcpToolSyncService = mcpToolSyncService;
+        this.containerHubToolProperties = containerHubToolProperties == null
+                ? defaultContainerHubProperties()
+                : containerHubToolProperties;
     }
 
     public JsonNode invoke(String toolName, Map<String, Object> args) {
@@ -73,12 +108,16 @@ public class ToolRegistry {
     public List<BaseTool> list() {
         Map<String, BaseTool> merged = new LinkedHashMap<>();
         nativeToolsByName.entrySet().stream()
+                .filter(entry -> isExposedTool(entry.getKey()))
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> merged.put(entry.getKey(), entry.getValue()));
 
         if (toolFileRegistryService != null) {
             for (ToolDescriptor descriptor : toolFileRegistryService.list()) {
                 String name = normalizeName(descriptor.name());
+                if (!isExposedTool(name)) {
+                    continue;
+                }
                 if (descriptor.kind() == ToolKind.BACKEND) {
                     BaseTool nativeTool = nativeToolsByName.get(name);
                     if (nativeTool == null) {
@@ -131,6 +170,9 @@ public class ToolRegistry {
         if (normalizedName.isBlank()) {
             return Optional.empty();
         }
+        if (!isExposedTool(normalizedName)) {
+            return Optional.empty();
+        }
         BaseTool nativeTool = nativeToolsByName.get(normalizedName);
         if (toolFileRegistryService != null) {
             Optional<ToolDescriptor> dynamic = toolFileRegistryService.find(normalizedName);
@@ -174,12 +216,30 @@ public class ToolRegistry {
         return descriptor(toolName).map(ToolDescriptor::label).orElse(null);
     }
 
+    public boolean isDisabledContainerHubTool(String toolName) {
+        return isContainerHubTool(toolName) && !containerHubToolProperties.isEnabled();
+    }
+
     private String normalizeName(String raw) {
         return normalize(raw, "").toLowerCase(Locale.ROOT);
     }
 
     private String normalize(String value, String fallback) {
         return StringHelpers.trimOrDefault(value, fallback);
+    }
+
+    private boolean isExposedTool(String toolName) {
+        return !isDisabledContainerHubTool(toolName);
+    }
+
+    private boolean isContainerHubTool(String toolName) {
+        return CONTAINER_HUB_TOOL_NAME.equals(normalizeName(toolName));
+    }
+
+    private static ContainerHubToolProperties defaultContainerHubProperties() {
+        ContainerHubToolProperties properties = new ContainerHubToolProperties();
+        properties.setEnabled(true);
+        return properties;
     }
 
     private Map<String, BaseTool> buildNativeToolsByName(List<BaseTool> tools) {

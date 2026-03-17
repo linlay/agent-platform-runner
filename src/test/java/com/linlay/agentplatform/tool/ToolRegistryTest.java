@@ -21,6 +21,7 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.service.McpToolSyncService;
 import com.linlay.agentplatform.config.ToolProperties;
 import static org.mockito.Mockito.mock;
@@ -219,6 +220,48 @@ class ToolRegistryTest {
                 .get()
                 .extracting(ToolDescriptor::label)
                 .isEqualTo("Bash命令执行");
+    }
+
+    @Test
+    void disabledContainerHubShouldBeHiddenEvenWhenYamlMetadataExists(@TempDir Path tempDir) throws IOException {
+        Path toolsDir = tempDir.resolve("tools");
+        Files.createDirectories(toolsDir);
+        Files.writeString(toolsDir.resolve("container_hub_bash.yml"), """
+                name: container_hub_bash
+                label: Container Hub Bash
+                description: hidden when disabled
+                type: function
+                inputSchema:
+                  type: object
+                  properties:
+                    command:
+                      type: string
+                  required:
+                    - command
+                  additionalProperties: false
+                """);
+
+        ToolProperties properties = new ToolProperties();
+        properties.setExternalDir(toolsDir.toString());
+        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper(), properties);
+
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("toolFileRegistryService", toolFileRegistryService);
+
+        ContainerHubToolProperties containerHubProperties = new ContainerHubToolProperties();
+        containerHubProperties.setEnabled(false);
+
+        ToolRegistry toolRegistry = new ToolRegistry(
+                List.of(),
+                beanFactory.getBeanProvider(ToolFileRegistryService.class),
+                beanFactory.getBeanProvider(McpToolSyncService.class),
+                containerHubProperties
+        );
+
+        assertThat(toolRegistry.list().stream().map(BaseTool::name)).doesNotContain("container_hub_bash");
+        assertThat(toolRegistry.descriptor("container_hub_bash")).isEmpty();
+        assertThat(toolRegistry.description("container_hub_bash")).isEmpty();
+        assertThat(toolRegistry.label("container_hub_bash")).isNull();
     }
 
     @Test

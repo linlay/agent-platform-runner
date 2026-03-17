@@ -13,6 +13,7 @@ import com.linlay.agentplatform.tool.ToolRegistry;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
@@ -72,7 +73,7 @@ public class AgentRegistry {
                 skillRegistryService,
                 toolInvokerRouter,
                 null,
-                null
+                (ContainerHubRunSandboxService) null
         );
     }
 
@@ -125,11 +126,39 @@ public class AgentRegistry {
                 loggingAgentProperties,
                 toolInvokerRouter,
                 null,
-                null
+                (ContainerHubRunSandboxService) null
         );
     }
 
     @Autowired
+    public AgentRegistry(
+            AgentDefinitionLoader definitionLoader,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            ToolInvokerRouter toolInvokerRouter,
+            ActiveRunService activeRunService,
+            ObjectProvider<ContainerHubRunSandboxService> containerHubRunSandboxServiceProvider
+    ) {
+        this(
+                definitionLoader,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                loggingAgentProperties,
+                toolInvokerRouter,
+                activeRunService,
+                containerHubRunSandboxServiceProvider.getIfAvailable()
+        );
+    }
+
     public AgentRegistry(
             AgentDefinitionLoader definitionLoader,
             LlmService llmService,

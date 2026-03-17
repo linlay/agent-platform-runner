@@ -60,6 +60,7 @@ public class DefinitionDrivenAgent implements Agent {
     private final ChatWindowMemoryStore chatWindowMemoryStore;
     private final ToolRegistry toolRegistry;
     private final Map<String, BaseTool> configuredToolsByName;
+    private final List<String> effectiveToolNames;
     private final OrchestratorServices services;
     private final ObjectMapper objectMapper;
     private final SkillRegistryService skillRegistryService;
@@ -185,7 +186,9 @@ public class DefinitionDrivenAgent implements Agent {
         this.skillRegistryService = skillRegistryService;
         this.activeRunService = activeRunService;
         this.containerHubRunSandboxService = containerHubRunSandboxService;
-        this.configuredToolsByName = resolveConfiguredTools(definition.tools());
+        Map<String, BaseTool> resolvedTools = resolveConfiguredTools(definition.tools());
+        this.configuredToolsByName = resolvedTools;
+        this.effectiveToolNames = List.copyOf(resolvedTools.keySet());
         this.snapshotLogger = new AgentRunSnapshotLogger(
                 log,
                 objectMapper,
@@ -254,7 +257,7 @@ public class DefinitionDrivenAgent implements Agent {
 
     @Override
     public List<String> tools() {
-        return definition.tools();
+        return effectiveToolNames;
     }
 
     @Override
@@ -416,6 +419,14 @@ public class DefinitionDrivenAgent implements Agent {
         for (String rawName : requested) {
             String name = normalizeToolName(rawName);
             if (name.isBlank()) {
+                continue;
+            }
+            if (toolRegistry.isDisabledContainerHubTool(name)) {
+                log.warn(
+                        "[agent:{}] skip disabled container-hub tool because agent.tools.container-hub.enabled=false: {}",
+                        id(),
+                        name
+                );
                 continue;
             }
             ToolDescriptor descriptor = toolRegistry.descriptor(name).orElse(null);

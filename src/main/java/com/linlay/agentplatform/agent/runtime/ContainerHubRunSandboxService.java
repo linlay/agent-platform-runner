@@ -7,14 +7,12 @@ import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
-@Service
 public class ContainerHubRunSandboxService {
 
     public static final String TOOL_NAME = "container_hub_bash";

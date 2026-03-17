@@ -18,6 +18,7 @@ import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
+import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.AgentRequest;
@@ -40,11 +41,14 @@ import com.linlay.agentplatform.tool.SystemPlanGetTasks;
 import com.linlay.agentplatform.tool.SystemPlanUpdateTask;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolKind;
+import com.linlay.agentplatform.tool.ToolFileRegistryService;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
@@ -206,10 +210,15 @@ class DefinitionDrivenAgentTest {
 
     @Test
     void frontendSubmitTimeoutShouldEmitStructuredToolResultAndTimeoutFinishReason() throws Exception {
+        Budget frontendTimeoutBudget = new Budget(
+                120_000L,
+                new Budget.Scope(15, 60_000L, 0),
+                new Budget.Scope(20, 60L, 0)
+        );
         AgentDefinition definition = definition(
                 "demoFrontendTimeout",
                 AgentRuntimeMode.ONESHOT,
-                new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
+                new RunSpec(ToolChoice.AUTO, frontendTimeoutBudget),
                 new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("confirm_dialog"), false, ComputePolicy.MEDIUM), null, null),
                 List.of("confirm_dialog")
         );
@@ -423,6 +432,78 @@ class DefinitionDrivenAgentTest {
         String logs = output.getOut() + output.getErr();
         assertThat(logs).contains("WARN");
         assertThat(logs).contains("configured tool currently not registered, keep runtime placeholder: missing_tool");
+    }
+
+    @Test
+    void disabledContainerHubToolShouldBeExcludedFromEffectiveAgentToolsAndLlmSchema(@TempDir Path tempDir) throws Exception {
+        Path toolsDir = tempDir.resolve("tools");
+        Files.createDirectories(toolsDir);
+        Files.writeString(toolsDir.resolve("container_hub_bash.yml"), """
+                name: container_hub_bash
+                label: Container Hub Bash
+                description: hidden when disabled
+                type: function
+                inputSchema:
+                  type: object
+                  properties:
+                    command:
+                      type: string
+                  required:
+                    - command
+                  additionalProperties: false
+                """);
+
+        ToolProperties toolProperties = new ToolProperties();
+        toolProperties.setExternalDir(toolsDir.toString());
+        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper(), toolProperties);
+
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("toolFileRegistryService", toolFileRegistryService);
+
+        ContainerHubToolProperties containerHubProperties = new ContainerHubToolProperties();
+        containerHubProperties.setEnabled(false);
+
+        ToolRegistry toolRegistry = new ToolRegistry(
+                List.of(),
+                beanFactory.getBeanProvider(ToolFileRegistryService.class),
+                beanFactory.getBeanProvider(com.linlay.agentplatform.service.McpToolSyncService.class),
+                containerHubProperties
+        );
+
+        AgentDefinition definition = definition(
+                "demoDisabledContainerHub",
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
+                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("container_hub_bash"), false, ComputePolicy.MEDIUM), null, null),
+                List.of("container_hub_bash")
+        );
+
+        AtomicReference<LlmCallSpec> captured = new AtomicReference<>();
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                captured.set(spec);
+                return Flux.just(new LlmDelta("完成", null, "stop"));
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                null,
+                null
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试禁用 container hub", null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(captured.get()).isNotNull();
+        assertThat(captured.get().tools()).isEmpty();
+        assertThat(agent.tools()).isEmpty();
     }
 
     @Test
