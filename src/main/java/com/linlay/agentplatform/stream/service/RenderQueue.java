@@ -3,6 +3,7 @@ package com.linlay.agentplatform.stream.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.H2aProperties;
+import jakarta.annotation.PreDestroy;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -24,10 +25,16 @@ public class RenderQueue {
 
     private final ObjectMapper objectMapper;
     private final H2aProperties properties;
+    private final Scheduler sharedScheduler = Schedulers.newSingle("h2a-render-queue");
 
     public RenderQueue(ObjectMapper objectMapper, H2aProperties properties) {
         this.objectMapper = objectMapper;
         this.properties = properties;
+    }
+
+    @PreDestroy
+    public void dispose() {
+        sharedScheduler.dispose();
     }
 
     public Flux<ServerSentEvent<String>> buffer(Flux<ServerSentEvent<String>> source) {
@@ -42,7 +49,7 @@ public class RenderQueue {
             Object monitor = new Object();
             List<ServerSentEvent<String>> pending = new ArrayList<>();
             int[] bufferedChars = {0};
-            Scheduler.Worker worker = Schedulers.newSingle("h2a-render-queue").createWorker();
+            Scheduler.Worker worker = sharedScheduler.createWorker();
             AtomicBoolean timerScheduled = new AtomicBoolean(false);
 
             Runnable flush = () -> {

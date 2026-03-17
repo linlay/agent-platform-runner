@@ -24,17 +24,15 @@ public final class RunControl {
         inputBroker.enqueueQuery(query);
     }
 
-    public void enqueueSteer(SteerEnvelope steer) {
+    public void enqueueSteer(RunInputBroker.SteerEnvelope steer) {
         if (steer == null || interrupted.get()) {
             return;
         }
-        inputBroker.enqueueSteer(new RunInputBroker.SteerEnvelope(steer.requestId(), steer.steerId(), steer.message()));
+        inputBroker.enqueueSteer(steer);
     }
 
-    public List<SteerEnvelope> drainPendingSteers() {
-        return inputBroker.drainPendingSteers().stream()
-                .map(steer -> new SteerEnvelope(steer.requestId(), steer.steerId(), steer.message()))
-                .toList();
+    public List<RunInputBroker.SteerEnvelope> drainPendingSteers() {
+        return inputBroker.drainPendingSteers();
     }
 
     public void interrupt() {
@@ -94,34 +92,6 @@ public final class RunControl {
     public void transitionState(RunLoopState next) {
         if (next != null) {
             state.set(next);
-        }
-    }
-
-    public record SteerEnvelope(
-            String requestId,
-            String steerId,
-            String message
-    ) {
-        public SteerEnvelope {
-            steerId = requireText(steerId, "steerId");
-            message = requireText(message, "message");
-            requestId = normalize(requestId);
-        }
-
-        private static String requireText(String value, String fieldName) {
-            String normalized = normalize(value);
-            if (normalized == null) {
-                throw new IllegalArgumentException(fieldName + " must not be blank");
-            }
-            return normalized;
-        }
-
-        private static String normalize(String value) {
-            if (value == null) {
-                return null;
-            }
-            String normalized = value.trim();
-            return normalized.isEmpty() ? null : normalized;
         }
     }
 }

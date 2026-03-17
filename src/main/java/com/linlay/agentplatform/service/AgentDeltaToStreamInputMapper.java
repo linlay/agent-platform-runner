@@ -47,32 +47,11 @@ public class AgentDeltaToStreamInputMapper {
     private String activeReasoningId;
     private String activeContentId;
 
-    public AgentDeltaToStreamInputMapper() {
-        this(null, null, null, null);
-    }
-
-    public AgentDeltaToStreamInputMapper(String runId) {
-        this(runId, null, null, null);
-    }
-
-    public AgentDeltaToStreamInputMapper(String runId, ToolRegistry toolRegistry) {
-        this(runId, null, toolRegistry, null);
-    }
-
-    public AgentDeltaToStreamInputMapper(String runId, String chatId, ToolRegistry toolRegistry) {
-        this(runId, chatId, toolRegistry, null);
-    }
-
     public AgentDeltaToStreamInputMapper(String runId, String chatId, ToolRegistry toolRegistry, RunActor actor) {
         this.runPrefix = hasText(runId) ? runId : "run";
         this.chatId = hasText(chatId) ? chatId.trim() : null;
         this.toolRegistry = toolRegistry;
         this.actor = actor == null ? RunActor.primary(null) : actor;
-    }
-
-    public Flux<StreamInput> map(Flux<AgentDelta> deltas) {
-        Objects.requireNonNull(deltas, "deltas must not be null");
-        return deltas.concatMapIterable(this::mapOrEmpty);
     }
 
     public Flux<StreamEnvelope> mapEnvelopes(Flux<AgentDelta> deltas) {

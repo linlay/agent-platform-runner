@@ -22,7 +22,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldEmitActionEndBeforeActionResult() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.toolCalls(List.of(new ToolCallDelta(
                         "action_1",
@@ -50,7 +50,7 @@ class AgentDeltaToStreamInputMapperTest {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
         when(toolRegistry.label("bash")).thenReturn("命令执行");
         when(toolRegistry.description("bash")).thenReturn("执行 shell 命令");
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", toolRegistry);
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, toolRegistry, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.toolCalls(List.of(new ToolCallDelta(
                         "tool_1",
@@ -79,7 +79,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldNotEmitDuplicateToolEndWhenExplicitToolEndProvided() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.toolCalls(List.of(new ToolCallDelta(
                         "tool_1",
@@ -105,7 +105,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldPreserveToolArgsChunkOrderWithoutMerging() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.toolCalls(List.of(new ToolCallDelta(
                         "tool_chunk_1",
@@ -136,7 +136,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldMapExplicitToolEndForActionsWithoutDuplicatingActionEndOnResult() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.toolCalls(List.of(new ToolCallDelta(
                         "action_1",
@@ -160,7 +160,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldKeepActionEndBeforeNextActionStartWhenEndsAreExplicit() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.toolCalls(List.of(new ToolCallDelta(
                         "action_1",
@@ -206,7 +206,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldAssignUniqueReasoningIdsAcrossBlocks() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.reasoning("reasoning-1"),
                 AgentDelta.stageMarker("stage-1"),
@@ -219,7 +219,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldAssignUniqueContentIdsAcrossMultipleSegments() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.content("content-1"),
                 AgentDelta.toolCalls(List.of(new ToolCallDelta(
@@ -238,7 +238,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldRotateReasoningIdAfterToolBoundary() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.reasoning("before-tool"),
                 AgentDelta.toolCalls(List.of(new ToolCallDelta(
@@ -257,7 +257,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldUseNewContentIdAfterStageMarker() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.content("before-stage"),
                 AgentDelta.stageMarker("summary"),
@@ -270,7 +270,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldPreferIdsProvidedByAgentDelta() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.reasoning("reasoning-1").withReasoningId("run_1_r_9"),
                 AgentDelta.content("content-1").withContentId("run_1_c_7")
@@ -282,7 +282,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldMapPlanUpdateWithSinglePlanEventType() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.planUpdate(
                         "plan_demo_001",
@@ -307,7 +307,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldMapTaskLifecycleAndBindTaskIdToLeafEvents() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.planUpdate(
                         "plan_1",
@@ -342,7 +342,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldMapTaskFailEventWithErrorPayload() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.planUpdate(
                         "plan_1",
@@ -364,7 +364,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldMapRequestSubmitEvent() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1");
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.requestSubmit(
                         "req_submit_1",
@@ -388,7 +388,7 @@ class AgentDeltaToStreamInputMapperTest {
 
     @Test
     void shouldMapConsumedSteerDeltaToRequestSteerEvent() {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", "chat_1", null);
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", "chat_1", null, null);
         List<StreamEvent> events = assembleEvents(mapper, List.of(
                 AgentDelta.requestSteer("req_steer_1", "steer_1", "keep going")
         ));

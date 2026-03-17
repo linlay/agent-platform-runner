@@ -10,6 +10,7 @@ import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
 import com.linlay.agentplatform.agent.runtime.RunControl;
+import com.linlay.agentplatform.agent.runtime.RunInputBroker;
 import com.linlay.agentplatform.agent.runtime.RunInterruptedException;
 import com.linlay.agentplatform.agent.runtime.RunLoopState;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
@@ -642,7 +643,7 @@ public class OrchestratorServices {
         if (context == null) {
             return;
         }
-        for (RunControl.SteerEnvelope steer : context.drainPendingSteers()) {
+        for (RunInputBroker.SteerEnvelope steer : context.drainPendingSteers()) {
             if (steer == null || !StringUtils.hasText(steer.message())) {
                 continue;
             }

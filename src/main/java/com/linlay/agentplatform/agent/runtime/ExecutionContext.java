@@ -303,11 +303,11 @@ public class ExecutionContext {
         return List.copyOf(planTasks);
     }
 
-    public void enqueueSteer(RunControl.SteerEnvelope steer) {
+    public void enqueueSteer(RunInputBroker.SteerEnvelope steer) {
         runControl.enqueueSteer(steer);
     }
 
-    public List<RunControl.SteerEnvelope> drainPendingSteers() {
+    public List<RunInputBroker.SteerEnvelope> drainPendingSteers() {
         return runControl.drainPendingSteers();
     }
 

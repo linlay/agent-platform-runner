@@ -3,6 +3,7 @@ package com.linlay.agentplatform.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.FrontendToolProperties;
+import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.agent.Agent;
 import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.model.AgentRequest;
@@ -125,7 +126,11 @@ class AgentQueryServiceTest {
                 toolRegistry,
                 viewportRegistryService,
                 frontendToolProperties,
-                mock(TeamRegistryService.class)
+                mock(TeamRegistryService.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null
         );
         ServerSentEvent<String> event = ServerSentEvent.builder("""
                 {"type":"tool.start","toolName":"confirm_dialog","toolId":"call_1","runId":"run_1","toolLabel":"确认框","toolDescription":"confirm"}
@@ -163,7 +168,11 @@ class AgentQueryServiceTest {
                 toolRegistry,
                 viewportRegistryService,
                 frontendToolProperties,
-                mock(TeamRegistryService.class)
+                mock(TeamRegistryService.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null
         );
         ServerSentEvent<String> event = ServerSentEvent.builder("""
                 {"type":"tool.snapshot","toolName":"confirm_dialog","toolId":"call_2","runId":"run_2","toolLabel":"确认框","toolDescription":"confirm"}
@@ -204,7 +213,11 @@ class AgentQueryServiceTest {
                 mock(ToolRegistry.class),
                 mock(ViewportRegistryService.class),
                 new FrontendToolProperties(),
-                mock(TeamRegistryService.class)
+                mock(TeamRegistryService.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null
         );
 
         QueryRequest request = new QueryRequest("req-1", chatId, "request-agent", null, "user", "hello", null, null, null, true);
@@ -238,7 +251,11 @@ class AgentQueryServiceTest {
                 mock(ToolRegistry.class),
                 mock(ViewportRegistryService.class),
                 new FrontendToolProperties(),
-                mock(TeamRegistryService.class)
+                mock(TeamRegistryService.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null
         );
 
         QueryRequest request = new QueryRequest("req-1", chatId, "demo-agent", null, "user", "hello", null, null, null, true, true);
@@ -287,7 +304,9 @@ class AgentQueryServiceTest {
                 new FrontendToolProperties(),
                 mock(TeamRegistryService.class),
                 new com.linlay.agentplatform.config.LoggingAgentProperties(),
-                chatAssetCatalogService
+                chatAssetCatalogService,
+                null,
+                null
         );
 
         QueryRequest request = new QueryRequest("req-1", chatId, "demo-agent", null, "user", "hello", List.of(), null, null, true);
@@ -318,7 +337,11 @@ class AgentQueryServiceTest {
                 mock(ToolRegistry.class),
                 mock(ViewportRegistryService.class),
                 new FrontendToolProperties(),
-                mock(TeamRegistryService.class)
+                mock(TeamRegistryService.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null
         );
 
         AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
@@ -359,7 +382,11 @@ class AgentQueryServiceTest {
                 toolRegistry,
                 mock(ViewportRegistryService.class),
                 new FrontendToolProperties(),
-                mock(TeamRegistryService.class)
+                mock(TeamRegistryService.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null
         );
 
         String chatId = UUID.randomUUID().toString();
@@ -397,7 +424,8 @@ class AgentQueryServiceTest {
                 mock(TeamRegistryService.class),
                 new com.linlay.agentplatform.config.LoggingAgentProperties(),
                 null,
-                activeRunService
+                activeRunService,
+                null
         );
 
         String chatId = UUID.randomUUID().toString();
@@ -493,7 +521,11 @@ class AgentQueryServiceTest {
                 mock(ToolRegistry.class),
                 mock(ViewportRegistryService.class),
                 new FrontendToolProperties(),
-                mock(TeamRegistryService.class)
+                mock(TeamRegistryService.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null
         );
     }
 }

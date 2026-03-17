@@ -53,12 +53,15 @@ public class ActiveRunService {
     public SteerAck steer(SteerRequest request) {
         String runId = normalizeRequired(request.runId(), "runId");
         ActiveRunSession session = sessionsByRunId.get(runId);
-        if (session == null || !session.markActiveForSteer()) {
+        if (session == null) {
             return new SteerAck(false, "unmatched", runId, resolveSteerId(request.steerId()), "No active run found for runId=" + runId);
+        }
+        if (session.state.get() != LifecycleState.ACTIVE || session.control().isInterrupted()) {
+            return new SteerAck(false, "unmatched", runId, resolveSteerId(request.steerId()), "Run is not active for runId=" + runId);
         }
         String steerId = resolveSteerId(request.steerId());
         String message = normalizeRequired(request.message(), "message");
-        session.control().enqueueSteer(new RunControl.SteerEnvelope(request.requestId(), steerId, message));
+        session.control().enqueueSteer(new RunInputBroker.SteerEnvelope(request.requestId(), steerId, message));
         return new SteerAck(true, "accepted", runId, steerId, "Steer accepted for runId=" + runId + ", steerId=" + steerId);
     }
 

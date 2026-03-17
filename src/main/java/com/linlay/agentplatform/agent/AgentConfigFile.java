@@ -63,14 +63,6 @@ public class AgentConfigFile {
         this.icon = icon;
     }
 
-    @JsonSetter("avatar")
-    public void setAvatar(JsonNode avatar) {
-        // COMPAT(V3): Keep `avatar` alias until legacy agent definition files are migrated to `icon`.
-        if ((this.icon == null || this.icon.isNull()) && avatar != null && !avatar.isNull()) {
-            this.icon = avatar;
-        }
-    }
-
     public String getDescription() {
         return description;
     }

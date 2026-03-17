@@ -7,6 +7,7 @@ import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
 import com.linlay.agentplatform.agent.runtime.RunControl;
+import com.linlay.agentplatform.agent.runtime.RunInputBroker;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
@@ -258,8 +259,8 @@ class OrchestratorServicesTest {
         ToolExecutionService toolExecutionService = mock(ToolExecutionService.class);
         OrchestratorServices services = new OrchestratorServices(llmService, toolExecutionService, new ObjectMapper());
         ExecutionContext context = contextWithBudget(Budget.DEFAULT);
-        context.enqueueSteer(new RunControl.SteerEnvelope("req_steer_1", "steer_1", "first steer"));
-        context.enqueueSteer(new RunControl.SteerEnvelope("req_steer_2", "steer_2", "second steer"));
+        context.enqueueSteer(new RunInputBroker.SteerEnvelope("req_steer_1", "steer_1", "first steer"));
+        context.enqueueSteer(new RunInputBroker.SteerEnvelope("req_steer_2", "steer_2", "second steer"));
 
         AtomicReference<List<ChatMessage>> modelMessages = new AtomicReference<>(List.of());
         when(llmService.streamDeltas(any(LlmCallSpec.class))).thenAnswer(invocation -> {
