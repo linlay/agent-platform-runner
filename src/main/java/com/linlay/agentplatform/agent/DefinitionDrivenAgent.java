@@ -8,6 +8,7 @@ import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.BudgetExceededException;
+import com.linlay.agentplatform.agent.runtime.ContainerHubRunSandboxService;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
@@ -63,6 +64,7 @@ public class DefinitionDrivenAgent implements Agent {
     private final ObjectMapper objectMapper;
     private final SkillRegistryService skillRegistryService;
     private final ActiveRunService activeRunService;
+    private final ContainerHubRunSandboxService containerHubRunSandboxService;
     private final AgentRunSnapshotLogger snapshotLogger;
 
     public DefinitionDrivenAgent(
@@ -82,6 +84,7 @@ public class DefinitionDrivenAgent implements Agent {
                 frontendSubmitCoordinator,
                 null,
                 new LoggingAgentProperties(),
+                null,
                 null,
                 null
         );
@@ -106,6 +109,7 @@ public class DefinitionDrivenAgent implements Agent {
                 skillRegistryService,
                 new LoggingAgentProperties(),
                 null,
+                null,
                 null
         );
     }
@@ -129,6 +133,7 @@ public class DefinitionDrivenAgent implements Agent {
                 frontendSubmitCoordinator,
                 skillRegistryService,
                 loggingAgentProperties,
+                null,
                 null,
                 null
         );
@@ -155,6 +160,7 @@ public class DefinitionDrivenAgent implements Agent {
                 skillRegistryService,
                 loggingAgentProperties,
                 toolInvoker,
+                null,
                 null
         );
     }
@@ -169,7 +175,8 @@ public class DefinitionDrivenAgent implements Agent {
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
             ToolInvoker toolInvoker,
-            ActiveRunService activeRunService
+            ActiveRunService activeRunService,
+            ContainerHubRunSandboxService containerHubRunSandboxService
     ) {
         this.definition = definition;
         this.toolRegistry = toolRegistry;
@@ -177,6 +184,7 @@ public class DefinitionDrivenAgent implements Agent {
         this.objectMapper = objectMapper;
         this.skillRegistryService = skillRegistryService;
         this.activeRunService = activeRunService;
+        this.containerHubRunSandboxService = containerHubRunSandboxService;
         this.configuredToolsByName = resolveConfiguredTools(definition.tools());
         this.snapshotLogger = new AgentRunSnapshotLogger(
                 log,
@@ -293,6 +301,9 @@ public class DefinitionDrivenAgent implements Agent {
                             skillPromptBundle.resolvedSkillsById(),
                             runControl
                     );
+                    if (containerHubRunSandboxService != null) {
+                        containerHubRunSandboxService.openIfNeeded(context);
+                    }
                     if (latestPlanSnapshot != null) {
                         context.initializePlan(latestPlanSnapshot.planId, toPlanTasks(latestPlanSnapshot.tasks));
                     }
@@ -300,7 +311,12 @@ public class DefinitionDrivenAgent implements Agent {
                     return Flux.<AgentDelta>create(sink -> runWithMode(context, sink), FluxSink.OverflowStrategy.BUFFER)
                             .map(textBlockIdAssigner::assign)
                             .doOnNext(trace::capture)
-                            .doOnComplete(() -> finalizeTrace(request, trace));
+                            .doOnComplete(() -> finalizeTrace(request, trace))
+                            .doFinally(signalType -> {
+                                if (containerHubRunSandboxService != null) {
+                                    containerHubRunSandboxService.closeQuietly(context);
+                                }
+                            });
                 })
                 .subscribeOn(Schedulers.boundedElastic());
     }

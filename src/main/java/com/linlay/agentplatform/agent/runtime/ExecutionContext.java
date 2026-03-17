@@ -25,6 +25,7 @@ import java.util.UUID;
 
 public class ExecutionContext {
 
+    public static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
     private static final Logger log = LoggerFactory.getLogger(ExecutionContext.class);
     private static final String SKILL_SCRIPT_RUN_TOOL = "_skill_run_script_";
 
@@ -46,6 +47,7 @@ public class ExecutionContext {
     private final Set<String> disclosedSkillIds = new LinkedHashSet<>();
     private String planId;
     private String activeTaskId;
+    private SandboxSession sandboxSession;
 
     private int modelCalls;
     private int toolCalls;
@@ -168,6 +170,18 @@ public class ExecutionContext {
 
     public Budget budget() {
         return budget;
+    }
+
+    public SandboxSession sandboxSession() {
+        return sandboxSession;
+    }
+
+    public void bindSandboxSession(SandboxSession sandboxSession) {
+        this.sandboxSession = sandboxSession;
+    }
+
+    public void clearSandboxSession() {
+        this.sandboxSession = null;
     }
 
     public RunControl runControl() {
@@ -517,5 +531,12 @@ public class ExecutionContext {
             return "";
         }
         return raw.trim().toLowerCase(Locale.ROOT);
+    }
+
+    public record SandboxSession(
+            String sessionId,
+            String environmentId,
+            String defaultCwd
+    ) {
     }
 }

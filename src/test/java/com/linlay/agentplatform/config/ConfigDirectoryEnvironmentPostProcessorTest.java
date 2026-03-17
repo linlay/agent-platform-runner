@@ -37,6 +37,13 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
                     bash:
                       allowed-commands: ls,pwd
                 """);
+        Files.writeString(configsDir.resolve("container-hub.yml"), """
+                agent:
+                  tools:
+                    container-hub:
+                      enabled: true
+                      default-environment-id: shell
+                """);
         Files.writeString(providersDir.resolve("babelark.yml"), """
                 agent:
                   providers:
@@ -65,6 +72,8 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
         assertThat(environment.getProperty("agent.auth.enabled")).isEqualTo("false");
         assertThat(environment.getProperty("agent.auth.local-public-key-file")).isEqualTo("auth/local-public-key.pem");
         assertThat(environment.getProperty("agent.tools.bash.allowed-commands")).isEqualTo("ls,pwd");
+        assertThat(environment.getProperty("agent.tools.container-hub.enabled")).isEqualTo("true");
+        assertThat(environment.getProperty("agent.tools.container-hub.default-environment-id")).isEqualTo("shell");
         assertThat(environment.getProperty("agent.providers.babelark.base-url")).isEqualTo("https://api.babelark.com");
         assertThat(environment.getProperty("agent.providers.babelark.protocols.OPENAI.endpoint-path")).isEqualTo("/v1/chat/completions");
         assertThat(environment.getProperty("agent.providers.ignored.base-url")).isNull();

@@ -26,6 +26,7 @@ public class AgentConfigFile {
     private String role;
     private ModelConfig modelConfig;
     private ToolConfig toolConfig;
+    private SandboxConfig sandboxConfig;
     private SkillConfig skillConfig;
     private List<String> skills;
     private AgentRuntimeMode mode;
@@ -93,6 +94,14 @@ public class AgentConfigFile {
 
     public void setToolConfig(ToolConfig toolConfig) {
         this.toolConfig = toolConfig;
+    }
+
+    public SandboxConfig getSandboxConfig() {
+        return sandboxConfig;
+    }
+
+    public void setSandboxConfig(SandboxConfig sandboxConfig) {
+        this.sandboxConfig = sandboxConfig;
     }
 
     public SkillConfig getSkillConfig() {
@@ -273,6 +282,19 @@ public class AgentConfigFile {
                         retryCount == null ? 0 : retryCount
                 );
             }
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SandboxConfig {
+        private String environmentId;
+
+        public String getEnvironmentId() {
+            return environmentId;
+        }
+
+        public void setEnvironmentId(String environmentId) {
+            this.environmentId = environmentId;
         }
     }
 

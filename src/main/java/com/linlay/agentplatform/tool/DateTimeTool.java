@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
 @Component
 public class DateTimeTool extends AbstractDeterministicTool {
 
-    private static final Pattern OFFSET_TOKEN_PATTERN = Pattern.compile("([+-])(\\d+)([ymwDHMS])");
+    private static final Pattern OFFSET_TOKEN_PATTERN = Pattern.compile("([+-])(\\d+)([ywDHMmS])");
 
     @Override
     public String name() {
@@ -135,11 +135,11 @@ public class DateTimeTool extends AbstractDeterministicTool {
             }
             result = switch (matcher.group(3).charAt(0)) {
                 case 'y' -> result.plusYears(amount);
-                case 'm' -> result.plusMonths(amount);
                 case 'w' -> result.plusWeeks(amount);
                 case 'D' -> result.plusDays(amount);
                 case 'H' -> result.plusHours(amount);
-                case 'M' -> result.plusMinutes(amount);
+                case 'M' -> result.plusMonths(amount);
+                case 'm' -> result.plusMinutes(amount);
                 case 'S' -> result.plusSeconds(amount);
                 default -> throw invalidOffset(normalizedOffset);
             };
@@ -149,7 +149,7 @@ public class DateTimeTool extends AbstractDeterministicTool {
 
     private IllegalArgumentException invalidOffset(String rawOffset) {
         return new IllegalArgumentException(
-                "Invalid offset: " + rawOffset + ". Use tokens like +1D, -2y, +3w or chained forms like +1D-3H+20M."
+                "Invalid offset: " + rawOffset + ". Use tokens like +1D, -2y, +3w or chained forms like +1D-3H+20m or +10M+25D."
         );
     }
 

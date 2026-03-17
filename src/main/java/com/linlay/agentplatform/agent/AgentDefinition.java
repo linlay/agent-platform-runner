@@ -22,6 +22,7 @@ public record AgentDefinition(
         AgentMode agentMode,
         List<String> tools,
         List<String> skills,
+        SandboxConfig sandboxConfig,
         List<String> modelKeys
 ) {
     public AgentDefinition(
@@ -38,7 +39,7 @@ public record AgentDefinition(
             List<String> tools,
             List<String> skills
     ) {
-        this(id, name, icon, description, role, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of());
+        this(id, name, icon, description, role, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, null, List.of());
     }
 
     public AgentDefinition(
@@ -54,7 +55,7 @@ public record AgentDefinition(
             List<String> tools,
             List<String> skills
     ) {
-        this(id, name, icon, description, name, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of());
+        this(id, name, icon, description, name, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, null, List.of());
     }
 
     public AgentDefinition(
@@ -73,7 +74,27 @@ public record AgentDefinition(
             List<String> tools,
             List<String> skills
     ) {
-        this(id, name, icon, description, role, modelKey, providerKey, model, protocol, mode, runSpec, agentMode, tools, skills, List.of());
+        this(id, name, icon, description, role, modelKey, providerKey, model, protocol, mode, runSpec, agentMode, tools, skills, null, List.of());
+    }
+
+    public AgentDefinition(
+            String id,
+            String name,
+            Object icon,
+            String description,
+            String role,
+            String modelKey,
+            String providerKey,
+            String model,
+            ModelProtocol protocol,
+            AgentRuntimeMode mode,
+            RunSpec runSpec,
+            AgentMode agentMode,
+            List<String> tools,
+            List<String> skills,
+            List<String> modelKeys
+    ) {
+        this(id, name, icon, description, role, modelKey, providerKey, model, protocol, mode, runSpec, agentMode, tools, skills, null, modelKeys);
     }
 
     public AgentDefinition {
@@ -90,6 +111,9 @@ public record AgentDefinition(
         } else {
             skills = List.copyOf(skills);
         }
+        if (sandboxConfig == null) {
+            sandboxConfig = new SandboxConfig(null);
+        }
         if (modelKeys == null) {
             modelKeys = List.of();
         } else {
@@ -102,5 +126,13 @@ public record AgentDefinition(
 
     public String systemPrompt() {
         return agentMode.primarySystemPrompt();
+    }
+
+    public record SandboxConfig(
+            String environmentId
+    ) {
+        public SandboxConfig {
+            environmentId = environmentId == null || environmentId.isBlank() ? null : environmentId.trim();
+        }
     }
 }

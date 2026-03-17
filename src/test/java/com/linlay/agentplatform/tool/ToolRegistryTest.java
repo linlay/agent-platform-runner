@@ -51,12 +51,12 @@ class ToolRegistryTest {
     void dateTimeShouldSupportExplicitTimezoneAndOffset() {
         JsonNode result = dateTimeTool.invoke(Map.of(
                 "timezone", "UTC+8",
-                "offset", "+1D-3H+20M"
+                "offset", "+1D-3H+20m"
         ));
 
         assertThat(result.path("timezone").asText()).isEqualTo("+08:00");
         assertThat(result.path("timezoneOffset").asText()).isEqualTo("UTC+8");
-        assertThat(result.path("offset").asText()).isEqualTo("+1D-3H+20M");
+        assertThat(result.path("offset").asText()).isEqualTo("+1D-3H+20m");
         assertThat(result.path("lunarDate").asText()).isNotBlank();
         assertThatCode(() -> ZonedDateTime.parse(result.path("iso").asText())).doesNotThrowAnyException();
     }
@@ -69,10 +69,40 @@ class ToolRegistryTest {
         )).path("iso").asText());
         ZonedDateTime shifted = ZonedDateTime.parse(dateTimeTool.invoke(Map.of(
                 "timezone", "UTC",
-                "offset", "+1D-3H+20M"
+                "offset", "+1D-3H+20m"
         )).path("iso").asText());
 
         ZonedDateTime expected = base.plusDays(1).minusHours(3).plusMinutes(20);
+        assertThat(Duration.between(expected.toInstant(), shifted.toInstant()).abs().toSeconds()).isLessThanOrEqualTo(2);
+    }
+
+    @Test
+    void dateTimeShouldApplyMonthOffsetWithUppercaseM() {
+        ZonedDateTime base = ZonedDateTime.parse(dateTimeTool.invoke(Map.of(
+                "timezone", "UTC",
+                "offset", "0"
+        )).path("iso").asText());
+        ZonedDateTime shifted = ZonedDateTime.parse(dateTimeTool.invoke(Map.of(
+                "timezone", "UTC",
+                "offset", "+10M+25D"
+        )).path("iso").asText());
+
+        ZonedDateTime expected = base.plusMonths(10).plusDays(25);
+        assertThat(Duration.between(expected.toInstant(), shifted.toInstant()).abs().toSeconds()).isLessThanOrEqualTo(2);
+    }
+
+    @Test
+    void dateTimeShouldApplyMixedMonthAndMinuteOffsetsInOrder() {
+        ZonedDateTime base = ZonedDateTime.parse(dateTimeTool.invoke(Map.of(
+                "timezone", "UTC",
+                "offset", "0"
+        )).path("iso").asText());
+        ZonedDateTime shifted = ZonedDateTime.parse(dateTimeTool.invoke(Map.of(
+                "timezone", "UTC",
+                "offset", "+1M-15m"
+        )).path("iso").asText());
+
+        ZonedDateTime expected = base.plusMonths(1).minusMinutes(15);
         assertThat(Duration.between(expected.toInstant(), shifted.toInstant()).abs().toSeconds()).isLessThanOrEqualTo(2);
     }
 
@@ -82,6 +112,9 @@ class ToolRegistryTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Invalid timezone");
         assertThatThrownBy(() -> dateTimeTool.invoke(Map.of("offset", "1D")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid offset");
+        assertThatThrownBy(() -> dateTimeTool.invoke(Map.of("offset", "+1Q")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Invalid offset");
     }

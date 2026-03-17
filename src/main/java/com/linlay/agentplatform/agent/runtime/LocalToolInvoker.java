@@ -1,6 +1,8 @@
 package com.linlay.agentplatform.agent.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.linlay.agentplatform.tool.BaseTool;
+import com.linlay.agentplatform.tool.ContextAwareTool;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +19,11 @@ public class LocalToolInvoker implements ToolInvoker {
 
     @Override
     public JsonNode invoke(String toolName, Map<String, Object> args, ExecutionContext context) {
-        return toolRegistry.invoke(toolName, args);
+        BaseTool tool = toolRegistry.nativeTool(toolName)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown tool: " + toolName));
+        if (tool instanceof ContextAwareTool contextAwareTool) {
+            return contextAwareTool.invoke(args, context);
+        }
+        return tool.invoke(args);
     }
 }

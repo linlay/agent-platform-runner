@@ -146,6 +146,7 @@ public class AgentDefinitionLoader {
             List<String> tools = collectToolNames(config);
             List<String> skills = collectSkillNames(config);
             List<String> modelKeys = collectModelKeys(config);
+            AgentDefinition.SandboxConfig sandboxConfig = toSandboxConfig(config.getSandboxConfig());
 
             AgentMode agentMode = AgentModeFactory.create(mode, config, file, this::resolveModelByKey);
             RunSpec runSpec = agentMode.defaultRunSpec(config);
@@ -165,6 +166,7 @@ public class AgentDefinitionLoader {
                     agentMode,
                     tools,
                     skills,
+                    sandboxConfig,
                     modelKeys
             ));
         } catch (Exception ex) {
@@ -378,6 +380,13 @@ public class AgentDefinitionLoader {
             return null;
         }
         return stageConfig.getModelConfig().getModelKey();
+    }
+
+    private AgentDefinition.SandboxConfig toSandboxConfig(AgentConfigFile.SandboxConfig sandboxConfig) {
+        if (sandboxConfig == null) {
+            return new AgentDefinition.SandboxConfig(null);
+        }
+        return new AgentDefinition.SandboxConfig(sandboxConfig.getEnvironmentId());
     }
 
     private ModelDefinition resolveModelByKey(String rawModelKey) {

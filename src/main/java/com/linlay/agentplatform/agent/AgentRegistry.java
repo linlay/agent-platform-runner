@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.agent.runtime.ContainerHubRunSandboxService;
 import com.linlay.agentplatform.agent.runtime.ToolInvokerRouter;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
@@ -43,6 +44,7 @@ public class AgentRegistry {
     private final LoggingAgentProperties loggingAgentProperties;
     private final ToolInvokerRouter toolInvokerRouter;
     private final ActiveRunService activeRunService;
+    private final ContainerHubRunSandboxService containerHubRunSandboxService;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, Agent> agents = Map.of();
@@ -69,6 +71,7 @@ public class AgentRegistry {
                 frontendSubmitCoordinator,
                 skillRegistryService,
                 toolInvokerRouter,
+                null,
                 null
         );
     }
@@ -82,7 +85,8 @@ public class AgentRegistry {
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             ToolInvokerRouter toolInvokerRouter,
-            ActiveRunService activeRunService
+            ActiveRunService activeRunService,
+            ContainerHubRunSandboxService containerHubRunSandboxService
     ) {
         this(
                 definitionLoader,
@@ -94,7 +98,8 @@ public class AgentRegistry {
                 skillRegistryService,
                 new LoggingAgentProperties(),
                 toolInvokerRouter,
-                activeRunService
+                activeRunService,
+                containerHubRunSandboxService
         );
     }
 
@@ -119,6 +124,7 @@ public class AgentRegistry {
                 skillRegistryService,
                 loggingAgentProperties,
                 toolInvokerRouter,
+                null,
                 null
         );
     }
@@ -134,7 +140,8 @@ public class AgentRegistry {
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
             ToolInvokerRouter toolInvokerRouter,
-            ActiveRunService activeRunService
+            ActiveRunService activeRunService,
+            ContainerHubRunSandboxService containerHubRunSandboxService
     ) {
         this.definitionLoader = definitionLoader;
         this.llmService = llmService;
@@ -146,6 +153,7 @@ public class AgentRegistry {
         this.loggingAgentProperties = loggingAgentProperties;
         this.toolInvokerRouter = toolInvokerRouter;
         this.activeRunService = activeRunService;
+        this.containerHubRunSandboxService = containerHubRunSandboxService;
         refreshAgents();
     }
 
@@ -295,7 +303,8 @@ public class AgentRegistry {
                 skillRegistryService,
                 loggingAgentProperties,
                 toolInvokerRouter,
-                activeRunService
+                activeRunService,
+                containerHubRunSandboxService
         );
     }
 

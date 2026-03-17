@@ -10,5 +10,5 @@ inputSchema:
       description: 可选时区，支持 IANA zoneId 或 UTC+8、+08:00、Z 等偏移表示
     offset:
       type: string
-      description: 可选链式时间偏移，例如 +1D、+1D-3H+20M、-2y、+3w；不填或 0 表示当前时间
+      description: 可选链式时间偏移，例如 +1D、+1D-3H+20m、+10M+25D、-2y、+3w；其中 M=月、m=分钟；不填或 0 表示当前时间
   additionalProperties: false

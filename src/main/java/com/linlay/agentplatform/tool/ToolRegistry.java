@@ -66,6 +66,10 @@ public class ToolRegistry {
         return tool.invoke(args);
     }
 
+    public Optional<BaseTool> nativeTool(String toolName) {
+        return Optional.ofNullable(nativeToolsByName.get(normalizeName(toolName)));
+    }
+
     public List<BaseTool> list() {
         Map<String, BaseTool> merged = new LinkedHashMap<>();
         nativeToolsByName.entrySet().stream()

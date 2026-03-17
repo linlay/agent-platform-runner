@@ -2,15 +2,13 @@ package com.linlay.agentplatform.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "agent.tools.agentbox")
-public class AgentboxToolProperties {
+@ConfigurationProperties(prefix = "agent.tools.container-hub")
+public class ContainerHubToolProperties {
 
     private boolean enabled = false;
     private String baseUrl = "http://127.0.0.1:8080";
     private String authToken;
-    private String defaultRuntime = "busybox";
-    private String defaultVersion = "latest";
-    private String defaultCwd = "/workspace";
+    private String defaultEnvironmentId;
     private int requestTimeoutMs = 30_000;
 
     public boolean isEnabled() {
@@ -37,28 +35,12 @@ public class AgentboxToolProperties {
         this.authToken = authToken;
     }
 
-    public String getDefaultRuntime() {
-        return defaultRuntime;
+    public String getDefaultEnvironmentId() {
+        return defaultEnvironmentId;
     }
 
-    public void setDefaultRuntime(String defaultRuntime) {
-        this.defaultRuntime = defaultRuntime;
-    }
-
-    public String getDefaultVersion() {
-        return defaultVersion;
-    }
-
-    public void setDefaultVersion(String defaultVersion) {
-        this.defaultVersion = defaultVersion;
-    }
-
-    public String getDefaultCwd() {
-        return defaultCwd;
-    }
-
-    public void setDefaultCwd(String defaultCwd) {
-        this.defaultCwd = defaultCwd;
+    public void setDefaultEnvironmentId(String defaultEnvironmentId) {
+        this.defaultEnvironmentId = defaultEnvironmentId;
     }
 
     public int getRequestTimeoutMs() {

@@ -3,8 +3,7 @@ package com.linlay.agentplatform.tool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.linlay.agentplatform.config.AgentboxToolProperties;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -18,16 +17,15 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 @Component
-@ConditionalOnProperty(prefix = "agent.tools.agentbox", name = "enabled", havingValue = "true")
-class AgentboxClient {
+public class ContainerHubClient {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
 
-    private final AgentboxToolProperties properties;
+    private final ContainerHubToolProperties properties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
-    AgentboxClient(AgentboxToolProperties properties, ObjectMapper objectMapper) {
+    public ContainerHubClient(ContainerHubToolProperties properties, ObjectMapper objectMapper) {
         this(
                 properties,
                 objectMapper,
@@ -37,18 +35,22 @@ class AgentboxClient {
         );
     }
 
-    AgentboxClient(AgentboxToolProperties properties, ObjectMapper objectMapper, HttpClient httpClient) {
+    public ContainerHubClient(ContainerHubToolProperties properties, ObjectMapper objectMapper, HttpClient httpClient) {
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
     }
 
-    JsonNode execute(ObjectNode payload) {
-        return post("/execute", payload, "agentbox_execute");
+    public JsonNode createSession(ObjectNode payload) {
+        return post("/api/sessions/create", payload, "container_hub_create_session");
     }
 
-    JsonNode stopSession(ObjectNode payload) {
-        return post("/session/stop", payload, "agentbox_stop_session");
+    public JsonNode executeSession(String sessionId, ObjectNode payload) {
+        return post("/api/sessions/" + sessionId.trim() + "/execute", payload, "container_hub_execute");
+    }
+
+    public JsonNode stopSession(String sessionId) {
+        return post("/api/sessions/" + sessionId.trim() + "/stop", objectMapper.createObjectNode(), "container_hub_stop_session");
     }
 
     private JsonNode post(String path, ObjectNode payload, String operation) {
@@ -115,7 +117,7 @@ class AgentboxClient {
         if (StringUtils.hasText(rawBody)) {
             return rawBody.trim();
         }
-        return "Agentbox request failed";
+        return "Container-hub request failed";
     }
 
     private JsonNode errorResult(String operation, String path, int status, String error, JsonNode body, String rawBody) {

@@ -61,6 +61,32 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldLoadSandboxConfigEnvironmentId() throws IOException {
+        writeYaml("sandboxed.yml", """
+                key: sandboxed
+                name: Sandboxed Agent
+                role: Sandboxed Agent
+                description: sandboxed
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - container_hub_bash
+                sandboxConfig:
+                  environmentId: shell
+                mode: ONESHOT
+                plain:
+                  systemPrompt: use sandbox
+                """);
+
+        AgentDefinition definition = loadById().get("sandboxed");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.tools()).contains("container_hub_bash");
+        assertThat(definition.sandboxConfig().environmentId()).isEqualTo("shell");
+    }
+
+    @Test
     void shouldLoadExternalAgentWithIconObject() throws IOException {
         writeYaml("demo_icon_object.yml", """
                 key: demo_icon_object

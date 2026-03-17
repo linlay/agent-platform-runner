@@ -9,11 +9,15 @@ import com.linlay.agentplatform.agent.mode.PlanExecuteMode;
 import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.agent.runtime.ContainerHubRunSandboxService;
+import com.linlay.agentplatform.agent.runtime.LocalToolInvoker;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
+import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.FrontendToolProperties;
+import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.AgentRequest;
@@ -29,6 +33,8 @@ import com.linlay.agentplatform.stream.model.StreamInput;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.service.StreamEventAssembler;
 import com.linlay.agentplatform.tool.BaseTool;
+import com.linlay.agentplatform.tool.ContainerHubClient;
+import com.linlay.agentplatform.tool.SystemContainerHubBash;
 import com.linlay.agentplatform.tool.SystemPlanAddTasks;
 import com.linlay.agentplatform.tool.SystemPlanGetTasks;
 import com.linlay.agentplatform.tool.SystemPlanUpdateTask;
@@ -41,6 +47,20 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import reactor.core.publisher.Flux;
 
+import java.io.IOException;
+import java.io.ByteArrayOutputStream;
+import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.URI;
+import java.net.Authenticator;
+import java.net.CookieHandler;
+import java.net.ProxySelector;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSession;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -51,11 +71,15 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -2047,6 +2071,155 @@ class DefinitionDrivenAgentTest {
         assertThat(streamContentStage.get()).isNull();
     }
 
+    @Test
+    void sandboxedRunShouldCreateExecuteTwiceAndStopContainerHubSession() throws Exception {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.register("/api/sessions/create", request -> {
+            httpClient.record("create");
+            return new StubHttpResponse(request, 200, """
+                    {"session_id":"run-run1","cwd":"/workspace","status":"running"}
+                    """);
+        });
+        httpClient.register("/api/sessions/run-run1/execute", request -> {
+            httpClient.record("execute");
+            JsonNode payload = objectMapper.readTree(readBody(request));
+            String command = payload.path("args").get(1).asText();
+            return new StubHttpResponse(request, 200, """
+                    {"session_id":"run-run1","exit_code":0,"stdout":"%s\\n","stderr":"","timed_out":false}
+                    """.formatted(command.replace("\"", "\\\"")));
+        });
+        httpClient.register("/api/sessions/run-run1/stop", request -> {
+            httpClient.record("stop");
+            return new StubHttpResponse(request, 200, """
+                    {"session_id":"run-run1","status":"stopped"}
+                    """);
+        });
+
+        ContainerHubToolProperties properties = containerHubProperties("http://container-hub.test", "shell");
+        ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
+        ContainerHubRunSandboxService sandboxService = new ContainerHubRunSandboxService(properties, client);
+        BaseTool containerHubTool = new SystemContainerHubBash(properties, client);
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(containerHubTool));
+
+        AgentDefinition definition = new AgentDefinition(
+                "sandboxed-runner",
+                "sandboxed-runner",
+                null,
+                "demo",
+                "role",
+                null,
+                "bailian",
+                "qwen3-max",
+                null,
+                AgentRuntimeMode.REACT,
+                new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
+                new ReactMode(new StageSettings("sys", null, null, List.of("container_hub_bash"), false, ComputePolicy.MEDIUM), 3, null, null),
+                List.of("container_hub_bash"),
+                List.of(),
+                new AgentDefinition.SandboxConfig("shell"),
+                List.of()
+        );
+
+        LlmService llmService = new StubLlmService() {
+            @Override
+            protected Flux<LlmDelta> deltaByStage(String stage) {
+                return switch (stage) {
+                    case "agent-react-step-1" -> Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta("call_1", "function", "container_hub_bash", "{\"command\":\"echo one\"}")),
+                            "tool_calls"
+                    ));
+                    case "agent-react-step-2" -> Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta("call_2", "function", "container_hub_bash", "{\"command\":\"echo two\"}")),
+                            "tool_calls"
+                    ));
+                    case "agent-react-step-3" -> Flux.just(new LlmDelta("done", null, "stop"));
+                    default -> Flux.empty();
+                };
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                null,
+                null,
+                null,
+                new LoggingAgentProperties(),
+                new LocalToolInvoker(toolRegistry),
+                null,
+                sandboxService
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("test", "chat1", "req1", "run1", Map.of()))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(deltas.stream().map(AgentDelta::content).toList()).contains("done");
+        assertThat(httpClient.events()).containsExactly("create", "execute", "execute", "stop");
+    }
+
+    @Test
+    void sandboxedRunShouldFailBeforeToolExecutionWhenCreateFails() throws Exception {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.register("/api/sessions/create", request -> {
+            httpClient.record("create");
+            return new StubHttpResponse(request, 503, """
+                    {"error":"sandbox unavailable"}
+                    """);
+        });
+
+        ContainerHubToolProperties properties = containerHubProperties("http://container-hub.test", "shell");
+        ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
+        ContainerHubRunSandboxService sandboxService = new ContainerHubRunSandboxService(properties, client);
+        BaseTool containerHubTool = new SystemContainerHubBash(properties, client);
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(containerHubTool));
+
+        AgentDefinition definition = new AgentDefinition(
+                "sandboxed-runner",
+                "sandboxed-runner",
+                null,
+                "demo",
+                "role",
+                null,
+                "bailian",
+                "qwen3-max",
+                null,
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
+                new OneshotMode(new StageSettings("sys", null, null, List.of("container_hub_bash"), false, ComputePolicy.MEDIUM), null, null),
+                List.of("container_hub_bash"),
+                List.of(),
+                new AgentDefinition.SandboxConfig("shell"),
+                List.of()
+        );
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                new StubLlmService() {
+                },
+                toolRegistry,
+                objectMapper,
+                null,
+                null,
+                null,
+                new LoggingAgentProperties(),
+                new LocalToolInvoker(toolRegistry),
+                null,
+                sandboxService
+        );
+
+        assertThatThrownBy(() -> agent.stream(new AgentRequest("test", "chat1", "req1", "run1", Map.of()))
+                .collectList()
+                .block(Duration.ofSeconds(3)))
+                .hasMessageContaining("container-hub sandbox create failed");
+        assertThat(httpClient.events()).containsExactly("create");
+    }
+
     private SkillRegistryService createSkillRegistry(String promptText) throws Exception {
         Path skillsRoot = Files.createTempDirectory("skills-registry");
         Path skillFile = skillsRoot.resolve("screenshot").resolve("SKILL.md");
@@ -2105,6 +2278,46 @@ class DefinitionDrivenAgentTest {
                 tools,
                 List.of()
         );
+    }
+
+    private ContainerHubToolProperties containerHubProperties(String baseUrl, String environmentId) {
+        ContainerHubToolProperties properties = new ContainerHubToolProperties();
+        properties.setEnabled(true);
+        properties.setBaseUrl(baseUrl);
+        properties.setDefaultEnvironmentId(environmentId);
+        properties.setRequestTimeoutMs(1000);
+        return properties;
+    }
+
+    private static String readBody(HttpRequest request) {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        request.bodyPublisher().orElseThrow().subscribe(new Flow.Subscriber<>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                subscription.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(ByteBuffer item) {
+                byte[] bytes = new byte[item.remaining()];
+                item.get(bytes);
+                output.write(bytes, 0, bytes.length);
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                error.set(throwable);
+            }
+
+            @Override
+            public void onComplete() {
+            }
+        });
+        if (error.get() != null) {
+            throw new IllegalStateException(error.get());
+        }
+        return output.toString(java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private String currentTaskId(LlmCallSpec spec) {
@@ -2173,6 +2386,146 @@ class DefinitionDrivenAgentTest {
 
         protected Flux<String> contentByStage(String stage) {
             return Flux.empty();
+        }
+    }
+
+    private static final class RecordingHttpClient extends HttpClient {
+        private final java.util.Map<String, Handler> handlers = new java.util.HashMap<>();
+        private final List<String> events = new CopyOnWriteArrayList<>();
+
+        private void register(String path, Handler handler) {
+            handlers.put(path, handler);
+        }
+
+        private void record(String event) {
+            events.add(event);
+        }
+
+        private List<String> events() {
+            return List.copyOf(events);
+        }
+
+        @Override
+        public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) throws IOException {
+            Handler handler = handlers.get(request.uri().getPath());
+            if (handler == null) {
+                throw new IOException("No handler for path " + request.uri().getPath());
+            }
+            @SuppressWarnings("unchecked")
+            HttpResponse<T> response = (HttpResponse<T>) handler.handle(request);
+            return response;
+        }
+
+        @Override
+        public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler, HttpResponse.PushPromiseHandler<T> pushPromiseHandler) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Optional<CookieHandler> cookieHandler() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<Duration> connectTimeout() {
+            return Optional.of(Duration.ofSeconds(1));
+        }
+
+        @Override
+        public Redirect followRedirects() {
+            return Redirect.NEVER;
+        }
+
+        @Override
+        public Optional<ProxySelector> proxy() {
+            return Optional.empty();
+        }
+
+        @Override
+        public SSLContext sslContext() {
+            return null;
+        }
+
+        @Override
+        public SSLParameters sslParameters() {
+            return null;
+        }
+
+        @Override
+        public Optional<Authenticator> authenticator() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Version version() {
+            return Version.HTTP_1_1;
+        }
+
+        @Override
+        public Optional<Executor> executor() {
+            return Optional.empty();
+        }
+    }
+
+    @FunctionalInterface
+    private interface Handler {
+        StubHttpResponse handle(HttpRequest request) throws IOException;
+    }
+
+    private static final class StubHttpResponse implements HttpResponse<String> {
+        private final HttpRequest request;
+        private final int statusCode;
+        private final String body;
+
+        private StubHttpResponse(HttpRequest request, int statusCode, String body) {
+            this.request = request;
+            this.statusCode = statusCode;
+            this.body = body;
+        }
+
+        @Override
+        public int statusCode() {
+            return statusCode;
+        }
+
+        @Override
+        public HttpRequest request() {
+            return request;
+        }
+
+        @Override
+        public Optional<HttpResponse<String>> previousResponse() {
+            return Optional.empty();
+        }
+
+        @Override
+        public HttpHeaders headers() {
+            return HttpHeaders.of(Map.of("Content-Type", List.of("application/json")), (a, b) -> true);
+        }
+
+        @Override
+        public String body() {
+            return body;
+        }
+
+        @Override
+        public Optional<SSLSession> sslSession() {
+            return Optional.empty();
+        }
+
+        @Override
+        public URI uri() {
+            return request.uri();
+        }
+
+        @Override
+        public HttpClient.Version version() {
+            return HttpClient.Version.HTTP_1_1;
         }
     }
 }
