@@ -586,6 +586,13 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `AGENT_BASH_SHELL_EXECUTABLE` | `agent.tools.bash.shell-executable` | `bash` | Shell 模式执行器 |
 | `AGENT_BASH_SHELL_TIMEOUT_MS` | `agent.tools.bash.shell-timeout-ms` | `10000` | Shell 模式超时（ms） |
 | `AGENT_BASH_MAX_COMMAND_CHARS` | `agent.tools.bash.max-command-chars` | `16000` | Bash 命令最大字符数 |
+| `AGENT_AGENTBOX_ENABLED` | `agent.tools.agentbox.enabled` | `false` | 是否启用 agentbox backend tools |
+| `AGENT_AGENTBOX_BASE_URL` | `agent.tools.agentbox.base-url` | `http://127.0.0.1:8080` | agentbox 服务地址 |
+| `AGENT_AGENTBOX_AUTH_TOKEN` | `agent.tools.agentbox.auth-token` | （空） | agentbox Bearer Token |
+| `AGENT_AGENTBOX_DEFAULT_RUNTIME` | `agent.tools.agentbox.default-runtime` | `busybox` | 创建会话时默认 runtime |
+| `AGENT_AGENTBOX_DEFAULT_VERSION` | `agent.tools.agentbox.default-version` | `latest` | 创建会话时默认 version |
+| `AGENT_AGENTBOX_DEFAULT_CWD` | `agent.tools.agentbox.default-cwd` | `/workspace` | 创建会话时默认工作目录 |
+| `AGENT_AGENTBOX_REQUEST_TIMEOUT_MS` | `agent.tools.agentbox.request-timeout-ms` | `30000` | agentbox HTTP 调用超时（ms） |
 | `AGENT_SKILLS_EXTERNAL_DIR` | `agent.skills.external-dir` | `skills` | 技能目录 |
 | `AGENT_SKILLS_REFRESH_INTERVAL_MS` | `agent.skills.refresh-interval-ms` | `30000` | 技能刷新间隔（ms） |
 | `AGENT_SKILLS_MAX_PROMPT_CHARS` | `agent.skills.max-prompt-chars` | `8000` | 技能 prompt 最大字符数 |
@@ -614,6 +621,11 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `LOGGING_AGENT_LLM_INTERACTION_MASK_SENSITIVE` | `logging.agent.llm.interaction.mask-sensitive` | `true` | 日志脱敏开关 |
 
 说明：`agent.auth.local-public-key` 仍支持 YAML 内嵌 PEM；推荐改用 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE` 或 `agent.auth.local-public-key-file` 指向独立 PEM 文件。
+
+`configs/agentbox.yml` 用于外部 `agentbox` 服务接入。启用后会注册两个 backend tools：
+
+- `agentbox_execute`
+- `agentbox_stop_session`
 
 迁移说明（Breaking Change）：
 

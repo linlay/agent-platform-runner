@@ -1,0 +1,10 @@
+agent:
+  tools:
+    agentbox:
+      enabled: false
+      base-url: http://127.0.0.1:8080
+      auth-token:
+      default-runtime: busybox
+      default-version: latest
+      default-cwd: /workspace
+      request-timeout-ms: 30000

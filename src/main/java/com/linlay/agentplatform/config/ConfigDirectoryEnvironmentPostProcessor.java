@@ -28,6 +28,7 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
 
     private static final List<String> TOP_LEVEL_FILES = List.of(
             "auth.yml",
+            "agentbox.yml",
             "bash.yml",
             "voice-tts.yml",
             "cors.yml",

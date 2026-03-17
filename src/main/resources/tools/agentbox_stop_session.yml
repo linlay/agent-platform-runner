@@ -1,0 +1,13 @@
+name: agentbox_stop_session
+label: Agentbox停止会话
+description: 调用已部署的 agentbox 服务，停止并删除一个会话。
+type: function
+inputSchema:
+  type: object
+  properties:
+    session_id:
+      type: string
+      description: 必填。要停止并删除的 agentbox 会话 ID。
+  required:
+    - session_id
+  additionalProperties: false

@@ -612,10 +612,42 @@ toolConfig:
 
 ### Java 内置工具
 
+- `agentbox_execute`：调用已部署的 `agentbox` 服务，创建或复用容器会话并执行命令。
+- `agentbox_stop_session`：调用已部署的 `agentbox` 服务，停止并删除一个会话。
 - `_skill_run_script_`：执行 skills 目录下脚本或临时 Python 脚本。
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。
 - `mock_city_weather`：模拟城市天气数据。
+
+## Agentbox 工具配置
+
+若要让 runner 使用外部 `agentbox`，请先复制配置模板：
+
+```bash
+cp configs/agentbox.example.yml configs/agentbox.yml
+```
+
+最小配置示例：
+
+```yaml
+agent:
+  tools:
+    agentbox:
+      enabled: true
+      base-url: http://127.0.0.1:8080
+      auth-token:
+      default-runtime: busybox
+      default-version: latest
+      default-cwd: /workspace
+      request-timeout-ms: 30000
+```
+
+说明：
+
+- `enabled=true` 后，`agentbox_execute` 与 `agentbox_stop_session` 才会作为 backend tool 生效。
+- `base-url` 指向已部署的 `agentbox` 服务。
+- 若 `agentbox` 配置了 `AUTH_TOKEN`，这里的 `auth-token` 需要同步填写。
+- `agentbox_execute` 在创建会话且未传 `runtime` / `version` / `cwd` 时，会回落到这里的默认值。
 
 ## Bash 工具配置
 
@@ -706,6 +738,13 @@ for f in *.md; do echo "$f"; done
 | `AGENT_BASH_SHELL_EXECUTABLE` | `bash` | Bash shell 模式执行器 |
 | `AGENT_BASH_SHELL_TIMEOUT_MS` | `10000` | Bash shell 模式超时（ms） |
 | `AGENT_BASH_MAX_COMMAND_CHARS` | `16000` | Bash 命令最大字符数 |
+| `AGENT_AGENTBOX_ENABLED` | `false` | 是否启用 agentbox backend tools |
+| `AGENT_AGENTBOX_BASE_URL` | `http://127.0.0.1:8080` | agentbox 服务地址 |
+| `AGENT_AGENTBOX_AUTH_TOKEN` | （空） | agentbox Bearer Token |
+| `AGENT_AGENTBOX_DEFAULT_RUNTIME` | `busybox` | 创建会话时默认 runtime |
+| `AGENT_AGENTBOX_DEFAULT_VERSION` | `latest` | 创建会话时默认 version |
+| `AGENT_AGENTBOX_DEFAULT_CWD` | `/workspace` | 创建会话时默认 cwd |
+| `AGENT_AGENTBOX_REQUEST_TIMEOUT_MS` | `30000` | 调用 agentbox HTTP API 的超时（ms） |
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `300000` | 前端工具提交超时 |
 | `AGENT_AUTH_ENABLED` | `true` | JWT 认证开关 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |
