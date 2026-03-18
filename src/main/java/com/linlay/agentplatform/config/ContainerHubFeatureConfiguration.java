@@ -1,7 +1,9 @@
 package com.linlay.agentplatform.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.runtime.ContainerHubRunSandboxService;
+import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
+import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
+import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import com.linlay.agentplatform.tool.SystemContainerHubBash;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,10 +31,20 @@ public class ContainerHubFeatureConfiguration {
     }
 
     @Bean
-    public ContainerHubRunSandboxService containerHubRunSandboxService(
+    public ContainerHubMountResolver containerHubMountResolver(
             ContainerHubToolProperties properties,
-            ContainerHubClient containerHubClient
+            DataProperties dataProperties,
+            SkillProperties skillProperties
     ) {
-        return new ContainerHubRunSandboxService(properties, containerHubClient);
+        return new ContainerHubMountResolver(properties, dataProperties, skillProperties);
+    }
+
+    @Bean
+    public ContainerHubSandboxService containerHubSandboxService(
+            ContainerHubToolProperties properties,
+            ContainerHubClient containerHubClient,
+            ContainerHubMountResolver containerHubMountResolver
+    ) {
+        return new ContainerHubSandboxService(properties, containerHubClient, containerHubMountResolver);
     }
 }

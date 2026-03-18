@@ -1,7 +1,9 @@
 package com.linlay.agentplatform.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.runtime.ContainerHubRunSandboxService;
+import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
+import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
+import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import com.linlay.agentplatform.tool.SystemContainerHubBash;
 import org.junit.jupiter.api.Test;
@@ -24,7 +26,8 @@ class ContainerHubFeatureConfigurationTest {
             assertThat(context).hasNotFailed();
             assertThat(context).doesNotHaveBean(ContainerHubClient.class);
             assertThat(context).doesNotHaveBean(SystemContainerHubBash.class);
-            assertThat(context).doesNotHaveBean(ContainerHubRunSandboxService.class);
+            assertThat(context).doesNotHaveBean(ContainerHubSandboxService.class);
+            assertThat(context).doesNotHaveBean(ContainerHubMountResolver.class);
         });
     }
 
@@ -39,12 +42,13 @@ class ContainerHubFeatureConfigurationTest {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(ContainerHubClient.class);
                     assertThat(context).hasSingleBean(SystemContainerHubBash.class);
-                    assertThat(context).hasSingleBean(ContainerHubRunSandboxService.class);
+                    assertThat(context).hasSingleBean(ContainerHubSandboxService.class);
+                    assertThat(context).hasSingleBean(ContainerHubMountResolver.class);
                 });
     }
 
     @Configuration(proxyBeanMethods = false)
-    @EnableConfigurationProperties(ContainerHubToolProperties.class)
+    @EnableConfigurationProperties({ContainerHubToolProperties.class, DataProperties.class, SkillProperties.class})
     @Import(ContainerHubFeatureConfiguration.class)
     static class ContainerHubFeatureTestConfiguration {
 

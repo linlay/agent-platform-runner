@@ -26,7 +26,7 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
 
     @Override
     public String description() {
-        return "在 run 级 container-hub 容器沙箱里执行 bash 命令。当前 baseUrl: " + properties.getBaseUrl();
+        return "在 container-hub 容器沙箱里执行 bash 命令。当前 baseUrl: " + properties.getBaseUrl();
     }
 
     @Override

@@ -9,7 +9,8 @@ import com.linlay.agentplatform.agent.mode.PlanExecuteMode;
 import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
-import com.linlay.agentplatform.agent.runtime.ContainerHubRunSandboxService;
+import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
+import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.agent.runtime.LocalToolInvoker;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
@@ -2178,7 +2179,8 @@ class DefinitionDrivenAgentTest {
 
         ContainerHubToolProperties properties = containerHubProperties("http://container-hub.test", "shell");
         ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
-        ContainerHubRunSandboxService sandboxService = new ContainerHubRunSandboxService(properties, client);
+        ContainerHubSandboxService sandboxService = new ContainerHubSandboxService(
+                properties, client, new ContainerHubMountResolver(properties, null, null));
         BaseTool containerHubTool = new SystemContainerHubBash(properties, client);
         ToolRegistry toolRegistry = new ToolRegistry(List.of(containerHubTool));
 
@@ -2241,6 +2243,8 @@ class DefinitionDrivenAgentTest {
 
         assertThat(deltas).isNotNull();
         assertThat(deltas.stream().map(AgentDelta::content).toList()).contains("done");
+        // async destroy may need a brief moment even with 0ms delay
+        Thread.sleep(200);
         assertThat(httpClient.events()).containsExactly("create", "execute", "execute", "stop");
     }
 
@@ -2256,7 +2260,8 @@ class DefinitionDrivenAgentTest {
 
         ContainerHubToolProperties properties = containerHubProperties("http://container-hub.test", "shell");
         ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
-        ContainerHubRunSandboxService sandboxService = new ContainerHubRunSandboxService(properties, client);
+        ContainerHubSandboxService sandboxService = new ContainerHubSandboxService(
+                properties, client, new ContainerHubMountResolver(properties, null, null));
         BaseTool containerHubTool = new SystemContainerHubBash(properties, client);
         ToolRegistry toolRegistry = new ToolRegistry(List.of(containerHubTool));
 
@@ -2367,6 +2372,7 @@ class DefinitionDrivenAgentTest {
         properties.setBaseUrl(baseUrl);
         properties.setDefaultEnvironmentId(environmentId);
         properties.setRequestTimeoutMs(1000);
+        properties.setDestroyQueueDelayMs(0);
         return properties;
     }
 

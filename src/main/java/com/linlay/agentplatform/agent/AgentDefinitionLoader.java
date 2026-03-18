@@ -6,6 +6,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.agent.mode.AgentMode;
 import com.linlay.agentplatform.agent.mode.AgentModeFactory;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
@@ -384,9 +385,12 @@ public class AgentDefinitionLoader {
 
     private AgentDefinition.SandboxConfig toSandboxConfig(AgentConfigFile.SandboxConfig sandboxConfig) {
         if (sandboxConfig == null) {
-            return new AgentDefinition.SandboxConfig(null);
+            return new AgentDefinition.SandboxConfig(null, null);
         }
-        return new AgentDefinition.SandboxConfig(sandboxConfig.getEnvironmentId());
+        return new AgentDefinition.SandboxConfig(
+                sandboxConfig.getEnvironmentId(),
+                SandboxLevel.parse(sandboxConfig.getLevel())
+        );
     }
 
     private ModelDefinition resolveModelByKey(String rawModelKey) {

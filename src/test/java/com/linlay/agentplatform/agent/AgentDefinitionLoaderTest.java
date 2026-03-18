@@ -87,6 +87,35 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldLoadSandboxConfigWithLevel() throws IOException {
+        writeYaml("sandboxed_agent_level.yml", """
+                key: sandboxed_agent_level
+                name: Sandboxed Agent Level
+                role: Sandboxed Agent Level
+                description: sandboxed with agent level
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - container_hub_bash
+                sandboxConfig:
+                  environmentId: shell
+                  level: agent
+                mode: ONESHOT
+                plain:
+                  systemPrompt: use sandbox
+                """);
+
+        AgentDefinition definition = loadById().get("sandboxed_agent_level");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.sandboxConfig().environmentId()).isEqualTo("shell");
+        assertThat(definition.sandboxConfig().level()).isEqualTo(
+                com.linlay.agentplatform.agent.runtime.SandboxLevel.AGENT
+        );
+    }
+
+    @Test
     void shouldLoadExternalAgentWithIconObject() throws IOException {
         writeYaml("demo_icon_object.yml", """
                 key: demo_icon_object

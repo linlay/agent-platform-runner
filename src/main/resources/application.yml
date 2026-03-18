@@ -65,6 +65,15 @@ agent:
       shell-executable: ${AGENT_BASH_SHELL_EXECUTABLE:bash}
       shell-timeout-ms: ${AGENT_BASH_SHELL_TIMEOUT_MS:10000}
       max-command-chars: ${AGENT_BASH_MAX_COMMAND_CHARS:16000}
+    container-hub:
+      default-sandbox-level: ${AGENT_CONTAINER_HUB_DEFAULT_SANDBOX_LEVEL:run}
+      agent-idle-timeout-ms: ${AGENT_CONTAINER_HUB_AGENT_IDLE_TIMEOUT_MS:600000}
+      destroy-queue-delay-ms: ${AGENT_CONTAINER_HUB_DESTROY_QUEUE_DELAY_MS:5000}
+      mounts:
+        data-dir: ${AGENT_CONTAINER_HUB_MOUNTS_DATA_DIR:}
+        user-dir: ${AGENT_CONTAINER_HUB_MOUNTS_USER_DIR:./user}
+        skills-dir: ${AGENT_CONTAINER_HUB_MOUNTS_SKILLS_DIR:}
+        pan-dir: ${AGENT_CONTAINER_HUB_MOUNTS_PAN_DIR:./pan}
   h2a:
     render:
       flush-interval-ms: ${AGENT_H2A_RENDER_FLUSH_INTERVAL_MS:0}

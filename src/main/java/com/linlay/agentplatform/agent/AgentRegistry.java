@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.runtime.ContainerHubRunSandboxService;
+import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.agent.runtime.ToolInvokerRouter;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
@@ -45,7 +45,7 @@ public class AgentRegistry {
     private final LoggingAgentProperties loggingAgentProperties;
     private final ToolInvokerRouter toolInvokerRouter;
     private final ActiveRunService activeRunService;
-    private final ContainerHubRunSandboxService containerHubRunSandboxService;
+    private final ContainerHubSandboxService containerHubSandboxService;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, Agent> agents = Map.of();
@@ -73,7 +73,7 @@ public class AgentRegistry {
                 skillRegistryService,
                 toolInvokerRouter,
                 null,
-                (ContainerHubRunSandboxService) null
+                (ContainerHubSandboxService) null
         );
     }
 
@@ -87,7 +87,7 @@ public class AgentRegistry {
             SkillRegistryService skillRegistryService,
             ToolInvokerRouter toolInvokerRouter,
             ActiveRunService activeRunService,
-            ContainerHubRunSandboxService containerHubRunSandboxService
+            ContainerHubSandboxService containerHubSandboxService
     ) {
         this(
                 definitionLoader,
@@ -100,7 +100,7 @@ public class AgentRegistry {
                 new LoggingAgentProperties(),
                 toolInvokerRouter,
                 activeRunService,
-                containerHubRunSandboxService
+                containerHubSandboxService
         );
     }
 
@@ -126,7 +126,7 @@ public class AgentRegistry {
                 loggingAgentProperties,
                 toolInvokerRouter,
                 null,
-                (ContainerHubRunSandboxService) null
+                (ContainerHubSandboxService) null
         );
     }
 
@@ -142,7 +142,7 @@ public class AgentRegistry {
             LoggingAgentProperties loggingAgentProperties,
             ToolInvokerRouter toolInvokerRouter,
             ActiveRunService activeRunService,
-            ObjectProvider<ContainerHubRunSandboxService> containerHubRunSandboxServiceProvider
+            ObjectProvider<ContainerHubSandboxService> containerHubSandboxServiceProvider
     ) {
         this(
                 definitionLoader,
@@ -155,7 +155,7 @@ public class AgentRegistry {
                 loggingAgentProperties,
                 toolInvokerRouter,
                 activeRunService,
-                containerHubRunSandboxServiceProvider.getIfAvailable()
+                containerHubSandboxServiceProvider.getIfAvailable()
         );
     }
 
@@ -170,7 +170,7 @@ public class AgentRegistry {
             LoggingAgentProperties loggingAgentProperties,
             ToolInvokerRouter toolInvokerRouter,
             ActiveRunService activeRunService,
-            ContainerHubRunSandboxService containerHubRunSandboxService
+            ContainerHubSandboxService containerHubSandboxService
     ) {
         this.definitionLoader = definitionLoader;
         this.llmService = llmService;
@@ -182,7 +182,7 @@ public class AgentRegistry {
         this.loggingAgentProperties = loggingAgentProperties;
         this.toolInvokerRouter = toolInvokerRouter;
         this.activeRunService = activeRunService;
-        this.containerHubRunSandboxService = containerHubRunSandboxService;
+        this.containerHubSandboxService = containerHubSandboxService;
         refreshAgents();
     }
 
@@ -333,7 +333,7 @@ public class AgentRegistry {
                 loggingAgentProperties,
                 toolInvokerRouter,
                 activeRunService,
-                containerHubRunSandboxService
+                containerHubSandboxService
         );
     }
 

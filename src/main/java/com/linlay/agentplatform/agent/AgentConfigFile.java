@@ -288,6 +288,7 @@ public class AgentConfigFile {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class SandboxConfig {
         private String environmentId;
+        private String level;
 
         public String getEnvironmentId() {
             return environmentId;
@@ -295,6 +296,14 @@ public class AgentConfigFile {
 
         public void setEnvironmentId(String environmentId) {
             this.environmentId = environmentId;
+        }
+
+        public String getLevel() {
+            return level;
+        }
+
+        public void setLevel(String level) {
+            this.level = level;
         }
     }
 

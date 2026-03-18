@@ -2,6 +2,7 @@ package com.linlay.agentplatform.agent;
 
 import com.linlay.agentplatform.agent.mode.AgentMode;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.model.ModelProtocol;
 
@@ -112,7 +113,7 @@ public record AgentDefinition(
             skills = List.copyOf(skills);
         }
         if (sandboxConfig == null) {
-            sandboxConfig = new SandboxConfig(null);
+            sandboxConfig = new SandboxConfig(null, null);
         }
         if (modelKeys == null) {
             modelKeys = List.of();
@@ -129,10 +130,15 @@ public record AgentDefinition(
     }
 
     public record SandboxConfig(
-            String environmentId
+            String environmentId,
+            SandboxLevel level
     ) {
         public SandboxConfig {
             environmentId = environmentId == null || environmentId.isBlank() ? null : environmentId.trim();
+        }
+
+        public SandboxConfig(String environmentId) {
+            this(environmentId, null);
         }
     }
 }

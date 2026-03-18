@@ -8,7 +8,7 @@ import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.BudgetExceededException;
-import com.linlay.agentplatform.agent.runtime.ContainerHubRunSandboxService;
+import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
@@ -65,7 +65,7 @@ public class DefinitionDrivenAgent implements Agent {
     private final ObjectMapper objectMapper;
     private final SkillRegistryService skillRegistryService;
     private final ActiveRunService activeRunService;
-    private final ContainerHubRunSandboxService containerHubRunSandboxService;
+    private final ContainerHubSandboxService containerHubSandboxService;
     private final AgentRunSnapshotLogger snapshotLogger;
 
     public DefinitionDrivenAgent(
@@ -177,7 +177,7 @@ public class DefinitionDrivenAgent implements Agent {
             LoggingAgentProperties loggingAgentProperties,
             ToolInvoker toolInvoker,
             ActiveRunService activeRunService,
-            ContainerHubRunSandboxService containerHubRunSandboxService
+            ContainerHubSandboxService containerHubSandboxService
     ) {
         this.definition = definition;
         this.toolRegistry = toolRegistry;
@@ -185,7 +185,7 @@ public class DefinitionDrivenAgent implements Agent {
         this.objectMapper = objectMapper;
         this.skillRegistryService = skillRegistryService;
         this.activeRunService = activeRunService;
-        this.containerHubRunSandboxService = containerHubRunSandboxService;
+        this.containerHubSandboxService = containerHubSandboxService;
         Map<String, BaseTool> resolvedTools = resolveConfiguredTools(definition.tools());
         this.configuredToolsByName = resolvedTools;
         this.effectiveToolNames = List.copyOf(resolvedTools.keySet());
@@ -304,8 +304,8 @@ public class DefinitionDrivenAgent implements Agent {
                             skillPromptBundle.resolvedSkillsById(),
                             runControl
                     );
-                    if (containerHubRunSandboxService != null) {
-                        containerHubRunSandboxService.openIfNeeded(context);
+                    if (containerHubSandboxService != null) {
+                        containerHubSandboxService.openIfNeeded(context);
                     }
                     if (latestPlanSnapshot != null) {
                         context.initializePlan(latestPlanSnapshot.planId, toPlanTasks(latestPlanSnapshot.tasks));
@@ -316,8 +316,8 @@ public class DefinitionDrivenAgent implements Agent {
                             .doOnNext(trace::capture)
                             .doOnComplete(() -> finalizeTrace(request, trace))
                             .doFinally(signalType -> {
-                                if (containerHubRunSandboxService != null) {
-                                    containerHubRunSandboxService.closeQuietly(context);
+                                if (containerHubSandboxService != null) {
+                                    containerHubSandboxService.closeQuietly(context);
                                 }
                             });
                 })

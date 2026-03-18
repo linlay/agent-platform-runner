@@ -408,6 +408,54 @@ type=html, key=show_weather_card
 }
 ```
 
+## Container Hub 三级生命周期
+
+Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig.level` 或全局默认 `default-sandbox-level` 配置。
+
+### 级别定义
+
+| 级别 | session_id 命名 | 生命周期 | 并发策略 |
+|------|----------------|---------|---------|
+| `RUN` | `run-{runId}` | 随 run 创建/销毁（异步延迟销毁） | 无共享状态，每个 run 独立 |
+| `AGENT` | `agent-{agentKey}` | 同 agentKey 复用，空闲超时后驱逐 | `ConcurrentHashMap.compute()` + `AtomicInteger` 引用计数 |
+| `GLOBAL` | `global-singleton` | 应用生命周期内单例，shutdown 时销毁 | `synchronized` + double-check locking |
+
+### 挂载目录映射
+
+| 容器内路径 | RUN 宿主路径 | AGENT/GLOBAL 宿主路径 | 配置键（为空时 fallback） |
+|-----------|-------------|---------------------|----------------------|
+| `/tmp` | `{dataDir}/{chatId}` | `{dataDir}` | `mounts.data-dir` → `agent.data.external-dir` |
+| `/home` | `{userDir}` | `{userDir}` | `mounts.user-dir`（默认 `./user`） |
+| `/skills` | `{skillsDir}` | `{skillsDir}` | `mounts.skills-dir` → `agent.skills.external-dir` |
+| `/pan` | `{panDir}` | `{panDir}` | `mounts.pan-dir`（默认 `./pan`） |
+
+### Agent Definition 中的 sandboxConfig
+
+```yaml
+sandboxConfig:
+  environmentId: shell
+  level: agent        # run / agent / global；为空时使用全局 default-sandbox-level
+```
+
+### 环境变量
+
+| 环境变量 | 属性键 | 默认值 | 说明 |
+|---------|--------|-------|------|
+| `AGENT_CONTAINER_HUB_DEFAULT_SANDBOX_LEVEL` | `agent.tools.container-hub.default-sandbox-level` | `run` | 全局默认沙箱级别 |
+| `AGENT_CONTAINER_HUB_AGENT_IDLE_TIMEOUT_MS` | `agent.tools.container-hub.agent-idle-timeout-ms` | `600000` | agent 级别空闲驱逐超时（ms） |
+| `AGENT_CONTAINER_HUB_DESTROY_QUEUE_DELAY_MS` | `agent.tools.container-hub.destroy-queue-delay-ms` | `5000` | run 级别异步销毁延迟（ms） |
+| `AGENT_CONTAINER_HUB_MOUNTS_DATA_DIR` | `agent.tools.container-hub.mounts.data-dir` | （空，fallback `agent.data.external-dir`） | 挂载数据目录 |
+| `AGENT_CONTAINER_HUB_MOUNTS_USER_DIR` | `agent.tools.container-hub.mounts.user-dir` | `./user` | 挂载用户目录 |
+| `AGENT_CONTAINER_HUB_MOUNTS_SKILLS_DIR` | `agent.tools.container-hub.mounts.skills-dir` | （空，fallback `agent.skills.external-dir`） | 挂载技能目录 |
+| `AGENT_CONTAINER_HUB_MOUNTS_PAN_DIR` | `agent.tools.container-hub.mounts.pan-dir` | `./pan` | 挂载 pan 目录 |
+
+### 并发与销毁策略
+
+- **RUN**: `closeQuietly` 触发异步延迟销毁（`destroyQueueDelayMs` 后调用 `stopSession`）
+- **AGENT**: `closeQuietly` 减少引用计数；引用归零后调度空闲驱逐定时器；驱逐时二次检查引用计数和空闲时间
+- **GLOBAL**: `closeQuietly` 为 no-op；仅在 `DisposableBean.destroy()` 时停止
+- **shutdown**: `destroy()` 关闭调度器，遍历停止所有 agent 和 global 会话
+
 ## SSE 事件契约（最新）
 
 ### 1. 基础字段（所有 SSE 事件）

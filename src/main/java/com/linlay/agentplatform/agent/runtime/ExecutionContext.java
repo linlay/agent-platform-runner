@@ -536,7 +536,11 @@ public class ExecutionContext {
     public record SandboxSession(
             String sessionId,
             String environmentId,
-            String defaultCwd
+            String defaultCwd,
+            SandboxLevel level
     ) {
+        public SandboxSession(String sessionId, String environmentId, String defaultCwd) {
+            this(sessionId, environmentId, defaultCwd, SandboxLevel.RUN);
+        }
     }
 }

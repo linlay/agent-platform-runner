@@ -6,3 +6,15 @@ agent:
       auth-token:
       default-environment-id:
       request-timeout-ms: 30000
+      # 默认沙箱级别: run / agent / global
+      default-sandbox-level: run
+      # agent 级别会话空闲超时（ms），超时后自动驱逐
+      agent-idle-timeout-ms: 600000
+      # run 级别会话异步销毁延迟（ms）
+      destroy-queue-delay-ms: 5000
+      # 挂载目录配置（为空时 fallback 到对应全局配置）
+      mounts:
+        data-dir:
+        user-dir: ./user
+        skills-dir:
+        pan-dir: ./pan
