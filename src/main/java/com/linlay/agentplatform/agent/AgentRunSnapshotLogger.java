@@ -158,6 +158,7 @@ final class AgentRunSnapshotLogger {
         List<String> registered = currentlyRegisteredConfiguredTools();
         snapshot.put("configured", groupToolNames(configuredToolsByName.keySet()));
         snapshot.put("currentlyRegistered", groupToolNames(registered));
+        // "enabled" currently mirrors the registered subset because runtime enablement is derived from registration.
         snapshot.put("enabled", groupToolNames(registered));
 
         Map<String, Object> stageTools = new LinkedHashMap<>();

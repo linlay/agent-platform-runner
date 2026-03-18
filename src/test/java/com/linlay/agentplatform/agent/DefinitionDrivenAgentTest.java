@@ -2430,10 +2430,14 @@ class DefinitionDrivenAgentTest {
                 sandboxService
         );
 
-        assertThatThrownBy(() -> agent.stream(new AgentRequest("test", "chat1", "req1", "run1", Map.of()))
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("test", "chat1", "req1", "run1", Map.of()))
                 .collectList()
-                .block(Duration.ofSeconds(3)))
-                .hasMessageContaining("container-hub sandbox create failed");
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(deltas.stream().map(AgentDelta::content).filter(java.util.Objects::nonNull).toList())
+                .contains("container-hub sandbox create failed: sandbox unavailable");
+        assertThat(deltas.getLast().finishReason()).isEqualTo("tool_error");
         assertThat(httpClient.events()).containsExactly("create");
     }
 
@@ -2513,7 +2517,18 @@ class DefinitionDrivenAgentTest {
         properties.setDefaultEnvironmentId(environmentId);
         properties.setRequestTimeoutMs(1000);
         properties.setDestroyQueueDelayMs(0);
+        properties.getMounts().setUserDir(createTempMountDir("definition-agent-user").toString());
+        properties.getMounts().setSkillsDir(createTempMountDir("definition-agent-skills").toString());
+        properties.getMounts().setPanDir(createTempMountDir("definition-agent-pan").toString());
         return properties;
+    }
+
+    private Path createTempMountDir(String prefix) {
+        try {
+            return Files.createTempDirectory(prefix);
+        } catch (IOException ex) {
+            throw new IllegalStateException("failed to create temp mount dir for test", ex);
+        }
     }
 
     private static String readBody(HttpRequest request) {

@@ -15,6 +15,7 @@ import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -222,6 +223,24 @@ class ContainerHubSandboxServiceTest {
                 .hasMessageContaining("container-hub sandbox create failed");
     }
 
+    @Test
+    void openShouldFailBeforeCreateWhenConfiguredUserDirDoesNotExist() {
+        CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
+        ContainerHubToolProperties properties = containerHubProperties("run");
+        properties.getMounts().setUserDir("/path/that/does/not/exist");
+        StubContainerHubClient client = new StubContainerHubClient(events);
+        ContainerHubMountResolver mountResolver = new ContainerHubMountResolver(properties, null, null);
+        ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
+
+        ExecutionContext context = createContext(definitionWithLevel(SandboxLevel.RUN));
+        assertThatThrownBy(() -> service.openIfNeeded(context))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("container-hub mount validation failed for user-dir")
+                .hasMessageContaining("resolved=/path/that/does/not/exist")
+                .hasMessageContaining("containerPath=/home");
+        assertThat(events).isEmpty();
+    }
+
     private ContainerHubToolProperties containerHubProperties(String defaultLevel) {
         ContainerHubToolProperties properties = new ContainerHubToolProperties();
         properties.setEnabled(true);
@@ -233,7 +252,18 @@ class ContainerHubSandboxServiceTest {
         }
         properties.setDestroyQueueDelayMs(10);
         properties.setAgentIdleTimeoutMs(100);
+        properties.getMounts().setUserDir(createTempMountDir("container-hub-user").toString());
+        properties.getMounts().setSkillsDir(createTempMountDir("container-hub-skills").toString());
+        properties.getMounts().setPanDir(createTempMountDir("container-hub-pan").toString());
         return properties;
+    }
+
+    private Path createTempMountDir(String prefix) {
+        try {
+            return java.nio.file.Files.createTempDirectory(prefix);
+        } catch (java.io.IOException ex) {
+            throw new IllegalStateException("failed to create temp mount dir for test", ex);
+        }
     }
 
     private ContainerHubSandboxService createService(ContainerHubToolProperties properties) {

@@ -304,9 +304,6 @@ public class DefinitionDrivenAgent implements Agent {
                             skillPromptBundle.resolvedSkillsById(),
                             runControl
                     );
-                    if (containerHubSandboxService != null) {
-                        containerHubSandboxService.openIfNeeded(context);
-                    }
                     if (latestPlanSnapshot != null) {
                         context.initializePlan(latestPlanSnapshot.planId, toPlanTasks(latestPlanSnapshot.tasks));
                     }
@@ -328,6 +325,7 @@ public class DefinitionDrivenAgent implements Agent {
         context.bindRunnerThread(Thread.currentThread());
         context.runControl().transitionState(RunLoopState.IDLE);
         try {
+            openSandboxIfNeeded(context);
             if (context.hasPlan()) {
                 services.emit(sink, AgentDelta.planUpdate(context.planId(), context.request().chatId(), context.planTasks()));
             }
@@ -384,6 +382,17 @@ public class DefinitionDrivenAgent implements Agent {
             }
         } finally {
             context.bindRunnerThread(null);
+        }
+    }
+
+    private void openSandboxIfNeeded(ExecutionContext context) {
+        if (containerHubSandboxService == null) {
+            return;
+        }
+        try {
+            containerHubSandboxService.openIfNeeded(context);
+        } catch (IllegalStateException ex) {
+            throw new FatalToolExecutionException("sandbox_error", ex.getMessage());
         }
     }
 

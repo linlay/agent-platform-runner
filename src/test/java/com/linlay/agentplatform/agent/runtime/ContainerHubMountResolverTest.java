@@ -24,6 +24,9 @@ class ContainerHubMountResolverTest {
 
         ContainerHubToolProperties properties = new ContainerHubToolProperties();
         properties.getMounts().setDataDir(dataRoot.toString());
+        properties.getMounts().setUserDir("");
+        properties.getMounts().setSkillsDir("");
+        properties.getMounts().setPanDir("");
         ContainerHubMountResolver resolver = new ContainerHubMountResolver(properties, null, null);
 
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.RUN, "chat-123");
@@ -41,8 +44,12 @@ class ContainerHubMountResolverTest {
         Path dataRoot = tempDir.resolve("fallback-data");
         DataProperties dataProperties = new DataProperties();
         dataProperties.setExternalDir(dataRoot.toString());
+        ContainerHubToolProperties properties = new ContainerHubToolProperties();
+        properties.getMounts().setUserDir("");
+        properties.getMounts().setSkillsDir("");
+        properties.getMounts().setPanDir("");
 
-        ContainerHubMountResolver resolver = new ContainerHubMountResolver(new ContainerHubToolProperties(), dataProperties, null);
+        ContainerHubMountResolver resolver = new ContainerHubMountResolver(properties, dataProperties, null);
 
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.RUN, "chat-fallback");
 
@@ -61,11 +68,32 @@ class ContainerHubMountResolverTest {
 
         ContainerHubToolProperties properties = new ContainerHubToolProperties();
         properties.getMounts().setDataDir(fileAsRoot.toString());
+        properties.getMounts().setUserDir("");
+        properties.getMounts().setSkillsDir("");
+        properties.getMounts().setPanDir("");
         ContainerHubMountResolver resolver = new ContainerHubMountResolver(properties, null, null);
 
         assertThatThrownBy(() -> resolver.resolve(SandboxLevel.RUN, "chat-error"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("failed to prepare run sandbox data mount directory")
+                .hasMessageContaining("container-hub mount validation failed for data-dir")
+                .hasMessageContaining("containerPath=/tmp")
                 .hasMessageContaining(fileAsRoot.resolve("chat-error").toAbsolutePath().normalize().toString());
+    }
+
+    @Test
+    void shouldFailEarlyWhenConfiguredUserDirDoesNotExist() {
+        ContainerHubToolProperties properties = new ContainerHubToolProperties();
+        properties.getMounts().setDataDir("");
+        properties.getMounts().setUserDir(tempDir.resolve("missing-home").toString());
+        properties.getMounts().setSkillsDir("");
+        properties.getMounts().setPanDir("");
+
+        ContainerHubMountResolver resolver = new ContainerHubMountResolver(properties, null, null);
+
+        assertThatThrownBy(() -> resolver.resolve(SandboxLevel.RUN, "chat-mount"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("container-hub mount validation failed for user-dir")
+                .hasMessageContaining("configured=" + tempDir.resolve("missing-home"))
+                .hasMessageContaining("containerPath=/home");
     }
 }

@@ -37,24 +37,24 @@ public class ContainerHubMountResolver {
             if (level == SandboxLevel.RUN && StringUtils.hasText(chatId)) {
                 hostPath = prepareRunDataMountDirectory(dataDir, chatId);
             } else {
-                hostPath = toAbsolute(dataDir);
+                hostPath = requireExistingDirectory("data-dir", dataDir, toAbsolute(dataDir), "/tmp");
             }
-            mounts.add(new MountSpec(hostPath, "/tmp"));
+            mounts.add(new MountSpec("data-dir", normalizeRawPath(dataDir), hostPath, "/tmp"));
         }
 
         String userDir = mountConfig == null ? "./user" : mountConfig.getUserDir();
         if (StringUtils.hasText(userDir)) {
-            mounts.add(new MountSpec(toAbsolute(userDir), "/home"));
+            mounts.add(existingDirectoryMount("user-dir", userDir, "/home"));
         }
 
         String skillsDir = resolveSkillsDir(mountConfig);
         if (StringUtils.hasText(skillsDir)) {
-            mounts.add(new MountSpec(toAbsolute(skillsDir), "/skills"));
+            mounts.add(existingDirectoryMount("skills-dir", skillsDir, "/skills"));
         }
 
         String panDir = mountConfig == null ? "./pan" : mountConfig.getPanDir();
         if (StringUtils.hasText(panDir)) {
-            mounts.add(new MountSpec(toAbsolute(panDir), "/pan"));
+            mounts.add(existingDirectoryMount("pan-dir", panDir, "/pan"));
         }
 
         return List.copyOf(mounts);
@@ -84,19 +84,42 @@ public class ContainerHubMountResolver {
         return Path.of(path).toAbsolutePath().normalize().toString();
     }
 
+    private MountSpec existingDirectoryMount(String mountName, String rawPath, String containerPath) {
+        String hostPath = requireExistingDirectory(mountName, rawPath, toAbsolute(rawPath), containerPath);
+        return new MountSpec(mountName, normalizeRawPath(rawPath), hostPath, containerPath);
+    }
+
+    private String requireExistingDirectory(String mountName, String rawPath, String resolvedPath, String containerPath) {
+        Path path = Path.of(resolvedPath);
+        if (Files.isDirectory(path)) {
+            return path.toAbsolutePath().normalize().toString();
+        }
+        String reason = Files.exists(path) ? "source is not a directory" : "source does not exist";
+        throw new IllegalStateException("container-hub mount validation failed for %s: %s (configured=%s, resolved=%s, containerPath=%s)"
+                .formatted(mountName, reason, normalizeRawPath(rawPath), path.toAbsolutePath().normalize(), containerPath));
+    }
+
     private String prepareRunDataMountDirectory(String dataDir, String chatId) {
         Path path = Path.of(dataDir, chatId).toAbsolutePath().normalize();
         try {
             Files.createDirectories(path);
         } catch (IOException ex) {
             throw new IllegalStateException(
-                    "failed to prepare run sandbox data mount directory: " + path,
+                    "container-hub mount validation failed for data-dir: failed to prepare chat-scoped directory "
+                            + "(configured=%s, resolved=%s, containerPath=/tmp)".formatted(
+                            normalizeRawPath(dataDir),
+                            path
+                    ),
                     ex
             );
         }
         return path.toString();
     }
 
-    public record MountSpec(String hostPath, String containerPath) {
+    private String normalizeRawPath(String rawPath) {
+        return rawPath == null ? "" : rawPath.trim();
+    }
+
+    public record MountSpec(String mountName, String rawPath, String hostPath, String containerPath) {
     }
 }
