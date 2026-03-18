@@ -56,6 +56,9 @@ hs_err_pid*
 replay_pid*
 
 # Negation keep rules (classpath runtime resources tracked)
+!/agents/
+/agents/*
+!/agents/demoContainerHubValidator.yml
 !/src/main/resources/skills/
 !/src/main/resources/skills/**
 !/src/main/resources/tools/

@@ -60,7 +60,7 @@ class LlmCallLoggerTest {
                     .toList();
 
             assertThat(buffer)
-                    .hasToString("[reasoning] thinkingfinal answer\n[tool_call] id=call_1, name=weather, args={\"city\":\"Shanghai\"}\n[finish_reason] stop");
+                    .hasToString("thinkingfinal answer\n[tool_call] id=call_1, name=weather, args={\"city\":\"Shanghai\"}\n[finish_reason] stop");
             assertThat(messages).contains(
                     "[llm:9840e95b][plan.final][delta] reasoning: thinking",
                     "[llm:9840e95b][plan.final][delta] content: final answer",

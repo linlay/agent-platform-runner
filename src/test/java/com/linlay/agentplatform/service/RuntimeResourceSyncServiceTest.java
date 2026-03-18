@@ -34,7 +34,7 @@ class RuntimeResourceSyncServiceTest {
         Path skillScriptTool = toolsDir.resolve("_skill_run_script_.yml");
         Path extraAgent = agentsDir.resolve("custom_agent.yml");
         Path extraTool = toolsDir.resolve("custom.yml");
-        Path mathBasicSkillFile = skillsDir.resolve("math_basic").resolve("SKILL.md");
+        Path containerHubSkillFile = skillsDir.resolve("container_hub_validation").resolve("SKILL.md");
         Path extraSkillFile = skillsDir.resolve("custom_skill").resolve("SKILL.md");
         Path builtInSchedule = schedulesDir.resolve("builtin_placeholder_daily.yml");
         Path extraSchedule = schedulesDir.resolve("custom_schedule.yml");
@@ -42,9 +42,9 @@ class RuntimeResourceSyncServiceTest {
         Files.writeString(weatherTool, "old-tool-content");
         Files.writeString(extraAgent, "custom agent content");
         Files.writeString(extraTool, "custom tool content");
-        Files.createDirectories(mathBasicSkillFile.getParent());
+        Files.createDirectories(containerHubSkillFile.getParent());
         Files.createDirectories(extraSkillFile.getParent());
-        Files.writeString(mathBasicSkillFile, "old-skill-content");
+        Files.writeString(containerHubSkillFile, "old-skill-content");
         Files.writeString(extraSkillFile, "custom skill content");
         Files.writeString(builtInSchedule, "old-schedule-content");
         Files.writeString(extraSchedule, "custom schedule content");
@@ -60,20 +60,22 @@ class RuntimeResourceSyncServiceTest {
 
         String syncedTool = Files.readString(weatherTool);
         String syncedSkillScriptTool = Files.readString(skillScriptTool);
-        String syncedSkill = Files.readString(mathBasicSkillFile);
+        String syncedSkill = Files.readString(containerHubSkillFile);
         String syncedSchedule = Files.readString(builtInSchedule);
 
         assertThat(syncedTool).contains("name: datetime");
         assertThat(syncedSkillScriptTool).contains("name: _skill_run_script_");
-        assertThat(syncedSkill).contains("name: \"math_basic\"");
+        assertThat(syncedSkill).contains("name: \"container_hub_validation\"");
         assertThat(syncedSchedule).contains("name: 内置占位计划任务")
                 .contains("description: 预留内置计划任务同步链路的占位任务，默认禁用")
                 .contains("cron: \"0 0 0 * * *\"")
                 .contains("environment:")
                 .contains("query:");
-        assertThat(skillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
-        assertThat(skillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
-        assertThat(skillsDir.resolve("text_utils").resolve("SKILL.md")).exists();
+        assertThat(skillsDir.resolve("container_hub_validation").resolve("SKILL.md")).exists();
+        assertThat(skillsDir.resolve("math_basic").resolve("SKILL.md")).doesNotExist();
+        assertThat(skillsDir.resolve("math_stats").resolve("SKILL.md")).doesNotExist();
+        assertThat(skillsDir.resolve("text_utils").resolve("SKILL.md")).doesNotExist();
+        assertThat(skillsDir.resolve("slack-gif-creator").resolve("SKILL.md")).doesNotExist();
         assertThat(schedulesDir.resolve("builtin_placeholder_daily.yml")).exists();
         assertThat(toolsDir.resolve("launch_fireworks.yml")).doesNotExist();
         assertThat(toolsDir.resolve("show_modal.yml")).doesNotExist();
@@ -118,9 +120,11 @@ class RuntimeResourceSyncServiceTest {
         }
 
         assertThat(configuredToolsDir.resolve("datetime.yml")).exists();
-        assertThat(configuredSkillsDir.resolve("math_basic").resolve("SKILL.md")).exists();
-        assertThat(configuredSkillsDir.resolve("math_stats").resolve("SKILL.md")).exists();
-        assertThat(configuredSkillsDir.resolve("text_utils").resolve("SKILL.md")).exists();
+        assertThat(configuredSkillsDir.resolve("container_hub_validation").resolve("SKILL.md")).exists();
+        assertThat(configuredSkillsDir.resolve("math_basic").resolve("SKILL.md")).doesNotExist();
+        assertThat(configuredSkillsDir.resolve("math_stats").resolve("SKILL.md")).doesNotExist();
+        assertThat(configuredSkillsDir.resolve("text_utils").resolve("SKILL.md")).doesNotExist();
+        assertThat(configuredSkillsDir.resolve("slack-gif-creator").resolve("SKILL.md")).doesNotExist();
         assertThat(configuredSchedulesDir.resolve("builtin_placeholder_daily.yml")).exists();
         assertThat(legacyUserDir.resolve("tools")).doesNotExist();
         assertThat(legacyUserDir.resolve("skills")).doesNotExist();

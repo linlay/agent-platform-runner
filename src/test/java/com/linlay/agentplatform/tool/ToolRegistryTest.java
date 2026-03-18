@@ -265,6 +265,57 @@ class ToolRegistryTest {
     }
 
     @Test
+    void enabledContainerHubShouldExposeLocalDescriptorEvenWhenYamlMetadataExists(@TempDir Path tempDir) throws IOException {
+        Path toolsDir = tempDir.resolve("tools");
+        Files.createDirectories(toolsDir);
+        Files.writeString(toolsDir.resolve("container_hub_bash.yml"), """
+                name: container_hub_bash
+                label: Container Hub Bash
+                description: metadata from yaml
+                type: function
+                inputSchema:
+                  type: object
+                  properties:
+                    command:
+                      type: string
+                  required:
+                    - command
+                  additionalProperties: false
+                """);
+
+        ToolProperties properties = new ToolProperties();
+        properties.setExternalDir(toolsDir.toString());
+        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper(), properties);
+
+        ContainerHubToolProperties containerHubProperties = new ContainerHubToolProperties();
+        containerHubProperties.setEnabled(true);
+        containerHubProperties.setBaseUrl("http://127.0.0.1:11960");
+        SystemContainerHubBash containerHubTool = new SystemContainerHubBash(
+                containerHubProperties,
+                new ContainerHubClient(containerHubProperties, objectMapper)
+        );
+
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("toolFileRegistryService", toolFileRegistryService);
+
+        ToolRegistry toolRegistry = new ToolRegistry(
+                List.of(containerHubTool),
+                beanFactory.getBeanProvider(ToolFileRegistryService.class),
+                beanFactory.getBeanProvider(McpToolSyncService.class),
+                containerHubProperties
+        );
+
+        assertThat(toolRegistry.descriptor("container_hub_bash"))
+                .isPresent()
+                .get()
+                .satisfies(descriptor -> {
+                    assertThat(descriptor.sourceType()).isEqualTo("local");
+                    assertThat(descriptor.sourceKey()).isNull();
+                    assertThat(descriptor.description()).contains("native HTTP bridge");
+                });
+    }
+
+    @Test
     void mcpToolShouldAppearAsVirtualTool() {
         ToolDescriptor mcpDescriptor = new ToolDescriptor(
                 "mock.weather.query",

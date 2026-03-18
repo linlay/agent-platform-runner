@@ -3,7 +3,9 @@ package com.linlay.agentplatform.agent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.mode.OneshotMode;
 import com.linlay.agentplatform.agent.mode.PlanExecuteMode;
+import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.testsupport.TestModelRegistryServices;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -113,6 +115,29 @@ class AgentDefinitionLoaderTest {
         assertThat(definition.sandboxConfig().level()).isEqualTo(
                 com.linlay.agentplatform.agent.runtime.SandboxLevel.AGENT
         );
+    }
+
+    @Test
+    void shouldLoadActualDemoContainerHubValidatorDefinition() throws IOException {
+        Files.copy(
+                Path.of("agents", "demoContainerHubValidator.yml"),
+                tempDir.resolve("demoContainerHubValidator.yml")
+        );
+
+        AgentDefinition definition = loadById().get("demoContainerHubValidator");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.name()).isEqualTo("Atlas");
+        assertThat(definition.tools()).containsExactly("container_hub_bash");
+        assertThat(definition.skills()).containsExactly("container_hub_validation");
+        assertThat(definition.sandboxConfig().environmentId()).isEqualTo("shell");
+        assertThat(definition.sandboxConfig().level()).isEqualTo(SandboxLevel.RUN);
+        assertThat(definition.mode()).isEqualTo(AgentRuntimeMode.REACT);
+
+        ReactMode mode = (ReactMode) definition.agentMode();
+        assertThat(mode.maxSteps()).isEqualTo(6);
+        assertThat(mode.stage().systemPrompt()).contains("先做 Bash smoke test");
+        assertThat(mode.stage().systemPrompt()).contains("python3");
     }
 
     @Test

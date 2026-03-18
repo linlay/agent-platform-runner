@@ -6,6 +6,8 @@ import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import com.linlay.agentplatform.tool.SystemContainerHubBash;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +15,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConditionalOnProperty(prefix = "agent.tools.container-hub", name = "enabled", havingValue = "true")
 public class ContainerHubFeatureConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(ContainerHubFeatureConfiguration.class);
 
     @Bean
     public ContainerHubClient containerHubClient(
@@ -27,6 +31,12 @@ public class ContainerHubFeatureConfiguration {
             ContainerHubToolProperties properties,
             ContainerHubClient containerHubClient
     ) {
+        log.info(
+                "container_hub_bash enabled as native HTTP bridge, baseUrl={}, defaultEnvironmentId={}, defaultSandboxLevel={}",
+                properties.getBaseUrl(),
+                properties.getDefaultEnvironmentId(),
+                properties.getDefaultSandboxLevel()
+        );
         return new SystemContainerHubBash(properties, containerHubClient);
     }
 

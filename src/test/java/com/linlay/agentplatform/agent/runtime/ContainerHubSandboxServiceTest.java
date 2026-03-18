@@ -88,7 +88,7 @@ class ContainerHubSandboxServiceTest {
     void runLevelShouldCreateAndDestroySession() {
         CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
         ContainerHubToolProperties properties = containerHubProperties("run");
-        StubContainerHubClient client = new StubContainerHubClient(events);
+        RecordingStubContainerHubClient client = new RecordingStubContainerHubClient(events);
         ContainerHubMountResolver mountResolver = new ContainerHubMountResolver(properties, null, null);
         ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
 
@@ -99,6 +99,14 @@ class ContainerHubSandboxServiceTest {
         assertThat(context.sandboxSession().level()).isEqualTo(SandboxLevel.RUN);
         assertThat(context.sandboxSession().sessionId()).startsWith("run-");
         assertThat(events).contains("createSession");
+        assertThat(client.lastCreatePayload).isNotNull();
+        assertThat(client.lastCreatePayload.path("mounts").isArray()).isTrue();
+        JsonNode mounts = client.lastCreatePayload.path("mounts");
+        assertThat(mounts).isNotEmpty();
+        assertThat(mounts.get(0).path("source").asText()).isNotBlank();
+        assertThat(mounts.get(0).path("destination").asText()).isEqualTo("/home");
+        assertThat(mounts.get(0).has("host_path")).isFalse();
+        assertThat(mounts.get(0).has("container_path")).isFalse();
 
         service.closeQuietly(context);
         assertThat(context.sandboxSession()).isNull();
@@ -311,6 +319,20 @@ class ContainerHubSandboxServiceTest {
             p.setEnabled(true);
             p.setBaseUrl("http://stub.test");
             return p;
+        }
+    }
+
+    private static final class RecordingStubContainerHubClient extends StubContainerHubClient {
+        private ObjectNode lastCreatePayload;
+
+        RecordingStubContainerHubClient(CopyOnWriteArrayList<String> events) {
+            super(events);
+        }
+
+        @Override
+        public JsonNode createSession(ObjectNode payload) {
+            this.lastCreatePayload = payload.deepCopy();
+            return super.createSession(payload);
         }
     }
 }

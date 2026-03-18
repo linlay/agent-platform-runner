@@ -26,7 +26,9 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
 
     @Override
     public String description() {
-        return "在 container-hub 容器沙箱里执行 bash 命令。当前 baseUrl: " + properties.getBaseUrl();
+        return "在 container-hub 容器沙箱里执行 bash 命令。"
+                + "这是一个 native HTTP bridge，会直连 agent-container-hub 的 /api/sessions/* REST 接口，"
+                + "不会走 MCP transport。当前 baseUrl: " + properties.getBaseUrl();
     }
 
     @Override
@@ -39,6 +41,7 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
         if (context == null || context.sandboxSession() == null) {
             return failureText("container_hub_bash requires an active run sandbox session");
         }
+        // This tool bridges directly to agent-container-hub's REST session APIs.
         JsonNode root = OBJECT_MAPPER.valueToTree(args == null ? Map.of() : args);
         String command = readText(root, "command");
         if (!StringUtils.hasText(command)) {

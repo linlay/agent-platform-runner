@@ -328,16 +328,16 @@ class AgentControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data[0].key").exists()
                 .jsonPath("$.data[0].meta.promptTruncated").isBoolean()
-                .jsonPath("$.data[?(@.key=='math_basic')]").exists()
-                .jsonPath("$.data[?(@.key=='slack-gif-creator')]").exists();
+                .jsonPath("$.data[?(@.key=='container_hub_validation')]").exists()
+                .jsonPath("$.data[?(@.key=='math_basic')]").doesNotExist();
 
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/skills").queryParam("tag", "slack-gif").build())
+                .uri(uriBuilder -> uriBuilder.path("/api/skills").queryParam("tag", "container").build())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data[?(@.key=='slack-gif-creator')]").exists()
+                .jsonPath("$.data[?(@.key=='container_hub_validation')]").exists()
                 .jsonPath("$.data[?(@.key=='math_basic')]").doesNotExist();
     }
 

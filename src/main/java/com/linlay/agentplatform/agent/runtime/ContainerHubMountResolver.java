@@ -5,6 +5,8 @@ import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +35,7 @@ public class ContainerHubMountResolver {
         if (StringUtils.hasText(dataDir)) {
             String hostPath;
             if (level == SandboxLevel.RUN && StringUtils.hasText(chatId)) {
-                hostPath = toAbsolute(Path.of(dataDir, chatId).toString());
+                hostPath = prepareRunDataMountDirectory(dataDir, chatId);
             } else {
                 hostPath = toAbsolute(dataDir);
             }
@@ -80,6 +82,19 @@ public class ContainerHubMountResolver {
 
     private String toAbsolute(String path) {
         return Path.of(path).toAbsolutePath().normalize().toString();
+    }
+
+    private String prepareRunDataMountDirectory(String dataDir, String chatId) {
+        Path path = Path.of(dataDir, chatId).toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(path);
+        } catch (IOException ex) {
+            throw new IllegalStateException(
+                    "failed to prepare run sandbox data mount directory: " + path,
+                    ex
+            );
+        }
+        return path.toString();
     }
 
     public record MountSpec(String hostPath, String containerPath) {

@@ -1,6 +1,6 @@
 name: container_hub_bash
 label: Container Hub Bash
-description: 在 run 级 container-hub 容器沙箱中执行 bash 命令。
+description: 在 run 级 container-hub 容器沙箱中执行 bash 命令；这是一个 native HTTP bridge，直连 agent-container-hub 的 /api/sessions/* REST 接口，不经过 MCP。
 type: function
 inputSchema:
   type: object

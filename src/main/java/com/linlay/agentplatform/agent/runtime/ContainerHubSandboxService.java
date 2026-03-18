@@ -342,8 +342,8 @@ public class ContainerHubSandboxService implements DisposableBean {
             ArrayNode mountsArray = ExecutionContext.OBJECT_MAPPER.createArrayNode();
             for (ContainerHubMountResolver.MountSpec mount : mounts) {
                 ObjectNode mountNode = ExecutionContext.OBJECT_MAPPER.createObjectNode();
-                mountNode.put("host_path", mount.hostPath());
-                mountNode.put("container_path", mount.containerPath());
+                mountNode.put("source", mount.hostPath());
+                mountNode.put("destination", mount.containerPath());
                 mountsArray.add(mountNode);
             }
             payload.set("mounts", mountsArray);

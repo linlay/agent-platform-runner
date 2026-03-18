@@ -349,6 +349,14 @@ Agent Definition 文件中引用 skills：
 
 | skill-id | 说明 |
 |----------|------|
+| `container_hub_validation` | Container Hub RUN 沙箱验证清单，要求先做 Bash smoke，再用容器内 Python 写文件 |
+
+### 示例 Skills
+
+以下 demo skills 位于 `example/skills/`，可通过 `example/install-example-*` 覆盖复制到外层运行目录。
+
+| skill-id | 说明 |
+|----------|------|
 | `screenshot` | 截图流程示例（含脚本 smoke test） |
 | `math_basic` | 算术计算（add/sub/mul/div/pow/mod） |
 | `math_stats` | 统计计算（summary/count/sum/min/max/mean/median/mode/stdev） |

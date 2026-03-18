@@ -2249,6 +2249,137 @@ class DefinitionDrivenAgentTest {
     }
 
     @Test
+    void sandboxedValidationAgentShouldInjectSkillCatalogAndExecuteBashThenPythonInContainerHub() throws Exception {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        CopyOnWriteArrayList<String> executedCommands = new CopyOnWriteArrayList<>();
+        httpClient.register("/api/sessions/create", request -> {
+            httpClient.record("create");
+            return new StubHttpResponse(request, 200, """
+                    {"session_id":"run-run1","cwd":"/workspace","status":"running"}
+                    """);
+        });
+        httpClient.register("/api/sessions/run-run1/execute", request -> {
+            httpClient.record("execute");
+            JsonNode payload = objectMapper.readTree(readBody(request));
+            String command = payload.path("args").get(1).asText();
+            executedCommands.add(command);
+            String stdout = command.contains("python3")
+                    ? "python report written\\n"
+                    : "bash smoke ok\\n";
+            return new StubHttpResponse(request, 200, """
+                    {"session_id":"run-run1","exit_code":0,"stdout":"%s","stderr":"","timed_out":false}
+                    """.formatted(stdout));
+        });
+        httpClient.register("/api/sessions/run-run1/stop", request -> {
+            httpClient.record("stop");
+            return new StubHttpResponse(request, 200, """
+                    {"session_id":"run-run1","status":"stopped"}
+                    """);
+        });
+
+        SkillRegistryService skillRegistryService = createSkillRegistry(
+                "container_hub_validation",
+                "container_hub_validation",
+                "validate container hub",
+                "Follow the checklist: bash smoke first, then python3 writes /tmp/validation_report.txt."
+        );
+        Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
+
+        ContainerHubToolProperties properties = containerHubProperties("http://container-hub.test", "shell");
+        ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
+        ContainerHubSandboxService sandboxService = new ContainerHubSandboxService(
+                properties, client, new ContainerHubMountResolver(properties, null, null));
+        BaseTool containerHubTool = new SystemContainerHubBash(properties, client);
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(containerHubTool));
+
+        AgentDefinition definition = new AgentDefinition(
+                "demoContainerHubValidator",
+                "demoContainerHubValidator",
+                null,
+                "demo container hub validator",
+                "role",
+                null,
+                "bailian",
+                "qwen3.5-plus",
+                null,
+                AgentRuntimeMode.REACT,
+                new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
+                new ReactMode(new StageSettings("sys", null, null, List.of("container_hub_bash"), false, ComputePolicy.MEDIUM), 4, null, null),
+                List.of("container_hub_bash"),
+                List.of("container_hub_validation"),
+                new AgentDefinition.SandboxConfig("shell"),
+                List.of()
+        );
+
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                stageSpecs.put(spec.stage(), spec);
+                return switch (spec.stage()) {
+                    case "agent-react-step-1" -> Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta(
+                                    "call_bash_1",
+                                    "function",
+                                    "container_hub_bash",
+                                    "{\"command\":\"echo hello > /tmp/bash_ok.txt && cat /tmp/bash_ok.txt\"}"
+                            )),
+                            "tool_calls"
+                    ));
+                    case "agent-react-step-2" -> Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta(
+                                    "call_python_1",
+                                    "function",
+                                    "container_hub_bash",
+                                    "{\"command\":\"python3 -c \\\"from pathlib import Path; Path('/tmp/validation_report.txt').write_text('container hub ok\\\\n', encoding='utf-8')\\\" && cat /tmp/validation_report.txt\"}"
+                            )),
+                            "tool_calls"
+                    ));
+                    case "agent-react-step-3" -> Flux.just(new LlmDelta("验证完成", null, "stop"));
+                    default -> Flux.empty();
+                };
+            }
+        };
+
+        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                null,
+                null,
+                skillRegistryService,
+                new LoggingAgentProperties(),
+                new LocalToolInvoker(toolRegistry),
+                null,
+                sandboxService
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("验证 container hub", "chat1", "req1", "run1", Map.of()))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(deltas.stream().map(AgentDelta::content).toList()).contains("验证完成");
+        assertThat(stageSpecs.get("agent-react-step-1")).isNotNull();
+        assertThat(stageSpecs.get("agent-react-step-1").systemPrompt())
+                .contains("skillId: container_hub_validation")
+                .contains("description: validate container hub")
+                .doesNotContain("Follow the checklist:");
+        assertThat(stageSpecs.get("agent-react-step-2").systemPrompt())
+                .contains("skillId: container_hub_validation")
+                .doesNotContain("Follow the checklist:");
+        assertThat(executedCommands).hasSize(2);
+        assertThat(executedCommands.get(0)).contains("/tmp/bash_ok.txt");
+        assertThat(executedCommands.get(1)).contains("python3");
+        assertThat(executedCommands.get(1)).contains("/tmp/validation_report.txt");
+
+        Thread.sleep(200);
+        assertThat(httpClient.events()).containsExactly("create", "execute", "execute", "stop");
+    }
+
+    @Test
     void sandboxedRunShouldFailBeforeToolExecutionWhenCreateFails() throws Exception {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.register("/api/sessions/create", request -> {
@@ -2307,17 +2438,26 @@ class DefinitionDrivenAgentTest {
     }
 
     private SkillRegistryService createSkillRegistry(String promptText) throws Exception {
+        return createSkillRegistry("screenshot", "screenshot", "capture screenshots", promptText);
+    }
+
+    private SkillRegistryService createSkillRegistry(
+            String skillId,
+            String skillName,
+            String skillDescription,
+            String promptText
+    ) throws Exception {
         Path skillsRoot = Files.createTempDirectory("skills-registry");
-        Path skillFile = skillsRoot.resolve("screenshot").resolve("SKILL.md");
+        Path skillFile = skillsRoot.resolve(skillId).resolve("SKILL.md");
         Files.createDirectories(skillFile.getParent());
         Files.writeString(skillFile, """
                 ---
-                name: "screenshot"
-                description: "capture screenshots"
+                name: "%s"
+                description: "%s"
                 ---
                 # Skill Prompt
                 %s
-                """.formatted(promptText));
+                """.formatted(skillName, skillDescription, promptText));
 
         SkillProperties skillProperties = new SkillProperties();
         skillProperties.setExternalDir(skillsRoot.toString());

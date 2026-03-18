@@ -1,8 +1,8 @@
 agent:
   tools:
     container-hub:
-      enabled: false
-      base-url: http://127.0.0.1:8080
+      enabled: true
+      base-url: http://127.0.0.1:11960
       auth-token:
       default-environment-id:
       request-timeout-ms: 30000

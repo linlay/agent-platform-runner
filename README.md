@@ -286,11 +286,13 @@ docker compose up -d --build
 约定：
 
 - `.env` 负责简单环境开关与端口（如 `HOST_PORT`、`SERVER_PORT`、`AGENT_AUTH_ENABLED`）。
-- `configs/` 负责结构化大配置，尤其是 auth、公钥文件、bash、tts 与多 provider（`agent.providers.*`）。
+- `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash、container hub 与 provider（`agent.providers.*`）。
+- `docker-compose.yml` 负责容器运行时路径装配与目录挂载；外置目录以 compose 中的 `/opt/...` 映射为准。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
 - `docker-compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（`environment.SERVER_PORT=8080`）。
+- compose 默认显式挂载并映射这些运行目录：`agents/`、`teams/`、`models/`、`tools/`、`mcp-servers/`、`viewport-servers/`、`viewports/`、`skills/`、`schedules/`、`data/`、`chats/`。
 
 ### release-local 配置说明
 
@@ -329,8 +331,9 @@ docker compose up -d --build
 
 - 主配置事实源为 `src/main/resources/application.yml`，运行时结构化覆盖来自 `configs/`。
 - 可先复制环境变量示例：`cp .env.example .env`，再按环境调整端口与认证开关。
-- 再复制需要的 `configs/*.example.yml` 与 `configs/**/*.example.*` 为真实配置文件。
+- 再按实际存在的模板复制需要的 `configs/*.example.yml` 与 `configs/**/*.example.*` 为真实配置文件。
 - 运行时默认读取 `./configs`；发布/容器默认读取 `/opt/configs`；可通过 `AGENT_CONFIG_DIR` 覆盖。
+- 容器部署时，运行目录挂载与 `AGENT_*_EXTERNAL_DIR` / `MEMORY_CHATS_DIR` 的对应关系以 `docker-compose.yml` 为准，而不是依赖应用内部相对路径默认值。
 - `agent.cors.enabled` 在主配置中默认是 `false`，即默认不启用 CORS 过滤器。
 - `agent.cors.allowed-origin-patterns` 仅匹配请求头 `Origin`，当前服务不读取/校验 `Referer`。
 - 实际模型调用统一使用 `agent.providers.*`；provider 负责基础地址、鉴权和协议级 endpoint 配置。
@@ -488,6 +491,7 @@ toolConfig:
   - `AGENT_TOOLS_EXTERNAL_DIR`
   - `AGENT_SKILLS_EXTERNAL_DIR`
   - `AGENT_SCHEDULE_EXTERNAL_DIR`
+- 其中 `skills` 当前仅同步内置验证 skill `container_hub_validation`；数学、文本处理和 GIF 等 demo skills 请通过 `example/install-example-*` 从 `example/skills/` 初始化。
 - `agents|teams|models|mcp-servers|viewport-servers|viewports` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
 - 示例安装为覆盖写入同名文件，但不会清空目标目录，不会删除额外文件。
 - 目录监听热重载策略：
@@ -604,6 +608,11 @@ toolConfig:
 
 ### 内置 Skills
 
+- `container_hub_validation`：Container Hub RUN 沙箱验证清单，要求先做 Bash smoke，再用容器内 Python 写文件。
+
+### 示例 Skills
+
+- 以下 demo skills 位于 `example/skills/`，可通过 `example/install-example-*` 安装到运行目录：
 - `screenshot`：截图流程示例（含脚本 smoke test）。
 - `math_basic`：算术计算（add/sub/mul/div/pow/mod）。
 - `math_stats`：统计计算（summary/count/sum/min/max/mean/median/mode/stdev）。
@@ -612,42 +621,53 @@ toolConfig:
 
 ### Java 内置工具
 
-- `agentbox_execute`：调用已部署的 `agentbox` 服务，创建或复用容器会话并执行命令。
-- `agentbox_stop_session`：调用已部署的 `agentbox` 服务，停止并删除一个会话。
 - `_skill_run_script_`：执行 skills 目录下脚本或临时 Python 脚本。
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
 - `mock_city_weather`：模拟城市天气数据。
 
-## Agentbox 工具配置
+## Container Hub 验证 Agent
 
-若要让 runner 使用外部 `agentbox`，请先复制配置模板：
+仓库新增了示例 agent `demoContainerHubValidator`，用于验证 `container_hub_bash` 的 RUN 级沙箱能力。该 agent 会先执行 Bash smoke test，再在同一个 run sandbox 中通过 `python3` 写入 `/tmp/validation_report.txt`。
 
-```bash
-cp configs/agentbox.example.yml configs/agentbox.yml
-```
-
-最小配置示例：
+启用前请先配置 `configs/container-hub.yml`（可从 `configs/container-hub.example.yml` 复制）：
 
 ```yaml
 agent:
   tools:
-    agentbox:
+    container-hub:
       enabled: true
       base-url: http://127.0.0.1:8080
-      auth-token:
-      default-runtime: busybox
-      default-version: latest
-      default-cwd: /workspace
-      request-timeout-ms: 30000
+      default-environment-id: shell
 ```
 
 说明：
 
-- `enabled=true` 后，`agentbox_execute` 与 `agentbox_stop_session` 才会作为 backend tool 生效。
-- `base-url` 指向已部署的 `agentbox` 服务。
-- 若 `agentbox` 配置了 `AUTH_TOKEN`，这里的 `auth-token` 需要同步填写。
-- `agentbox_execute` 在创建会话且未传 `runtime` / `version` / `cwd` 时，会回落到这里的默认值。
+- `demoContainerHubValidator` 只使用 `container_hub_bash`，不会回退到 `_bash_` 或 `_skill_run_script_`。
+- 第二阶段的 Python 验证是“容器内 Python”，不是本机 skill 脚本执行。
+- RUN 级 session 下，若配置了 container hub `data-dir` 挂载，容器中的 `/tmp/<file>` 预期会映射到 host 侧 `data/<chatId>/<file>`。
+- 若容器环境缺少 `python3`，应将其记录为环境缺口，而不是宣称验证通过。
+
+## Container Hub 工具说明
+
+`container_hub_bash` 是 runner 内置的 native/local backend tool，不是 MCP tool。它不会经过 `McpToolInvoker` 或 `mcp-servers/*.yml` 注册链路，而是通过 `ContainerHubClient` 直接请求 `agent-container-hub` 的 `/api/sessions/create`、`/api/sessions/{id}/execute`、`/api/sessions/{id}/stop` REST 接口。
+
+配置前缀固定为：
+
+```yaml
+agent:
+  tools:
+    container-hub:
+      enabled: true
+      base-url: http://127.0.0.1:8080
+      default-environment-id: shell
+```
+
+说明：
+
+- `meta.sourceType` 在 `/api/tools` 与 `/api/tool?toolName=container_hub_bash` 中应表现为 `local`。
+- 该工具的职责是把 runner 的 tool call 桥接为 `agent-container-hub` 的 HTTP session API，而不是提供一个 MCP transport 封装。
+- `RUN` 级 sandbox 在创建 session 前会自动准备 `data/<chatId>` 目录，并把它挂载到容器内的 `/tmp`。
 
 ## Bash 工具配置
 
@@ -713,6 +733,8 @@ for f in *.md; do echo "$f"; done
 
 常用运维变量：
 
+- Docker Compose 部署时，目录型变量通常由 `docker-compose.yml` 固定映射到容器内 `/opt/...` 路径；下表默认值是应用基线默认值。
+
 | 环境变量 | 默认值 | 说明 |
 |---------|-------|------|
 | `HOST_PORT` | `11949` | Docker Compose 宿主机暴露端口（映射到容器 `8080`） |
@@ -738,13 +760,6 @@ for f in *.md; do echo "$f"; done
 | `AGENT_BASH_SHELL_EXECUTABLE` | `bash` | Bash shell 模式执行器 |
 | `AGENT_BASH_SHELL_TIMEOUT_MS` | `10000` | Bash shell 模式超时（ms） |
 | `AGENT_BASH_MAX_COMMAND_CHARS` | `16000` | Bash 命令最大字符数 |
-| `AGENT_AGENTBOX_ENABLED` | `false` | 是否启用 agentbox backend tools |
-| `AGENT_AGENTBOX_BASE_URL` | `http://127.0.0.1:8080` | agentbox 服务地址 |
-| `AGENT_AGENTBOX_AUTH_TOKEN` | （空） | agentbox Bearer Token |
-| `AGENT_AGENTBOX_DEFAULT_RUNTIME` | `busybox` | 创建会话时默认 runtime |
-| `AGENT_AGENTBOX_DEFAULT_VERSION` | `latest` | 创建会话时默认 version |
-| `AGENT_AGENTBOX_DEFAULT_CWD` | `/workspace` | 创建会话时默认 cwd |
-| `AGENT_AGENTBOX_REQUEST_TIMEOUT_MS` | `30000` | 调用 agentbox HTTP API 的超时（ms） |
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `300000` | 前端工具提交超时 |
 | `AGENT_AUTH_ENABLED` | `true` | JWT 认证开关 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |

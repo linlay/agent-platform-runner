@@ -10,16 +10,29 @@ services:
     environment:
       SERVER_PORT: 8080
       AGENT_CONFIG_DIR: /opt/configs
+      AGENT_AGENTS_EXTERNAL_DIR: /opt/agents
+      AGENT_TEAMS_EXTERNAL_DIR: /opt/teams
+      AGENT_MODELS_EXTERNAL_DIR: /opt/models
+      AGENT_TOOLS_EXTERNAL_DIR: /opt/tools
+      AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR: /opt/mcp-servers
+      AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR: /opt/viewport-servers
+      AGENT_VIEWPORTS_EXTERNAL_DIR: /opt/viewports
+      AGENT_SKILLS_EXTERNAL_DIR: /opt/skills
+      AGENT_SCHEDULE_EXTERNAL_DIR: /opt/schedules
+      AGENT_DATA_EXTERNAL_DIR: /opt/data
+      MEMORY_CHATS_DIR: /opt/chats
     volumes:
       - ./configs:/opt/configs:ro
+      - ./agents:/opt/agents
+      - ./teams:/opt/teams
       - ./models:/opt/models
       - ./tools:/opt/tools
       - ./mcp-servers:/opt/mcp-servers
       - ./viewport-servers:/opt/viewport-servers
-      - ./skills:/opt/skills
       - ./viewports:/opt/viewports
-      - ./agents:/opt/agents
-      - ./teams:/opt/teams
+      - ./skills:/opt/skills
+      - ./schedules:/opt/schedules
+      - ./data:/opt/data
       - ./chats:/opt/chats
       - ./application.yml:/opt/application.yml:ro
     env_file:
