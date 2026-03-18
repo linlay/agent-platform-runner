@@ -11,6 +11,14 @@ log() {
   printf '[install-example][mac] %s\n' "$*"
 }
 
+remove_legacy_image_registration() {
+  local legacy_file="$ROOT_DIR/mcp-servers/image.yml"
+  if [ -f "$legacy_file" ]; then
+    rm -f "$legacy_file"
+    log "removed deprecated MCP sample: $legacy_file (use mcp-servers/imagine.yml)"
+  fi
+}
+
 count_files() {
   local dir="$1"
   if [ ! -d "$dir" ]; then
@@ -22,6 +30,7 @@ count_files() {
 
 log "example source: $EXAMPLE_DIR"
 log "target root: $ROOT_DIR"
+remove_legacy_image_registration
 
 for dir in "${DIRS[@]}"; do
   src="$EXAMPLE_DIR/$dir"

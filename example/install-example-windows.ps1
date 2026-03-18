@@ -19,8 +19,17 @@ function Get-FileCount {
     return (Get-ChildItem -Path $Dir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count
 }
 
+function Remove-LegacyImageRegistration {
+    $legacyFile = Join-Path $rootDir "mcp-servers/image.yml"
+    if (Test-Path $legacyFile) {
+        Remove-Item -Path $legacyFile -Force
+        Write-Log "removed deprecated MCP sample: $legacyFile (use mcp-servers/imagine.yml)"
+    }
+}
+
 Write-Log "example source: $exampleDir"
 Write-Log "target root: $rootDir"
+Remove-LegacyImageRegistration
 
 foreach ($dir in $dirs) {
     $src = Join-Path $exampleDir $dir

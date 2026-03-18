@@ -1,4 +1,4 @@
-serverKey: image
+serverKey: imagine
 baseUrl: http://127.0.0.1:11962
 endpointPath: "/mcp"
 enabled: true
