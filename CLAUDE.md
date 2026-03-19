@@ -24,7 +24,7 @@ mvn test -Dtest=ClassName#methodName    # 运行单个测试方法
 - `Dockerfile` 与 `settings.xml` 保持在项目根目录，以匹配标准 `docker build .` 上下文和当前脚本路径约定。
 - `configs/` 保持在项目根目录，作为结构化配置模板目录。
 - `nginx.conf` 当前保持在项目根目录，作为反向代理示例；若后续扩展多环境部署资产，可迁移到 `deploy/nginx/`。
-- `.dockerignore` 需要保留，用于缩小构建上下文并避免将本地敏感配置（如 `configs/*.yml` / `configs/**/*.pem`）带入镜像构建上下文。
+- `.dockerignore` 需要保留，用于缩小构建上下文并避免将本地敏感配置（如 `configs/*.yml` / `configs/*.pem` / `configs/**/*.pem`）带入镜像构建上下文。
 
 ## Architecture
 

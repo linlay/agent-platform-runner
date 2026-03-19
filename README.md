@@ -316,7 +316,7 @@ docker compose up -d --build
 - `.env.example` 与 `docker-compose.yml` 保持在项目根目录，作为容器运行基线模板。
 - `configs/` 保持在项目根目录，作为结构化配置模板目录。
 - `nginx.conf` 当前保持在项目根目录，作为反向代理示例配置；若后续出现多环境部署资产，可统一迁移到 `deploy/nginx/`。
-- `.dockerignore` 需要保留：用于缩小 Docker build context，并避免将本地敏感配置（如 `configs/*.yml` / `configs/**/*.pem`）带入构建上下文。
+- `.dockerignore` 需要保留：用于缩小 Docker build context，并避免将本地敏感配置（如 `configs/*.yml` / `configs/*.pem` / `configs/**/*.pem`）带入构建上下文。
 
 ### 默认配置基线
 
@@ -349,7 +349,7 @@ docker compose up -d --build
 
 ```env
 AGENT_AUTH_ENABLED=true
-AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=auth/local-public-key.pem
+AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=local-public-key.pem
 AGENT_AUTH_JWKS_URI=https://auth.example.local/api/auth/jwks
 AGENT_AUTH_ISSUER=https://auth.example.local
 AGENT_AUTH_JWKS_CACHE_SECONDS=300

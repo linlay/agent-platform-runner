@@ -26,7 +26,7 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
         Files.createDirectories(configsDir);
         Files.writeString(configsDir.resolve("auth.yml"), """
                 enabled: false
-                local-public-key-file: auth/local-public-key.pem
+                local-public-key-file: local-public-key.pem
                 """);
         Files.writeString(configsDir.resolve("bash.yml"), """
                 allowed-commands: ls,pwd
@@ -44,7 +44,7 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
         processor.postProcessEnvironment(environment, new SpringApplication(Object.class));
 
         assertThat(environment.getProperty("agent.auth.enabled")).isEqualTo("false");
-        assertThat(environment.getProperty("agent.auth.local-public-key-file")).isEqualTo("auth/local-public-key.pem");
+        assertThat(environment.getProperty("agent.auth.local-public-key-file")).isEqualTo("local-public-key.pem");
         assertThat(environment.getProperty("agent.tools.bash.allowed-commands")).isEqualTo("ls,pwd");
         assertThat(environment.getProperty("agent.tools.container-hub.enabled")).isEqualTo("true");
         assertThat(environment.getProperty("agent.tools.container-hub.default-environment-id")).isEqualTo("shell");

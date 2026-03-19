@@ -55,7 +55,7 @@ class JwksJwtVerifierLocalKeyValidationTests {
         contextRunner
             .withPropertyValues(
                 "agent.auth.local-public-key=not-a-valid-pem",
-                "agent.auth.local-public-key-file=auth/local-public-key.pem"
+                "agent.auth.local-public-key-file=local-public-key.pem"
             )
             .run(context -> {
                 assertThat(context).hasFailed();
@@ -72,7 +72,7 @@ class JwksJwtVerifierLocalKeyValidationTests {
         try {
             contextRunner
                 .withPropertyValues(
-                    "agent.auth.local-public-key-file=auth/local-public-key.pem"
+                    "agent.auth.local-public-key-file=local-public-key.pem"
                 )
                 .run(context -> {
                     assertThat(context).hasFailed();
@@ -88,14 +88,12 @@ class JwksJwtVerifierLocalKeyValidationTests {
     @Test
     void shouldLoadLocalKeyFromPemFile(@TempDir Path tempDir) throws Exception {
         String previous = System.getProperty(ConfigDirectorySupport.CONFIG_DIR_ENV);
-        Path authDir = tempDir.resolve("auth");
-        Files.createDirectories(authDir);
-        Files.writeString(authDir.resolve("local-public-key.pem"), toPem(generateRsaKey()), StandardCharsets.UTF_8);
+        Files.writeString(tempDir.resolve("local-public-key.pem"), toPem(generateRsaKey()), StandardCharsets.UTF_8);
         System.setProperty(ConfigDirectorySupport.CONFIG_DIR_ENV, tempDir.toString());
         try {
             contextRunner
                 .withPropertyValues(
-                    "agent.auth.local-public-key-file=auth/local-public-key.pem"
+                    "agent.auth.local-public-key-file=local-public-key.pem"
                 )
                 .run(context -> {
                     assertThat(context).hasNotFailed();
