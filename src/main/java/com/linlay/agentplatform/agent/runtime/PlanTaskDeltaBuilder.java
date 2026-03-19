@@ -14,7 +14,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Extracted plan snapshot/result helpers from ToolExecutionService.
+ * Extracted plan state/result helpers from ToolExecutionService.
  */
 final class PlanTaskDeltaBuilder {
 
@@ -24,8 +24,8 @@ final class PlanTaskDeltaBuilder {
         this.objectMapper = objectMapper;
     }
 
-    JsonNode planGetResult(ToolExecutionService.PlanSnapshot snapshot) {
-        return objectMapper.getNodeFactory().textNode(planSnapshotText(snapshot));
+    JsonNode planGetResult(ToolExecutionService.PlanState state) {
+        return objectMapper.getNodeFactory().textNode(planStateText(state));
     }
 
     AgentDelta planUpdateDelta(
@@ -70,14 +70,14 @@ final class PlanTaskDeltaBuilder {
         return null;
     }
 
-    String planSnapshotText(ToolExecutionService.PlanSnapshot snapshot) {
+    String planStateText(ToolExecutionService.PlanState state) {
         StringBuilder text = new StringBuilder();
-        text.append("计划ID: ").append(normalize(snapshot.planId())).append('\n');
+        text.append("计划ID: ").append(normalize(state.planId())).append('\n');
         text.append("任务列表:");
-        if (snapshot.tasks().isEmpty()) {
+        if (state.tasks().isEmpty()) {
             text.append("\n- (空)");
         } else {
-            for (AgentDelta.PlanTask task : snapshot.tasks()) {
+            for (AgentDelta.PlanTask task : state.tasks()) {
                 if (task == null) {
                     continue;
                 }
@@ -91,7 +91,7 @@ final class PlanTaskDeltaBuilder {
         }
         text.append('\n')
                 .append("当前应执行 taskId: ")
-                .append(firstUnfinishedTaskId(snapshot.tasks()));
+                .append(firstUnfinishedTaskId(state.tasks()));
         return text.toString();
     }
 

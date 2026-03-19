@@ -164,7 +164,7 @@ public final class ChatMemoryTypes {
         public long updatedAt;
         public SystemSnapshot system;
         @JsonProperty("plan")
-        public PlanSnapshot plan;
+        public PlanState plan;
         public List<StoredMessage> messages = new ArrayList<>();
     }
 
@@ -191,14 +191,14 @@ public final class ChatMemoryTypes {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class PlanSnapshot {
+    public static class PlanState {
         public String planId;
         @JsonProperty("tasks")
-        public List<PlanTaskSnapshot> tasks;
+        public List<PlanTaskState> tasks;
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class PlanTaskSnapshot {
+    public static class PlanTaskState {
         public String taskId;
         public String description;
         public String status;
@@ -279,7 +279,7 @@ record ParsedStepLine(
         String taskId,
         long updatedAt,
         ChatMemoryTypes.SystemSnapshot system,
-        ChatMemoryTypes.PlanSnapshot plan,
+        ChatMemoryTypes.PlanState plan,
         List<ChatMemoryTypes.StoredMessage> messages
 ) implements ParsedLine {
 }

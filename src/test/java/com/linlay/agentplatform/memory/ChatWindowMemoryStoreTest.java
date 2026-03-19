@@ -65,7 +65,7 @@ class ChatWindowMemoryStoreTest {
                 )
         );
 
-        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        Path file = tempDir.resolve("chats").resolve(chatId + ".jsonl");
         assertThat(Files.exists(file)).isTrue();
 
         List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
@@ -127,7 +127,7 @@ class ChatWindowMemoryStoreTest {
         query.put("hidden", true);
         store.appendQueryLine(chatId, runId, query);
 
-        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        Path file = tempDir.resolve("chats").resolve(chatId + ".jsonl");
         List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
         JsonNode queryLine = objectMapper.readTree(lines.getFirst());
 
@@ -178,7 +178,7 @@ class ChatWindowMemoryStoreTest {
                 )
         );
 
-        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        Path file = tempDir.resolve("chats").resolve(chatId + ".jsonl");
         List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
         JsonNode stepLine = objectMapper.readTree(lines.get(1));
 
@@ -227,7 +227,7 @@ class ChatWindowMemoryStoreTest {
                 )
         );
 
-        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        Path file = tempDir.resolve("chats").resolve(chatId + ".jsonl");
         List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
         JsonNode stepLine = objectMapper.readTree(lines.get(1));
         JsonNode assistantToolCall = stepLine.path("messages").get(1);
@@ -278,7 +278,7 @@ class ChatWindowMemoryStoreTest {
         // Trim
         store.trimToWindow(chatId);
 
-        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        Path file = tempDir.resolve("chats").resolve(chatId + ".jsonl");
         List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
         // k=2 means keep 2 runs: run_002 (query+step) and run_003 (query+step) = 4 lines
         assertThat(lines).hasSize(4);
@@ -328,7 +328,7 @@ class ChatWindowMemoryStoreTest {
                         ChatMemoryTypes.RunMessage.assistantContent("ok3", 3001L, 1L, null)
                 ));
 
-        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        Path file = tempDir.resolve("chats").resolve(chatId + ".jsonl");
         List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
         assertThat(lines).hasSize(4); // 1 query + 3 steps
 
@@ -348,7 +348,7 @@ class ChatWindowMemoryStoreTest {
     }
 
     @Test
-    void shouldPersistPlanSnapshotOnStepLineAndLoadLatest() throws Exception {
+    void shouldPersistPlanStateOnStepLineAndLoadLatest() throws Exception {
         ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
         properties.setDir(tempDir.resolve("chats").toString());
         properties.setK(20);
@@ -360,7 +360,7 @@ class ChatWindowMemoryStoreTest {
         store.appendQueryLine(chatId, "run_001", query("run_001", chatId, "第一轮"));
         store.appendStepLine(chatId, "run_001", "plan", 1, null,
                 systemSnapshot("qwen3-max", "system", true),
-                planSnapshot("plan_chat_001", List.of(
+                planState("plan_chat_001", List.of(
                         task("task0", "收集信息", "init"),
                         task("task1", "执行任务", "init")
                 )),
@@ -371,7 +371,7 @@ class ChatWindowMemoryStoreTest {
 
         // Execute step with updated plan
         store.appendStepLine(chatId, "run_001", "execute", 2, "task0", null,
-                planSnapshot("plan_chat_001", List.of(
+                planState("plan_chat_001", List.of(
                         task("task0", "收集信息", "completed"),
                         task("task1", "执行任务", "init")
                 )),
@@ -379,7 +379,7 @@ class ChatWindowMemoryStoreTest {
                         ChatMemoryTypes.RunMessage.assistantContent("done task0", 2001L, 1L, null)
                 ));
 
-        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        Path file = tempDir.resolve("chats").resolve(chatId + ".jsonl");
         List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
         assertThat(lines).hasSize(3); // 1 query + 2 steps
         assertThat(lines.get(1)).contains("\"plan\":");
@@ -391,7 +391,7 @@ class ChatWindowMemoryStoreTest {
         assertThat(executeStep.path("_stage").asText()).isEqualTo("execute");
         assertThat(executeStep.path("_seq").asInt()).isEqualTo(2);
 
-        ChatMemoryTypes.PlanSnapshot latest = store.loadLatestPlanSnapshot(chatId);
+        ChatMemoryTypes.PlanState latest = store.loadLatestPlanState(chatId);
         assertThat(latest).isNotNull();
         assertThat(latest.planId).isEqualTo("plan_chat_001");
         assertThat(latest.tasks).hasSize(2);
@@ -459,7 +459,7 @@ class ChatWindowMemoryStoreTest {
                 ChatMemoryTypes.RunMessage.assistantContent("c3", 3001L, 5L, null)
         ));
 
-        Path file = tempDir.resolve("chats").resolve(chatId + ".json");
+        Path file = tempDir.resolve("chats").resolve(chatId + ".jsonl");
         List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
         JsonNode step1 = objectMapper.readTree(lines.get(1));
         JsonNode step2 = objectMapper.readTree(lines.get(2));
@@ -535,18 +535,18 @@ class ChatWindowMemoryStoreTest {
         return tool;
     }
 
-    private ChatMemoryTypes.PlanSnapshot planSnapshot(
+    private ChatMemoryTypes.PlanState planState(
             String planId,
-            List<ChatMemoryTypes.PlanTaskSnapshot> tasks
+            List<ChatMemoryTypes.PlanTaskState> tasks
     ) {
-        ChatMemoryTypes.PlanSnapshot snapshot = new ChatMemoryTypes.PlanSnapshot();
-        snapshot.planId = planId;
-        snapshot.tasks = tasks;
-        return snapshot;
+        ChatMemoryTypes.PlanState state = new ChatMemoryTypes.PlanState();
+        state.planId = planId;
+        state.tasks = tasks;
+        return state;
     }
 
-    private ChatMemoryTypes.PlanTaskSnapshot task(String taskId, String description, String status) {
-        ChatMemoryTypes.PlanTaskSnapshot task = new ChatMemoryTypes.PlanTaskSnapshot();
+    private ChatMemoryTypes.PlanTaskState task(String taskId, String description, String status) {
+        ChatMemoryTypes.PlanTaskState task = new ChatMemoryTypes.PlanTaskState();
         task.taskId = taskId;
         task.description = description;
         task.status = status;

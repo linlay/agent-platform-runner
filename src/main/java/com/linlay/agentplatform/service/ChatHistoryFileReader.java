@@ -88,9 +88,9 @@ final class ChatHistoryFileReader {
                         system = objectMapper.treeToValue(node.get("system"), ChatMemoryTypes.SystemSnapshot.class);
                     }
 
-                    ChatMemoryTypes.PlanSnapshot plan = null;
+                    ChatMemoryTypes.PlanState plan = null;
                     if (node.has("plan") && !node.get("plan").isNull()) {
-                        plan = objectMapper.treeToValue(node.get("plan"), ChatMemoryTypes.PlanSnapshot.class);
+                        plan = objectMapper.treeToValue(node.get("plan"), ChatMemoryTypes.PlanState.class);
                     }
 
                     List<ChatMemoryTypes.StoredMessage> messages = new ArrayList<>();
@@ -159,7 +159,7 @@ final class ChatHistoryFileReader {
 
                 List<ChatMemoryTypes.StoredMessage> allMessages = new ArrayList<>();
                 ChatMemoryTypes.SystemSnapshot firstSystem = null;
-                ChatMemoryTypes.PlanSnapshot latestPlan = null;
+                ChatMemoryTypes.PlanState latestPlan = null;
                 for (StepEntry step : steps) {
                     if (firstSystem == null && step.system() != null) {
                         firstSystem = step.system();
@@ -247,7 +247,7 @@ final class ChatHistoryFileReader {
             String taskId,
             long updatedAt,
             ChatMemoryTypes.SystemSnapshot system,
-            ChatMemoryTypes.PlanSnapshot plan,
+            ChatMemoryTypes.PlanState plan,
             List<ChatMemoryTypes.StoredMessage> messages,
             int lineIndex
     ) {

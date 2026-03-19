@@ -11,7 +11,7 @@ record ChatHistoryRunSnapshot(
         boolean hidden,
         Map<String, Object> query,
         ChatMemoryTypes.SystemSnapshot system,
-        ChatMemoryTypes.PlanSnapshot plan,
+        ChatMemoryTypes.PlanState plan,
         List<ChatMemoryTypes.StoredMessage> messages,
         List<PersistedChatEvent> persistedEvents,
         int lineIndex

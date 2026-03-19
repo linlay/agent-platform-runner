@@ -27,6 +27,7 @@ public class AgentConfigFile {
     private SandboxConfig sandboxConfig;
     private SkillConfig skillConfig;
     private List<String> skills;
+    private List<AgentControl> controls;
     private AgentRuntimeMode mode;
 
     private ToolChoice toolChoice;
@@ -116,6 +117,14 @@ public class AgentConfigFile {
 
     public void setSkills(List<String> skills) {
         this.skills = skills;
+    }
+
+    public List<AgentControl> getControls() {
+        return controls;
+    }
+
+    public void setControls(List<AgentControl> controls) {
+        this.controls = controls;
     }
 
     public AgentRuntimeMode getMode() {

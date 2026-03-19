@@ -5,6 +5,7 @@ import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.model.ViewportType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -41,6 +42,7 @@ public class ViewportRegistryService {
         this(objectMapper, new PathMatchingResourcePatternResolver(), null);
     }
 
+    @Autowired
     public ViewportRegistryService(ObjectMapper objectMapper, ViewportProperties properties) {
         this(
                 objectMapper,

@@ -22,7 +22,7 @@ final class StepAccumulator {
     long pendingAssistantStartedAt;
     final List<ChatMemoryTypes.RunMessage> orderedMessages = new ArrayList<>();
     final Map<String, ToolTrace> toolByCallId = new LinkedHashMap<>();
-    ChatMemoryTypes.PlanSnapshot plan;
+    ChatMemoryTypes.PlanState plan;
     Map<String, Object> capturedUsage;
     String currentMsgId;
     boolean needNewMsgId;

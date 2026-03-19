@@ -213,6 +213,16 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     @Override
+    public List<AgentControl> controls() {
+        return definition.controls();
+    }
+
+    @Override
+    public Optional<AgentDefinition> definition() {
+        return Optional.of(definition);
+    }
+
+    @Override
     public Flux<AgentDelta> stream(AgentRequest request) {
         log.info(
                 "[agent:{}] stream start provider={}, model={}, mode={}, tools={}, skills={}, message={}",
@@ -228,7 +238,7 @@ public class DefinitionDrivenAgent implements Agent {
 
         return Flux.defer(() -> {
                     List<ChatMessage> historyMessages = loadHistoryMessages(request.chatId());
-                    ChatMemoryTypes.PlanSnapshot latestPlanSnapshot = loadLatestPlanSnapshot(request.chatId());
+                    ChatMemoryTypes.PlanState latestPlanState = loadLatestPlanState(request.chatId());
                     ChatMemoryTypes.SystemSnapshot latestSystem = loadLatestSystemSnapshot(request.chatId());
                     String runId = resolveRunId(request);
                     RunControl runControl = activeRunService == null
@@ -255,8 +265,8 @@ public class DefinitionDrivenAgent implements Agent {
                             .localNativeToolsByName(localNativeToolsByName)
                             .runControl(runControl)
                             .build();
-                    if (latestPlanSnapshot != null) {
-                        context.initializePlan(latestPlanSnapshot.planId, toPlanTasks(latestPlanSnapshot.tasks));
+                    if (latestPlanState != null) {
+                        context.initializePlan(latestPlanState.planId, toPlanTasks(latestPlanState.tasks));
                     }
                     TextBlockIdAssigner textBlockIdAssigner = new TextBlockIdAssigner(runId);
                     return Flux.<AgentDelta>create(
@@ -449,12 +459,12 @@ public class DefinitionDrivenAgent implements Agent {
         }
     }
 
-    private ChatMemoryTypes.PlanSnapshot loadLatestPlanSnapshot(String chatId) {
+    private ChatMemoryTypes.PlanState loadLatestPlanState(String chatId) {
         if (chatWindowMemoryStore == null || !StringUtils.hasText(chatId)) {
             return null;
         }
         try {
-            return chatWindowMemoryStore.loadLatestPlanSnapshot(chatId);
+            return chatWindowMemoryStore.loadLatestPlanState(chatId);
         } catch (Exception ex) {
             log.warn("[agent:{}] failed to load latest plan snapshot chatId={}", id(), chatId, ex);
             return null;
@@ -473,12 +483,12 @@ public class DefinitionDrivenAgent implements Agent {
         }
     }
 
-    private List<AgentDelta.PlanTask> toPlanTasks(List<ChatMemoryTypes.PlanTaskSnapshot> snapshotTasks) {
+    private List<AgentDelta.PlanTask> toPlanTasks(List<ChatMemoryTypes.PlanTaskState> snapshotTasks) {
         if (snapshotTasks == null || snapshotTasks.isEmpty()) {
             return List.of();
         }
         List<AgentDelta.PlanTask> tasks = new ArrayList<>();
-        for (ChatMemoryTypes.PlanTaskSnapshot task : snapshotTasks) {
+        for (ChatMemoryTypes.PlanTaskState task : snapshotTasks) {
             if (task == null || !StringUtils.hasText(task.taskId) || !StringUtils.hasText(task.description)) {
                 continue;
             }

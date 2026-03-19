@@ -185,6 +185,7 @@ public class AgentDefinitionLoader {
             String role = normalize(config.getRole(), name);
             List<String> tools = collectToolNames(config);
             List<String> skills = collectSkillNames(config);
+            List<AgentControl> controls = collectControls(config);
             List<String> modelKeys = collectModelKeys(config);
             AgentDefinition.SandboxConfig sandboxConfig = toSandboxConfig(config.getSandboxConfig());
 
@@ -206,6 +207,7 @@ public class AgentDefinitionLoader {
                     agentMode,
                     tools,
                     skills,
+                    controls,
                     sandboxConfig,
                     modelKeys,
                     promptFiles.soulContent(),
@@ -437,6 +439,13 @@ public class AgentDefinitionLoader {
             merged.addAll(normalizeNames(config.getSkillConfig().getSkills()));
         }
         return merged.stream().distinct().toList();
+    }
+
+    private List<AgentControl> collectControls(AgentConfigFile config) {
+        if (config == null || config.getControls() == null || config.getControls().isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(config.getControls());
     }
 
     private List<String> collectModelKeys(AgentConfigFile config) {

@@ -255,18 +255,18 @@ public class ChatRecordStore {
     }
 
     private Map<String, Object> planUpdatePayload(
-            ChatMemoryTypes.PlanSnapshot planSnapshot,
+            ChatMemoryTypes.PlanState planState,
             String chatId
     ) {
-        if (planSnapshot == null
-                || !StringUtils.hasText(planSnapshot.planId)
-                || planSnapshot.tasks == null
-                || planSnapshot.tasks.isEmpty()) {
+        if (planState == null
+                || !StringUtils.hasText(planState.planId)
+                || planState.tasks == null
+                || planState.tasks.isEmpty()) {
             return Map.of();
         }
 
         List<Map<String, Object>> plan = new ArrayList<>();
-        for (ChatMemoryTypes.PlanTaskSnapshot task : planSnapshot.tasks) {
+        for (ChatMemoryTypes.PlanTaskState task : planState.tasks) {
             if (task == null || !StringUtils.hasText(task.taskId) || !StringUtils.hasText(task.description)) {
                 continue;
             }
@@ -281,7 +281,7 @@ public class ChatRecordStore {
         }
 
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("planId", planSnapshot.planId.trim());
+        payload.put("planId", planState.planId.trim());
         payload.put("chatId", StringUtils.hasText(chatId) ? chatId : null);
         payload.put("plan", plan);
         return payload;

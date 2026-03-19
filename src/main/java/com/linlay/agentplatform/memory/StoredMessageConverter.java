@@ -93,20 +93,20 @@ final class StoredMessageConverter {
         return normalized;
     }
 
-    ChatMemoryTypes.PlanSnapshot normalizePlanSnapshot(ChatMemoryTypes.PlanSnapshot source) {
+    ChatMemoryTypes.PlanState normalizePlanState(ChatMemoryTypes.PlanState source) {
         if (source == null) {
             return null;
         }
-        ChatMemoryTypes.PlanSnapshot normalized = objectMapper.convertValue(source, ChatMemoryTypes.PlanSnapshot.class);
+        ChatMemoryTypes.PlanState normalized = objectMapper.convertValue(source, ChatMemoryTypes.PlanState.class);
         if (normalized == null || !hasText(normalized.planId) || normalized.tasks == null || normalized.tasks.isEmpty()) {
             return null;
         }
-        List<ChatMemoryTypes.PlanTaskSnapshot> tasks = new ArrayList<>();
-        for (ChatMemoryTypes.PlanTaskSnapshot task : normalized.tasks) {
+        List<ChatMemoryTypes.PlanTaskState> tasks = new ArrayList<>();
+        for (ChatMemoryTypes.PlanTaskState task : normalized.tasks) {
             if (task == null || !hasText(task.taskId) || !hasText(task.description)) {
                 continue;
             }
-            ChatMemoryTypes.PlanTaskSnapshot item = new ChatMemoryTypes.PlanTaskSnapshot();
+            ChatMemoryTypes.PlanTaskState item = new ChatMemoryTypes.PlanTaskState();
             item.taskId = task.taskId.trim();
             item.description = task.description.trim();
             item.status = normalizeStatus(task.status);
@@ -115,10 +115,10 @@ final class StoredMessageConverter {
         if (tasks.isEmpty()) {
             return null;
         }
-        ChatMemoryTypes.PlanSnapshot snapshot = new ChatMemoryTypes.PlanSnapshot();
-        snapshot.planId = normalized.planId.trim();
-        snapshot.tasks = List.copyOf(tasks);
-        return snapshot;
+        ChatMemoryTypes.PlanState state = new ChatMemoryTypes.PlanState();
+        state.planId = normalized.planId.trim();
+        state.tasks = List.copyOf(tasks);
+        return state;
     }
 
     Set<String> extractActionToolNames(ChatMemoryTypes.SystemSnapshot systemSnapshot) {

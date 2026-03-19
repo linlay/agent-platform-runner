@@ -42,7 +42,7 @@ class ToolExecutionServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void planGetShouldReturnCurrentPlanSnapshot() {
+    void planGetShouldReturnCurrentPlanState() {
         SystemPlanGetTasks planGetTool = new SystemPlanGetTasks();
         ToolRegistry toolRegistry = new ToolRegistry(List.of(planGetTool));
         ToolExecutionService toolExecutionService = new ToolExecutionService(

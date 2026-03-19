@@ -38,12 +38,16 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.FluxExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
@@ -79,17 +83,16 @@ import static org.mockito.Mockito.when;
                 "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-test-chats-db-${random.uuid}/chats.db",
                 "agent.agents.external-dir=${user.dir}/example/agents",
                 "agent.models.external-dir=${user.dir}/example/models",
-                "agent.viewports.external-dir=${java.io.tmpdir}/springai-agent-platform-test-viewports-${random.uuid}",
-                "agent.tools.external-dir=${java.io.tmpdir}/springai-agent-platform-test-tools-${random.uuid}",
+                "agent.skills.external-dir=${user.dir}/example/skills",
                 "agent.mcp-servers.enabled=true",
-                "agent.skills.external-dir=${java.io.tmpdir}/springai-agent-platform-test-skills-${random.uuid}",
-                "agent.teams.external-dir=${java.io.tmpdir}/springai-agent-platform-test-teams-${random.uuid}",
-                "agent.data.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-${random.uuid}"
+                "agent.teams.external-dir=${java.io.tmpdir}/springai-agent-platform-test-teams-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient
 @Import(AgentControllerTest.TestLlmServiceConfig.class)
 class AgentControllerTest {
+
+    private static final Path TEST_PROVIDERS_DIR = prepareProvidersDir();
 
     @Autowired
     private WebTestClient webTestClient;
@@ -115,6 +118,11 @@ class AgentControllerTest {
     private TeamRegistryService teamRegistryService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @DynamicPropertySource
+    static void registerDynamicProperties(DynamicPropertyRegistry registry) {
+        registry.add("agent.providers.external-dir", () -> TEST_PROVIDERS_DIR.toString());
+    }
 
     @BeforeEach
     void seedFixtures() throws Exception {
@@ -149,6 +157,33 @@ class AgentControllerTest {
                   additionalProperties: false
                 """, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         toolFileRegistryService.refreshTools();
+    }
+
+    private static Path prepareProvidersDir() {
+        try {
+            Path dir = Files.createTempDirectory("springai-agent-platform-test-providers-");
+            Files.writeString(dir.resolve("bailian.yml"), """
+                    key: bailian
+                    baseUrl: https://example.com/v1
+                    apiKey: test-bailian-key
+                    defaultModel: test-bailian-model
+                    """);
+            Files.writeString(dir.resolve("babelark.yml"), """
+                    key: babelark
+                    baseUrl: https://example.com/v1
+                    apiKey: test-babelark-key
+                    defaultModel: test-babelark-model
+                    """);
+            Files.writeString(dir.resolve("siliconflow.yml"), """
+                    key: siliconflow
+                    baseUrl: https://example.com/v1
+                    apiKey: test-siliconflow-key
+                    defaultModel: test-siliconflow-model
+                    """);
+            return dir;
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     @TestConfiguration
@@ -241,8 +276,7 @@ class AgentControllerTest {
                 .jsonPath("$.data[0].role").exists()
                 .jsonPath("$.data[0].icon.name").exists()
                 .jsonPath("$.data[0].icon.color").exists()
-                .jsonPath("$.data[0].meta.providerType").doesNotExist()
-                .jsonPath("$.data[0].meta.skills").isArray()
+                .jsonPath("$.data[0].meta").doesNotExist()
                 .jsonPath("$.data[?(@.key=='demoModePlain')]").exists()
                 .jsonPath("$.data[?(@.key=='demoModeThinking')]").exists()
                 .jsonPath("$.data[?(@.key=='demoModePlainTooling')]").exists()
@@ -328,25 +362,56 @@ class AgentControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data[0].key").exists()
                 .jsonPath("$.data[0].meta.promptTruncated").isBoolean()
-                .jsonPath("$.data[?(@.key=='container_hub_validation')]").exists()
-                .jsonPath("$.data[?(@.key=='math_basic')]").doesNotExist();
+                .jsonPath("$.data[?(@.key=='math_basic')]").exists()
+                .jsonPath("$.data[?(@.key=='text_utils')]").exists();
 
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/skills").queryParam("tag", "container").build())
+                .uri(uriBuilder -> uriBuilder.path("/api/skills").queryParam("tag", "math").build())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data[?(@.key=='container_hub_validation')]").exists()
-                .jsonPath("$.data[?(@.key=='math_basic')]").doesNotExist();
+                .jsonPath("$.data[?(@.key=='math_basic')]").exists();
     }
 
     @Test
-    void removedAgentAndSkillSingleEndpointsShouldReturnNotFound() {
+    void agentDetailShouldReturnControlsAndRuntimeMetadata() {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/agent").queryParam("agentKey", "demoModePlanExecute").build())
                 .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.key").isEqualTo("demoModePlanExecute")
+                .jsonPath("$.data.mode").isEqualTo("PLAN_EXECUTE")
+                .jsonPath("$.data.controls[0].key").isEqualTo("template_id")
+                .jsonPath("$.data.controls[0].type").isEqualTo("select")
+                .jsonPath("$.data.controls[0].options[0].value").isEqualTo("TPL01")
+                .jsonPath("$.data.controls[1].type").isEqualTo("number")
+                .jsonPath("$.data.controls[2].type").isEqualTo("boolean")
+                .jsonPath("$.data.meta.modelKey").exists()
+                .jsonPath("$.data.meta.providerKey").exists()
+                .jsonPath("$.data.meta.protocol").exists();
+    }
+
+    @Test
+    void agentDetailShouldReturnBadRequestWhenAgentKeyMissing() {
+        webTestClient.get()
+                .uri("/api/agent")
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    @Test
+    void agentDetailShouldReturnNotFoundWhenMissing() {
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/agent").queryParam("agentKey", "missing_agent").build())
+                .exchange()
                 .expectStatus().isNotFound();
+    }
+
+    @Test
+    void removedSkillSingleEndpointShouldReturnNotFound() {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/skill").queryParam("skillId", "math_basic").build())
@@ -390,7 +455,7 @@ class AgentControllerTest {
                 .filter(item -> "datetime".equals(item.get("key")))
                 .findFirst()
                 .orElseThrow();
-        assertThat(datetimeTool.get("label")).isEqualTo("日期时间");
+        assertThat(datetimeTool.get("label")).isEqualTo("datetime");
 
         webTestClient.get()
                 .uri("/api/tools")
@@ -402,7 +467,6 @@ class AgentControllerTest {
                 .jsonPath("$.data[0].meta.kind").exists()
                 .jsonPath("$.data[0].meta.sourceType").exists()
                 .jsonPath("$.data[?(@.key=='datetime')]").exists()
-                .jsonPath("$.data[?(@.key=='confirm_dialog')]").exists()
                 .jsonPath("$.data[?(@.key=='switch_theme')]").exists();
 
         webTestClient.get()
@@ -411,8 +475,8 @@ class AgentControllerTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data[?(@.key=='confirm_dialog')]").exists()
-                .jsonPath("$.data[?(@.key=='datetime')]").doesNotExist();
+                .jsonPath("$.data[?(@.key=='datetime')]").doesNotExist()
+                .jsonPath("$.data[?(@.key=='switch_theme')]").doesNotExist();
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/tools")
@@ -1040,7 +1104,7 @@ class AgentControllerTest {
         assertThat(joined).contains("\"type\":\"request.query\"");
         assertThat(joined).contains("\"hidden\":true");
 
-        Path historyPath = Path.of(chatWindowMemoryProperties.getDir()).resolve(chatId + ".json");
+        Path historyPath = Path.of(chatWindowMemoryProperties.getDir()).resolve(chatId + ".jsonl");
         List<String> lines = Files.readAllLines(historyPath, StandardCharsets.UTF_8).stream()
                 .filter(line -> !line.isBlank())
                 .toList();

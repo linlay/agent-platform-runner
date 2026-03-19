@@ -6,6 +6,7 @@ import com.linlay.agentplatform.model.AgentRequest;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface Agent {
 
@@ -43,6 +44,14 @@ public interface Agent {
 
     default List<String> skills() {
         return List.of();
+    }
+
+    default List<AgentControl> controls() {
+        return definition().map(AgentDefinition::controls).orElse(List.of());
+    }
+
+    default Optional<AgentDefinition> definition() {
+        return Optional.empty();
     }
 
     Flux<AgentDelta> stream(AgentRequest request);

@@ -1,7 +1,6 @@
 package com.linlay.agentplatform.model.api;
 
 import java.util.List;
-import java.util.Map;
 
 public record AgentListResponse(
         List<AgentSummary> agents
@@ -11,8 +10,7 @@ public record AgentListResponse(
             String name,
             Object icon,
             String description,
-            String role,
-            Map<String, Object> meta
+            String role
     ) {
     }
 }

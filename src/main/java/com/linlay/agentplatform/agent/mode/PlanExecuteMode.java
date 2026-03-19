@@ -215,8 +215,8 @@ public final class PlanExecuteMode extends AgentMode {
             int stepNo = 0;
 
             while (stepNo < maxSteps) {
-                ToolExecutionService.PlanSnapshot beforeSnapshot = services.toolExecutionService().planSnapshot(context);
-                AgentDelta.PlanTask step = firstUnfinishedTask(beforeSnapshot.tasks());
+                ToolExecutionService.PlanState beforeState = services.toolExecutionService().planState(context);
+                AgentDelta.PlanTask step = firstUnfinishedTask(beforeState.tasks());
                 if (step == null) {
                     break;
                 }
@@ -236,7 +236,7 @@ public final class PlanExecuteMode extends AgentMode {
                     String taskPrompt = renderTemplate(
                             taskExecutionPromptTemplate,
                             Map.of(
-                                    "task_list", formatTaskList(beforeSnapshot.tasks()),
+                                    "task_list", formatTaskList(beforeState.tasks()),
                                     "task_id", str(step.taskId(), "unknown"),
                                     "task_description", str(step.description(), "no description")
                             )

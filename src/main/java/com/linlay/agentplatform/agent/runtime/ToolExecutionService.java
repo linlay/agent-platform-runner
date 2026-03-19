@@ -239,8 +239,8 @@ public class ToolExecutionService {
                 .toList();
     }
 
-    public PlanSnapshot planSnapshot(ExecutionContext context) {
-        return planToolHandler.planSnapshot(context);
+    public PlanState planState(ExecutionContext context) {
+        return planToolHandler.planState(context);
     }
 
     public String applyBackendPrompts(String systemPrompt, Map<String, BaseTool> stageTools) {
@@ -599,12 +599,12 @@ public class ToolExecutionService {
     ) {
     }
 
-    public record PlanSnapshot(
+    public record PlanState(
             String planId,
             String chatId,
             List<AgentDelta.PlanTask> tasks
     ) {
-        public PlanSnapshot {
+        public PlanState {
             if (tasks == null) {
                 tasks = List.of();
             } else {

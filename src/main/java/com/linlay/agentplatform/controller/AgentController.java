@@ -3,6 +3,7 @@ package com.linlay.agentplatform.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
+import com.linlay.agentplatform.model.api.AgentDetailResponse;
 import com.linlay.agentplatform.model.api.AgentListResponse;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
@@ -83,6 +84,10 @@ public class AgentController {
 
     public ApiResponse<List<AgentListResponse.AgentSummary>> agents(String tag) {
         return agentCatalogController.agents(tag);
+    }
+
+    public ApiResponse<AgentDetailResponse> agent(String agentKey) {
+        return agentCatalogController.agent(agentKey);
     }
 
     public ApiResponse<List<TeamSummaryResponse>> teams() {

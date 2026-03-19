@@ -595,7 +595,7 @@ sandboxConfig:
 - 存储文件：`chats/{chatId}.json`，JSONL 格式，**一行一个 step**，逐步增量写入。
 - 行类型通过 `_type` 字段区分：
   - `"query"`：用户原始请求行。必带 `chatId`、`runId`、`updatedAt`、`query`。
-  - `"step"`：一个执行步骤行。必带 `chatId`、`runId`、`_stage`、`_seq`、`updatedAt`、`messages`；可选 `taskId`、`system`、`plan`（旧名 `planSnapshot`，读取时兼容）。
+  - `"step"`：一个执行步骤行。必带 `chatId`、`runId`、`_stage`、`_seq`、`updatedAt`、`messages`；可选 `taskId`、`system`、`plan`。
 - `_stage` 标识步骤阶段：`"oneshot"` / `"react"` / `"plan"` / `"execute"` / `"summary"`。
 - `_seq` 全局递增序号，标识 run 内的步骤顺序。
 - `query` 保存完整 query 结构（`requestId/chatId/agentKey/role/message/references/params/scene/stream`）。
@@ -613,10 +613,6 @@ sandboxConfig:
 
 基于 V3 格式的增量改进，向后兼容旧 V3 数据。
 
-### 字段重命名
-
-- step 行的 `planSnapshot` 字段重命名为 `plan`；内层 `PlanSnapshot.plan` 数组字段重命名为 `tasks`。
-- 读取时兼容旧字段名：先查 `"plan"` 再 fallback `"planSnapshot"`；`@JsonAlias("plan")` 兼容旧 `tasks` 字段。
 
 ### _msgId
 

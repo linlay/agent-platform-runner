@@ -23,7 +23,7 @@ public final class TurnTraceWriter {
     private StepAccumulator currentStep;
     private int seqCounter;
     private boolean queryLineWritten;
-    private ChatMemoryTypes.PlanSnapshot latestPlan;
+    private ChatMemoryTypes.PlanState latestPlan;
 
     public TurnTraceWriter(
             ChatWindowMemoryStore chatWindowMemoryStore,
@@ -148,7 +148,7 @@ public final class TurnTraceWriter {
         }
 
         if (delta.planUpdate() != null) {
-            latestPlan = toPlanSnapshot(delta.planUpdate());
+            latestPlan = toPlanState(delta.planUpdate());
             if (currentStep != null) {
                 currentStep.plan = latestPlan;
             }
@@ -245,16 +245,16 @@ public final class TurnTraceWriter {
         return null;
     }
 
-    private static ChatMemoryTypes.PlanSnapshot toPlanSnapshot(AgentDelta.PlanUpdate planUpdate) {
+    private static ChatMemoryTypes.PlanState toPlanState(AgentDelta.PlanUpdate planUpdate) {
         if (planUpdate == null || !StringUtils.hasText(planUpdate.planId()) || planUpdate.plan() == null || planUpdate.plan().isEmpty()) {
             return null;
         }
-        List<ChatMemoryTypes.PlanTaskSnapshot> tasks = new ArrayList<>();
+        List<ChatMemoryTypes.PlanTaskState> tasks = new ArrayList<>();
         for (AgentDelta.PlanTask task : planUpdate.plan()) {
             if (task == null || !StringUtils.hasText(task.taskId()) || !StringUtils.hasText(task.description())) {
                 continue;
             }
-            ChatMemoryTypes.PlanTaskSnapshot item = new ChatMemoryTypes.PlanTaskSnapshot();
+            ChatMemoryTypes.PlanTaskState item = new ChatMemoryTypes.PlanTaskState();
             item.taskId = task.taskId().trim();
             item.description = task.description().trim();
             item.status = AgentDelta.normalizePlanTaskStatus(task.status());
@@ -263,9 +263,9 @@ public final class TurnTraceWriter {
         if (tasks.isEmpty()) {
             return null;
         }
-        ChatMemoryTypes.PlanSnapshot snapshot = new ChatMemoryTypes.PlanSnapshot();
-        snapshot.planId = planUpdate.planId().trim();
-        snapshot.tasks = List.copyOf(tasks);
-        return snapshot;
+        ChatMemoryTypes.PlanState state = new ChatMemoryTypes.PlanState();
+        state.planId = planUpdate.planId().trim();
+        state.tasks = List.copyOf(tasks);
+        return state;
     }
 }

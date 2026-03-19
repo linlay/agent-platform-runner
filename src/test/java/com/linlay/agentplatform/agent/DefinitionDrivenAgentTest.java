@@ -789,6 +789,7 @@ class DefinitionDrivenAgentTest {
                 ),
                 List.of(),
                 List.of(),
+                List.of(),
                 null,
                 List.of(),
                 "soul prompt",

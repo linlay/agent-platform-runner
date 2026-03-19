@@ -98,7 +98,7 @@ public class ChatWindowMemoryStore {
             int seq,
             String taskId,
             ChatMemoryTypes.SystemSnapshot system,
-            ChatMemoryTypes.PlanSnapshot plan,
+            ChatMemoryTypes.PlanState plan,
             List<ChatMemoryTypes.RunMessage> runMessages
     ) {
         if (!isValidChatId(chatId) || runMessages == null || runMessages.isEmpty()) {
@@ -127,19 +127,19 @@ public class ChatWindowMemoryStore {
         line.taskId = hasText(taskId) ? taskId.trim() : null;
         line.updatedAt = System.currentTimeMillis();
         line.system = normalizedSystem;
-        line.plan = storedMessageConverter.normalizePlanSnapshot(plan);
+        line.plan = storedMessageConverter.normalizePlanState(plan);
         line.messages = storedMessages;
         appendLine(chatId, line);
     }
 
-    public ChatMemoryTypes.PlanSnapshot loadLatestPlanSnapshot(String chatId) {
+    public ChatMemoryTypes.PlanState loadLatestPlanState(String chatId) {
         if (!isValidChatId(chatId)) {
             return null;
         }
         List<ParsedLine> lines = readAllParsedLines(chatId);
         for (int i = lines.size() - 1; i >= 0; i--) {
             if (lines.get(i) instanceof ParsedStepLine step && step.plan() != null) {
-                ChatMemoryTypes.PlanSnapshot normalized = storedMessageConverter.normalizePlanSnapshot(step.plan());
+                ChatMemoryTypes.PlanState normalized = storedMessageConverter.normalizePlanState(step.plan());
                 if (normalized != null && normalized.tasks != null && !normalized.tasks.isEmpty()) {
                     return normalized;
                 }
@@ -302,9 +302,9 @@ public class ChatWindowMemoryStore {
             if (node.has("plan") && !node.get("plan").isNull()) {
                 planNode = node.get("plan");
             }
-            ChatMemoryTypes.PlanSnapshot plan = planNode == null
+            ChatMemoryTypes.PlanState plan = planNode == null
                     ? null
-                    : objectMapper.treeToValue(planNode, ChatMemoryTypes.PlanSnapshot.class);
+                    : objectMapper.treeToValue(planNode, ChatMemoryTypes.PlanState.class);
 
             List<ChatMemoryTypes.StoredMessage> messages = new ArrayList<>();
             if (node.has("messages") && node.get("messages").isArray()) {

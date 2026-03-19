@@ -23,16 +23,16 @@ public class PlanToolHandler {
         if (!handles(toolName)) {
             return null;
         }
-        return planTaskDeltaBuilder.planGetResult(planSnapshot(context));
+        return planTaskDeltaBuilder.planGetResult(planState(context));
     }
 
-    public ToolExecutionService.PlanSnapshot planSnapshot(ExecutionContext context) {
+    public ToolExecutionService.PlanState planState(ExecutionContext context) {
         if (context == null) {
-            return new ToolExecutionService.PlanSnapshot("plan_default", null, List.of());
+            return new ToolExecutionService.PlanState("plan_default", null, List.of());
         }
         String planId = context.planId();
         String chatId = context.request() == null ? null : context.request().chatId();
-        return new ToolExecutionService.PlanSnapshot(planId, chatId, context.planTasks());
+        return new ToolExecutionService.PlanState(planId, chatId, context.planTasks());
     }
 
     public AgentDelta planUpdateDelta(ExecutionContext context, String toolName, Map<String, Object> args, JsonNode resultNode) {

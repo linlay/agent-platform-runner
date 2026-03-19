@@ -1,7 +1,10 @@
 package com.linlay.agentplatform.controller;
 
 import com.linlay.agentplatform.agent.Agent;
+import com.linlay.agentplatform.agent.AgentDefinition;
 import com.linlay.agentplatform.agent.AgentRegistry;
+import com.linlay.agentplatform.model.ModelProtocol;
+import com.linlay.agentplatform.model.api.AgentDetailResponse;
 import com.linlay.agentplatform.model.api.AgentListResponse;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.model.api.SkillListResponse;
@@ -20,7 +23,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Locale;
@@ -54,6 +59,20 @@ public class AgentCatalogController {
                 .map(this::toSummary)
                 .toList();
         return ApiResponse.success(items);
+    }
+
+    @GetMapping("/agent")
+    public ApiResponse<AgentDetailResponse> agent(@RequestParam String agentKey) {
+        if (!StringUtils.hasText(agentKey)) {
+            throw new IllegalArgumentException("agentKey is required");
+        }
+        String normalizedAgentKey = agentKey.trim();
+        Agent agent = agentRegistry.list().stream()
+                .filter(item -> normalizedAgentKey.equals(item.id()))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agent not found: " + normalizedAgentKey));
+        AgentDefinition definition = agent.definition().orElse(null);
+        return ApiResponse.success(toDetail(agent, definition));
     }
 
     @GetMapping("/teams")
@@ -118,8 +137,23 @@ public class AgentCatalogController {
                 agent.name(),
                 agent.icon(),
                 agent.description(),
+                agent.role()
+        );
+    }
+
+    private AgentDetailResponse toDetail(Agent agent, AgentDefinition definition) {
+        return new AgentDetailResponse(
+                agent.id(),
+                agent.name(),
+                agent.icon(),
+                agent.description(),
                 agent.role(),
-                buildMeta(agent)
+                agent.model(),
+                agent.mode().name(),
+                agent.tools(),
+                agent.skills(),
+                agent.controls(),
+                buildDetailMeta(definition)
         );
     }
 
@@ -265,12 +299,24 @@ public class AgentCatalogController {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
-    private Map<String, Object> buildMeta(Agent agent) {
+    private Map<String, Object> buildDetailMeta(AgentDefinition definition) {
         Map<String, Object> meta = new java.util.LinkedHashMap<>();
-        meta.put("model", agent.model());
-        meta.put("mode", agent.mode().name());
-        meta.put("tools", agent.tools());
-        meta.put("skills", agent.skills());
-        return meta;
+        if (definition == null) {
+            return meta;
+        }
+        meta.put("modelKey", definition.modelKey());
+        meta.put("providerKey", definition.providerKey());
+        meta.put("protocol", definition.protocol() == null ? ModelProtocol.OPENAI.name() : definition.protocol().name());
+        meta.put("modelKeys", definition.modelKeys());
+        if (definition.sandboxConfig() != null) {
+            Map<String, Object> sandbox = new java.util.LinkedHashMap<>();
+            sandbox.put("environmentId", definition.sandboxConfig().environmentId());
+            sandbox.put("level", definition.sandboxConfig().level() == null ? null : definition.sandboxConfig().level().name());
+            meta.put("sandbox", sandbox);
+        }
+        if (definition.perAgentSkills() != null && !definition.perAgentSkills().isEmpty()) {
+            meta.put("perAgentSkills", definition.perAgentSkills());
+        }
+        return meta.isEmpty() ? Map.of() : meta;
     }
 }

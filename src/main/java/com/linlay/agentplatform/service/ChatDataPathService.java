@@ -3,6 +3,7 @@ package com.linlay.agentplatform.service;
 import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.util.StringHelpers;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -18,6 +19,7 @@ public class ChatDataPathService {
         this.dataDir = Path.of(properties.getDir()).toAbsolutePath().normalize();
     }
 
+    @Autowired
     public ChatDataPathService(DataProperties properties) {
         this.dataDir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
     }
