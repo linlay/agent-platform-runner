@@ -110,7 +110,12 @@ public class ContainerHubSandboxService implements DisposableBean {
     private void openRunSession(ExecutionContext context, String environmentId) {
         String sessionId = buildSessionId("run", context.request().runId());
         SandboxLevel level = SandboxLevel.RUN;
-        List<ContainerHubMountResolver.MountSpec> mounts = mountResolver.resolve(level, context.request().chatId());
+        List<ContainerHubMountResolver.MountSpec> mounts = mountResolver.resolve(
+                level,
+                context.request().chatId(),
+                context.definition().id(),
+                resolveExtraMounts(context.definition())
+        );
 
         ObjectNode payload = buildCreatePayload(sessionId, environmentId, buildLabels(context), mounts);
         JsonNode response = client.createSession(payload);
@@ -139,7 +144,12 @@ public class ContainerHubSandboxService implements DisposableBean {
             }
             // create new session
             String sessionId = buildSessionId("agent", agentKey);
-            List<ContainerHubMountResolver.MountSpec> mounts = mountResolver.resolve(SandboxLevel.AGENT, context.request().chatId());
+            List<ContainerHubMountResolver.MountSpec> mounts = mountResolver.resolve(
+                    SandboxLevel.AGENT,
+                    context.request().chatId(),
+                    context.definition().id(),
+                    resolveExtraMounts(context.definition())
+            );
             ObjectNode payload = buildCreatePayload(sessionId, environmentId, buildLabels(context), mounts);
             JsonNode response = client.createSession(payload);
             if (isErrorResponse(response)) {
@@ -201,7 +211,12 @@ public class ContainerHubSandboxService implements DisposableBean {
                 return;
             }
             String sessionId = "global-singleton";
-            List<ContainerHubMountResolver.MountSpec> mounts = mountResolver.resolve(SandboxLevel.GLOBAL, null);
+            List<ContainerHubMountResolver.MountSpec> mounts = mountResolver.resolve(
+                    SandboxLevel.GLOBAL,
+                    null,
+                    context.definition().id(),
+                    resolveExtraMounts(context.definition())
+            );
             ObjectNode payload = buildCreatePayload(sessionId, environmentId, buildLabels(context), mounts);
             JsonNode response = client.createSession(payload);
             if (isErrorResponse(response)) {
@@ -325,6 +340,13 @@ public class ContainerHubSandboxService implements DisposableBean {
             return properties.getDefaultEnvironmentId().trim();
         }
         return null;
+    }
+
+    private List<AgentDefinition.ExtraMount> resolveExtraMounts(AgentDefinition definition) {
+        if (definition == null || definition.sandboxConfig() == null || definition.sandboxConfig().extraMounts() == null) {
+            return List.of();
+        }
+        return definition.sandboxConfig().extraMounts();
     }
 
     private ObjectNode buildCreatePayload(

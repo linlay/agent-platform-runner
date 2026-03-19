@@ -116,7 +116,7 @@ class ContainerHubSandboxServiceTest {
         JsonNode mounts = client.lastCreatePayload.path("mounts");
         assertThat(mounts).isNotEmpty();
         assertThat(mounts.get(0).path("source").asText()).isNotBlank();
-        assertThat(mounts.get(0).path("destination").asText()).isEqualTo("/home");
+        assertThat(mounts.get(0).path("destination").asText()).isEqualTo("/tmp");
         assertThat(mounts.get(0).has("host_path")).isFalse();
         assertThat(mounts.get(0).has("container_path")).isFalse();
 

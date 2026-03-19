@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
+import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
@@ -55,6 +56,7 @@ class ContainerHubFeatureConfigurationTest {
     @EnableConfigurationProperties({
             ContainerHubToolProperties.class,
             DataProperties.class,
+            ChatWindowMemoryProperties.class,
             SkillProperties.class,
             ToolProperties.class,
             AgentProperties.class,

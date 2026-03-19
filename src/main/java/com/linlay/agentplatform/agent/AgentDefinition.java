@@ -182,7 +182,7 @@ public record AgentDefinition(
             controls = List.copyOf(controls);
         }
         if (sandboxConfig == null) {
-            sandboxConfig = new SandboxConfig(null, null);
+            sandboxConfig = new SandboxConfig(null, null, List.of());
         }
         if (modelKeys == null) {
             modelKeys = List.of();
@@ -210,14 +210,40 @@ public record AgentDefinition(
 
     public record SandboxConfig(
             String environmentId,
-            SandboxLevel level
+            SandboxLevel level,
+            List<ExtraMount> extraMounts
     ) {
         public SandboxConfig {
             environmentId = environmentId == null || environmentId.isBlank() ? null : environmentId.trim();
+            extraMounts = extraMounts == null ? List.of() : List.copyOf(extraMounts);
         }
 
         public SandboxConfig(String environmentId) {
-            this(environmentId, null);
+            this(environmentId, null, List.of());
+        }
+
+        public SandboxConfig(String environmentId, SandboxLevel level) {
+            this(environmentId, level, List.of());
+        }
+    }
+
+    public record ExtraMount(
+            String platform,
+            String source,
+            String destination
+    ) {
+        public ExtraMount {
+            platform = normalizeValue(platform);
+            source = normalizeValue(source);
+            destination = normalizeValue(destination);
+        }
+
+        public boolean isPlatform() {
+            return platform != null;
+        }
+
+        private static String normalizeValue(String value) {
+            return value == null || value.isBlank() ? null : value.trim();
         }
     }
 

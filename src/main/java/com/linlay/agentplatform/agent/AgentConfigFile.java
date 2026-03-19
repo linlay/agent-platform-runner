@@ -187,6 +187,7 @@ public class AgentConfigFile {
     public static class SandboxConfig {
         private String environmentId;
         private String level;
+        private List<ExtraMountConfig> extraMounts;
 
         public String getEnvironmentId() {
             return environmentId;
@@ -202,6 +203,45 @@ public class AgentConfigFile {
 
         public void setLevel(String level) {
             this.level = level;
+        }
+
+        public List<ExtraMountConfig> getExtraMounts() {
+            return extraMounts;
+        }
+
+        public void setExtraMounts(List<ExtraMountConfig> extraMounts) {
+            this.extraMounts = extraMounts;
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class ExtraMountConfig {
+        private String platform;
+        private String source;
+        private String destination;
+
+        public String getPlatform() {
+            return platform;
+        }
+
+        public void setPlatform(String platform) {
+            this.platform = platform;
+        }
+
+        public String getSource() {
+            return source;
+        }
+
+        public void setSource(String source) {
+            this.source = source;
+        }
+
+        public String getDestination() {
+            return destination;
+        }
+
+        public void setDestination(String destination) {
+            this.destination = destination;
         }
     }
 

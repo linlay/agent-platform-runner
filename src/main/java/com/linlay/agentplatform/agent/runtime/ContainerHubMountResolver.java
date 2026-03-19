@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.agent.runtime;
 
+import com.linlay.agentplatform.agent.AgentDefinition;
 import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.DataProperties;
@@ -12,21 +13,32 @@ import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.team.TeamProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 public class ContainerHubMountResolver {
+
+    private static final Logger log = LoggerFactory.getLogger(ContainerHubMountResolver.class);
 
     private final ContainerHubToolProperties containerHubProperties;
     private final ChatWindowMemoryProperties chatWindowMemoryProperties;
     private final SkillProperties skillProperties;
     private final AgentProperties agentProperties;
+    private final ToolProperties toolProperties;
     private final ModelProperties modelProperties;
+    private final ViewportProperties viewportProperties;
     private final TeamProperties teamProperties;
     private final ScheduleProperties scheduleProperties;
     private final McpProperties mcpProperties;
@@ -37,7 +49,9 @@ public class ContainerHubMountResolver {
             ChatWindowMemoryProperties chatWindowMemoryProperties,
             SkillProperties skillProperties,
             AgentProperties agentProperties,
+            ToolProperties toolProperties,
             ModelProperties modelProperties,
+            ViewportProperties viewportProperties,
             TeamProperties teamProperties,
             ScheduleProperties scheduleProperties,
             McpProperties mcpProperties,
@@ -47,7 +61,9 @@ public class ContainerHubMountResolver {
         this.chatWindowMemoryProperties = chatWindowMemoryProperties;
         this.skillProperties = skillProperties;
         this.agentProperties = agentProperties;
+        this.toolProperties = toolProperties;
         this.modelProperties = modelProperties;
+        this.viewportProperties = viewportProperties;
         this.teamProperties = teamProperties;
         this.scheduleProperties = scheduleProperties;
         this.mcpProperties = mcpProperties;
@@ -58,10 +74,10 @@ public class ContainerHubMountResolver {
             ContainerHubToolProperties containerHubProperties,
             DataProperties dataProperties,
             SkillProperties skillProperties,
-            ToolProperties ignoredToolProperties,
+            ToolProperties toolProperties,
             AgentProperties agentProperties,
             ModelProperties modelProperties,
-            ViewportProperties ignoredViewportProperties,
+            ViewportProperties viewportProperties,
             TeamProperties teamProperties,
             ScheduleProperties scheduleProperties,
             McpProperties mcpProperties,
@@ -72,7 +88,9 @@ public class ContainerHubMountResolver {
                 toChatWindowMemoryProperties(dataProperties),
                 skillProperties,
                 agentProperties,
+                toolProperties,
                 modelProperties,
+                viewportProperties,
                 teamProperties,
                 scheduleProperties,
                 mcpProperties,
@@ -80,8 +98,14 @@ public class ContainerHubMountResolver {
         );
     }
 
-    public List<MountSpec> resolve(SandboxLevel level, String chatId) {
+    public List<MountSpec> resolve(
+            SandboxLevel level,
+            String chatId,
+            String agentKey,
+            List<AgentDefinition.ExtraMount> extraMounts
+    ) {
         List<MountSpec> mounts = new ArrayList<>();
+        Set<String> usedContainerPaths = new LinkedHashSet<>();
         ContainerHubToolProperties.MountConfig mountConfig = containerHubProperties.getMounts();
 
         String dataDir = resolveDataDir(mountConfig);
@@ -93,29 +117,41 @@ public class ContainerHubMountResolver {
                 hostPath = requireExistingDirectory("data-dir", dataDir, toAbsolute(dataDir), "/tmp");
             }
             mounts.add(new MountSpec("data-dir", normalizeRawPath(dataDir), hostPath, "/tmp"));
+            usedContainerPaths.add("/tmp");
         }
 
         String userDir = mountConfig == null ? "./user" : mountConfig.getUserDir();
         if (StringUtils.hasText(userDir)) {
-            mounts.add(existingDirectoryMount("user-dir", userDir, "/home"));
+            addResolvedMount(mounts, usedContainerPaths, "user-dir", userDir, "/home");
         }
 
         String skillsDir = resolveSkillsDir(mountConfig);
         if (StringUtils.hasText(skillsDir)) {
-            mounts.add(existingDirectoryMount("skills-dir", skillsDir, "/skills"));
+            addResolvedMount(mounts, usedContainerPaths, "skills-dir", skillsDir, "/skills");
         }
 
         String panDir = mountConfig == null ? "./pan" : mountConfig.getPanDir();
         if (StringUtils.hasText(panDir)) {
-            mounts.add(existingDirectoryMount("pan-dir", panDir, "/pan"));
+            addResolvedMount(mounts, usedContainerPaths, "pan-dir", panDir, "/pan");
         }
 
-        addOptionalDirectoryMount(mounts, "agents-dir", resolveAgentsDir(mountConfig), "/agents");
-        addOptionalDirectoryMount(mounts, "models-dir", resolveModelsDir(mountConfig), "/models");
-        addOptionalDirectoryMount(mounts, "teams-dir", resolveTeamsDir(mountConfig), "/teams");
-        addOptionalDirectoryMount(mounts, "schedules-dir", resolveSchedulesDir(mountConfig), "/schedules");
-        addOptionalDirectoryMount(mounts, "mcp-servers-dir", resolveMcpServersDir(mountConfig), "/mcp-servers");
-        addOptionalDirectoryMount(mounts, "providers-dir", resolveProvidersDir(mountConfig), "/providers");
+        String agentSelfDir = resolveAgentSelfDir(mountConfig, agentKey);
+        if (StringUtils.hasText(agentSelfDir)) {
+            addResolvedMount(mounts, usedContainerPaths, "agent-self", agentSelfDir, "/agent");
+        }
+
+        if (extraMounts != null) {
+            for (AgentDefinition.ExtraMount extraMount : extraMounts) {
+                if (extraMount == null) {
+                    continue;
+                }
+                if (extraMount.isPlatform()) {
+                    resolvePlatformMount(mounts, usedContainerPaths, extraMount.platform(), mountConfig);
+                } else {
+                    resolveCustomMount(mounts, usedContainerPaths, extraMount);
+                }
+            }
+        }
 
         return List.copyOf(mounts);
     }
@@ -140,12 +176,20 @@ public class ContainerHubMountResolver {
         return null;
     }
 
+    private String resolveToolsDir(ContainerHubToolProperties.MountConfig mountConfig) {
+        return resolveDirectory(mountConfig == null ? null : mountConfig.getToolsDir(), toolProperties == null ? null : toolProperties.getExternalDir());
+    }
+
     private String resolveAgentsDir(ContainerHubToolProperties.MountConfig mountConfig) {
         return resolveDirectory(mountConfig == null ? null : mountConfig.getAgentsDir(), agentProperties == null ? null : agentProperties.getExternalDir());
     }
 
     private String resolveModelsDir(ContainerHubToolProperties.MountConfig mountConfig) {
         return resolveDirectory(mountConfig == null ? null : mountConfig.getModelsDir(), modelProperties == null ? null : modelProperties.getExternalDir());
+    }
+
+    private String resolveViewportsDir(ContainerHubToolProperties.MountConfig mountConfig) {
+        return resolveDirectory(mountConfig == null ? null : mountConfig.getViewportsDir(), viewportProperties == null ? null : viewportProperties.getExternalDir());
     }
 
     private String resolveTeamsDir(ContainerHubToolProperties.MountConfig mountConfig) {
@@ -170,6 +214,18 @@ public class ContainerHubMountResolver {
         return mountConfig.getProvidersDir().trim();
     }
 
+    private String resolveAgentSelfDir(ContainerHubToolProperties.MountConfig mountConfig, String agentKey) {
+        if (!StringUtils.hasText(agentKey)) {
+            return null;
+        }
+        String agentsDir = resolveAgentsDir(mountConfig);
+        if (!StringUtils.hasText(agentsDir)) {
+            return null;
+        }
+        Path agentDir = Path.of(agentsDir, agentKey).toAbsolutePath().normalize();
+        return Files.isDirectory(agentDir) ? agentDir.toString() : null;
+    }
+
     private String resolveDirectory(String configuredPath, String fallbackPath) {
         if (StringUtils.hasText(configuredPath)) {
             return configuredPath.trim();
@@ -180,20 +236,83 @@ public class ContainerHubMountResolver {
         return null;
     }
 
-    private String toAbsolute(String path) {
-        return Path.of(path).toAbsolutePath().normalize().toString();
-    }
-
-    private void addOptionalDirectoryMount(List<MountSpec> mounts, String mountName, String rawPath, String containerPath) {
-        if (!StringUtils.hasText(rawPath)) {
+    private void resolvePlatformMount(
+            List<MountSpec> mounts,
+            Set<String> usedContainerPaths,
+            String rawPlatform,
+            ContainerHubToolProperties.MountConfig mountConfig
+    ) {
+        String platform = normalizePlatform(rawPlatform);
+        PlatformMountDef platformMountDef = platformMountDefs(mountConfig).get(platform);
+        if (platformMountDef == null) {
+            log.warn("Skip unknown sandboxConfig.extraMounts platform '{}'", rawPlatform);
             return;
         }
-        mounts.add(existingDirectoryMount(mountName, rawPath, containerPath));
+        String source = platformMountDef.sourceSupplier().get();
+        if (!StringUtils.hasText(source)) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for extra-mount:%s: source is not configured (containerPath=%s)"
+                            .formatted(platform, platformMountDef.containerPath())
+            );
+        }
+        addResolvedMount(mounts, usedContainerPaths, "extra-mount:" + platform, source, platformMountDef.containerPath());
     }
 
-    private MountSpec existingDirectoryMount(String mountName, String rawPath, String containerPath) {
+    private void resolveCustomMount(
+            List<MountSpec> mounts,
+            Set<String> usedContainerPaths,
+            AgentDefinition.ExtraMount extraMount
+    ) {
+        if (!StringUtils.hasText(extraMount.destination()) || !extraMount.destination().startsWith("/")) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for extra-mount: destination must be an absolute path"
+                            + " (destination=" + extraMount.destination() + ")"
+            );
+        }
+        addResolvedMount(mounts, usedContainerPaths, "extra-mount", extraMount.source(), extraMount.destination());
+    }
+
+    private Map<String, PlatformMountDef> platformMountDefs(ContainerHubToolProperties.MountConfig mountConfig) {
+        return Map.of(
+                "models", new PlatformMountDef(() -> resolveModelsDir(mountConfig), "/models"),
+                "tools", new PlatformMountDef(() -> resolveToolsDir(mountConfig), "/tools"),
+                "agents", new PlatformMountDef(() -> resolveAgentsDir(mountConfig), "/agents"),
+                "viewports", new PlatformMountDef(() -> resolveViewportsDir(mountConfig), "/viewports"),
+                "teams", new PlatformMountDef(() -> resolveTeamsDir(mountConfig), "/teams"),
+                "schedules", new PlatformMountDef(() -> resolveSchedulesDir(mountConfig), "/schedules"),
+                "mcp-servers", new PlatformMountDef(() -> resolveMcpServersDir(mountConfig), "/mcp-servers"),
+                "providers", new PlatformMountDef(() -> resolveProvidersDir(mountConfig), "/providers")
+        );
+    }
+
+    private String normalizePlatform(String rawPlatform) {
+        return rawPlatform == null ? "" : rawPlatform.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private void addResolvedMount(
+            List<MountSpec> mounts,
+            Set<String> usedContainerPaths,
+            String mountName,
+            String rawPath,
+            String containerPath
+    ) {
+        validateContainerPathConflict(usedContainerPaths, mountName, containerPath);
         String hostPath = requireExistingDirectory(mountName, rawPath, toAbsolute(rawPath), containerPath);
-        return new MountSpec(mountName, normalizeRawPath(rawPath), hostPath, containerPath);
+        mounts.add(new MountSpec(mountName, normalizeRawPath(rawPath), hostPath, containerPath));
+        usedContainerPaths.add(containerPath);
+    }
+
+    private void validateContainerPathConflict(Set<String> usedContainerPaths, String mountName, String containerPath) {
+        if (usedContainerPaths.contains(containerPath)) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for %s: containerPath conflicts with existing mount (containerPath=%s)"
+                            .formatted(mountName, containerPath)
+            );
+        }
+    }
+
+    private String toAbsolute(String path) {
+        return Path.of(path).toAbsolutePath().normalize().toString();
     }
 
     private String requireExistingDirectory(String mountName, String rawPath, String resolvedPath, String containerPath) {
@@ -233,6 +352,9 @@ public class ContainerHubMountResolver {
             properties.setDir(dataProperties.getExternalDir());
         }
         return properties;
+    }
+
+    private record PlatformMountDef(Supplier<String> sourceSupplier, String containerPath) {
     }
 
     public record MountSpec(String mountName, String rawPath, String hostPath, String containerPath) {

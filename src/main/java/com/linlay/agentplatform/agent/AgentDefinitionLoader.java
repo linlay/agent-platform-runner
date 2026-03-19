@@ -90,13 +90,21 @@ public class AgentDefinitionLoader {
             });
         }
 
-        List<Path> unsupportedFlatFiles = YamlCatalogSupport.selectYamlFiles(
+        List<Path> flatFiles = YamlCatalogSupport.selectYamlFiles(
                 entries.stream().filter(Files::isRegularFile).toList(),
                 "agent",
                 log
         );
-        for (Path path : unsupportedFlatFiles) {
-            log.warn("Flat agent file layout is no longer supported, skip: {}", path);
+        for (Path path : flatFiles) {
+            tryLoadExternal(path).ifPresent(definition -> {
+                Path existing = sourceFilesByAgentId.get(definition.id());
+                if (existing != null) {
+                    log.warn("Skip duplicated agent key '{}' from file {}, already loaded from {}", definition.id(), path, existing);
+                    return;
+                }
+                loaded.put(definition.id(), definition);
+                sourceFilesByAgentId.put(definition.id(), path);
+            });
         }
 
         if (!loaded.isEmpty()) {
@@ -118,6 +126,15 @@ public class AgentDefinitionLoader {
             }
         });
         return loaded;
+    }
+
+    private Optional<AgentDefinition> tryLoadExternal(Path file) {
+        String fileBasedId = YamlCatalogSupport.fileBaseName(file).trim();
+        if (fileBasedId.isEmpty()) {
+            log.warn("Skip external agent with empty name: {}", file);
+            return Optional.empty();
+        }
+        return tryLoadDefinition(file, fileBasedId, null, true);
     }
 
     private Optional<AgentDefinition> tryLoadDefinition(
@@ -241,7 +258,7 @@ public class AgentDefinitionLoader {
             case ONESHOT -> new AgentPromptFiles(
                     soulContent,
                     agentsContent,
-                    resolveOneshotOrReactPrompt(agentDir, config == null ? null : config.getPlain(), "plain", "AGENTS.md"),
+                    resolveDirectoryStagePrompt(agentDir, config == null ? null : config.getPlain(), "plain", "AGENTS.plain.md", true),
                     null,
                     null,
                     null,
@@ -251,7 +268,7 @@ public class AgentDefinitionLoader {
                     soulContent,
                     agentsContent,
                     null,
-                    resolveOneshotOrReactPrompt(agentDir, config == null ? null : config.getReact(), "react", "AGENTS.md"),
+                    resolveDirectoryStagePrompt(agentDir, config == null ? null : config.getReact(), "react", "AGENTS.react.md", true),
                     null,
                     null,
                     null
@@ -261,9 +278,9 @@ public class AgentDefinitionLoader {
                     agentsContent,
                     null,
                     null,
-                    resolvePlanExecutePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getPlan(), "planExecute.plan"),
-                    resolvePlanExecutePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getExecute(), "planExecute.execute"),
-                    resolvePlanExecutePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getSummary(), "planExecute.summary")
+                    resolveDirectoryStagePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getPlan(), "planExecute.plan", "AGENTS.plan.md", false),
+                    resolveDirectoryStagePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getExecute(), "planExecute.execute", "AGENTS.execute.md", false),
+                    resolveDirectoryStagePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getSummary(), "planExecute.summary", "AGENTS.summary.md", false)
             );
         };
     }
@@ -309,39 +326,23 @@ public class AgentDefinitionLoader {
         }
     }
 
-    private String resolveOneshotOrReactPrompt(
+    private String resolveDirectoryStagePrompt(
             Path agentDir,
             AgentConfigFile.StageConfig stage,
             String stagePath,
-            String defaultPromptFile
+            String defaultPromptFile,
+            boolean allowSharedFallback
     ) {
-        validateNoDirectorySystemPrompt(stage, stagePath + ".systemPrompt");
-        validateNoDirectoryPromptFile(stage, stagePath + ".promptFile");
-        return loadPromptMarkdown(agentDir, defaultPromptFile, stagePath.equals("plain") ? "AGENTS.md" : "AGENTS.md");
-    }
-
-    private String resolvePlanExecutePrompt(Path agentDir, AgentConfigFile.StageConfig stage, String stagePath) {
-        if (stage == null) {
-            throw new IllegalArgumentException(stagePath + ".promptFile is required");
-        }
-        validateNoDirectorySystemPrompt(stage, stagePath + ".systemPrompt");
-        String promptFile = normalize(stage.getPromptFile(), "");
-        if (!StringUtils.hasText(promptFile)) {
-            throw new IllegalArgumentException(stagePath + ".promptFile is required");
-        }
-        return loadPromptMarkdown(agentDir, promptFile, stagePath + ".promptFile");
-    }
-
-    private void validateNoDirectorySystemPrompt(AgentConfigFile.StageConfig stage, String fieldPath) {
-        if (stage != null && StringUtils.hasText(stage.getSystemPrompt())) {
-            throw new IllegalArgumentException(fieldPath + " is not allowed for directory agents");
-        }
-    }
-
-    private void validateNoDirectoryPromptFile(AgentConfigFile.StageConfig stage, String fieldPath) {
         if (stage != null && StringUtils.hasText(stage.getPromptFile())) {
-            throw new IllegalArgumentException(fieldPath + " is not allowed for this mode");
+            return loadPromptMarkdown(agentDir, stage.getPromptFile(), stagePath + ".promptFile");
         }
+        if (StringUtils.hasText(defaultPromptFile) && Files.isRegularFile(agentDir.resolve(defaultPromptFile))) {
+            return loadPromptMarkdown(agentDir, defaultPromptFile, stagePath + ".promptFile");
+        }
+        if (allowSharedFallback && Files.isRegularFile(agentDir.resolve("AGENTS.md"))) {
+            return readOptionalMarkdown(agentDir.resolve("AGENTS.md"));
+        }
+        return null;
     }
 
     private String loadPromptMarkdown(Path agentDir, String rawPromptFile, String fieldPath) {
@@ -598,12 +599,38 @@ public class AgentDefinitionLoader {
 
     private AgentDefinition.SandboxConfig toSandboxConfig(AgentConfigFile.SandboxConfig sandboxConfig) {
         if (sandboxConfig == null) {
-            return new AgentDefinition.SandboxConfig(null, null);
+            return new AgentDefinition.SandboxConfig(null, null, List.of());
         }
         return new AgentDefinition.SandboxConfig(
                 sandboxConfig.getEnvironmentId(),
-                SandboxLevel.parse(sandboxConfig.getLevel())
+                SandboxLevel.parse(sandboxConfig.getLevel()),
+                toExtraMounts(sandboxConfig.getExtraMounts())
         );
+    }
+
+    private List<AgentDefinition.ExtraMount> toExtraMounts(List<AgentConfigFile.ExtraMountConfig> extraMounts) {
+        if (extraMounts == null || extraMounts.isEmpty()) {
+            return List.of();
+        }
+        List<AgentDefinition.ExtraMount> resolved = new ArrayList<>();
+        for (AgentConfigFile.ExtraMountConfig extraMount : extraMounts) {
+            if (extraMount == null) {
+                continue;
+            }
+            String platform = normalize(extraMount.getPlatform(), "");
+            String source = normalize(extraMount.getSource(), "");
+            String destination = normalize(extraMount.getDestination(), "");
+            if (StringUtils.hasText(platform)) {
+                resolved.add(new AgentDefinition.ExtraMount(platform, null, null));
+                continue;
+            }
+            if (StringUtils.hasText(source) && StringUtils.hasText(destination)) {
+                resolved.add(new AgentDefinition.ExtraMount(null, source, destination));
+                continue;
+            }
+            log.warn("Skip invalid sandboxConfig.extraMounts item without platform or source/destination pair");
+        }
+        return List.copyOf(resolved);
     }
 
     private ModelDefinition resolveModelByKey(String rawModelKey) {

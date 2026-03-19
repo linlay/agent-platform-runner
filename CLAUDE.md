@@ -496,20 +496,23 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 
 ### 挂载目录映射
 
-| 容器内路径 | RUN 宿主路径 | AGENT / GLOBAL 宿主路径 | 配置键（为空时 fallback） |
-|-----------|-------------|-------------------------|--------------------------|
-| `/tmp` | `{dataDir}/{chatId}` | `{dataDir}` | `mounts.data-dir` → `agent.data.external-dir` |
-| `/home` | `{userDir}` | `{userDir}` | `mounts.user-dir`（默认 `./user`） |
-| `/skills` | `{skillsDir}` | `{skillsDir}` | `mounts.skills-dir` → `agent.skills.external-dir` |
-| `/pan` | `{panDir}` | `{panDir}` | `mounts.pan-dir`（默认 `./pan`） |
-| `/tools` | `{toolsDir}` | `{toolsDir}` | `mounts.tools-dir` → `agent.tools.external-dir` |
-| `/agents` | `{agentsDir}` | `{agentsDir}` | `mounts.agents-dir` → `agent.agents.external-dir` |
-| `/models` | `{modelsDir}` | `{modelsDir}` | `mounts.models-dir` → `agent.models.external-dir` |
-| `/viewports` | `{viewportsDir}` | `{viewportsDir}` | `mounts.viewports-dir` → `agent.viewports.external-dir` |
-| `/teams` | `{teamsDir}` | `{teamsDir}` | `mounts.teams-dir` → `agent.teams.external-dir` |
-| `/schedules` | `{schedulesDir}` | `{schedulesDir}` | `mounts.schedules-dir` → `agent.schedule.external-dir` |
-| `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `mounts.mcp-servers-dir` → `agent.mcp-servers.registry.external-dir` |
-| `/providers` | `{providersDir}` | `{providersDir}` | `mounts.providers-dir`（敏感目录，默认不挂载，不 fallback） |
+默认仅挂载 5 个真实容器路径，其余平台目录需通过 `sandboxConfig.extraMounts` 显式声明。
+
+| 容器内路径 | RUN 宿主路径 | AGENT / GLOBAL 宿主路径 | 默认策略 | 配置键（为空时 fallback） |
+|-----------|-------------|-------------------------|----------|--------------------------|
+| `/tmp` | `{dataDir}/{chatId}` | `{dataDir}` | 默认挂载 | `mounts.data-dir` → `agent.data.external-dir` |
+| `/home` | `{userDir}` | `{userDir}` | 默认挂载 | `mounts.user-dir`（默认 `./user`） |
+| `/skills` | `{skillsDir}` | `{skillsDir}` | 默认挂载 | `mounts.skills-dir` → `agent.skills.external-dir` |
+| `/pan` | `{panDir}` | `{panDir}` | 默认挂载 | `mounts.pan-dir`（默认 `./pan`） |
+| `/agent` | `{agentsDir}/{agentKey}` | `{agentsDir}/{agentKey}` | 默认挂载；仅目录化 agent 存在时挂载 | `mounts.agents-dir` → `agent.agents.external-dir` |
+| `/tools` | `{toolsDir}` | `{toolsDir}` | `extraMounts` 按需 | `mounts.tools-dir` → `agent.tools.external-dir` |
+| `/agents` | `{agentsDir}` | `{agentsDir}` | `extraMounts` 按需 | `mounts.agents-dir` → `agent.agents.external-dir` |
+| `/models` | `{modelsDir}` | `{modelsDir}` | `extraMounts` 按需 | `mounts.models-dir` → `agent.models.external-dir` |
+| `/viewports` | `{viewportsDir}` | `{viewportsDir}` | `extraMounts` 按需 | `mounts.viewports-dir` → `agent.viewports.external-dir` |
+| `/teams` | `{teamsDir}` | `{teamsDir}` | `extraMounts` 按需 | `mounts.teams-dir` → `agent.teams.external-dir` |
+| `/schedules` | `{schedulesDir}` | `{schedulesDir}` | `extraMounts` 按需 | `mounts.schedules-dir` → `agent.schedule.external-dir` |
+| `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `extraMounts` 按需 | `mounts.mcp-servers-dir` → `agent.mcp-servers.registry.external-dir` |
+| `/providers` | `{providersDir}` | `{providersDir}` | `extraMounts` 按需；敏感目录，无 fallback | `mounts.providers-dir` |
 
 ### Agent Definition 中的 sandboxConfig
 
@@ -517,7 +520,32 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 sandboxConfig:
   environmentId: shell
   level: agent        # run / agent / global；为空时使用全局 default-sandbox-level
+  extraMounts:
+    - platform: models
+    - platform: tools
+    - source: /abs/host/path
+      destination: /datasets
 ```
+
+### extraMounts 平台简写
+
+| `platform` | 容器路径 |
+|-----------|----------|
+| `models` | `/models` |
+| `tools` | `/tools` |
+| `agents` | `/agents` |
+| `viewports` | `/viewports` |
+| `teams` | `/teams` |
+| `schedules` | `/schedules` |
+| `mcp-servers` | `/mcp-servers` |
+| `providers` | `/providers` |
+
+约束：
+
+- `platform` 未知时仅 warn 并跳过。
+- custom mount 的 `destination` 必须是绝对路径，且不能与已有挂载冲突。
+- custom mount 的 `source` 必须是已存在目录。
+- `platform: providers` 只有在 `mounts.providers-dir` 已显式配置时才可用。
 
 ### 并发与销毁策略
 

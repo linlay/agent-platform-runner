@@ -193,6 +193,40 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldLoadSandboxConfigExtraMounts() throws IOException {
+        writeYaml("sandboxed_extra_mounts.yml", """
+                key: sandboxed_extra_mounts
+                name: Sandboxed Extra Mounts
+                role: Sandboxed Extra Mounts
+                description: sandboxed extra mounts
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - container_hub_bash
+                sandboxConfig:
+                  environmentId: shell
+                  level: agent
+                  extraMounts:
+                    - platform: models
+                    - source: /tmp/datasets
+                      destination: /datasets
+                    - source: /tmp/ignored
+                mode: ONESHOT
+                plain:
+                  systemPrompt: use sandbox
+                """);
+
+        AgentDefinition definition = loadById().get("sandboxed_extra_mounts");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.sandboxConfig().extraMounts()).containsExactly(
+                new AgentDefinition.ExtraMount("models", null, null),
+                new AgentDefinition.ExtraMount(null, "/tmp/datasets", "/datasets")
+        );
+    }
+
+    @Test
     void shouldLoadActualDemoContainerHubValidatorDefinition() throws IOException {
         copyExampleAgentDirectory("demoContainerHubValidator");
 
