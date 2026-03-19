@@ -176,6 +176,27 @@ class ToolFileRegistryServiceTest {
     }
 
     @Test
+    void shouldIgnoreScaffoldToolPlaceholder() throws Exception {
+        Path toolsDir = tempDir.resolve("tools");
+        Files.createDirectories(toolsDir);
+
+        Files.writeString(toolsDir.resolve("custom_tool.yml"), """
+                scaffold: true
+                name: custom_tool
+                label: Custom Tool
+                description: scaffold placeholder
+                type: function
+                inputSchema:
+                  type: object
+                """);
+
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+
+        assertThat(service.find("custom_tool")).isEmpty();
+        assertThat(service.list()).isEmpty();
+    }
+
+    @Test
     void shouldReturnCatalogDiffWhenCapabilitiesChanged() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);

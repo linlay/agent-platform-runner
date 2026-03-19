@@ -116,6 +116,26 @@ class SkillRegistryServiceTest {
         assertThat(diff.changedKeys()).contains("math_stats");
     }
 
+    @Test
+    void shouldIgnoreScaffoldSkillPlaceholder() throws Exception {
+        Path skillFile = tempDir.resolve("custom_skill").resolve("SKILL.md");
+        Files.createDirectories(skillFile.getParent());
+        Files.writeString(skillFile, """
+                ---
+                name: "Custom Skill"
+                description: "placeholder"
+                scaffold: true
+                ---
+                """);
+
+        SkillProperties properties = new SkillProperties();
+        properties.setExternalDir(tempDir.toString());
+        SkillRegistryService service = new SkillRegistryService(properties);
+
+        assertThat(service.find("custom_skill")).isEmpty();
+        assertThat(service.list()).isEmpty();
+    }
+
     private void writeSkill(String id, String name, String description) throws Exception {
         Path skillFile = tempDir.resolve(id).resolve("SKILL.md");
         Files.createDirectories(skillFile.getParent());

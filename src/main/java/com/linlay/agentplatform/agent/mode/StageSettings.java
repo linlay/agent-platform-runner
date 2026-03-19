@@ -14,7 +14,8 @@ public record StageSettings(
         List<String> tools,
         boolean reasoningEnabled,
         ComputePolicy reasoningEffort,
-        boolean deepThinking
+        boolean deepThinking,
+        String instructionsPrompt
 ) {
 
     public StageSettings(
@@ -25,7 +26,7 @@ public record StageSettings(
             boolean reasoningEnabled,
             ComputePolicy reasoningEffort
     ) {
-        this(systemPrompt, null, providerKey, model, null, tools, reasoningEnabled, reasoningEffort, false);
+        this(systemPrompt, null, providerKey, model, null, tools, reasoningEnabled, reasoningEffort, false, null);
     }
 
     public StageSettings(
@@ -37,7 +38,32 @@ public record StageSettings(
             ComputePolicy reasoningEffort,
             boolean deepThinking
     ) {
-        this(systemPrompt, null, providerKey, model, null, tools, reasoningEnabled, reasoningEffort, deepThinking);
+        this(systemPrompt, null, providerKey, model, null, tools, reasoningEnabled, reasoningEffort, deepThinking, null);
+    }
+
+    public StageSettings(
+            String systemPrompt,
+            String providerKey,
+            String model,
+            List<String> tools,
+            boolean reasoningEnabled,
+            ComputePolicy reasoningEffort,
+            String instructionsPrompt
+    ) {
+        this(systemPrompt, null, providerKey, model, null, tools, reasoningEnabled, reasoningEffort, false, instructionsPrompt);
+    }
+
+    public StageSettings(
+            String systemPrompt,
+            String providerKey,
+            String model,
+            List<String> tools,
+            boolean reasoningEnabled,
+            ComputePolicy reasoningEffort,
+            boolean deepThinking,
+            String instructionsPrompt
+    ) {
+        this(systemPrompt, null, providerKey, model, null, tools, reasoningEnabled, reasoningEffort, deepThinking, instructionsPrompt);
     }
 
     public StageSettings(
@@ -50,7 +76,21 @@ public record StageSettings(
             boolean reasoningEnabled,
             ComputePolicy reasoningEffort
     ) {
-        this(systemPrompt, modelKey, providerKey, model, protocol, tools, reasoningEnabled, reasoningEffort, false);
+        this(systemPrompt, modelKey, providerKey, model, protocol, tools, reasoningEnabled, reasoningEffort, false, null);
+    }
+
+    public StageSettings(
+            String systemPrompt,
+            String modelKey,
+            String providerKey,
+            String model,
+            ModelProtocol protocol,
+            List<String> tools,
+            boolean reasoningEnabled,
+            ComputePolicy reasoningEffort,
+            boolean deepThinking
+    ) {
+        this(systemPrompt, modelKey, providerKey, model, protocol, tools, reasoningEnabled, reasoningEffort, deepThinking, null);
     }
 
     public StageSettings {
@@ -65,5 +105,6 @@ public record StageSettings(
         if (protocol == null) {
             protocol = ModelProtocol.OPENAI;
         }
+        instructionsPrompt = instructionsPrompt == null || instructionsPrompt.isBlank() ? null : instructionsPrompt.trim();
     }
 }

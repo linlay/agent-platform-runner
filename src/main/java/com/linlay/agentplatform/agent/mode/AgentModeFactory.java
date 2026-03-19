@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.agent.mode;
 
 import com.linlay.agentplatform.agent.AgentConfigFile;
+import com.linlay.agentplatform.agent.AgentPromptFiles;
 import com.linlay.agentplatform.agent.config.AgentModelConfig;
 import com.linlay.agentplatform.agent.config.AgentRuntimePromptsConfig;
 import com.linlay.agentplatform.agent.config.AgentToolConfig;
@@ -28,6 +29,7 @@ public final class AgentModeFactory {
             AgentRuntimeMode mode,
             AgentConfigFile config,
             Path file,
+            AgentPromptFiles promptFiles,
             Function<String, ModelDefinition> modelResolver
     ) {
         AgentRuntimePromptsConfig runtimePromptsConfig = config == null ? null : config.getRuntimePrompts();
@@ -37,7 +39,13 @@ public final class AgentModeFactory {
 
         return switch (mode) {
             case ONESHOT -> {
-                StageSettings stage = stageSettings(config, config == null ? null : config.getPlain(), List.of(), modelResolver);
+                StageSettings stage = stageSettings(
+                        config,
+                        config == null ? null : config.getPlain(),
+                        List.of(),
+                        promptFiles == null ? null : promptFiles.plainStageContent(),
+                        modelResolver
+                );
                 if (isBlank(stage.systemPrompt())) {
                     throw new IllegalArgumentException("plain.systemPrompt is required: " + file);
                 }
@@ -45,7 +53,13 @@ public final class AgentModeFactory {
             }
             case REACT -> {
                 AgentConfigFile.ReactConfig react = config == null ? null : config.getReact();
-                StageSettings stage = stageSettings(config, react, List.of(), modelResolver);
+                StageSettings stage = stageSettings(
+                        config,
+                        react,
+                        List.of(),
+                        promptFiles == null ? null : promptFiles.reactStageContent(),
+                        modelResolver
+                );
                 if (isBlank(stage.systemPrompt())) {
                     throw new IllegalArgumentException("react.systemPrompt is required: " + file);
                 }
@@ -60,18 +74,21 @@ public final class AgentModeFactory {
                         config,
                         pe == null ? null : pe.getPlan(),
                         List.of(PlanToolConstants.PLAN_ADD_TASKS_TOOL),
+                        promptFiles == null ? null : promptFiles.planStageContent(),
                         modelResolver
                 );
                 StageSettings executeStage = stageSettings(
                         config,
                         pe == null ? null : pe.getExecute(),
                         List.of(PlanToolConstants.PLAN_UPDATE_TASK_TOOL),
+                        promptFiles == null ? null : promptFiles.executeStageContent(),
                         modelResolver
                 );
                 StageSettings summaryStage = stageSettings(
                         config,
                         pe == null ? null : pe.getSummary(),
                         List.of(),
+                        promptFiles == null ? null : promptFiles.summaryStageContent(),
                         modelResolver
                 );
                 if (isBlank(planStage.systemPrompt()) || isBlank(executeStage.systemPrompt())) {
@@ -88,7 +105,8 @@ public final class AgentModeFactory {
                             summaryStage.tools(),
                             summaryStage.reasoningEnabled(),
                             summaryStage.reasoningEffort(),
-                            summaryStage.deepThinking()
+                            summaryStage.deepThinking(),
+                            summaryStage.instructionsPrompt()
                     );
                 }
                 int maxSteps = pe != null && pe.getMaxSteps() != null && pe.getMaxSteps() > 0
@@ -166,6 +184,7 @@ public final class AgentModeFactory {
             AgentConfigFile config,
             AgentConfigFile.StageConfig stage,
             List<String> requiredTools,
+            String instructionsPrompt,
             Function<String, ModelDefinition> modelResolver
     ) {
         AgentModelConfig resolvedModelConfig = resolveModelConfig(config, stage);
@@ -196,7 +215,8 @@ public final class AgentModeFactory {
                 tools,
                 reasoningEnabled,
                 reasoningEffort,
-                stage != null && stage.isDeepThinking()
+                stage != null && stage.isDeepThinking(),
+                instructionsPrompt
         );
     }
 

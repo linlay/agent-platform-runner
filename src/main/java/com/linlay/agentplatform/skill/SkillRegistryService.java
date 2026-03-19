@@ -142,6 +142,10 @@ public class SkillRegistryService {
 
         try {
             ParsedSkill parsed = parseSkillMarkdown(Files.readString(skillFile));
+            if (parsed.scaffold()) {
+                log.debug("Skip scaffold skill '{}': {}", id, skillFile);
+                return Optional.empty();
+            }
             String name = StringUtils.hasText(parsed.name) ? parsed.name : id;
             String description = StringUtils.hasText(parsed.description) ? parsed.description : "";
             PromptSlice promptSlice = slicePrompt(parsed.body);
@@ -176,7 +180,7 @@ public class SkillRegistryService {
         String normalized = raw == null ? "" : raw.replace("\r\n", "\n");
         List<String> lines = normalized.lines().toList();
         if (lines.isEmpty() || !"---".equals(lines.getFirst().trim())) {
-            return new ParsedSkill(null, null, normalized.trim());
+            return new ParsedSkill(null, null, normalized.trim(), false);
         }
 
         int endIdx = -1;
@@ -187,11 +191,12 @@ public class SkillRegistryService {
             }
         }
         if (endIdx < 0) {
-            return new ParsedSkill(null, null, normalized.trim());
+            return new ParsedSkill(null, null, normalized.trim(), false);
         }
 
         String name = null;
         String description = null;
+        boolean scaffold = false;
         for (int i = 1; i < endIdx; i++) {
             String line = lines.get(i).trim();
             if (line.isBlank() || line.startsWith("#")) {
@@ -207,6 +212,8 @@ public class SkillRegistryService {
                 name = value;
             } else if ("description".equals(key)) {
                 description = value;
+            } else if ("scaffold".equals(key)) {
+                scaffold = "true".equalsIgnoreCase(value);
             }
         }
 
@@ -215,7 +222,7 @@ public class SkillRegistryService {
             bodyLines.add(lines.get(i));
         }
         String body = String.join("\n", bodyLines).trim();
-        return new ParsedSkill(name, description, body);
+        return new ParsedSkill(name, description, body, scaffold);
     }
 
     private String normalizeSkillId(String raw) {
@@ -239,7 +246,7 @@ public class SkillRegistryService {
         return trimmed;
     }
 
-    private record ParsedSkill(String name, String description, String body) {
+    private record ParsedSkill(String name, String description, String body, boolean scaffold) {
     }
 
     private record PromptSlice(String prompt, boolean truncated) {

@@ -137,7 +137,10 @@ public class OrchestratorServices {
         injectPendingSteers(context, sink);
         failIfInterrupted(context);
         context.incrementModelCalls();
-        String stageSystemPrompt = context.stageSystemPrompt(stageSettings.systemPrompt());
+        String stageSystemPrompt = context.stageSystemPrompt(
+                stageSettings.instructionsPrompt(),
+                stageSettings.systemPrompt()
+        );
         String deferredSkillPrompt = context.consumeDeferredSkillSystemPrompt();
         String mergedSystemPrompt = mergeSystemPrompt(stageSystemPrompt, deferredSkillPrompt);
         // System prompt merge order is strict:

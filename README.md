@@ -369,7 +369,9 @@ AGENT_AUTH_JWKS_CACHE_SECONDS=300
 
 > 完整 schema 规范、配置规则和已移除字段列表见 [CLAUDE.md #Agent Definition 文件格式](./CLAUDE.md#agent-definition-文件格式)。
 
-- `agents/` 仅支持 `*.yml`、`*.yaml`
+- `agents/` 同时支持两种布局：
+  - 扁平 YAML：`agents/<key>.yml`、`agents/<key>.yaml`（兼容旧布局，会打印迁移告警）
+  - 目录化 Agent：`agents/<key>/agent.yml`（推荐）
 - 前 4 行必须依次为 `key`、`name`、`role`、`description`，且都必须是单行 inline value，方便渐进式披露
 - 以 `key` 作为 agentId；若缺失 `key`，视为无效定义
 - `modelConfig.modelKey` 为必填，模型信息统一从 `models/*.yml` / `models/*.yaml` 解析
@@ -378,6 +380,8 @@ AGENT_AUTH_JWKS_CACHE_SECONDS=300
 - Agent 配置只支持 YAML；若目录内仍有旧 `*.json`，启动和 refresh 都会 fail-fast
 - `systemPrompt` 等普通字段可使用 YAML `|` / `>` 多行写法，但头部披露字段必须保持单行
 - 同 basename 冲突时优先 `.yml`，并忽略对应 `.yaml`
+- 目录化 Agent 可额外放置：`SOUL.md`、`AGENTS.md`、`AGENTS.plain.md`、`AGENTS.react.md`、`AGENTS.plan.md`、`AGENTS.execute.md`、`AGENTS.summary.md`、`memory/memory.md`
+- 运行时 system prompt 合并顺序为：`SOUL.md` → `AGENTS.md` → stage 专属 `AGENTS.<stage>.md` → `memory/memory.md` → YAML 中对应 stage 的 `systemPrompt` → skills/tool appendix
 
 ### ONESHOT 示例
 
@@ -486,6 +490,7 @@ toolConfig:
   - `SCHEDULES_DIR`
 - 其中 `skills` 当前仅同步内置验证 skill `container_hub_validation`；数学、文本处理、办公文档和 GIF 等 demo skills 请通过 `example/install-example-*` 从 `example/skills/` 初始化。
 - `agents|teams|models|mcp-servers|viewport-servers|viewports|providers` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
+- `example/agents/*.yml` 仍作为示例事实源；若要迁移到目录化布局，可一次性生成到 `~/.zenmind/agents/<key>/`。
 - 示例安装为覆盖写入同名文件，但不会清空目标目录，不会删除额外文件。
 - 目录监听热重载策略：
   - `agents/` 变更：全量刷新 agent 定义。
@@ -502,10 +507,12 @@ toolConfig:
   - 普通后端工具：默认 `type: function`
   - 前端工具：通过 `toolType + viewportKey` 声明，触发视图并等待 `/api/submit`
   - 动作工具：通过 `toolAction: true` 声明，触发前端行为但不等待提交
+  - 若文件顶层包含 `scaffold: true`，仅作为目录化 Agent 的占位脚手架，不会被运行时注册
 - `skills`:
   - 目录结构：`skills/<skill-id>/SKILL.md`（强约束，目录式）
   - 可选子目录：`scripts/`、`references/`、`assets/`
   - `skill-id` 取目录名，`SKILL.md` frontmatter 的 `name/description` 作为元信息。
+  - 若 frontmatter 包含 `scaffold: true`，仅作为目录化 Agent 的占位脚手架，不会进入运行时技能目录
 - `schedules`:
   - 目录结构：`schedules/<schedule-id>.yml`
   - 前两行固定为 `name: ...`、`description: ...`

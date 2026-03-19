@@ -432,7 +432,8 @@ public final class PlanExecuteMode extends AgentMode {
                 stage.tools(),
                 reasoningEnabled,
                 stage.reasoningEffort(),
-                stage.deepThinking()
+                stage.deepThinking(),
+                stage.instructionsPrompt()
         );
     }
 
@@ -550,7 +551,8 @@ public final class PlanExecuteMode extends AgentMode {
                 planStage.tools(),
                 planStage.reasoningEnabled(),
                 planStage.reasoningEffort(),
-                planStage.deepThinking()
+                planStage.deepThinking(),
+                planStage.instructionsPrompt()
         );
     }
 

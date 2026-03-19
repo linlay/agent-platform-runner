@@ -166,6 +166,109 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldLoadDirectoryAgentWithGlobalAndStageMarkdown() throws IOException {
+        Path agentDir = tempDir.resolve("dir_oneshot");
+        Files.createDirectories(agentDir);
+        Files.writeString(agentDir.resolve("agent.yml"), """
+                key: dir_oneshot
+                name: Dir Oneshot
+                role: Dir Role
+                description: dir oneshot
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: yaml prompt
+                """);
+        Files.writeString(agentDir.resolve("SOUL.md"), "soul prompt");
+        Files.writeString(agentDir.resolve("AGENTS.md"), "shared prompt");
+        Files.writeString(agentDir.resolve("AGENTS.plain.md"), "plain prompt file");
+        Files.writeString(agentDir.resolve("AGENTS.react.md"), "react prompt file");
+
+        AgentDefinition definition = loadById().get("dir_oneshot");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.soulContent()).isEqualTo("soul prompt");
+        assertThat(definition.agentsContent()).isEqualTo("shared prompt");
+        OneshotMode mode = (OneshotMode) definition.agentMode();
+        assertThat(mode.stage().instructionsPrompt()).isEqualTo("plain prompt file");
+        assertThat(mode.stage().instructionsPrompt()).doesNotContain("react prompt file");
+        assertThat(mode.stage().systemPrompt()).isEqualTo("yaml prompt");
+    }
+
+    @Test
+    void shouldLoadPlanExecuteStageMarkdownFromDirectoryAgent() throws IOException {
+        Path agentDir = tempDir.resolve("dir_plan");
+        Files.createDirectories(agentDir);
+        Files.writeString(agentDir.resolve("agent.yml"), """
+                key: dir_plan
+                name: Dir Plan
+                role: Dir Plan
+                description: dir plan
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: yaml plan
+                  execute:
+                    systemPrompt: yaml execute
+                  summary:
+                    systemPrompt: yaml summary
+                """);
+        Files.writeString(agentDir.resolve("SOUL.md"), "soul prompt");
+        Files.writeString(agentDir.resolve("AGENTS.md"), "shared prompt");
+        Files.writeString(agentDir.resolve("AGENTS.plan.md"), "plan prompt file");
+        Files.writeString(agentDir.resolve("AGENTS.execute.md"), "execute prompt file");
+        Files.writeString(agentDir.resolve("AGENTS.summary.md"), "summary prompt file");
+
+        AgentDefinition definition = loadById().get("dir_plan");
+
+        assertThat(definition).isNotNull();
+        PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
+        assertThat(mode.planStage().instructionsPrompt()).isEqualTo("plan prompt file");
+        assertThat(mode.executeStage().instructionsPrompt()).isEqualTo("execute prompt file");
+        assertThat(mode.summaryStage().instructionsPrompt()).isEqualTo("summary prompt file");
+    }
+
+    @Test
+    void shouldIgnoreScaffoldPerAgentSkillPlaceholderFromDirectoryAgent() throws IOException {
+        Path agentDir = tempDir.resolve("dir_skill");
+        Files.createDirectories(agentDir.resolve("skills").resolve("custom_skill"));
+        Files.createDirectories(agentDir.resolve("skills").resolve("real_skill"));
+        Files.writeString(agentDir.resolve("agent.yml"), """
+                key: dir_skill
+                name: Dir Skill
+                role: Dir Skill
+                description: dir skill
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: yaml prompt
+                """);
+        Files.writeString(agentDir.resolve("skills").resolve("custom_skill").resolve("SKILL.md"), """
+                ---
+                name: "Custom Skill"
+                description: "placeholder"
+                scaffold: true
+                ---
+                """);
+        Files.writeString(agentDir.resolve("skills").resolve("real_skill").resolve("SKILL.md"), """
+                ---
+                name: "Real Skill"
+                description: "real"
+                ---
+                body
+                """);
+
+        AgentDefinition definition = loadById().get("dir_skill");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.perAgentSkills()).containsExactly("real_skill");
+    }
+
+    @Test
     void shouldLoadExternalAgentWithIconObject() throws IOException {
         writeYaml("demo_icon_object.yml", """
                 key: demo_icon_object

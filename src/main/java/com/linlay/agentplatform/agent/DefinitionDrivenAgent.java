@@ -247,6 +247,7 @@ public class DefinitionDrivenAgent implements Agent {
                     ExecutionContext context = ExecutionContext.builder(definition, request)
                             .historyMessages(historyMessages)
                             .baseSystemPrompt(buildBaseSystemPrompt())
+                            .memoryPrompt(buildMemoryPrompt())
                             .skillCatalogPrompt(skillPromptBundle.catalogPrompt())
                             .resolvedSkillsById(skillPromptBundle.resolvedSkillsById())
                             .skillExperiencePromptById(skillExperiencePrompts)
@@ -425,11 +426,15 @@ public class DefinitionDrivenAgent implements Agent {
         if (StringUtils.hasText(definition.agentsContent())) {
             sections.add(definition.agentsContent().trim());
         }
+        return String.join("\n\n", sections);
+    }
+
+    private String buildMemoryPrompt() {
         String memoryPrompt = agentMemoryService == null ? null : agentMemoryService.loadMemory(definition.agentDir());
         if (StringUtils.hasText(memoryPrompt)) {
-            sections.add("Memory:\n" + memoryPrompt.trim());
+            return "Memory:\n" + memoryPrompt.trim();
         }
-        return String.join("\n\n", sections);
+        return "";
     }
 
     private List<ChatMessage> loadHistoryMessages(String chatId) {

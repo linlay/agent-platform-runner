@@ -2,7 +2,7 @@
 
 ## 用途
 
-该目录存放示例智能体定义文件，文件名建议与 `key` 保持一致。仅支持 YAML，推荐使用 `.yml`。
+该目录存放示例智能体定义文件，文件名建议与 `key` 保持一致。这里仍保留扁平 YAML 作为示例事实源，生成后的运行时目录推荐使用目录化 Agent 布局。
 
 ## 命名规范
 
@@ -28,7 +28,7 @@ modelConfig:
 
 1. 在本目录新增 `<agent-key>.yml`（或 `.yaml`）。
 2. 保证 `modelConfig.modelKey` 在 `example/models` 中可解析。
-3. 运行示例安装脚本同步到外层 `agents/`。
+3. 若需要目录化布局，可一次性生成到 `~/.zenmind/agents/<agent-key>/`。
 
 ## 附带示例
 
@@ -38,5 +38,7 @@ modelConfig:
 ## 与外层目录关系
 
 - 源：`example/agents/`
-- 目标：项目根目录 `agents/`
-- 策略：覆盖同名文件，保留额外文件
+- 推荐目标：`~/.zenmind/agents/<agent-key>/`
+- 目录化结构：`agent.yml` + 可选 `SOUL.md` / `AGENTS.md` / `AGENTS.<stage>.md` / `memory/` / `experiences/` / `skills/` / `tools/`
+- 生成策略：同一个 `key` 若目标目录已存在则直接失败，避免覆盖用户自定义内容
+- 目录化脚手架中的占位 `memory/*.md`、`experiences/*.md` 默认为空；占位 skill/tool 会带 `scaffold: true`，运行时会自动忽略

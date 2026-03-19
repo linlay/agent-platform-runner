@@ -119,15 +119,7 @@ public class AgentDefinitionLoader {
             return Optional.empty();
         }
         String dirName = agentDir.getFileName() == null ? "" : agentDir.getFileName().toString().trim();
-        Optional<AgentDefinition> loaded = tryLoadDefinition(
-                configFile,
-                dirName,
-                agentDir,
-                readOptionalMarkdown(agentDir.resolve("SOUL.md")),
-                readOptionalMarkdown(agentDir.resolve("AGENTS.md")),
-                scanPerAgentSkillIds(agentDir.resolve("skills")),
-                false
-        );
+        Optional<AgentDefinition> loaded = tryLoadDefinition(configFile, dirName, agentDir, false);
         loaded.ifPresent(definition -> {
             if (!dirName.equals(definition.id())) {
                 throw new IllegalStateException("Agent directory name must equal agent key: dir=" + dirName + ", key=" + definition.id() + ", path=" + agentDir);
@@ -143,16 +135,13 @@ public class AgentDefinitionLoader {
             return Optional.empty();
         }
         log.warn("Deprecated flat agent file layout detected, please migrate to agents/<key>/agent.yml: {}", file);
-        return tryLoadDefinition(file, fileBasedId, null, null, null, List.of(), true);
+        return tryLoadDefinition(file, fileBasedId, null, true);
     }
 
     private Optional<AgentDefinition> tryLoadDefinition(
             Path file,
             String fileBasedId,
             Path agentDir,
-            String soulContent,
-            String agentsContent,
-            List<String> perAgentSkills,
             boolean allowKeyFallbackToFilename
     ) {
         String fileName = file.getFileName().toString();
@@ -177,6 +166,8 @@ public class AgentDefinitionLoader {
                 log.warn("Skip agent without modelConfig (top-level or stage-level) in {}", file);
                 return Optional.empty();
             }
+            AgentPromptFiles promptFiles = loadPromptFiles(agentDir, mode);
+            List<String> perAgentSkills = scanPerAgentSkillIds(agentDir == null ? null : agentDir.resolve("skills"));
 
             ModelDefinition primaryModel = resolvePrimaryModel(config).orElse(null);
             if (primaryModel == null) {
@@ -197,7 +188,7 @@ public class AgentDefinitionLoader {
             List<String> modelKeys = collectModelKeys(config);
             AgentDefinition.SandboxConfig sandboxConfig = toSandboxConfig(config.getSandboxConfig());
 
-            AgentMode agentMode = AgentModeFactory.create(mode, config, file, this::resolveModelByKey);
+            AgentMode agentMode = AgentModeFactory.create(mode, config, file, promptFiles, this::resolveModelByKey);
             RunSpec runSpec = agentMode.defaultRunSpec(config);
 
             return Optional.of(new AgentDefinition(
@@ -217,8 +208,8 @@ public class AgentDefinitionLoader {
                     skills,
                     sandboxConfig,
                     modelKeys,
-                    soulContent,
-                    agentsContent,
+                    promptFiles.soulContent(),
+                    promptFiles.agentsContent(),
                     perAgentSkills,
                     agentDir
             ));
@@ -256,6 +247,43 @@ public class AgentDefinitionLoader {
         }
     }
 
+    private AgentPromptFiles loadPromptFiles(Path agentDir, AgentRuntimeMode mode) {
+        if (agentDir == null) {
+            return AgentPromptFiles.empty();
+        }
+        String soulContent = readOptionalMarkdown(agentDir.resolve("SOUL.md"));
+        String agentsContent = readOptionalMarkdown(agentDir.resolve("AGENTS.md"));
+        return switch (mode) {
+            case ONESHOT -> new AgentPromptFiles(
+                    soulContent,
+                    agentsContent,
+                    readOptionalMarkdown(agentDir.resolve("AGENTS.plain.md")),
+                    null,
+                    null,
+                    null,
+                    null
+            );
+            case REACT -> new AgentPromptFiles(
+                    soulContent,
+                    agentsContent,
+                    null,
+                    readOptionalMarkdown(agentDir.resolve("AGENTS.react.md")),
+                    null,
+                    null,
+                    null
+            );
+            case PLAN_EXECUTE -> new AgentPromptFiles(
+                    soulContent,
+                    agentsContent,
+                    null,
+                    null,
+                    readOptionalMarkdown(agentDir.resolve("AGENTS.plan.md")),
+                    readOptionalMarkdown(agentDir.resolve("AGENTS.execute.md")),
+                    readOptionalMarkdown(agentDir.resolve("AGENTS.summary.md"))
+            );
+        };
+    }
+
     private List<String> scanPerAgentSkillIds(Path skillsDir) {
         if (skillsDir == null || !Files.isDirectory(skillsDir)) {
             return List.of();
@@ -263,6 +291,7 @@ public class AgentDefinitionLoader {
         try (Stream<Path> stream = Files.list(skillsDir)) {
             return stream.filter(Files::isDirectory)
                     .filter(path -> Files.isRegularFile(path.resolve("SKILL.md")))
+                    .filter(path -> !isScaffoldSkill(path.resolve("SKILL.md")))
                     .map(path -> normalize(path.getFileName() == null ? null : path.getFileName().toString(), "").trim().toLowerCase(Locale.ROOT))
                     .filter(StringUtils::hasText)
                     .distinct()
@@ -270,6 +299,28 @@ public class AgentDefinitionLoader {
         } catch (IOException ex) {
             log.warn("Failed to scan per-agent skills from {}", skillsDir, ex);
             return List.of();
+        }
+    }
+
+    private boolean isScaffoldSkill(Path skillFile) {
+        if (skillFile == null || !Files.isRegularFile(skillFile)) {
+            return false;
+        }
+        try {
+            String raw = Files.readString(skillFile);
+            String normalized = raw == null ? "" : raw.replace("\r\n", "\n");
+            if (!normalized.startsWith("---\n")) {
+                return false;
+            }
+            int end = normalized.indexOf("\n---\n", 4);
+            if (end < 0) {
+                return false;
+            }
+            String frontmatter = normalized.substring(4, end);
+            return frontmatter.lines().anyMatch(line -> "scaffold: true".equalsIgnoreCase(line.trim()));
+        } catch (IOException ex) {
+            log.warn("Failed to inspect per-agent skill scaffold marker: {}", skillFile, ex);
+            return false;
         }
     }
 

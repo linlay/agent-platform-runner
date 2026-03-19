@@ -765,6 +765,196 @@ class DefinitionDrivenAgentTest {
     }
 
     @Test
+    void shouldMergeSoulAgentsStageMarkdownMemoryAndYamlPromptForOneshot() throws Exception {
+        Path agentDir = Files.createTempDirectory("oneshot-directory-agent");
+        Files.createDirectories(agentDir.resolve("memory"));
+        Files.writeString(agentDir.resolve("memory").resolve("memory.md"), "memory note");
+
+        AgentDefinition definition = new AgentDefinition(
+                "directoryOneshot",
+                "directoryOneshot",
+                null,
+                "directory oneshot",
+                "directory role",
+                null,
+                "bailian",
+                "qwen3-max",
+                null,
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ToolChoice.NONE, Budget.DEFAULT),
+                new OneshotMode(
+                        new StageSettings("yaml prompt", null, null, List.of(), false, ComputePolicy.MEDIUM, "plain markdown"),
+                        null,
+                        null
+                ),
+                List.of(),
+                List.of(),
+                null,
+                List.of(),
+                "soul prompt",
+                "shared prompt",
+                List.of(),
+                agentDir
+        );
+
+        AtomicReference<LlmCallSpec> captured = new AtomicReference<>();
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                captured.set(spec);
+                return Flux.just(new LlmDelta("完成", null, "stop"));
+            }
+        };
+
+        DefinitionDrivenAgent agent = createAgent(
+                definition,
+                llmService,
+                new ToolRegistry(List.of()),
+                objectMapper,
+                null,
+                null
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试目录化 oneshot", null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(captured.get()).isNotNull();
+        String systemPrompt = captured.get().systemPrompt();
+        assertThat(systemPrompt).contains("soul prompt");
+        assertThat(systemPrompt).contains("shared prompt");
+        assertThat(systemPrompt).contains("plain markdown");
+        assertThat(systemPrompt).contains("Memory:\nmemory note");
+        assertThat(systemPrompt).contains("yaml prompt");
+        assertThat(systemPrompt.indexOf("soul prompt")).isLessThan(systemPrompt.indexOf("shared prompt"));
+        assertThat(systemPrompt.indexOf("shared prompt")).isLessThan(systemPrompt.indexOf("plain markdown"));
+        assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("Memory:\nmemory note"));
+        assertThat(systemPrompt.indexOf("Memory:\nmemory note")).isLessThan(systemPrompt.indexOf("yaml prompt"));
+    }
+
+    @Test
+    void shouldUseReactStageMarkdownPromptAtRuntime() {
+        Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
+
+        AgentDefinition definition = new AgentDefinition(
+                "directoryReact",
+                "directoryReact",
+                null,
+                "directory react",
+                "directory react",
+                "bailian",
+                "qwen3-max",
+                AgentRuntimeMode.REACT,
+                new RunSpec(ToolChoice.NONE, Budget.DEFAULT),
+                new ReactMode(
+                        new StageSettings("yaml react prompt", null, null, List.of(), false, ComputePolicy.MEDIUM, "react markdown"),
+                        2,
+                        null,
+                        null
+                ),
+                List.of(),
+                List.of()
+        );
+
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                stageSpecs.put(spec.stage(), spec);
+                return Flux.just(new LlmDelta("完成", null, "stop"));
+            }
+        };
+
+        DefinitionDrivenAgent agent = createAgent(
+                definition,
+                llmService,
+                new ToolRegistry(List.of()),
+                objectMapper,
+                null,
+                null
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试目录化 react", null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(stageSpecs.get("agent-react-step-1")).isNotNull();
+        assertThat(stageSpecs.get("agent-react-step-1").systemPrompt()).contains("react markdown");
+        assertThat(stageSpecs.get("agent-react-step-1").systemPrompt()).contains("yaml react prompt");
+    }
+
+    @Test
+    void shouldUsePlanExecuteStageMarkdownPromptsAtRuntime() {
+        List<String> captured = new CopyOnWriteArrayList<>();
+
+        AgentDefinition definition = definition(
+                "directoryPlan",
+                AgentRuntimeMode.PLAN_EXECUTE,
+                new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
+                new PlanExecuteMode(
+                        new StageSettings("yaml plan", null, null, List.of("_plan_add_tasks_"), false, ComputePolicy.MEDIUM, "plan markdown"),
+                        new StageSettings("yaml execute", null, null, List.of("_plan_update_task_"), false, ComputePolicy.MEDIUM, "execute markdown"),
+                        new StageSettings("yaml summary", null, null, List.of(), false, ComputePolicy.MEDIUM, "summary markdown"),
+                        null,
+                        null
+                ),
+                List.of("_plan_add_tasks_", "_plan_update_task_")
+        );
+
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                captured.add(spec.stage() + "::" + spec.systemPrompt());
+                if ("agent-plan-generate".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta(
+                                    "call_plan_stage_md",
+                                    "function",
+                                    "_plan_add_tasks_",
+                                    "{\"tasks\":[{\"taskId\":\"s1\",\"description\":\"步骤1\",\"status\":\"init\"}]}"
+                            )),
+                            "tool_calls"
+                    ));
+                }
+                if ("agent-plan-execute-step-1".equals(spec.stage())) {
+                    String taskId = currentTaskId(spec);
+                    return Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta(
+                                    "call_update_stage_md",
+                                    "function",
+                                    "_plan_update_task_",
+                                    "{\"taskId\":\"" + taskId + "\",\"status\":\"completed\"}"
+                            )),
+                            "tool_calls"
+                    ));
+                }
+                return Flux.just(new LlmDelta("最终回答", null, "stop"));
+            }
+        };
+
+        DefinitionDrivenAgent agent = createAgent(
+                definition,
+                llmService,
+                new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanUpdateTask())),
+                objectMapper,
+                null,
+                null
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试目录化 plan execute", null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(captured.stream().anyMatch(item -> item.contains("agent-plan-generate::") && item.contains("plan markdown") && item.contains("yaml plan"))).isTrue();
+        assertThat(captured.stream().anyMatch(item -> item.contains("agent-plan-execute-step-1::") && item.contains("execute markdown") && item.contains("yaml execute"))).isTrue();
+        assertThat(captured.stream().anyMatch(item -> item.contains("agent-plan-final::") && item.contains("summary markdown") && item.contains("yaml summary"))).isTrue();
+    }
+
+    @Test
     void shouldIgnoreUnknownSkillFromToolCallAndLogWarning(CapturedOutput output) throws Exception {
         SkillRegistryService skillRegistryService = createSkillRegistry("always verify target window.");
         Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();

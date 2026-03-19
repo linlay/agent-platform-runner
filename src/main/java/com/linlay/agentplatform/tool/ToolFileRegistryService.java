@@ -10,6 +10,7 @@ import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -52,6 +53,7 @@ public class ToolFileRegistryService {
         this(objectMapper, new PathMatchingResourcePatternResolver(), null);
     }
 
+    @Autowired
     public ToolFileRegistryService(ObjectMapper objectMapper, ToolProperties properties) {
         this(
                 objectMapper,
@@ -167,14 +169,6 @@ public class ToolFileRegistryService {
         if (!StringUtils.hasText(raw)) {
             return;
         }
-        YamlCatalogSupport.HeaderError headerError = YamlCatalogSupport.validateHeader(
-                raw,
-                List.of("name", "label", "description", "type")
-        );
-        if (headerError.isPresent()) {
-            log.warn("Skip tool '{}' due to invalid header: {} ({})", source, headerError.value(), source);
-            return;
-        }
         JsonNode root;
         try {
             root = yamlMapper.readTree(raw);
@@ -185,6 +179,18 @@ public class ToolFileRegistryService {
 
         if (!root.isObject()) {
             log.warn("Skip invalid tool file without object root: {}", source);
+            return;
+        }
+        if (root.path("scaffold").asBoolean(false)) {
+            log.debug("Skip scaffold tool placeholder: {}", source);
+            return;
+        }
+        YamlCatalogSupport.HeaderError headerError = YamlCatalogSupport.validateHeader(
+                raw,
+                List.of("name", "label", "description", "type")
+        );
+        if (headerError.isPresent()) {
+            log.warn("Skip tool '{}' due to invalid header: {} ({})", source, headerError.value(), source);
             return;
         }
         if (root.has("tools") && root.get("tools").isArray()) {
