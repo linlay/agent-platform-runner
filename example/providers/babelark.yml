@@ -1,7 +1,0 @@
-key: babelark
-baseUrl: https://api.babelark.com
-apiKey: YOUR_BABELARK_API_KEY
-model: Qwen3.5-397B-A17B
-protocols:
-  OPENAI:
-    endpointPath: /v1/chat/completions

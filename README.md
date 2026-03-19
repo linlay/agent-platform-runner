@@ -288,7 +288,7 @@ docker compose up -d --build
 
 - `.env` 负责简单环境开关与端口（如 `HOST_PORT`、`SERVER_PORT`、`AGENT_AUTH_ENABLED`）。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
-- `providers/` 负责 provider YAML 注册中心；默认目录可由 `AGENT_PROVIDERS_EXTERNAL_DIR` / `agent.providers.external-dir` 覆盖，示例模板建议从 `example/providers/` 同步。
+- `providers/` 负责 provider YAML 注册中心；默认目录可由 `AGENT_PROVIDERS_EXTERNAL_DIR` / `agent.providers.external-dir` 覆盖，示例模板建议从 `example/providers/example.yml` 复制并重命名。
 - `docker-compose.yml` 负责容器运行时路径装配与目录挂载；外置目录以 compose 中的 `/opt/...` 映射为准。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
 - `docker-compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
@@ -634,7 +634,7 @@ toolConfig:
 
 ## Container Hub 验证 Agent
 
-仓库新增了示例 agent `demoContainerHubValidator`，用于验证 `container_hub_bash` 的 RUN 级沙箱能力。该 agent 会先执行 Bash smoke test，再在同一个 run sandbox 中通过 `python3` 写入 `/tmp/validation_report.txt`。
+仓库提供了示例 agent `demoContainerHubValidator`（文件：`example/agents/demoContainerHubValidator.yml`），用于验证 `container_hub_bash` 的 RUN 级沙箱能力。该 agent 会先执行 Bash smoke test，再在同一个 run sandbox 中通过 `python3` 写入 `/tmp/validation_report.txt`。
 
 启用前请先配置 `configs/container-hub.yml`（可从 `configs/container-hub.example.yml` 复制）：
 

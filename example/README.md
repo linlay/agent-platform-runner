@@ -13,7 +13,7 @@
 - `tools/`：demo 工具定义
 - `skills/`：demo 技能目录
 - `schedules/`：demo 计划任务定义
-- `providers/`：demo provider 配置模板
+- `providers/`：平台无关的 provider 配置模板
 
 计划任务相关示例：
 
@@ -28,6 +28,7 @@
 办公文档相关示例：
 
 - `example/agents/dailyOfficeAssistant.yml`：daily-office 容器办公助手，使用 `container_hub_bash` 配合 `docx` / `pptx` skills 读取和重写 Word、按提纲生成 PPTX。
+- `example/agents/demoContainerHubValidator.yml`：RUN 级 container-hub 验证助手，验证 Bash 与容器内 Python 写文件链路。
 - `example/skills/docx/`：Word 文档读写与结构化编辑技能。
 - `example/skills/pptx/`：PPT/PPTX 读取、编辑与生成技能。
 

@@ -120,7 +120,7 @@ class AgentDefinitionLoaderTest {
     @Test
     void shouldLoadActualDemoContainerHubValidatorDefinition() throws IOException {
         Files.copy(
-                Path.of("agents", "demoContainerHubValidator.yml"),
+                Path.of("example", "agents", "demoContainerHubValidator.yml"),
                 tempDir.resolve("demoContainerHubValidator.yml")
         );
 
