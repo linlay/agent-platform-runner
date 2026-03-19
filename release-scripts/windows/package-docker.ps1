@@ -86,7 +86,7 @@ Copy-Item $jar.FullName (Join-Path $releaseDir "app.jar") -Force
 Copy-Item $dockerfile (Join-Path $releaseDir "Dockerfile") -Force
 Copy-Item (Join-Path $rootDir "settings.xml") (Join-Path $releaseDir "settings.xml") -Force
 
-foreach ($dir in @("agents", "viewport-servers", "viewports", "tools", "skills", "configs")) {
+foreach ($dir in @("agents", "teams", "models", "providers", "mcp-servers", "viewport-servers", "viewports", "tools", "skills", "schedules", "configs")) {
     $sourceDir = Join-Path $rootDir $dir
     if (Test-Path $sourceDir) {
         Copy-Item $sourceDir (Join-Path $releaseDir $dir) -Recurse -Force
@@ -106,17 +106,29 @@ services:
       - "${HOST_PORT}:8080"
     environment:
       SERVER_PORT: 8080
-      AGENT_CONFIG_DIR: /opt/configs
     volumes:
       - ./agents:/opt/agents
+      - ./teams:/opt/teams
+      - ./models:/opt/models
+      - ./providers:/opt/providers
+      - ./mcp-servers:/opt/mcp-servers
       - ./viewport-servers:/opt/viewport-servers
       - ./viewports:/opt/viewports
       - ./tools:/opt/tools
       - ./skills:/opt/skills
+      - ./schedules:/opt/schedules
       - ./configs:/opt/configs:ro
       - ./chats:/opt/chats
     env_file:
       - .env
+    networks:
+      zenmind-network:
+        aliases:
+          - agent-platform
+
+networks:
+  zenmind-network:
+    external: true
 '@
 Set-Content -Path (Join-Path $releaseDir "docker-compose.yml") -Value $composeFile -Encoding utf8
 
@@ -158,6 +170,10 @@ $deployMd = @'
 4. Start with Docker Compose:
 
    docker compose up -d --build
+
+5. Ensure the external Docker network `zenmind-network` exists before startup.
+
+6. Optional mounts such as `data/` can be added back by extending docker-compose.yml for your environment.
 '@
 Set-Content -Path (Join-Path $releaseDir "DEPLOY.md") -Value $deployMd -Encoding utf8
 
@@ -168,7 +184,7 @@ Write-Log "  $releaseDir/settings.xml"
 Write-Log "  $releaseDir/docker-compose.yml"
 Write-Log "  $releaseDir/.env.example"
 Write-Log "  $releaseDir/DEPLOY.md"
-foreach ($dir in @("agents", "viewport-servers", "viewports", "tools", "skills", "configs")) {
+foreach ($dir in @("agents", "teams", "models", "providers", "mcp-servers", "viewport-servers", "viewports", "tools", "skills", "schedules", "configs")) {
     if (Test-Path (Join-Path $releaseDir $dir)) {
         Write-Log "  $releaseDir/$dir/"
     }

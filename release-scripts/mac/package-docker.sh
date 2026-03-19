@@ -58,7 +58,7 @@ cp "$DOCKERFILE" "$RELEASE_DIR/Dockerfile"
 cp "$ROOT_DIR/settings.xml" "$RELEASE_DIR/settings.xml"
 
 # 复制运行时数据目录
-for dir in agents viewport-servers viewports tools skills configs; do
+for dir in agents teams models providers tools mcp-servers viewport-servers viewports skills schedules configs; do
   if [ -d "$ROOT_DIR/$dir" ]; then
     cp -R "$ROOT_DIR/$dir" "$RELEASE_DIR/$dir"
     log "copied $dir/"
@@ -78,17 +78,29 @@ services:
       - "${HOST_PORT}:8080"
     environment:
       SERVER_PORT: 8080
-      AGENT_CONFIG_DIR: /opt/configs
     volumes:
       - ./agents:/opt/agents
+      - ./teams:/opt/teams
+      - ./models:/opt/models
+      - ./providers:/opt/providers
+      - ./mcp-servers:/opt/mcp-servers
       - ./viewport-servers:/opt/viewport-servers
       - ./viewports:/opt/viewports
       - ./tools:/opt/tools
       - ./skills:/opt/skills
+      - ./schedules:/opt/schedules
       - ./configs:/opt/configs:ro
       - ./chats:/opt/chats
     env_file:
       - .env
+    networks:
+      zenmind-network:
+        aliases:
+          - agent-platform
+
+networks:
+  zenmind-network:
+    external: true
 EOF
 
 # 生成 .env.example
@@ -130,6 +142,10 @@ cat >"$RELEASE_DIR/DEPLOY.md" <<'EOF'
 4. Start with Docker Compose:
 
    docker compose up -d --build
+
+5. Ensure the external Docker network `zenmind-network` exists before startup.
+
+6. Optional mounts such as `data/` can be added back by extending docker-compose.yml for your environment.
 EOF
 
 log "release package generated:"
@@ -139,6 +155,6 @@ log "  $RELEASE_DIR/settings.xml"
 log "  $RELEASE_DIR/docker-compose.yml"
 log "  $RELEASE_DIR/.env.example"
 log "  $RELEASE_DIR/DEPLOY.md"
-for dir in agents viewport-servers viewports tools skills configs; do
+for dir in agents teams models providers mcp-servers viewport-servers viewports tools skills schedules configs; do
   [ -d "$RELEASE_DIR/$dir" ] && log "  $RELEASE_DIR/$dir/"
 done

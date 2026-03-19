@@ -286,15 +286,17 @@ docker compose up -d --build
 
 约定：
 
-- `.env` 负责简单环境开关与端口（如 `HOST_PORT`、`SERVER_PORT`、`AGENT_AUTH_ENABLED`）。
+- `.env` 负责简单环境开关与端口（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
 - `providers/` 负责 provider YAML 注册中心；默认目录可由 `AGENT_PROVIDERS_EXTERNAL_DIR` / `agent.providers.external-dir` 覆盖，示例模板建议从 `example/providers/example.yml` 复制并重命名。
-- `docker-compose.yml` 负责容器运行时路径装配与目录挂载；外置目录以 compose 中的 `/opt/...` 映射为准。
+- `docker-compose.yml` 负责容器运行时路径装配与目录挂载；默认镜像工作目录是 `/opt`，因此应用会直接使用 `agents/`、`models/`、`providers/` 等相对目录默认值，不再需要为这些目录显式设置 `AGENT_*_EXTERNAL_DIR`。
+- 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
 - `docker-compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
-  - 容器内应用端口固定为 `8080`（`environment.SERVER_PORT=8080`）。
-- compose 默认显式挂载并映射这些运行目录：`agents/`、`teams/`、`models/`、`tools/`、`mcp-servers/`、`viewport-servers/`、`viewports/`、`skills/`、`schedules/`、`providers/`、`data/`、`chats/`。
+  - 容器内应用端口固定为 `8080`（compose 会显式覆盖 `SERVER_PORT=8080`）。
+- compose 默认显式挂载并映射这些运行目录：`configs/`、`agents/`、`teams/`、`models/`、`providers/`、`tools/`、`mcp-servers/`、`viewport-servers/`、`viewports/`、`skills/`、`schedules/`、`chats/`。
+- `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
 ### release-local 配置说明
 
@@ -334,8 +336,8 @@ docker compose up -d --build
 - 主配置事实源为 `src/main/resources/application.yml`，运行时结构化覆盖来自 `configs/`。
 - 可先复制环境变量示例：`cp .env.example .env`，再按环境调整端口与认证开关。
 - 再按实际存在的模板复制需要的 `configs/*.example.yml` 与 `configs/**/*.example.*` 为真实配置文件。
-- 运行时默认读取 `./configs`；发布/容器默认读取 `/opt/configs`；可通过 `AGENT_CONFIG_DIR` 覆盖。
-- 容器部署时，运行目录挂载与 `AGENT_*_EXTERNAL_DIR` / `MEMORY_CHATS_DIR` 的对应关系以 `docker-compose.yml` 为准，而不是依赖应用内部相对路径默认值。
+- 运行时默认读取 `./configs`；Docker 镜像工作目录为 `/opt`，因此容器默认会从 `/opt/configs` 读取结构化覆盖配置；只有自定义目录布局时才需要额外设置 `AGENT_CONFIG_DIR`。
+- 默认 compose 直接复用应用的相对目录默认值；`AGENT_*_EXTERNAL_DIR` 与 `MEMORY_CHATS_DIR` 现在属于高级覆盖项，而不是容器部署的必填项。
 - `agent.cors.enabled` 在主配置中默认是 `false`，即默认不启用 CORS 过滤器。
 - `agent.cors.allowed-origin-patterns` 仅匹配请求头 `Origin`，当前服务不读取/校验 `Referer`。
 - provider 目录默认是项目根目录 `providers/`，支持热加载，且仅扫描 `.yml/.yaml`。
@@ -775,24 +777,15 @@ for f in *.md; do echo "$f"; done
 
 常用运维变量：
 
-- Docker Compose 部署时，目录型变量通常由 `docker-compose.yml` 固定映射到容器内 `/opt/...` 路径；下表默认值是应用基线默认值。
+- 默认 Docker Compose 部署直接使用镜像内 `/opt` 工作目录下的标准相对路径；`AGENT_*_EXTERNAL_DIR` 与 `MEMORY_CHATS_DIR` 主要用于自定义目录布局，不属于默认 compose 的必填变量。
 
 | 环境变量 | 默认值 | 说明 |
 |---------|-------|------|
 | `HOST_PORT` | `11949` | Docker Compose 宿主机暴露端口（映射到容器 `8080`） |
 | `SERVER_PORT` | `8080` | 应用 HTTP 监听端口（容器内固定 `8080`；本地非 Docker 运行可覆盖） |
-| `AGENT_AGENTS_EXTERNAL_DIR` | `agents` | Agent 定义目录 |
-| `AGENT_MODELS_EXTERNAL_DIR` | `models` | Model 定义目录 |
-| `AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR` | `mcp-servers` | MCP server 注册目录 |
-| `AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR` | `viewport-servers` | Viewport server 注册目录 |
-| `AGENT_VIEWPORTS_EXTERNAL_DIR` | `viewports` | Viewport 目录 |
-| `AGENT_TOOLS_EXTERNAL_DIR` | `tools` | 工具目录 |
-| `AGENT_SKILLS_EXTERNAL_DIR` | `skills` | 技能目录 |
-| `AGENT_SCHEDULE_EXTERNAL_DIR` | `schedules` | 计划任务目录 |
 | `AGENT_SCHEDULE_ENABLED` | `true` | 计划任务总开关 |
 | `AGENT_SCHEDULE_DEFAULT_ZONE_ID` | 系统时区 | 计划任务默认时区 |
 | `AGENT_SCHEDULE_POOL_SIZE` | `4` | 计划任务线程池大小 |
-| `AGENT_DATA_EXTERNAL_DIR` | `data` | 静态文件目录 |
 | `AGENT_BASH_WORKING_DIRECTORY` | 项目运行根目录（通常为 `configs/` 上级目录） | Bash 工作目录 |
 | `AGENT_BASH_ALLOWED_PATHS` | （空） | Bash 允许路径 |
 | `AGENT_BASH_ALLOWED_COMMANDS` | （空=拒绝执行） | Bash 允许命令列表（逗号分隔） |
@@ -805,7 +798,6 @@ for f in *.md; do echo "$f"; done
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `300000` | 前端工具提交超时 |
 | `AGENT_AUTH_ENABLED` | `true` | JWT 认证开关 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |
-| `MEMORY_CHATS_DIR` | `./chats` | 聊天记忆目录 |
 | `MEMORY_CHATS_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `MEMORY_CHATS_DIR` 解析） |
 | `MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `true` | sqlite 索引 schema 不兼容时是否自动备份并重建 |
 | `MEMORY_CHATS_K` | `20` | 滑动窗口大小 |
