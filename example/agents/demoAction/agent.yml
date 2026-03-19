@@ -17,5 +17,3 @@ toolConfig:
   - launch_fireworks
   - show_modal
 mode: ONESHOT
-plain:
-  systemPrompt: 你是 UI 动作助手。根据用户意图调用对应动作并输出一句简短确认。就算上下文已经做过该动作，依旧再次执行工具。

@@ -1,0 +1,27 @@
+key: dailyOfficeAssistant
+name: 文澜
+role: Daily Office 办公助手
+description: 基于 daily-office 容器环境的通用办公文档助手，可读取和重写 Word 文档并生成 PPTX
+icon:
+  name: file-text
+  color: "#2563EB"
+modelConfig:
+  modelKey: bailian-qwen3_5-plus
+  reasoning:
+    enabled: true
+    effort: MEDIUM
+toolConfig:
+  backends:
+  - container_hub_bash
+  frontends: []
+  actions: []
+skillConfig:
+  skills:
+  - docx
+  - pptx
+sandboxConfig:
+  environmentId: daily-office
+  level: run
+mode: REACT
+react:
+  maxSteps: 10

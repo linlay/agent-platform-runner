@@ -433,9 +433,6 @@ public class DefinitionDrivenAgent implements Agent {
         if (StringUtils.hasText(definition.soulContent())) {
             sections.add(definition.soulContent().trim());
         }
-        if (StringUtils.hasText(definition.agentsContent())) {
-            sections.add(definition.agentsContent().trim());
-        }
         return String.join("\n\n", sections);
     }
 

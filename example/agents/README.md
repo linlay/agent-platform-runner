@@ -2,17 +2,19 @@
 
 ## 用途
 
-该目录存放示例智能体定义文件，文件名建议与 `key` 保持一致。这里仍保留扁平 YAML 作为示例事实源，生成后的运行时目录推荐使用目录化 Agent 布局。
+该目录存放示例智能体目录，每个 agent 使用 `example/agents/<agent-key>/` 布局，目录名建议与 `key` 保持一致。
 
 ## 命名规范
 
-- 文件后缀：`.yml`、`.yaml`
-- 文件命名：`<agent-key>.<ext>`
+- 目录命名：`<agent-key>/`
+- 配置文件命名：`agent.yml` 或 `agent.yaml`
 - `key` 唯一，建议使用小写字母/数字/下划线组合
-- 同 basename 冲突时优先 `.yml`
+- 同目录内 `agent.yml` 与 `agent.yaml` 冲突时优先 `agent.yml`
 - 前 4 行固定为 `key`、`name`、`role`、`description`
 
 ## 最小示例
+
+`example/agents/demo_simple/agent.yml`
 
 ```yaml
 key: demo_simple
@@ -24,11 +26,17 @@ modelConfig:
   modelKey: bailian-qwen3-max
 ```
 
+`example/agents/demo_simple/AGENTS.md`
+
+```md
+你是示例智能体。
+```
+
 ## 如何新增
 
-1. 在本目录新增 `<agent-key>.yml`（或 `.yaml`）。
-2. 保证 `modelConfig.modelKey` 在 `example/models` 中可解析。
-3. 若需要目录化布局，可一次性生成到 `~/.zenmind/agents/<agent-key>/`。
+1. 在本目录新增 `<agent-key>/`。
+2. 写入 `<agent-key>/agent.yml`，并保证 `modelConfig.modelKey` 在 `example/models` 中可解析。
+3. `ONESHOT` / `REACT` 写 `<agent-key>/AGENTS.md`；`PLAN_EXECUTE` 在 YAML 中为每个阶段声明 `promptFile`，并补齐对应 markdown 文件。
 
 ## 附带示例
 
@@ -40,5 +48,5 @@ modelConfig:
 - 源：`example/agents/`
 - 推荐目标：`~/.zenmind/agents/<agent-key>/`
 - 目录化结构：`agent.yml` + 可选 `SOUL.md` / `AGENTS.md` / `AGENTS.<stage>.md` / `memory/` / `experiences/` / `skills/` / `tools/`
-- 生成策略：同一个 `key` 若目标目录已存在则直接失败，避免覆盖用户自定义内容
+- 示例安装策略：按目录覆盖复制同名文件，不会清空目标目录
 - 目录化脚手架中的占位 `memory/*.md`、`experiences/*.md` 默认为空；占位 skill/tool 会带 `scaffold: true`，运行时会自动忽略

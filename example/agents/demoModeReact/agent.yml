@@ -1,0 +1,23 @@
+key: demoModeReact
+name: Luna
+role: REACT示例
+description: 内置示例：REACT 模式按需多轮工具调用
+icon:
+  name: orbit
+  color: "#0EA5E9"
+mode: REACT
+modelConfig:
+  modelKey: babelark-qwen3_5-397b-a17b
+  reasoning:
+    enabled: true
+    effort: LOW
+toolConfig:
+  backends:
+  - datetime
+  - mock.weather.query
+  - mock.sensitive-data.detect
+  - bash.exec
+  frontends: []
+  actions: []
+react:
+  maxSteps: 20

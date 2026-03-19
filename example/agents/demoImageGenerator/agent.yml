@@ -1,0 +1,23 @@
+key: demoImageGenerator
+name: Pixel
+role: MCP 图像生成助手
+description: 通过 mcp-server-imagine 发现、生成、导入和编辑图片，并把结果保存到当前 chat 目录
+icon:
+  name: image
+  color: "#0F766E"
+mode: REACT
+modelConfig:
+  modelKey: bailian-qwen3_5-plus
+  reasoning:
+    enabled: true
+    effort: LOW
+toolConfig:
+  backends:
+  - image.models.list
+  - image.generate
+  - image.edit
+  - image.import
+  frontends: []
+  actions: []
+react:
+  maxSteps: 8

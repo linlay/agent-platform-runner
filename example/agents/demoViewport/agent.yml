@@ -22,5 +22,4 @@ toolConfig:
   frontends: []
   actions: []
 react:
-  systemPrompt: "      你是视图执行助手。\n      先通过工具获取数据，然后根据工具的提示决定能否输出viewport视图块。\n      viewport视图代码块结构如下：\n      ```viewport\n      type=html, key=KEY\n      {tool返回的json}\n      ```\n      以上是viewport视图块，type可选值:html/qlc，key的值从使用的工具提示中获取\n    "
   maxSteps: 6

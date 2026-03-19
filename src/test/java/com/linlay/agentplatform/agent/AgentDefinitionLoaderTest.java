@@ -1,18 +1,22 @@
 package com.linlay.agentplatform.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.agent.mode.OneshotMode;
 import com.linlay.agentplatform.agent.mode.PlanExecuteMode;
 import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.testsupport.TestModelRegistryServices;
+import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -20,6 +24,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AgentDefinitionLoaderTest {
+
+    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
     @TempDir
     Path tempDir;
@@ -56,10 +62,10 @@ class AgentDefinitionLoaderTest {
         assertThat(definition.tools()).containsExactlyInAnyOrder("_bash_", "_plan_add_tasks_", "_plan_update_task_");
 
         PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
-        assertThat(mode.planStage().systemPrompt()).isEqualTo("先规划");
+        assertThat(mode.planStage().primaryPrompt()).isEqualTo("先规划");
         assertThat(mode.planStage().deepThinking()).isFalse();
-        assertThat(mode.executeStage().systemPrompt()).isEqualTo("再执行");
-        assertThat(mode.summaryStage().systemPrompt()).isEqualTo("最后总结");
+        assertThat(mode.executeStage().primaryPrompt()).isEqualTo("再执行");
+        assertThat(mode.summaryStage().primaryPrompt()).isEqualTo("最后总结");
     }
 
     @Test
@@ -188,10 +194,7 @@ class AgentDefinitionLoaderTest {
 
     @Test
     void shouldLoadActualDemoContainerHubValidatorDefinition() throws IOException {
-        Files.copy(
-                Path.of("example", "agents", "demoContainerHubValidator.yml"),
-                tempDir.resolve("demoContainerHubValidator.yml")
-        );
+        copyExampleAgentDirectory("demoContainerHubValidator");
 
         AgentDefinition definition = loadById().get("demoContainerHubValidator");
 
@@ -205,16 +208,13 @@ class AgentDefinitionLoaderTest {
 
         ReactMode mode = (ReactMode) definition.agentMode();
         assertThat(mode.maxSteps()).isEqualTo(6);
-        assertThat(mode.stage().systemPrompt()).contains("先做 Bash smoke test");
-        assertThat(mode.stage().systemPrompt()).contains("python3");
+        assertThat(mode.stage().primaryPrompt()).contains("先做 Bash smoke test");
+        assertThat(mode.stage().primaryPrompt()).contains("python3");
     }
 
     @Test
     void shouldLoadExampleDailyOfficeAssistantDefinition() throws IOException {
-        Files.copy(
-                Path.of("example", "agents", "dailyOfficeAssistant.yml"),
-                tempDir.resolve("dailyOfficeAssistant.yml")
-        );
+        copyExampleAgentDirectory("dailyOfficeAssistant");
 
         AgentDefinition definition = loadById().get("dailyOfficeAssistant");
 
@@ -228,10 +228,10 @@ class AgentDefinitionLoaderTest {
 
         ReactMode mode = (ReactMode) definition.agentMode();
         assertThat(mode.maxSteps()).isEqualTo(10);
-        assertThat(mode.stage().systemPrompt()).contains("container_hub_bash");
-        assertThat(mode.stage().systemPrompt()).contains("/tmp");
-        assertThat(mode.stage().systemPrompt()).contains("pptxgenjs");
-        assertThat(mode.stage().systemPrompt()).contains("/api/data?file=<chatId>%2F<filename>&download=true");
+        assertThat(mode.stage().primaryPrompt()).contains("container_hub_bash");
+        assertThat(mode.stage().primaryPrompt()).contains("/tmp");
+        assertThat(mode.stage().primaryPrompt()).contains("pptxgenjs");
+        assertThat(mode.stage().primaryPrompt()).contains("/api/data?file=<chatId>%2F<filename>&download=true");
     }
 
     @Test
@@ -246,13 +246,9 @@ class AgentDefinitionLoaderTest {
                 modelConfig:
                   modelKey: bailian-qwen3-max
                 mode: ONESHOT
-                plain:
-                  systemPrompt: yaml prompt
                 """);
         Files.writeString(agentDir.resolve("SOUL.md"), "soul prompt");
         Files.writeString(agentDir.resolve("AGENTS.md"), "shared prompt");
-        Files.writeString(agentDir.resolve("AGENTS.plain.md"), "plain prompt file");
-        Files.writeString(agentDir.resolve("AGENTS.react.md"), "react prompt file");
 
         AgentDefinition definition = loadById().get("dir_oneshot");
 
@@ -260,9 +256,8 @@ class AgentDefinitionLoaderTest {
         assertThat(definition.soulContent()).isEqualTo("soul prompt");
         assertThat(definition.agentsContent()).isEqualTo("shared prompt");
         OneshotMode mode = (OneshotMode) definition.agentMode();
-        assertThat(mode.stage().instructionsPrompt()).isEqualTo("plain prompt file");
-        assertThat(mode.stage().instructionsPrompt()).doesNotContain("react prompt file");
-        assertThat(mode.stage().systemPrompt()).isEqualTo("yaml prompt");
+        assertThat(mode.stage().instructionsPrompt()).isEqualTo("shared prompt");
+        assertThat(mode.stage().primaryPrompt()).isEqualTo("shared prompt");
     }
 
     @Test
@@ -279,14 +274,13 @@ class AgentDefinitionLoaderTest {
                 mode: PLAN_EXECUTE
                 planExecute:
                   plan:
-                    systemPrompt: yaml plan
+                    promptFile: AGENTS.plan.md
                   execute:
-                    systemPrompt: yaml execute
+                    promptFile: AGENTS.execute.md
                   summary:
-                    systemPrompt: yaml summary
+                    promptFile: AGENTS.summary.md
                 """);
         Files.writeString(agentDir.resolve("SOUL.md"), "soul prompt");
-        Files.writeString(agentDir.resolve("AGENTS.md"), "shared prompt");
         Files.writeString(agentDir.resolve("AGENTS.plan.md"), "plan prompt file");
         Files.writeString(agentDir.resolve("AGENTS.execute.md"), "execute prompt file");
         Files.writeString(agentDir.resolve("AGENTS.summary.md"), "summary prompt file");
@@ -313,9 +307,8 @@ class AgentDefinitionLoaderTest {
                 modelConfig:
                   modelKey: bailian-qwen3-max
                 mode: ONESHOT
-                plain:
-                  systemPrompt: yaml prompt
                 """);
+        Files.writeString(agentDir.resolve("AGENTS.md"), "skill prompt");
         Files.writeString(agentDir.resolve("skills").resolve("custom_skill").resolve("SKILL.md"), """
                 ---
                 name: "Custom Skill"
@@ -528,9 +521,9 @@ class AgentDefinitionLoaderTest {
         assertThat(byId.get("yaml_plan_execute").mode()).isEqualTo(AgentRuntimeMode.PLAN_EXECUTE);
 
         PlanExecuteMode mode = (PlanExecuteMode) byId.get("yaml_plan_execute").agentMode();
-        assertThat(mode.planStage().systemPrompt()).isEqualTo("先规划\n再拆解");
-        assertThat(mode.executeStage().systemPrompt()).isEqualTo("执行任务");
-        assertThat(mode.summaryStage().systemPrompt()).isEqualTo("总结结果");
+        assertThat(mode.planStage().primaryPrompt()).isEqualTo("先规划\n再拆解");
+        assertThat(mode.executeStage().primaryPrompt()).isEqualTo("执行任务");
+        assertThat(mode.summaryStage().primaryPrompt()).isEqualTo("总结结果");
     }
 
     @Test
@@ -1030,7 +1023,17 @@ class AgentDefinitionLoaderTest {
     }
 
     private void writeYaml(String fileName, String content) throws IOException {
-        Files.writeString(tempDir.resolve(fileName), content);
+        String lowerName = fileName.toLowerCase();
+        String targetName = lowerName.endsWith(".yaml") ? "agent.yaml" : "agent.yml";
+        Path agentDir = tempDir.resolve(resolveAgentDirectoryName(fileName, content));
+        Files.createDirectories(agentDir);
+
+        if (canTransformLegacySystemPromptFixture(content)) {
+            if (tryWriteTransformedDirectoryAgent(agentDir, targetName, content)) {
+                return;
+            }
+        }
+        Files.writeString(agentDir.resolve(targetName), content);
     }
 
     private void writePlanExecuteWithDisallowedDeepThinking(
@@ -1063,5 +1066,123 @@ class AgentDefinitionLoaderTest {
                 "execute".equals(stage) ? "\n    deepThinking: " + deepThinkingSection : "",
                 "summary".equals(stage) ? "\n    deepThinking: " + deepThinkingSection : ""
         ));
+    }
+
+    private boolean canTransformLegacySystemPromptFixture(String content) {
+        return !YamlCatalogSupport.validateHeader(content, List.of("key", "name", "role", "description")).isPresent();
+    }
+
+    private String resolveAgentDirectoryName(String fileName, String content) {
+        try {
+            Map<String, Object> root = yamlMapper.readValue(content, LinkedHashMap.class);
+            Object key = root == null ? null : root.get("key");
+            if (key != null && !String.valueOf(key).isBlank()) {
+                return String.valueOf(key).trim();
+            }
+        } catch (Exception ignored) {
+            // Fall back to the source filename when the fixture is intentionally invalid.
+        }
+        return YamlCatalogSupport.fileBaseName(Path.of(fileName));
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean tryWriteTransformedDirectoryAgent(Path agentDir, String targetName, String rawContent) throws IOException {
+        Map<String, Object> root;
+        try {
+            root = yamlMapper.readValue(rawContent, LinkedHashMap.class);
+        } catch (Exception ex) {
+            return false;
+        }
+        if (root == null || root.isEmpty() || !root.containsKey("mode")) {
+            return false;
+        }
+
+        String mode = String.valueOf(root.get("mode"));
+        boolean writePromptFiles = !("agent.yaml".equals(targetName) && Files.exists(agentDir.resolve("agent.yml")));
+        switch (mode) {
+            case "ONESHOT" -> {
+                Map<String, Object> plain = (Map<String, Object>) root.get("plain");
+                String prompt = removeSystemPrompt(plain);
+                if (writePromptFiles && prompt != null) {
+                    Files.writeString(agentDir.resolve("AGENTS.md"), prompt);
+                }
+                if (plain == null || plain.isEmpty()) {
+                    root.remove("plain");
+                }
+            }
+            case "REACT" -> {
+                Map<String, Object> react = (Map<String, Object>) root.get("react");
+                String prompt = removeSystemPrompt(react);
+                if (writePromptFiles && prompt != null) {
+                    Files.writeString(agentDir.resolve("AGENTS.md"), prompt);
+                }
+                if (react == null || react.isEmpty()) {
+                    root.remove("react");
+                }
+            }
+            case "PLAN_EXECUTE" -> {
+                Map<String, Object> planExecute = (Map<String, Object>) root.get("planExecute");
+                if (planExecute == null) {
+                    return false;
+                }
+                rewritePlanStage(agentDir, planExecute, "plan", "AGENTS.plan.md", writePromptFiles);
+                rewritePlanStage(agentDir, planExecute, "execute", "AGENTS.execute.md", writePromptFiles);
+                rewritePlanStage(agentDir, planExecute, "summary", "AGENTS.summary.md", writePromptFiles);
+            }
+            default -> {
+                return false;
+            }
+        }
+
+        Files.writeString(agentDir.resolve(targetName), yamlMapper.writeValueAsString(root).replaceFirst("^---\\n", ""));
+        return true;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void rewritePlanStage(
+            Path agentDir,
+            Map<String, Object> planExecute,
+            String stageName,
+            String promptFile,
+            boolean writePromptFile
+    ) throws IOException {
+        Map<String, Object> stage = (Map<String, Object>) planExecute.get(stageName);
+        if (stage == null) {
+            return;
+        }
+        String prompt = removeSystemPrompt(stage);
+        if (writePromptFile && prompt != null) {
+            Files.writeString(agentDir.resolve(promptFile), prompt);
+        }
+        stage.put("promptFile", promptFile);
+    }
+
+    private String removeSystemPrompt(Map<String, Object> stage) {
+        if (stage == null) {
+            return null;
+        }
+        Object prompt = stage.remove("systemPrompt");
+        if (prompt == null) {
+            return null;
+        }
+        String value = String.valueOf(prompt).trim();
+        return value.isEmpty() ? null : value + "\n";
+    }
+
+    private void copyExampleAgentDirectory(String key) throws IOException {
+        Path sourceDir = Path.of("example", "agents", key);
+        Path targetDir = tempDir.resolve(key);
+        Files.createDirectories(targetDir);
+        try (var walk = Files.walk(sourceDir)) {
+            for (Path source : walk.toList()) {
+                Path target = targetDir.resolve(sourceDir.relativize(source).toString());
+                if (Files.isDirectory(source)) {
+                    Files.createDirectories(target);
+                } else {
+                    Files.createDirectories(target.getParent());
+                    Files.copy(source, target);
+                }
+            }
+        }
     }
 }

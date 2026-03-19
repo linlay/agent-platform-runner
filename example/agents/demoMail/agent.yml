@@ -1,0 +1,27 @@
+key: demoMail
+name: E妹儿
+role: 收发邮件助手
+description: 通过 mcp-server-email 执行邮件查询、读信、发信和转发附件
+icon:
+  name: mail
+  color: "#0F766E"
+mode: REACT
+modelConfig:
+  modelKey: bailian-qwen3_5-plus
+  reasoning:
+    enabled: false
+    effort: LOW
+toolConfig:
+  backends:
+  - datetime
+  - email.list_accounts
+  - email.list_folders
+  - email.search
+  - email.get_message
+  - email.get_attachment
+  - email.send
+  - email.forward
+  frontends: []
+  actions: []
+react:
+  maxSteps: 20

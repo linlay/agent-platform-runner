@@ -90,21 +90,13 @@ public class AgentDefinitionLoader {
             });
         }
 
-        List<Path> filesToLoad = YamlCatalogSupport.selectYamlFiles(
+        List<Path> unsupportedFlatFiles = YamlCatalogSupport.selectYamlFiles(
                 entries.stream().filter(Files::isRegularFile).toList(),
                 "agent",
                 log
         );
-        for (Path path : filesToLoad) {
-            tryLoadExternal(path).ifPresent(definition -> {
-                Path existing = sourceFilesByAgentId.get(definition.id());
-                if (existing != null) {
-                    log.warn("Skip deprecated flat agent '{}' from file {}, already loaded from {}", definition.id(), path, existing);
-                    return;
-                }
-                loaded.put(definition.id(), definition);
-                sourceFilesByAgentId.put(definition.id(), path);
-            });
+        for (Path path : unsupportedFlatFiles) {
+            log.warn("Flat agent file layout is no longer supported, skip: {}", path);
         }
 
         if (!loaded.isEmpty()) {
@@ -126,16 +118,6 @@ public class AgentDefinitionLoader {
             }
         });
         return loaded;
-    }
-
-    private Optional<AgentDefinition> tryLoadExternal(Path file) {
-        String fileBasedId = YamlCatalogSupport.fileBaseName(file).trim();
-        if (fileBasedId.isEmpty()) {
-            log.warn("Skip external agent with empty name: {}", file);
-            return Optional.empty();
-        }
-        log.warn("Deprecated flat agent file layout detected, please migrate to agents/<key>/agent.yml: {}", file);
-        return tryLoadDefinition(file, fileBasedId, null, true);
     }
 
     private Optional<AgentDefinition> tryLoadDefinition(
@@ -166,7 +148,7 @@ public class AgentDefinitionLoader {
                 log.warn("Skip agent without modelConfig (top-level or stage-level) in {}", file);
                 return Optional.empty();
             }
-            AgentPromptFiles promptFiles = loadPromptFiles(agentDir, mode);
+            AgentPromptFiles promptFiles = loadPromptFiles(agentDir, config, mode);
             List<String> perAgentSkills = scanPerAgentSkillIds(agentDir == null ? null : agentDir.resolve("skills"));
 
             ModelDefinition primaryModel = resolvePrimaryModel(config).orElse(null);
@@ -249,7 +231,7 @@ public class AgentDefinitionLoader {
         }
     }
 
-    private AgentPromptFiles loadPromptFiles(Path agentDir, AgentRuntimeMode mode) {
+    private AgentPromptFiles loadPromptFiles(Path agentDir, AgentConfigFile config, AgentRuntimeMode mode) {
         if (agentDir == null) {
             return AgentPromptFiles.empty();
         }
@@ -259,7 +241,7 @@ public class AgentDefinitionLoader {
             case ONESHOT -> new AgentPromptFiles(
                     soulContent,
                     agentsContent,
-                    readOptionalMarkdown(agentDir.resolve("AGENTS.plain.md")),
+                    resolveOneshotOrReactPrompt(agentDir, config == null ? null : config.getPlain(), "plain", "AGENTS.md"),
                     null,
                     null,
                     null,
@@ -269,7 +251,7 @@ public class AgentDefinitionLoader {
                     soulContent,
                     agentsContent,
                     null,
-                    readOptionalMarkdown(agentDir.resolve("AGENTS.react.md")),
+                    resolveOneshotOrReactPrompt(agentDir, config == null ? null : config.getReact(), "react", "AGENTS.md"),
                     null,
                     null,
                     null
@@ -279,9 +261,9 @@ public class AgentDefinitionLoader {
                     agentsContent,
                     null,
                     null,
-                    readOptionalMarkdown(agentDir.resolve("AGENTS.plan.md")),
-                    readOptionalMarkdown(agentDir.resolve("AGENTS.execute.md")),
-                    readOptionalMarkdown(agentDir.resolve("AGENTS.summary.md"))
+                    resolvePlanExecutePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getPlan(), "planExecute.plan"),
+                    resolvePlanExecutePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getExecute(), "planExecute.execute"),
+                    resolvePlanExecutePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getSummary(), "planExecute.summary")
             );
         };
     }
@@ -292,6 +274,7 @@ public class AgentDefinitionLoader {
         }
         try (Stream<Path> stream = Files.list(skillsDir)) {
             return stream.filter(Files::isDirectory)
+                    .filter(path -> !isHiddenEntry(path))
                     .filter(path -> Files.isRegularFile(path.resolve("SKILL.md")))
                     .filter(path -> !isScaffoldSkill(path.resolve("SKILL.md")))
                     .map(path -> normalize(path.getFileName() == null ? null : path.getFileName().toString(), "").trim().toLowerCase(Locale.ROOT))
@@ -324,6 +307,79 @@ public class AgentDefinitionLoader {
             log.warn("Failed to inspect per-agent skill scaffold marker: {}", skillFile, ex);
             return false;
         }
+    }
+
+    private String resolveOneshotOrReactPrompt(
+            Path agentDir,
+            AgentConfigFile.StageConfig stage,
+            String stagePath,
+            String defaultPromptFile
+    ) {
+        validateNoDirectorySystemPrompt(stage, stagePath + ".systemPrompt");
+        validateNoDirectoryPromptFile(stage, stagePath + ".promptFile");
+        return loadPromptMarkdown(agentDir, defaultPromptFile, stagePath.equals("plain") ? "AGENTS.md" : "AGENTS.md");
+    }
+
+    private String resolvePlanExecutePrompt(Path agentDir, AgentConfigFile.StageConfig stage, String stagePath) {
+        if (stage == null) {
+            throw new IllegalArgumentException(stagePath + ".promptFile is required");
+        }
+        validateNoDirectorySystemPrompt(stage, stagePath + ".systemPrompt");
+        String promptFile = normalize(stage.getPromptFile(), "");
+        if (!StringUtils.hasText(promptFile)) {
+            throw new IllegalArgumentException(stagePath + ".promptFile is required");
+        }
+        return loadPromptMarkdown(agentDir, promptFile, stagePath + ".promptFile");
+    }
+
+    private void validateNoDirectorySystemPrompt(AgentConfigFile.StageConfig stage, String fieldPath) {
+        if (stage != null && StringUtils.hasText(stage.getSystemPrompt())) {
+            throw new IllegalArgumentException(fieldPath + " is not allowed for directory agents");
+        }
+    }
+
+    private void validateNoDirectoryPromptFile(AgentConfigFile.StageConfig stage, String fieldPath) {
+        if (stage != null && StringUtils.hasText(stage.getPromptFile())) {
+            throw new IllegalArgumentException(fieldPath + " is not allowed for this mode");
+        }
+    }
+
+    private String loadPromptMarkdown(Path agentDir, String rawPromptFile, String fieldPath) {
+        Path root = agentDir.toAbsolutePath().normalize();
+        String configured = normalize(rawPromptFile, "");
+        if (!StringUtils.hasText(configured)) {
+            throw new IllegalArgumentException(fieldPath + " is required");
+        }
+        Path promptPath = Path.of(configured);
+        if (promptPath.isAbsolute()) {
+            throw new IllegalArgumentException(fieldPath + " must be a relative path inside the agent directory");
+        }
+        Path resolved = root.resolve(promptPath).normalize();
+        if (!resolved.startsWith(root)) {
+            throw new IllegalArgumentException(fieldPath + " must stay inside the agent directory");
+        }
+        Path relative = root.relativize(resolved);
+        for (Path segment : relative) {
+            if (segment != null && segment.toString().startsWith(".")) {
+                throw new IllegalArgumentException(fieldPath + " cannot reference hidden files");
+            }
+        }
+        String fileName = resolved.getFileName() == null ? "" : resolved.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (!fileName.endsWith(".md")) {
+            throw new IllegalArgumentException(fieldPath + " must reference a .md file");
+        }
+        String content = readOptionalMarkdown(resolved);
+        if (!StringUtils.hasText(content)) {
+            throw new IllegalArgumentException(fieldPath + " must reference an existing non-empty markdown file");
+        }
+        return content;
+    }
+
+    private boolean isHiddenEntry(Path path) {
+        if (path == null || path.getFileName() == null) {
+            return false;
+        }
+        return path.getFileName().toString().startsWith(".");
     }
 
     private String normalize(String value, String fallback) {

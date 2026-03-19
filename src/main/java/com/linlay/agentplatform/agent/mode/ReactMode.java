@@ -21,7 +21,7 @@ public final class ReactMode extends AgentMode {
     private final int maxSteps;
 
     public ReactMode(StageSettings stage, int maxSteps, SkillAppend skillAppend, ToolAppend toolAppend) {
-        super(stage == null ? "" : stage.systemPrompt(), skillAppend, toolAppend);
+        super(stage == null ? "" : stage.primaryPrompt(), skillAppend, toolAppend);
         this.stage = stage;
         this.maxSteps = maxSteps > 0 ? maxSteps : 6;
     }

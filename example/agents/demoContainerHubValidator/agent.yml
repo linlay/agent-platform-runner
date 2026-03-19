@@ -1,0 +1,26 @@
+key: demoContainerHubValidator
+name: Atlas
+role: Container Hub 验证助手
+description: 内置示例：RUN 级 container hub Bash 与容器内 Python 写文件验证
+icon:
+  name: terminal
+  color: "#1D4ED8"
+modelConfig:
+  modelKey: bailian-qwen3_5-plus
+  reasoning:
+    enabled: true
+    effort: LOW
+toolConfig:
+  backends:
+  - container_hub_bash
+  frontends: []
+  actions: []
+skillConfig:
+  skills:
+  - container_hub_validation
+sandboxConfig:
+  environmentId: shell
+  level: run
+mode: REACT
+react:
+  maxSteps: 6

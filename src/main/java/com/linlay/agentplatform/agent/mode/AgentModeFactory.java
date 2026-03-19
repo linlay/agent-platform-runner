@@ -46,8 +46,8 @@ public final class AgentModeFactory {
                         promptFiles == null ? null : promptFiles.plainStageContent(),
                         modelResolver
                 );
-                if (isBlank(stage.systemPrompt())) {
-                    throw new IllegalArgumentException("plain.systemPrompt is required: " + file);
+                if (isBlank(stage.primaryPrompt())) {
+                    throw new IllegalArgumentException("AGENTS.md is required for ONESHOT agents: " + file);
                 }
                 yield new OneshotMode(stage, skillAppend, toolAppend);
             }
@@ -60,8 +60,8 @@ public final class AgentModeFactory {
                         promptFiles == null ? null : promptFiles.reactStageContent(),
                         modelResolver
                 );
-                if (isBlank(stage.systemPrompt())) {
-                    throw new IllegalArgumentException("react.systemPrompt is required: " + file);
+                if (isBlank(stage.primaryPrompt())) {
+                    throw new IllegalArgumentException("AGENTS.md is required for REACT agents: " + file);
                 }
                 int maxSteps = react != null && react.getMaxSteps() != null ? react.getMaxSteps() : 6;
                 yield new ReactMode(stage, maxSteps, skillAppend, toolAppend);
@@ -91,23 +91,11 @@ public final class AgentModeFactory {
                         promptFiles == null ? null : promptFiles.summaryStageContent(),
                         modelResolver
                 );
-                if (isBlank(planStage.systemPrompt()) || isBlank(executeStage.systemPrompt())) {
+                if (isBlank(planStage.primaryPrompt())
+                        || isBlank(executeStage.primaryPrompt())
+                        || isBlank(summaryStage.primaryPrompt())) {
                     throw new IllegalArgumentException(
-                            "planExecute.plan.systemPrompt and planExecute.execute.systemPrompt are required: " + file);
-                }
-                if (isBlank(summaryStage.systemPrompt())) {
-                    summaryStage = new StageSettings(
-                            executeStage.systemPrompt(),
-                            summaryStage.modelKey(),
-                            summaryStage.providerKey(),
-                            summaryStage.model(),
-                            summaryStage.protocol(),
-                            summaryStage.tools(),
-                            summaryStage.reasoningEnabled(),
-                            summaryStage.reasoningEffort(),
-                            summaryStage.deepThinking(),
-                            summaryStage.instructionsPrompt()
-                    );
+                            "planExecute.plan.promptFile, planExecute.execute.promptFile, and planExecute.summary.promptFile are required: " + file);
                 }
                 int maxSteps = pe != null && pe.getMaxSteps() != null && pe.getMaxSteps() > 0
                         ? pe.getMaxSteps()

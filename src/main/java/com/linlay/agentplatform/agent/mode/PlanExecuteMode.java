@@ -75,7 +75,7 @@ public final class PlanExecuteMode extends AgentMode {
             String taskExecutionPromptTemplate,
             int maxSteps
     ) {
-        super(executeStage == null ? "" : executeStage.systemPrompt(), skillAppend, toolAppend);
+        super(executeStage == null ? "" : executeStage.primaryPrompt(), skillAppend, toolAppend);
         this.planStage = planStage;
         this.executeStage = executeStage;
         this.summaryStage = summaryStage;
@@ -104,8 +104,8 @@ public final class PlanExecuteMode extends AgentMode {
     @Override
     public String primarySystemPrompt() {
         for (StageSettings stage : new StageSettings[]{executeStage, summaryStage, planStage}) {
-            if (stage != null && stage.systemPrompt() != null && !stage.systemPrompt().isBlank()) {
-                return stage.systemPrompt();
+            if (stage != null && stage.primaryPrompt() != null && !stage.primaryPrompt().isBlank()) {
+                return stage.primaryPrompt();
             }
         }
         return "";

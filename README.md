@@ -369,23 +369,24 @@ AGENT_AUTH_JWKS_CACHE_SECONDS=300
 
 > 完整 schema 规范、配置规则和已移除字段列表见 [CLAUDE.md #Agent Definition 文件格式](./CLAUDE.md#agent-definition-文件格式)。
 
-- `agents/` 同时支持两种布局：
-  - 扁平 YAML：`agents/<key>.yml`、`agents/<key>.yaml`（兼容旧布局，会打印迁移告警）
-  - 目录化 Agent：`agents/<key>/agent.yml`（推荐）
+- `agents/` 仅支持目录化 Agent：`agents/<key>/agent.yml`
 - 前 4 行必须依次为 `key`、`name`、`role`、`description`，且都必须是单行 inline value，方便渐进式披露
 - 以 `key` 作为 agentId；若缺失 `key`，视为无效定义
 - `modelConfig.modelKey` 为必填，模型信息统一从 `models/*.yml` / `models/*.yaml` 解析
 - 服务启动时会先加载一次，并通过目录监听自动刷新
 - 可通过 `AGENTS_DIR` 指定目录
 - Agent 配置只支持 YAML；若目录内仍有旧 `*.json`，启动和 refresh 都会 fail-fast
-- `systemPrompt` 等普通字段可使用 YAML `|` / `>` 多行写法，但头部披露字段必须保持单行
-- 同 basename 冲突时优先 `.yml`，并忽略对应 `.yaml`
-- 目录化 Agent 可额外放置：`SOUL.md`、`AGENTS.md`、`AGENTS.plain.md`、`AGENTS.react.md`、`AGENTS.plan.md`、`AGENTS.execute.md`、`AGENTS.summary.md`、`memory/memory.md`
-- 运行时 system prompt 合并顺序为：`SOUL.md` → `AGENTS.md` → stage 专属 `AGENTS.<stage>.md` → `memory/memory.md` → YAML 中对应 stage 的 `systemPrompt` → skills/tool appendix
+- 同目录内 `agent.yml` 与 `agent.yaml` 同时存在时优先 `agent.yml`，并忽略对应 `agent.yaml`
+- 目录化 Agent 不再支持 `systemPrompt` 字段；`ONESHOT` / `REACT` 固定读取 `AGENTS.md`
+- `PLAN_EXECUTE` 的 `plan` / `execute` / `summary` 必须分别通过 `promptFile` 指定 markdown prompt
+- 目录化 Agent 可额外放置：`SOUL.md`、`AGENTS.md`、`AGENTS.plan.md`、`AGENTS.execute.md`、`AGENTS.summary.md`、`memory/memory.md`
+- 运行时 system prompt 合并顺序为：`SOUL.md` → 当前阶段选中的 prompt markdown → `memory/memory.md` → skills/tool appendix
 
 ### ONESHOT 示例
 
 单轮直答；若配置工具可在单轮中调用工具并收敛最终答案。
+
+`agents/fortune_teller/agent.yml`
 
 ```yaml
 key: fortune_teller
@@ -398,15 +399,20 @@ modelConfig:
   reasoning:
     enabled: false
 mode: ONESHOT
-plain:
-  systemPrompt: |
-    你是算命大师
-    请先问出生日期
+```
+
+`agents/fortune_teller/AGENTS.md`
+
+```md
+你是算命大师
+请先问出生日期
 ```
 
 ### REACT 示例
 
 最多 N 轮循环（默认 6）：思考 → 调 1 个工具 → 观察结果。
+
+`agents/react_demo/agent.yml`
 
 ```yaml
 key: react_demo
@@ -424,15 +430,21 @@ toolConfig:
     - _bash_
     - datetime
 react:
-  systemPrompt: |
-    你是算命大师
-    请先问出生日期
   maxSteps: 6
+```
+
+`agents/react_demo/AGENTS.md`
+
+```md
+你是算命大师
+请先问出生日期
 ```
 
 ### PLAN_EXECUTE 示例
 
 先规划后执行（plan 阶段按 `deepThinking` 选择一回合或两回合）。
+
+`agents/plan_execute_demo/agent.yml`
 
 ```yaml
 key: plan_execute_demo
@@ -451,12 +463,30 @@ toolConfig:
     - datetime
 planExecute:
   plan:
-    systemPrompt: 先规划
+    promptFile: AGENTS.plan.md
     deepThinking: true
   execute:
-    systemPrompt: 再执行
+    promptFile: AGENTS.execute.md
   summary:
-    systemPrompt: 最后总结
+    promptFile: AGENTS.summary.md
+```
+
+`agents/plan_execute_demo/AGENTS.plan.md`
+
+```md
+先规划
+```
+
+`agents/plan_execute_demo/AGENTS.execute.md`
+
+```md
+再执行
+```
+
+`agents/plan_execute_demo/AGENTS.summary.md`
+
+```md
+最后总结
 ```
 
 ### Skills 配置示例
@@ -490,7 +520,7 @@ toolConfig:
   - `SCHEDULES_DIR`
 - 其中 `skills` 当前仅同步内置验证 skill `container_hub_validation`；数学、文本处理、办公文档和 GIF 等 demo skills 请通过 `example/install-example-*` 从 `example/skills/` 初始化。
 - `agents|teams|models|mcp-servers|viewport-servers|viewports|providers` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
-- `example/agents/*.yml` 仍作为示例事实源；若要迁移到目录化布局，可一次性生成到 `~/.zenmind/agents/<key>/`。
+- `example/agents/` 现已直接提供目录化 Agent 示例，可按目录整体复制到外层运行目录。
 - 示例安装为覆盖写入同名文件，但不会清空目标目录，不会删除额外文件。
 - 目录监听热重载策略：
   - `agents/` 变更：全量刷新 agent 定义。
@@ -513,6 +543,7 @@ toolConfig:
   - 可选子目录：`scripts/`、`references/`、`assets/`
   - `skill-id` 取目录名，`SKILL.md` frontmatter 的 `name/description` 作为元信息。
   - 若 frontmatter 包含 `scaffold: true`，仅作为目录化 Agent 的占位脚手架，不会进入运行时技能目录
+  - 隐藏文件和隐藏目录（如 `.DS_Store`）会被静默忽略，不参与 skill 布局校验
 - `schedules`:
   - 目录结构：`schedules/<schedule-id>.yml`
   - 前两行固定为 `name: ...`、`description: ...`
@@ -630,7 +661,7 @@ toolConfig:
 
 ## Container Hub 验证 Agent
 
-仓库提供了示例 agent `demoContainerHubValidator`（文件：`example/agents/demoContainerHubValidator.yml`），用于验证 `container_hub_bash` 的 RUN 级沙箱能力。该 agent 会先执行 Bash smoke test，再在同一个 run sandbox 中通过 `python3` 写入 `/tmp/validation_report.txt`。
+仓库提供了示例 agent `demoContainerHubValidator`（目录：`example/agents/demoContainerHubValidator/`），用于验证 `container_hub_bash` 的 RUN 级沙箱能力。该 agent 会先执行 Bash smoke test，再在同一个 run sandbox 中通过 `python3` 写入 `/tmp/validation_report.txt`。
 
 启用前请先配置 `configs/container-hub.yml`（可从 `configs/container-hub.example.yml` 复制）：
 
@@ -649,7 +680,7 @@ default-environment-id: shell
 
 ## Daily Office Agent
 
-仓库提供了通用办公 agent 示例 `dailyOfficeAssistant`（文件：`example/agents/dailyOfficeAssistant.yml`），默认对接 `agent-container-hub` 中的 `daily-office` 环境，用于：
+仓库提供了通用办公 agent 示例 `dailyOfficeAssistant`（目录：`example/agents/dailyOfficeAssistant/`），默认对接 `agent-container-hub` 中的 `daily-office` 环境，用于：
 
 - 读取、总结和内容级重写 Word 文档（输出新的 `.docx`）
 - 根据提纲、摘要或 Word 提炼结果生成 `.pptx`
@@ -886,7 +917,7 @@ for f in *.md; do echo "$f"; done
 | `sample_report.pdf` | 文档 | 示例 PDF 报告 |
 | `sample_data.csv` | 数据 | 示例销售数据表 |
 
-可将自定义文件放入 `data/` 目录，并在 Agent 的 `systemPrompt` 中列出文件名即可。
+可将自定义文件放入 `data/` 目录，并在 Agent 的 prompt markdown（如 `AGENTS.md` 或 `AGENTS.<stage>.md`）中列出文件名即可。
 
 ## curl 测试用例
 

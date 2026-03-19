@@ -143,7 +143,7 @@ final class AgentRunSnapshotLogger {
         }
         item.put("provider", normalize(stage.providerKey(), definition.providerKey()));
         item.put("model", normalize(stage.model(), definition.model()));
-        item.put("systemPrompt", stage.systemPrompt());
+        item.put("systemPrompt", stage.primaryPrompt());
         if (includeDeepThinking) {
             item.put("deepThinking", stage.deepThinking());
         }

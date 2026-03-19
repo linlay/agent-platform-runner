@@ -40,7 +40,7 @@ class AgentRegistryTest {
         Path agentsDir = tempDir.resolve("agents");
         Files.createDirectories(agentsDir);
 
-        Files.writeString(agentsDir.resolve("demo_one.yml"), oneshotAgentYaml("demo_one", "Demo One", "demo one", "_bash_", "你是 demo one"));
+        writeOneshotAgent(agentsDir, "demo_one", "Demo One", "demo one", "_bash_", "你是 demo one");
 
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(agentsDir.toString());
@@ -77,7 +77,7 @@ class AgentRegistryTest {
         assertThatThrownBy(() -> registry.get("demo_two"))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        Files.writeString(agentsDir.resolve("demo_two.yml"), reactAgentYaml("demo_two", "Demo Two", "demo two", "_bash_", "你是 demo two"));
+        writeReactAgent(agentsDir, "demo_two", "Demo Two", "demo two", "_bash_", "你是 demo two");
 
         assertThatThrownBy(() -> registry.get("demo_two"))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -85,7 +85,7 @@ class AgentRegistryTest {
         registry.refreshAgents();
         assertThat(registry.get("demo_two").id()).isEqualTo("demo_two");
 
-        Files.delete(agentsDir.resolve("demo_two.yml"));
+        deleteAgentDir(agentsDir, "demo_two");
         assertThat(registry.listIds()).contains("demo_two");
 
         registry.refreshAgents();
@@ -98,8 +98,8 @@ class AgentRegistryTest {
         Path agentsDir = tempDir.resolve("agents");
         Files.createDirectories(agentsDir);
 
-        Files.writeString(agentsDir.resolve("agent_alpha.yml"), oneshotAgentYaml("agent_alpha", "Agent Alpha", "alpha", "_bash_", "alpha"));
-        Files.writeString(agentsDir.resolve("agent_beta.yml"), oneshotAgentYaml("agent_beta", "Agent Beta", "beta", "datetime", "beta", "siliconflow-deepseek-v3_2"));
+        writeOneshotAgent(agentsDir, "agent_alpha", "Agent Alpha", "alpha", "_bash_", "alpha");
+        writeOneshotAgent(agentsDir, "agent_beta", "Agent Beta", "beta", "datetime", "beta", "siliconflow-deepseek-v3_2");
 
         AgentRegistry registry = createRegistry(agentsDir);
 
@@ -114,24 +114,25 @@ class AgentRegistryTest {
         Path agentsDir = tempDir.resolve("agents");
         Files.createDirectories(agentsDir);
 
-        Files.writeString(agentsDir.resolve("agent_one.yml"), oneshotAgentYaml("agent_one", "Agent One", "yaml agent one", null, "yaml prompt one"));
+        writeOneshotAgent(agentsDir, "agent_one", "Agent One", "yaml agent one", null, "yaml prompt one");
 
         AgentRegistry registry = createRegistry(agentsDir);
         assertThat(registry.listIds()).containsExactly("agent_one");
 
-        Files.writeString(agentsDir.resolve("yaml_agent.yml"), """
-                key: yaml_agent
-                name: YAML Agent
-                role: YAML 示例
-                description: yaml agent
-                modelConfig:
-                  modelKey: bailian-qwen3-max
-                mode: ONESHOT
-                plain:
-                  systemPrompt: |
-                    yaml prompt
-                    second line
-                """);
+        writeDirectoryAgent(
+                agentsDir,
+                "yaml_agent",
+                """
+                        key: yaml_agent
+                        name: YAML Agent
+                        role: YAML 示例
+                        description: yaml agent
+                        modelConfig:
+                          modelKey: bailian-qwen3-max
+                        mode: ONESHOT
+                        """,
+                "yaml prompt\nsecond line"
+        );
 
         registry.refreshAgents();
 
@@ -155,15 +156,15 @@ class AgentRegistryTest {
         Path agentsDir = tempDir.resolve("agents");
         Files.createDirectories(agentsDir);
 
-        Files.writeString(agentsDir.resolve("agent_alpha.yml"), oneshotAgentYaml("agent_alpha", "Agent Alpha", "alpha", "_bash_", "alpha-v1"));
-        Files.writeString(agentsDir.resolve("agent_beta.yml"), oneshotAgentYaml("agent_beta", "Agent Beta", "beta", "_bash_", "beta-v1"));
+        writeOneshotAgent(agentsDir, "agent_alpha", "Agent Alpha", "alpha", "_bash_", "alpha-v1");
+        writeOneshotAgent(agentsDir, "agent_beta", "Agent Beta", "beta", "_bash_", "beta-v1");
 
         AgentRegistry registry = createRegistry(agentsDir);
 
         Agent alphaBefore = registry.get("agent_alpha");
         Agent betaBefore = registry.get("agent_beta");
 
-        Files.writeString(agentsDir.resolve("agent_alpha.yml"), oneshotAgentYaml("agent_alpha", "Agent Alpha", "alpha", "_bash_", "alpha-v2"));
+        writeOneshotAgent(agentsDir, "agent_alpha", "Agent Alpha", "alpha", "_bash_", "alpha-v2");
 
         registry.refreshAgentsByIds(Set.of("agent_alpha"), "test-selective");
 
@@ -206,18 +207,19 @@ class AgentRegistryTest {
         );
     }
 
-    private String oneshotAgentYaml(String key, String name, String description, String backendTool, String prompt) {
-        return oneshotAgentYaml(key, name, description, backendTool, prompt, "bailian-qwen3-max");
+    private void writeOneshotAgent(Path agentsDir, String key, String name, String description, String backendTool, String prompt) throws IOException {
+        writeOneshotAgent(agentsDir, key, name, description, backendTool, prompt, "bailian-qwen3-max");
     }
 
-    private String oneshotAgentYaml(
+    private void writeOneshotAgent(
+            Path agentsDir,
             String key,
             String name,
             String description,
             String backendTool,
             String prompt,
             String modelKey
-    ) {
+    ) throws IOException {
         String toolConfig = backendTool == null
                 ? "toolConfig: null"
                 : """
@@ -227,7 +229,7 @@ class AgentRegistryTest {
                           frontends: []
                           actions: []
                         """.formatted(backendTool).stripTrailing();
-        return """
+        writeDirectoryAgent(agentsDir, key, """
                 key: %s
                 name: %s
                 role: Test Agent
@@ -236,27 +238,59 @@ class AgentRegistryTest {
                   modelKey: %s
                 %s
                 mode: ONESHOT
-                plain:
-                  systemPrompt: %s
-                """.formatted(key, name, description, modelKey, toolConfig, prompt);
+                """.formatted(key, name, description, modelKey, toolConfig), prompt);
     }
 
-    private String reactAgentYaml(String key, String name, String description, String backendTool, String prompt) {
-        return """
+    private void writeReactAgent(Path agentsDir, String key, String name, String description, String backendTool, String prompt) throws IOException {
+        String toolConfig = backendTool == null
+                ? "toolConfig: null"
+                : """
+                        toolConfig:
+                          backends:
+                            - %s
+                          frontends: []
+                          actions: []
+                        """.formatted(backendTool).stripTrailing();
+        writeDirectoryAgent(agentsDir, key, """
                 key: %s
                 name: %s
                 role: Test Agent
                 description: %s
                 modelConfig:
                   modelKey: bailian-qwen3-max
-                toolConfig:
-                  backends:
-                    - %s
-                  frontends: []
-                  actions: []
+                %s
                 mode: REACT
                 react:
-                  systemPrompt: %s
-                """.formatted(key, name, description, backendTool, prompt);
+                  maxSteps: 6
+                """.formatted(key, name, description, toolConfig), prompt);
+    }
+
+    private void writeDirectoryAgent(Path agentsDir, String key, String agentYaml, String agentsPrompt) throws IOException {
+        Path agentDir = agentsDir.resolve(key);
+        Files.createDirectories(agentDir);
+        Files.writeString(agentDir.resolve("agent.yml"), agentYaml);
+        Files.writeString(agentDir.resolve("AGENTS.md"), agentsPrompt);
+    }
+
+    private void deleteAgentDir(Path agentsDir, String key) throws IOException {
+        Path agentDir = agentsDir.resolve(key);
+        if (!Files.exists(agentDir)) {
+            return;
+        }
+        try (var walk = Files.walk(agentDir)) {
+            walk.sorted(java.util.Comparator.reverseOrder())
+                    .forEach(path -> {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (IOException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    });
+        } catch (RuntimeException ex) {
+            if (ex.getCause() instanceof IOException ioException) {
+                throw ioException;
+            }
+            throw ex;
+        }
     }
 }

@@ -24,7 +24,7 @@ public final class OneshotMode extends AgentMode {
     private final StageSettings stage;
 
     public OneshotMode(StageSettings stage, SkillAppend skillAppend, ToolAppend toolAppend) {
-        super(stage == null ? "" : stage.systemPrompt(), skillAppend, toolAppend);
+        super(stage == null ? "" : stage.primaryPrompt(), skillAppend, toolAppend);
         this.stage = stage;
     }
 

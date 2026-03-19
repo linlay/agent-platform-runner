@@ -17,18 +17,18 @@
 
 计划任务相关示例：
 
-- `example/agents/demoScheduleManager.yml`：维护 `schedules/*.yml` 的 REACT 智能体，采用“渐进式披露阅读”，并按结构化 schedule 契约读写 `agentKey / teamId / environment.zoneId / query` 支持字段（如 `message / chatId / hidden`）。
+- `example/agents/demoScheduleManager/`：维护 `schedules/*.yml` 的 REACT 智能体，采用“渐进式披露阅读”，并按结构化 schedule 契约读写 `agentKey / teamId / environment.zoneId / query` 支持字段（如 `message / chatId / hidden`）。
 - `example/schedules/demo_viewport_weather_minutely.yml`：每分钟触发 `demoViewport` 查询随机城市天气。
 
 图像生成相关示例：
 
 - `example/mcp-servers/imagine.yml`：`mcp-server-imagine` 的 runner 注册示例，默认指向 `http://127.0.0.1:11962/mcp`，`serverKey` 使用 `imagine`。
-- `example/agents/demoImageGenerator.yml`：图像生成 demo，使用 `image.models.list`、`image.generate`、`image.edit`、`image.import` 四个 MCP 工具。
+- `example/agents/demoImageGenerator/`：图像生成 demo，使用 `image.models.list`、`image.generate`、`image.edit`、`image.import` 四个 MCP 工具。
 
 办公文档相关示例：
 
-- `example/agents/dailyOfficeAssistant.yml`：daily-office 容器办公助手，使用 `container_hub_bash` 配合 `docx` / `pptx` skills 读取和重写 Word、按提纲生成 PPTX。
-- `example/agents/demoContainerHubValidator.yml`：RUN 级 container-hub 验证助手，验证 Bash 与容器内 Python 写文件链路。
+- `example/agents/dailyOfficeAssistant/`：daily-office 容器办公助手，使用 `container_hub_bash` 配合 `docx` / `pptx` skills 读取和重写 Word、按提纲生成 PPTX。
+- `example/agents/demoContainerHubValidator/`：RUN 级 container-hub 验证助手，验证 Bash 与容器内 Python 写文件链路。
 - `example/skills/docx/`：Word 文档读写与结构化编辑技能。
 - `example/skills/pptx/`：PPT/PPTX 读取、编辑与生成技能。
 
@@ -79,7 +79,7 @@
 ## image MCP 联调步骤
 
 1. 启动 `mcp-server-imagine`。
-2. 运行本目录安装脚本，把 `example/mcp-servers/imagine.yml` 和 `example/agents/demoImageGenerator.yml` 同步到项目外层目录；脚本会先删除已废弃的 `mcp-servers/image.yml`。
+2. 运行本目录安装脚本，把 `example/mcp-servers/imagine.yml` 和 `example/agents/demoImageGenerator/` 同步到项目外层目录；脚本会先删除已废弃的 `mcp-servers/image.yml`。
 3. 启动 runner，等待 MCP tool registry 刷新完成。
 4. 通过 `GET /api/tools?kind=backend` 确认 `image.models.list`、`image.generate`、`image.edit`、`image.import` 已出现。
 5. 用 `demoImageGenerator` 发起一次文生图请求；agent 会先用 `image.models.list` 获取模型 schema，再执行生成。成功时，工具返回会带 `asset.relativePath`，图片会落到当前 chat 对应的数据目录。

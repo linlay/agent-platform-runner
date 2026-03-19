@@ -1,0 +1,61 @@
+key: demoModePlanExecute
+name: 星策
+role: 规划执行示例
+description: 内置示例：PLAN_EXECUTE 模式先规划后执行
+icon:
+  name: compass
+  color: "#7C3AED"
+controls:
+- key: template_id
+  type: select
+  label: 模板
+  defaultValue: TPL01
+  icon: "<BorderInnerOutlined />"
+  description: 根据用户需求选择模板
+  instruction: 先选择模板再发起 query
+  options:
+  - value: TPL01
+    label: 模板一
+    type: img
+  - value: TPL02
+    label: 模板二
+    type: img
+- key: max_words
+  type: number
+  label: 字数
+  defaultValue: 300
+- key: enable_thinking
+  type: boolean
+  label: 深度思考
+  defaultValue: true
+mode: PLAN_EXECUTE
+toolConfig:
+  backends:
+  - mock.ops.runbook.generate
+  - datetime
+  - mock.weather.query
+  - mock.sensitive-data.detect
+  - bash.exec
+  frontends: []
+  actions: []
+planExecute:
+  plan:
+    promptFile: AGENTS.plan.md
+    modelConfig:
+      modelKey: babelark-qwen3_5-397b-a17b
+      reasoning:
+        enabled: false
+  execute:
+    promptFile: AGENTS.execute.md
+    modelConfig:
+      modelKey: babelark-qwen3_5-397b-a17b
+      reasoning:
+        enabled: false
+  summary:
+    promptFile: AGENTS.summary.md
+    modelConfig:
+      modelKey: babelark-qwen3_5-397b-a17b
+      reasoning:
+        enabled: true
+        effort: LOW
+    toolConfig: 

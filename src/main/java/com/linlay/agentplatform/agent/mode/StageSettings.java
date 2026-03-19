@@ -107,4 +107,11 @@ public record StageSettings(
         }
         instructionsPrompt = instructionsPrompt == null || instructionsPrompt.isBlank() ? null : instructionsPrompt.trim();
     }
+
+    public String primaryPrompt() {
+        if (instructionsPrompt != null && !instructionsPrompt.isBlank()) {
+            return instructionsPrompt;
+        }
+        return systemPrompt == null ? "" : systemPrompt;
+    }
 }

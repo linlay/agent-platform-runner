@@ -88,6 +88,9 @@ public class SkillRegistryService {
             try (Stream<Path> stream = Files.list(dir)) {
                 stream.sorted(Comparator.comparing(path -> path.getFileName().toString()))
                         .forEach(path -> {
+                            if (isHiddenEntry(path)) {
+                                return;
+                            }
                             if (Files.isRegularFile(path)) {
                                 log.warn(
                                         "Invalid skill layout entry '{}'. Skill files must be placed at skills/<skill-id>/{}",
@@ -132,6 +135,9 @@ public class SkillRegistryService {
         Path root = skillsRoot.toAbsolutePath().normalize();
         Path skillDir = root.resolve(id).normalize();
         if (!skillDir.startsWith(root)) {
+            return Optional.empty();
+        }
+        if (isHiddenEntry(skillDir)) {
             return Optional.empty();
         }
         Path skillFile = skillDir.resolve(SKILL_FILE).normalize();
@@ -230,6 +236,21 @@ public class SkillRegistryService {
             return "";
         }
         return raw.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private boolean isHiddenEntry(Path path) {
+        if (path == null) {
+            return false;
+        }
+        Path fileName = path.getFileName();
+        if (fileName != null && fileName.toString().startsWith(".")) {
+            return true;
+        }
+        try {
+            return Files.isHidden(path);
+        } catch (IOException ex) {
+            return false;
+        }
     }
 
     private String unquote(String raw) {

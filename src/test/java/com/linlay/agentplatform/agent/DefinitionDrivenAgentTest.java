@@ -824,12 +824,11 @@ class DefinitionDrivenAgentTest {
         assertThat(captured.get()).isNotNull();
         String systemPrompt = captured.get().systemPrompt();
         assertThat(systemPrompt).contains("soul prompt");
-        assertThat(systemPrompt).contains("shared prompt");
         assertThat(systemPrompt).contains("plain markdown");
         assertThat(systemPrompt).contains("Memory:\nmemory note");
         assertThat(systemPrompt).contains("yaml prompt");
-        assertThat(systemPrompt.indexOf("soul prompt")).isLessThan(systemPrompt.indexOf("shared prompt"));
-        assertThat(systemPrompt.indexOf("shared prompt")).isLessThan(systemPrompt.indexOf("plain markdown"));
+        assertThat(systemPrompt).doesNotContain("shared prompt");
+        assertThat(systemPrompt.indexOf("soul prompt")).isLessThan(systemPrompt.indexOf("plain markdown"));
         assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("Memory:\nmemory note"));
         assertThat(systemPrompt.indexOf("Memory:\nmemory note")).isLessThan(systemPrompt.indexOf("yaml prompt"));
     }
