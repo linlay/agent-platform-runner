@@ -12,31 +12,15 @@ Spring Boot agent gateway — 基于 WebFlux 的响应式 LLM Agent 编排服务
 
 ```bash
 mvn clean test                          # 构建并运行所有测试
-mvn spring-boot:run                     # 本地启动，默认端口 8080
+make run                                # 本地启动（自动加载根目录 .env）
 mvn test -Dtest=ClassName               # 运行单个测试类
 mvn test -Dtest=ClassName#methodName    # 运行单个测试方法
 ```
 
 流式事件模块源码位于 `src/main/java/com/linlay/agentplatform/stream/**`。
 
-### Release Scripts（跨平台入口）
-
-- macOS（Bash）:
-  - `./release-scripts/mac/package-local.sh`
-  - `./release-scripts/mac/package-docker.sh`
-  - `./release-scripts/mac/start-local.sh`
-  - `./release-scripts/mac/stop-local.sh`
-- Windows（非 WSL / Git Bash，PowerShell 原生）:
-  - `.\release-scripts\windows\package-local.ps1`
-  - `.\release-scripts\windows\package-docker.ps1`
-  - `.\release-scripts\windows\start-local.ps1`
-  - `.\release-scripts\windows\stop-local.ps1`
-
-`release-scripts/` 仅保留平台实现脚本目录，不再保留根目录转发脚本。
-
 ### 发布相关文件放置约定
 
-- `release-scripts/` 只放打包/运行脚本，不放部署配置资产。
 - `Dockerfile` 与 `settings.xml` 保持在项目根目录，以匹配标准 `docker build .` 上下文和当前脚本路径约定。
 - `configs/` 保持在项目根目录，作为结构化配置模板目录。
 - `nginx.conf` 当前保持在项目根目录，作为反向代理示例；若后续扩展多环境部署资产，可迁移到 `deploy/nginx/`。

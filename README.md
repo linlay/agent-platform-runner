@@ -244,9 +244,6 @@
 ├── providers/
 ├── data/
 ├── schedules/
-├── release-scripts/
-│   ├── mac/
-│   └── windows/
 ├── nginx.conf
 ├── pom.xml
 ├── settings.xml
@@ -313,33 +310,8 @@ docker compose up -d --build
 - compose 默认显式挂载并映射这些运行目录：`CONFIGS_DIR`、`AGENTS_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`TOOLS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`VIEWPORTS_DIR`、`SKILLS_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
-### release-local 配置说明
-
-通过 hub 仓库 `setup-mac.sh` 的首次安装流程时，会先执行 `./release-scripts/mac/package-local.sh`，再在 `release-local/` 写入运行时配置：
-
-- `configs/*.yml`：由 `configs/*.example.yml` / `configs/**/*.example.*` 复制生成
-- `.env`：由安装流程按环境生成（若存在 `.env.example` 会优先复制）
-
-`release-scripts/mac/package-local.sh` 只负责构建产物，不负责生成运行时配置。
-
-#### 跨平台脚本入口
-
-- macOS（Bash）:
-  - `./release-scripts/mac/package-local.sh`
-  - `./release-scripts/mac/package-docker.sh`
-  - `./release-scripts/mac/start-local.sh`
-  - `./release-scripts/mac/stop-local.sh`
-- Windows（非 WSL / Git Bash，PowerShell 原生）:
-  - `.\release-scripts\windows\package-local.ps1`
-  - `.\release-scripts\windows\package-docker.ps1`
-  - `.\release-scripts\windows\start-local.ps1`
-  - `.\release-scripts\windows\stop-local.ps1`
-
-说明：`release-scripts/` 仅保留平台实现脚本目录，不再保留根目录转发脚本。
-
 #### 文件放置约定
 
-- `release-scripts/` 仅放打包与运行脚本（按平台分目录），不放部署配置资产。
 - `Dockerfile` 与 `settings.xml` 保持在项目根目录，匹配 `docker build .` 常见上下文和当前打包脚本路径约定。
 - `.env.example` 与 `docker-compose.yml` 保持在项目根目录，作为容器运行基线模板。
 - `configs/` 保持在项目根目录，作为结构化配置模板目录。
@@ -839,6 +811,12 @@ for f in *.md; do echo "$f"; done
 | `LOGGING_AGENT_LLM_INTERACTION_ENABLED` | `true` | LLM 交互日志开关 |
 
 说明：为避免歧义，容器化部署建议使用 `HOST_PORT` 控制宿主机映射端口；`SERVER_PORT` 表示应用监听端口。
+
+### 运行入口
+
+- 开发环境：`make run`
+- 生产环境：`docker compose up -d --build`
+- 不再支持 `release-local/`、`release/` 或预打包脚本工作流；运维入口统一回到仓库根目录。
 
 ### Breaking Change（配置命名迁移）
 
