@@ -267,10 +267,9 @@ make run
 若 `.env` 或环境变量覆盖了端口（例如开发常用 `11949`），则以覆盖值为准。
 注意：`make run` 会自动加载根目录 `.env`；直接执行 `mvn spring-boot:run` 则不会自动加载。
 
-推荐把运行时目录统一放到项目外，再通过 `.env` 指向它们。例如代码仓库保留在当前工作区，而运行目录放在共享目录：
+推荐把可配置运行时目录统一放到项目外，再通过 `.env` 指向它们。`configs/` 不是可配置目录，固定使用 runner 自带的 `./configs`（容器内固定挂载到 `/opt/configs`）。例如代码仓库保留在当前工作区，而运行目录放在共享目录：
 
 ```bash
-CONFIGS_DIR=/Users/you/runtime/runner/configs
 AGENTS_DIR=/Users/you/runtime/runner/agents
 TEAMS_DIR=/Users/you/runtime/runner/teams
 MODELS_DIR=/Users/you/runtime/runner/models
@@ -298,7 +297,7 @@ docker compose up -d --build
 
 约定：
 
-- `.env` 负责简单环境开关与端口（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
+- `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
 - `providers/` 负责 provider YAML 注册中心；默认目录可由 `PROVIDERS_DIR` / `agent.providers.external-dir` 覆盖，示例模板建议从 `example/providers/example.yml` 复制并重命名。
 - `docker-compose.yml` 会把 `.env` 中的 `*_DIR` 变量用于宿主机 bind mount，同时在容器内把同名变量固定为 `/opt/...` 路径；因此同一份 `.env` 可以同时服务 `make run` 和 `docker compose`。
@@ -307,7 +306,7 @@ docker compose up -d --build
 - `docker-compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（compose 会显式覆盖 `SERVER_PORT=8080`）。
-- compose 默认显式挂载并映射这些运行目录：`CONFIGS_DIR`、`AGENTS_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`TOOLS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`VIEWPORTS_DIR`、`SKILLS_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`。
+- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`AGENTS_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`TOOLS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`VIEWPORTS_DIR`、`SKILLS_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
 #### 文件放置约定
@@ -323,7 +322,7 @@ docker compose up -d --build
 - 主配置事实源为 `src/main/resources/application.yml`，运行时结构化覆盖来自 `configs/`。
 - 可先复制环境变量示例：`cp .env.example .env`，再按环境调整端口与认证开关。
 - 再按实际存在的模板复制需要的 `configs/*.example.yml` 与 `configs/**/*.example.*` 为真实配置文件。
-- 运行时默认读取 `./configs`；本地开发可通过 `CONFIGS_DIR` 指向项目外目录；Docker 镜像工作目录为 `/opt`，容器内会固定使用 `/opt/configs`。
+- 运行时固定读取 runner 的 `configs/`；Docker 镜像工作目录为 `/opt`，容器内固定使用 `/opt/configs`。`CONFIGS_DIR` 不受支持，设置后会直接启动失败。
 - 目录型变量统一使用 `*_DIR` 命名；默认值仍是 `agents/`、`teams/`、`models/`、`providers/`、`tools/`、`skills/`、`viewports/`、`schedules/`、`data/`、`chats/` 等相对目录。
 - `agent.cors.enabled` 在主配置中默认是 `false`，即默认不启用 CORS 过滤器。
 - `agent.cors.allowed-origin-patterns` 仅匹配请求头 `Origin`，当前服务不读取/校验 `Referer`。
@@ -793,7 +792,6 @@ for f in *.md; do echo "$f"; done
 |---------|-------|------|
 | `HOST_PORT` | `11949` | Docker Compose 宿主机暴露端口（映射到容器 `8080`） |
 | `SERVER_PORT` | `8080` | 应用 HTTP 监听端口（容器内固定 `8080`；本地非 Docker 运行可覆盖） |
-| `CONFIGS_DIR` | `configs` | 结构化配置目录 |
 | `AGENTS_DIR` | `agents` | Agent 定义目录 |
 | `TEAMS_DIR` | `teams` | Team 定义目录 |
 | `MODELS_DIR` | `models` | Model 定义目录 |
@@ -855,7 +853,7 @@ for f in *.md; do echo "$f"; done
   - `agent.mcp.*` -> `agent.mcp-servers.*`
   - `memory.chat.*` -> `memory.chats.*`
 - 关键环境变量迁移：
-  - `AGENT_CONFIG_DIR` -> `CONFIGS_DIR`
+  - `AGENT_CONFIG_DIR` -> 固定 runner `configs/` 目录（不再支持覆盖）
   - `AGENT_AGENTS_EXTERNAL_DIR` -> `AGENTS_DIR`
   - `AGENT_TEAMS_EXTERNAL_DIR` -> `TEAMS_DIR`
   - `AGENT_MODELS_EXTERNAL_DIR` -> `MODELS_DIR`

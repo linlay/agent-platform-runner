@@ -1,7 +1,6 @@
 package com.linlay.agentplatform.security;
 
 import com.linlay.agentplatform.config.AppAuthProperties;
-import com.linlay.agentplatform.config.ConfigDirectorySupport;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
@@ -66,11 +65,10 @@ class JwksJwtVerifierLocalKeyValidationTests {
     }
 
     @Test
-    void shouldFailFastWhenLocalKeyFileIsMissing(@TempDir Path tempDir) {
-        String previous = System.getProperty(ConfigDirectorySupport.CONFIG_DIR_ENV);
-        System.setProperty(ConfigDirectorySupport.CONFIG_DIR_ENV, tempDir.toString());
-        try {
-            contextRunner
+    void shouldFailFastWhenLocalKeyFileIsMissing(@TempDir Path tempDir) throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir.resolve("configs"));
+        withUserDir(projectDir, () -> contextRunner
                 .withPropertyValues(
                     "agent.auth.local-public-key-file=local-public-key.pem"
                 )
@@ -79,29 +77,23 @@ class JwksJwtVerifierLocalKeyValidationTests {
                     assertThat(context.getStartupFailure()).hasCauseInstanceOf(IllegalStateException.class);
                     assertThat(context.getStartupFailure())
                         .hasStackTraceContaining("agent.auth.local-public-key-file does not exist");
-                });
-        } finally {
-            restoreConfigDir(previous);
-        }
+                }));
     }
 
     @Test
     void shouldLoadLocalKeyFromPemFile(@TempDir Path tempDir) throws Exception {
-        String previous = System.getProperty(ConfigDirectorySupport.CONFIG_DIR_ENV);
-        Files.writeString(tempDir.resolve("local-public-key.pem"), toPem(generateRsaKey()), StandardCharsets.UTF_8);
-        System.setProperty(ConfigDirectorySupport.CONFIG_DIR_ENV, tempDir.toString());
-        try {
-            contextRunner
+        Path projectDir = tempDir.resolve("project");
+        Path configsDir = projectDir.resolve("configs");
+        Files.createDirectories(configsDir);
+        Files.writeString(configsDir.resolve("local-public-key.pem"), toPem(generateRsaKey()), StandardCharsets.UTF_8);
+        withUserDir(projectDir, () -> contextRunner
                 .withPropertyValues(
                     "agent.auth.local-public-key-file=local-public-key.pem"
                 )
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBean(JwksJwtVerifier.class)).isNotNull();
-                });
-        } finally {
-            restoreConfigDir(previous);
-        }
+                }));
     }
 
     @Test
@@ -131,12 +123,27 @@ class JwksJwtVerifierLocalKeyValidationTests {
         }
     }
 
-    private static void restoreConfigDir(String previous) {
-        if (previous == null) {
-            System.clearProperty(ConfigDirectorySupport.CONFIG_DIR_ENV);
-        } else {
-            System.setProperty(ConfigDirectorySupport.CONFIG_DIR_ENV, previous);
+    private static void withUserDir(Path userDir, ThrowingRunnable action) throws Exception {
+        String previous = System.getProperty("user.dir");
+        System.setProperty("user.dir", userDir.toAbsolutePath().normalize().toString());
+        try {
+            action.run();
+        } finally {
+            restoreUserDir(previous);
         }
+    }
+
+    private static void restoreUserDir(String previous) {
+        if (previous == null) {
+            System.clearProperty("user.dir");
+        } else {
+            System.setProperty("user.dir", previous);
+        }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingRunnable {
+        void run() throws Exception;
     }
 
     private static RSAKey generateRsaKey() {

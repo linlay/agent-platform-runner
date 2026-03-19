@@ -301,10 +301,7 @@ public class JwksJwtVerifier {
             return authProperties.getLocalPublicKey();
         }
         String rawPath = authProperties.getLocalPublicKeyFile();
-        Path path = ConfigDirectorySupport.resolveConfigRelativePath(
-                System.getProperty(ConfigDirectorySupport.CONFIG_DIR_ENV, System.getenv(ConfigDirectorySupport.CONFIG_DIR_ENV)),
-                rawPath
-        );
+        Path path = ConfigDirectorySupport.resolveConfigRelativePath(rawPath);
         if (!Files.exists(path)) {
             throw new IllegalStateException("agent.auth.local-public-key-file does not exist: " + path);
         }

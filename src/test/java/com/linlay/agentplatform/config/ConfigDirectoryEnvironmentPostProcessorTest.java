@@ -21,8 +21,9 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
     Path tempDir;
 
     @Test
-    void shouldLoadStructuredConfigFilesFromConfiguredDirectory() throws Exception {
-        Path configsDir = tempDir.resolve("configs");
+    void shouldLoadStructuredConfigFilesFromFixedConfigsDirectory() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Path configsDir = projectDir.resolve("configs");
         Files.createDirectories(configsDir);
         Files.writeString(configsDir.resolve("auth.yml"), """
                 enabled: false
@@ -44,11 +45,7 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
                 """);
 
         StandardEnvironment environment = new StandardEnvironment();
-        environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
-                ConfigDirectorySupport.CONFIG_DIR_ENV, configsDir.toString()
-        )));
-
-        processor.postProcessEnvironment(environment, new SpringApplication(Object.class));
+        withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)));
 
         assertThat(environment.getProperty("agent.auth.enabled")).isEqualTo("false");
         assertThat(environment.getProperty("agent.auth.local-public-key-file")).isEqualTo("local-public-key.pem");
@@ -63,7 +60,8 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
 
     @Test
     void shouldFailFastWhenConfigUsesDeprecatedNestedKeys() throws Exception {
-        Path configsDir = tempDir.resolve("configs");
+        Path projectDir = tempDir.resolve("project");
+        Path configsDir = projectDir.resolve("configs");
         Files.createDirectories(configsDir);
         Files.writeString(configsDir.resolve("auth.yml"), """
                 agent:
@@ -72,11 +70,8 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
                 """);
 
         StandardEnvironment environment = new StandardEnvironment();
-        environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
-                ConfigDirectorySupport.CONFIG_DIR_ENV, configsDir.toString()
-        )));
 
-        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)))
+        assertThatThrownBy(() -> withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("flat keys only");
     }
@@ -95,20 +90,34 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
     }
 
     @Test
-    void shouldIgnoreMissingConfigDirectory() {
+    void shouldFailFastWhenConfigsDirEnvVariableIsConfigured() {
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
-                ConfigDirectorySupport.CONFIG_DIR_ENV, tempDir.resolve("missing").toString()
+                ConfigDirectorySupport.CONFIG_DIR_ENV, tempDir.resolve("configs").toString()
         )));
 
-        processor.postProcessEnvironment(environment, new SpringApplication(Object.class));
+        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("CONFIGS_DIR")
+                .hasMessageContaining("fixed to './configs'")
+                .hasMessageContaining("must not be overridden");
+    }
+
+    @Test
+    void shouldIgnoreMissingFixedConfigDirectory() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+        StandardEnvironment environment = new StandardEnvironment();
+
+        withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)));
 
         assertThat(environment.getProperty("agent.auth.enabled")).isNull();
     }
 
     @Test
     void shouldIgnoreNestedProvidersDirectory() throws Exception {
-        Path configsDir = tempDir.resolve("configs");
+        Path projectDir = tempDir.resolve("project");
+        Path configsDir = projectDir.resolve("configs");
         Path providersDir = configsDir.resolve("providers");
         Files.createDirectories(providersDir);
         Files.writeString(providersDir.resolve("a.yml"), """
@@ -117,13 +126,32 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
                 """);
 
         StandardEnvironment environment = new StandardEnvironment();
-        environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
-                ConfigDirectorySupport.CONFIG_DIR_ENV, configsDir.toString()
-        )));
-
-        processor.postProcessEnvironment(environment, new SpringApplication(Object.class));
+        withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)));
 
         assertThat(environment.getProperty("key")).isNull();
         assertThat(environment.getProperty("baseUrl")).isNull();
+    }
+
+    private static void withUserDir(Path userDir, ThrowingRunnable action) throws Exception {
+        String previous = System.getProperty("user.dir");
+        System.setProperty("user.dir", userDir.toAbsolutePath().normalize().toString());
+        try {
+            action.run();
+        } finally {
+            restoreUserDir(previous);
+        }
+    }
+
+    private static void restoreUserDir(String previous) {
+        if (previous == null) {
+            System.clearProperty("user.dir");
+        } else {
+            System.setProperty("user.dir", previous);
+        }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingRunnable {
+        void run() throws Exception;
     }
 }

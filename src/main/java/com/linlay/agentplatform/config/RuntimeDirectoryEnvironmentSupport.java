@@ -8,10 +8,24 @@ import java.util.Map;
 
 public final class RuntimeDirectoryEnvironmentSupport {
 
+    private static final Map<String, String> UNSUPPORTED_DIRECTORY_VARIABLES = unsupportedDirectoryVariables();
     private static final Map<String, String> DEPRECATED_DIRECTORY_VARIABLES = deprecatedDirectoryVariables();
     private static final Map<String, String> DEPRECATED_PROPERTIES = deprecatedProperties();
 
     private RuntimeDirectoryEnvironmentSupport() {
+    }
+
+    public static void validateNoUnsupportedDirectoryVariables(ConfigurableEnvironment environment) {
+        if (environment == null) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : UNSUPPORTED_DIRECTORY_VARIABLES.entrySet()) {
+            String configured = environment.getProperty(entry.getKey());
+            if (StringUtils.hasText(configured)) {
+                throw new IllegalStateException("Environment variable '" + entry.getKey()
+                        + "' is no longer supported. " + entry.getValue());
+            }
+        }
     }
 
     public static void validateNoDeprecatedDirectoryVariables(ConfigurableEnvironment environment) {
@@ -40,9 +54,17 @@ public final class RuntimeDirectoryEnvironmentSupport {
         }
     }
 
+    private static Map<String, String> unsupportedDirectoryVariables() {
+        LinkedHashMap<String, String> vars = new LinkedHashMap<>();
+        vars.put(ConfigDirectorySupport.CONFIG_DIR_ENV,
+                "The runner config directory is fixed to './configs' (or '/opt/configs' in container) and must not be overridden.");
+        vars.put("AGENT_CONFIG_DIR",
+                "The runner config directory is fixed to './configs' (or '/opt/configs' in container) and must not be overridden.");
+        return Map.copyOf(vars);
+    }
+
     private static Map<String, String> deprecatedDirectoryVariables() {
         LinkedHashMap<String, String> vars = new LinkedHashMap<>();
-        vars.put("AGENT_CONFIG_DIR", "CONFIGS_DIR");
         vars.put("AGENT_AGENTS_EXTERNAL_DIR", "AGENTS_DIR");
         vars.put("AGENT_TEAMS_EXTERNAL_DIR", "TEAMS_DIR");
         vars.put("AGENT_MODELS_EXTERNAL_DIR", "MODELS_DIR");

@@ -41,9 +41,10 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
+        RuntimeDirectoryEnvironmentSupport.validateNoUnsupportedDirectoryVariables(environment);
         RuntimeDirectoryEnvironmentSupport.validateNoDeprecatedDirectoryVariables(environment);
         RuntimeDirectoryEnvironmentSupport.validateNoDeprecatedProperties(environment);
-        Path configDir = ConfigDirectorySupport.resolveConfigDirectory(environment).orElse(null);
+        Path configDir = ConfigDirectorySupport.resolveConfigDirectory().orElse(null);
         if (configDir == null || !Files.isDirectory(configDir)) {
             return;
         }

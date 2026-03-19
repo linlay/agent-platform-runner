@@ -9,7 +9,6 @@ services:
       - "${HOST_PORT}:8080"
     environment:
       SERVER_PORT: 8080
-      CONFIGS_DIR: /opt/configs
       AGENTS_DIR: /opt/agents
       TEAMS_DIR: /opt/teams
       MODELS_DIR: /opt/models
@@ -24,7 +23,7 @@ services:
       CHATS_DIR: /opt/chats
     volumes:
       - type: bind
-        source: ${CONFIGS_DIR:-./configs}
+        source: ./configs
         target: /opt/configs
         read_only: true
       - type: bind

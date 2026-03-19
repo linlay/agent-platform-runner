@@ -128,15 +128,14 @@ class BashToolPropertiesBindingTest {
     }
 
     @Test
-    void shouldDefaultWorkingDirectoryToProjectRootFromConfigsDir(@TempDir Path tempDir) throws IOException {
+    void shouldDefaultWorkingDirectoryToProjectRootFromConfigsDir(@TempDir Path tempDir) throws Exception {
         Path configsDir = tempDir.resolve("project").resolve("configs");
         Path projectDir = configsDir.getParent();
         Files.createDirectories(configsDir);
         Files.writeString(projectDir.resolve("demo.txt"), "hello-project-root");
 
-        contextRunner
+        withUserDir(projectDir, () -> contextRunner
                 .withPropertyValues(
-                        "CONFIGS_DIR=" + configsDir,
                         "agent.tools.bash.allowed-paths=" + projectDir,
                         "agent.tools.bash.allowed-commands=cat"
                 )
@@ -146,20 +145,20 @@ class BashToolPropertiesBindingTest {
                     assertThat(bash.description()).contains("workingDirectory: " + projectDir.toAbsolutePath().normalize());
                     assertThat(result.asText()).contains("exitCode: 0");
                     assertThat(result.asText()).contains("hello-project-root");
-                });
+                }));
     }
 
     @Test
-    void shouldUseExplicitWorkingDirectoryInsteadOfDerivedDefault(@TempDir Path tempDir) throws IOException {
+    void shouldUseExplicitWorkingDirectoryInsteadOfDerivedDefault(@TempDir Path tempDir) throws Exception {
         Path configsDir = tempDir.resolve("project").resolve("configs");
+        Path projectDir = configsDir.getParent();
         Path explicitDir = tempDir.resolve("explicit");
         Files.createDirectories(configsDir);
         Files.createDirectories(explicitDir);
         Files.writeString(explicitDir.resolve("demo.txt"), "hello-explicit");
 
-        contextRunner
+        withUserDir(projectDir, () -> contextRunner
                 .withPropertyValues(
-                        "CONFIGS_DIR=" + configsDir,
                         "agent.tools.bash.working-directory=" + explicitDir,
                         "agent.tools.bash.allowed-paths=" + explicitDir,
                         "agent.tools.bash.allowed-commands=cat"
@@ -169,18 +168,37 @@ class BashToolPropertiesBindingTest {
                     JsonNode result = bash.invoke(Map.of("command", "cat demo.txt"));
                     assertThat(bash.description()).contains("workingDirectory: " + explicitDir.toAbsolutePath().normalize());
                     assertThat(result.asText()).contains("hello-explicit");
-                });
+                }));
     }
 
     @Test
-    void shouldUseConfiguredDirectoryWhenConfigDirIsNotNamedConfigs(@TempDir Path tempDir) throws IOException {
-        Path configDir = tempDir.resolve("runtime-root");
-        Files.createDirectories(configDir);
+    void shouldDefaultWorkingDirectoryToUserDirWhenConfigsDirectoryIsMissing(@TempDir Path tempDir) throws Exception {
+        Path projectDir = tempDir.resolve("runtime-root");
+        Files.createDirectories(projectDir);
 
         ConfigurableEnvironment environment = new StandardEnvironment();
-        environment.getSystemProperties().put(ConfigDirectorySupport.CONFIG_DIR_ENV, configDir.toString());
 
-        assertThat(SystemBash.defaultWorkingDirectory(environment)).isEqualTo(configDir.toAbsolutePath().normalize());
+        withUserDir(projectDir, () ->
+                assertThat(SystemBash.defaultWorkingDirectory(environment)).isEqualTo(projectDir.toAbsolutePath().normalize()));
+    }
+
+    private static void withUserDir(Path userDir, ThrowingRunnable action) throws Exception {
+        String previous = System.getProperty("user.dir");
+        System.setProperty("user.dir", userDir.toAbsolutePath().normalize().toString());
+        try {
+            action.run();
+        } finally {
+            if (previous == null) {
+                System.clearProperty("user.dir");
+            } else {
+                System.setProperty("user.dir", previous);
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingRunnable {
+        void run() throws Exception;
     }
 
     @Configuration(proxyBeanMethods = false)

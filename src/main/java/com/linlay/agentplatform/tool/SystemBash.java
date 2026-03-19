@@ -447,7 +447,7 @@ public class SystemBash extends AbstractDeterministicTool {
     }
 
     public static Path defaultWorkingDirectory(ConfigurableEnvironment environment) {
-        java.util.Optional<Path> configDir = ConfigDirectorySupport.resolveConfigDirectory(environment);
+        java.util.Optional<Path> configDir = ConfigDirectorySupport.resolveConfigDirectory();
         if (configDir.isPresent()) {
             Path resolved = configDir.get().toAbsolutePath().normalize();
             Path fileName = resolved.getFileName();

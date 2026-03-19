@@ -514,6 +514,16 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 | `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `extraMounts` 按需 | `mounts.mcp-servers-dir` → `agent.mcp-servers.registry.external-dir` |
 | `/providers` | `{providersDir}` | `{providersDir}` | `extraMounts` 按需；敏感目录，无 fallback | `mounts.providers-dir` |
 
+### 挂载原则
+
+- 默认最小集：默认只挂载 `/tmp`、`/home`、`/skills`、`/pan`、`/agent`，不再默认暴露全量平台配置目录。
+- agent 就近原则：当前 agent 若采用目录化布局，默认挂载其自身目录到 `/agent`；扁平 YAML agent 不强制创建该挂载。
+- 按需显式原则：`/models`、`/tools`、`/agents`、`/viewports`、`/teams`、`/schedules`、`/mcp-servers`、`/providers` 仅能通过 `sandboxConfig.extraMounts` 显式恢复。
+- 最小暴露原则：agent 只应声明完成任务所必需的额外挂载，避免把无关目录带入沙箱。
+- 安全优先原则：custom mount 必须满足“源目录存在、目标路径为绝对路径、目标路径不冲突”；不满足时直接 fail-fast。
+- 敏感目录显式授权：`providers` 属于敏感挂载，即使在 `extraMounts` 中声明，也必须先有全局 `mounts.providers-dir` 配置。
+- 未知简写宽容处理：未知 `platform` 不阻断 agent 加载，只记录 warn 并跳过该条目。
+
 ### Agent Definition 中的 sandboxConfig
 
 ```yaml
