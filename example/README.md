@@ -84,7 +84,7 @@
 4. 通过 `GET /api/tools?kind=backend` 确认 `image.models.list`、`image.generate`、`image.edit`、`image.import` 已出现。
 5. 用 `demoImageGenerator` 发起一次文生图请求；agent 会先用 `image.models.list` 获取模型 schema，再执行生成。成功时，工具返回会带 `asset.relativePath`，图片会落到当前 chat 对应的数据目录。
 6. 通过 `GET /api/chat?chatId=...` 检查 `references` 是否包含新图片；若前端未自动内联展示，可结合 `chatImageToken` 访问 `/api/data?file=<chatId/relativePath>&t=<chatImageToken>` 查看。
-7. 如果 provider 返回 `model_not_found`、`no available channel` 或同类错误，说明 MCP 链路已通，但当前 provider 没有该默认模型的可用通道；此时请改传你已开通的 `model`，或调整 provider 侧渠道配置。
+7. 如果 provider 返回 `model_not_found`、`no available channel` 或同类错误，说明 MCP 链路已通，但当前 provider 没有该默认模型的可用通道；此时请改传你已开通的 `defaultModel`，或调整 provider 侧渠道配置。
 
 ## mcp-server-imagine 启动说明
 

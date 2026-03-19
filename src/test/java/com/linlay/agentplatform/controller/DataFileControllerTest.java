@@ -29,10 +29,10 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = {
                 "agent.providers.bailian.base-url=https://example.com/v1",
                 "agent.providers.bailian.api-key=test-bailian-key",
-                "agent.providers.bailian.model=test-bailian-model",
+                "agent.providers.bailian.default-model=test-bailian-model",
                 "agent.providers.siliconflow.base-url=https://example.com/v1",
                 "agent.providers.siliconflow.api-key=test-siliconflow-key",
-                "agent.providers.siliconflow.model=test-siliconflow-model",
+                "agent.providers.siliconflow.default-model=test-siliconflow-model",
                 "agent.auth.enabled=false",
                 "memory.chats.dir=${java.io.tmpdir}/springai-agent-platform-test-data-chats-${random.uuid}",
                 "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-test-data-chats-db-${random.uuid}/chats.db",

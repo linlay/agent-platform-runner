@@ -2,7 +2,7 @@
 key: your_provider_key
 baseUrl: https://api.example.com
 apiKey: YOUR_PROVIDER_API_KEY
-model: your-default-model-id
+defaultModel: your-default-model-id
 protocols:
   OPENAI:
     endpointPath: /v1/chat/completions

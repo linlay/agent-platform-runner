@@ -224,7 +224,7 @@ class ModelRegistryServiceTest {
                     key: %s
                     baseUrl: %s
                     apiKey: dummy
-                    model: dummy-model
+                    defaultModel: dummy-model
                     """.formatted(entry.getKey(), entry.getValue()));
         }
         ProviderProperties properties = new ProviderProperties();

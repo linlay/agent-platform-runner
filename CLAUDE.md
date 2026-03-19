@@ -723,7 +723,7 @@ protocols:
 - `key`
 - `baseUrl`
 - `apiKey`
-- `model`（可选，作为 provider 默认 model）
+- `defaultModel`（可选，作为 provider 默认 model）
 - `protocols.<PROTOCOL>.endpointPath`（可选，按线协议覆盖请求 endpoint 路径）
 
 说明：

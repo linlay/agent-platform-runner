@@ -9,7 +9,7 @@ public record ProviderConfig(
         String key,
         String baseUrl,
         String apiKey,
-        String model,
+        String defaultModel,
         Map<ModelProtocol, ProtocolConfig> protocols
 ) {
     public ProviderConfig {
