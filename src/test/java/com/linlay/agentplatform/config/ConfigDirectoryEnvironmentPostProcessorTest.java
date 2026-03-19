@@ -34,6 +34,13 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
         Files.writeString(configsDir.resolve("container-hub.yml"), """
                 enabled: true
                 default-environment-id: shell
+                mounts.user-dir: /tmp/user
+                mounts.pan-dir: /tmp/pan
+                """);
+        Files.writeString(configsDir.resolve("cors.yml"), """
+                enabled: false
+                allowed-origin-patterns:
+                  - http://localhost:8081
                 """);
 
         StandardEnvironment environment = new StandardEnvironment();
@@ -48,6 +55,10 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
         assertThat(environment.getProperty("agent.tools.bash.allowed-commands")).isEqualTo("ls,pwd");
         assertThat(environment.getProperty("agent.tools.container-hub.enabled")).isEqualTo("true");
         assertThat(environment.getProperty("agent.tools.container-hub.default-environment-id")).isEqualTo("shell");
+        assertThat(environment.getProperty("agent.tools.container-hub.mounts.user-dir")).isEqualTo("/tmp/user");
+        assertThat(environment.getProperty("agent.tools.container-hub.mounts.pan-dir")).isEqualTo("/tmp/pan");
+        assertThat(environment.getProperty("agent.cors.enabled")).isEqualTo("false");
+        assertThat(environment.getProperty("agent.cors.allowed-origin-patterns")).isEqualTo("http://localhost:8081");
     }
 
     @Test

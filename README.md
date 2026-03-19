@@ -628,12 +628,9 @@ toolConfig:
 启用前请先配置 `configs/container-hub.yml`（可从 `configs/container-hub.example.yml` 复制）：
 
 ```yaml
-agent:
-  tools:
-    container-hub:
-      enabled: true
-      base-url: http://127.0.0.1:8080
-      default-environment-id: shell
+enabled: true
+base-url: http://127.0.0.1:8080
+default-environment-id: shell
 ```
 
 说明：
@@ -661,12 +658,9 @@ agent:
 最小配置示例：
 
 ```yaml
-agent:
-  tools:
-    container-hub:
-      enabled: true
-      base-url: http://127.0.0.1:8080
-      default-environment-id: daily-office
+enabled: true
+base-url: http://127.0.0.1:8080
+default-environment-id: daily-office
 ```
 
 运行约定：
@@ -686,12 +680,9 @@ agent:
 配置前缀固定为：
 
 ```yaml
-agent:
-  tools:
-    container-hub:
-      enabled: true
-      base-url: http://127.0.0.1:8080
-      default-environment-id: shell
+enabled: true
+base-url: http://127.0.0.1:8080
+default-environment-id: shell
 ```
 
 说明：
@@ -715,23 +706,17 @@ agent:
 `shell-features-enabled=false`（默认）时，工具保持严格模式，仅执行单条命令。设置为 `true` 后，遇到高级 shell 语法（管道、重定向、here-doc、`&&`/`||` 等）会切换到 shell 模式执行，同时继续执行命令白名单和路径白名单校验。为安全起见，`source/.`、`eval`、`exec`、进程替换（`<(...)`/`>(...)`）、`coproc`、`fg/bg/jobs` 会被拒绝。
 
 ```yaml
-agent:
-  tools:
-    bash:
-      working-directory: /opt/app
-      allowed-paths:
-        - /opt/app
-        - /opt/data
-      allowed-commands:
-        - ls,pwd,cat,head,tail,top,free,df,git
-      path-checked-commands:
-        - ls,cat,head,tail,git
-      path-check-bypass-commands:
-        - git,curl
-      shell-features-enabled: false
-      shell-executable: bash
-      shell-timeout-ms: 10000
-      max-command-chars: 16000
+working-directory: /opt/app
+allowed-paths:
+  - /opt/app
+  - /opt/data
+allowed-commands: ls,pwd,cat,head,tail,top,free,df,git
+path-checked-commands: ls,cat,head,tail,git
+path-check-bypass-commands: git,curl
+shell-features-enabled: false
+shell-executable: bash
+shell-timeout-ms: 10000
+max-command-chars: 16000
 ```
 
 也可使用环境变量（逗号分隔）：
