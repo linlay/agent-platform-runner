@@ -2,12 +2,10 @@ package com.linlay.agentplatform.service;
 
 import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.agent.AgentRegistry;
-import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ProviderRegistryService;
 import com.linlay.agentplatform.config.ViewportServerProperties;
-import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
@@ -17,6 +15,8 @@ import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
 import com.linlay.agentplatform.tool.ToolFileRegistryService;
+import com.linlay.agentplatform.config.ToolProperties;
+import com.linlay.agentplatform.config.ViewportProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
@@ -51,8 +51,6 @@ public class DirectoryWatchService implements DisposableBean {
     @Autowired
     public DirectoryWatchService(
             AgentRegistry agentRegistry,
-            ViewportRegistryService viewportRegistryService,
-            ToolFileRegistryService toolFileRegistryService,
             ModelRegistryService modelRegistryService,
             ProviderRegistryService providerRegistryService,
             SkillRegistryService skillRegistryService,
@@ -63,8 +61,6 @@ public class DirectoryWatchService implements DisposableBean {
             ViewportSyncService viewportSyncService,
             ScheduledQueryOrchestrator scheduledQueryOrchestrator,
             AgentProperties agentProperties,
-            ViewportProperties viewportProperties,
-            ToolProperties toolProperties,
             McpProperties mcpProperties,
             ViewportServerProperties viewportServerProperties,
             ModelProperties modelProperties,
@@ -77,21 +73,6 @@ public class DirectoryWatchService implements DisposableBean {
         watchedDirs.put(
                 Path.of(agentProperties.getExternalDir()).toAbsolutePath().normalize(),
                 agentRegistry::refreshAgents
-        );
-        watchedDirs.put(
-                Path.of(viewportProperties.getExternalDir()).toAbsolutePath().normalize(),
-                viewportRegistryService::refreshViewports
-        );
-        watchedDirs.put(
-                Path.of(toolProperties.getExternalDir()).toAbsolutePath().normalize(),
-                () -> {
-                    CatalogDiff diff = toolFileRegistryService.refreshTools();
-                    if (diff.isEmpty()) {
-                        return;
-                    }
-                    java.util.Set<String> affectedAgents = agentRegistry.findAgentIdsByTools(diff.changedKeys());
-                    agentRegistry.refreshAgentsByIds(affectedAgents, "tools-directory");
-                }
         );
         watchedDirs.put(
                 Path.of(skillProperties.getExternalDir()).toAbsolutePath().normalize(),
@@ -160,13 +141,69 @@ public class DirectoryWatchService implements DisposableBean {
     // visible for testing
     DirectoryWatchService(
             AgentRegistry agentRegistry,
-            ViewportRegistryService viewportRegistryService,
-            ToolFileRegistryService toolFileRegistryService,
             SkillRegistryService skillRegistryService,
             Map<Path, Runnable> watchedDirs
     ) {
         this.watchedDirs = watchedDirs;
         start();
+    }
+
+    // visible for legacy tests
+    DirectoryWatchService(
+            AgentRegistry agentRegistry,
+            ModelRegistryService modelRegistryService,
+            ProviderRegistryService providerRegistryService,
+            SkillRegistryService skillRegistryService,
+            Map<Path, Runnable> watchedDirs
+    ) {
+        this(agentRegistry, skillRegistryService, watchedDirs);
+    }
+
+    // visible for legacy tests
+    DirectoryWatchService(
+            AgentRegistry agentRegistry,
+            ViewportRegistryService viewportRegistryService,
+            ToolFileRegistryService toolFileRegistryService,
+            ModelRegistryService modelRegistryService,
+            ProviderRegistryService providerRegistryService,
+            SkillRegistryService skillRegistryService,
+            TeamRegistryService teamRegistryService,
+            McpServerRegistryService mcpServerRegistryService,
+            McpToolSyncService mcpToolSyncService,
+            ViewportServerRegistryService viewportServerRegistryService,
+            ViewportSyncService viewportSyncService,
+            ScheduledQueryOrchestrator scheduledQueryOrchestrator,
+            AgentProperties agentProperties,
+            ViewportProperties viewportProperties,
+            ToolProperties toolProperties,
+            McpProperties mcpProperties,
+            ViewportServerProperties viewportServerProperties,
+            ModelProperties modelProperties,
+            ProviderProperties providerProperties,
+            SkillProperties skillProperties,
+            TeamProperties teamProperties,
+            ScheduleProperties scheduleProperties
+    ) {
+        this(
+                agentRegistry,
+                modelRegistryService,
+                providerRegistryService,
+                skillRegistryService,
+                teamRegistryService,
+                mcpServerRegistryService,
+                mcpToolSyncService,
+                viewportServerRegistryService,
+                viewportSyncService,
+                scheduledQueryOrchestrator,
+                agentProperties,
+                mcpProperties,
+                viewportServerProperties,
+                modelProperties,
+                providerProperties,
+                skillProperties,
+                teamProperties,
+                scheduleProperties
+        );
     }
 
     private void start() {

@@ -9,6 +9,7 @@ import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.skill.SkillRegistryService;
+import com.linlay.agentplatform.tool.ToolFileRegistryService;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
@@ -42,6 +43,9 @@ public class AgentRegistry {
     private final ChatWindowMemoryStore chatWindowMemoryStore;
     private final FrontendSubmitCoordinator frontendSubmitCoordinator;
     private final SkillRegistryService skillRegistryService;
+    private final ToolFileRegistryService toolFileRegistryService;
+    private final AgentMemoryService agentMemoryService;
+    private final AgentExperienceService agentExperienceService;
     private final LoggingAgentProperties loggingAgentProperties;
     private final ToolInvokerRouter toolInvokerRouter;
     private final ActiveRunService activeRunService;
@@ -62,6 +66,9 @@ public class AgentRegistry {
             ChatWindowMemoryStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
+            ToolFileRegistryService toolFileRegistryService,
+            AgentMemoryService agentMemoryService,
+            AgentExperienceService agentExperienceService,
             LoggingAgentProperties loggingAgentProperties,
             ToolInvokerRouter toolInvokerRouter,
             ActiveRunService activeRunService,
@@ -74,11 +81,45 @@ public class AgentRegistry {
         this.chatWindowMemoryStore = chatWindowMemoryStore;
         this.frontendSubmitCoordinator = frontendSubmitCoordinator;
         this.skillRegistryService = skillRegistryService;
+        this.toolFileRegistryService = toolFileRegistryService;
+        this.agentMemoryService = agentMemoryService;
+        this.agentExperienceService = agentExperienceService;
         this.loggingAgentProperties = loggingAgentProperties;
         this.toolInvokerRouter = toolInvokerRouter;
         this.activeRunService = activeRunService;
         this.containerHubSandboxService = containerHubSandboxServiceProvider.getIfAvailable();
         refreshAgents();
+    }
+
+    AgentRegistry(
+            AgentDefinitionLoader definitionLoader,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            ToolInvokerRouter toolInvokerRouter,
+            ActiveRunService activeRunService,
+            ObjectProvider<ContainerHubSandboxService> containerHubSandboxServiceProvider
+    ) {
+        this(
+                definitionLoader,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                new ToolFileRegistryService(objectMapper),
+                new AgentMemoryService(),
+                new AgentExperienceService(),
+                loggingAgentProperties,
+                toolInvokerRouter,
+                activeRunService,
+                containerHubSandboxServiceProvider
+        );
     }
 
     public Agent get(String id) {
@@ -221,10 +262,13 @@ public class AgentRegistry {
                 definition,
                 llmService,
                 toolRegistry,
+                toolFileRegistryService,
                 objectMapper,
                 chatWindowMemoryStore,
                 frontendSubmitCoordinator,
                 skillRegistryService,
+                agentMemoryService,
+                agentExperienceService,
                 loggingAgentProperties,
                 toolInvokerRouter,
                 activeRunService,

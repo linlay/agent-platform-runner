@@ -25,23 +25,15 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
         Path configsDir = tempDir.resolve("configs");
         Files.createDirectories(configsDir);
         Files.writeString(configsDir.resolve("auth.yml"), """
-                agent:
-                  auth:
-                    enabled: false
-                    local-public-key-file: auth/local-public-key.pem
+                enabled: false
+                local-public-key-file: auth/local-public-key.pem
                 """);
         Files.writeString(configsDir.resolve("bash.yml"), """
-                agent:
-                  tools:
-                    bash:
-                      allowed-commands: ls,pwd
+                allowed-commands: ls,pwd
                 """);
         Files.writeString(configsDir.resolve("container-hub.yml"), """
-                agent:
-                  tools:
-                    container-hub:
-                      enabled: true
-                      default-environment-id: shell
+                enabled: true
+                default-environment-id: shell
                 """);
 
         StandardEnvironment environment = new StandardEnvironment();
@@ -56,6 +48,26 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
         assertThat(environment.getProperty("agent.tools.bash.allowed-commands")).isEqualTo("ls,pwd");
         assertThat(environment.getProperty("agent.tools.container-hub.enabled")).isEqualTo("true");
         assertThat(environment.getProperty("agent.tools.container-hub.default-environment-id")).isEqualTo("shell");
+    }
+
+    @Test
+    void shouldFailFastWhenConfigUsesDeprecatedNestedKeys() throws Exception {
+        Path configsDir = tempDir.resolve("configs");
+        Files.createDirectories(configsDir);
+        Files.writeString(configsDir.resolve("auth.yml"), """
+                agent:
+                  auth:
+                    enabled: false
+                """);
+
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
+                ConfigDirectorySupport.CONFIG_DIR_ENV, configsDir.toString()
+        )));
+
+        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("flat keys only");
     }
 
     @Test

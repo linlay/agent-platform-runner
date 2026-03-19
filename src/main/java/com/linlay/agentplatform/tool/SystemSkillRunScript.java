@@ -11,9 +11,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -26,21 +28,29 @@ public class SystemSkillRunScript extends AbstractDeterministicTool {
     private static final int MAX_INLINE_PYTHON_CHARS = 64 * 1024;
     private static final Path INLINE_SCRIPT_ROOT = Path.of("/tmp/agent-platform-skill-inline");
 
-    private final Path skillsRoot;
+    private final List<Path> skillRoots;
     private final String pythonCommand;
     private final String bashCommand;
 
     @Autowired
     public SystemSkillRunScript(SkillProperties properties) {
-        this(Path.of(properties.getExternalDir()), "python3", "bash");
+        this(List.of(Path.of(properties.getExternalDir())), "python3", "bash");
     }
 
-    SystemSkillRunScript(Path skillsRoot) {
-        this(skillsRoot, "python3", "bash");
+    public SystemSkillRunScript(Path localSkillsRoot, Path globalSkillsRoot) {
+        this(orderedRoots(localSkillsRoot, globalSkillsRoot), "python3", "bash");
     }
 
-    SystemSkillRunScript(Path skillsRoot, String pythonCommand, String bashCommand) {
-        this.skillsRoot = skillsRoot.toAbsolutePath().normalize();
+    public SystemSkillRunScript(Path skillsRoot) {
+        this(List.of(skillsRoot), "python3", "bash");
+    }
+
+    public SystemSkillRunScript(Path skillsRoot, String pythonCommand, String bashCommand) {
+        this(List.of(skillsRoot), pythonCommand, bashCommand);
+    }
+
+    SystemSkillRunScript(List<Path> skillRoots, String pythonCommand, String bashCommand) {
+        this.skillRoots = normalizeRoots(skillRoots);
         this.pythonCommand = pythonCommand;
         this.bashCommand = bashCommand;
     }
@@ -54,7 +64,9 @@ public class SystemSkillRunScript extends AbstractDeterministicTool {
     public JsonNode invoke(Map<String, Object> args) {
         ObjectNode result = OBJECT_MAPPER.createObjectNode();
         result.put("tool", name());
-        result.put("skillsRoot", skillsRoot.toString());
+        if (!skillRoots.isEmpty()) {
+            result.put("skillsRoot", skillRoots.getFirst().toString());
+        }
 
         String skill = readText(args, "skill");
         if (skill == null) {
@@ -78,11 +90,8 @@ public class SystemSkillRunScript extends AbstractDeterministicTool {
         }
 
         int timeoutMs = parseTimeoutMs(args == null ? null : args.get("timeoutMs"));
-        Path skillDir = skillsRoot.resolve(skill).normalize();
-        if (!skillDir.startsWith(skillsRoot)) {
-            return failure(result, "Illegal skill path: " + skill);
-        }
-        if (!Files.isDirectory(skillDir)) {
+        Path skillDir = resolveSkillDir(skill);
+        if (skillDir == null) {
             return failure(result, "Skill directory not found: " + skill);
         }
 
@@ -173,6 +182,22 @@ public class SystemSkillRunScript extends AbstractDeterministicTool {
         }
     }
 
+    private Path resolveSkillDir(String skill) {
+        if (skill == null || skill.isBlank()) {
+            return null;
+        }
+        for (Path root : skillRoots) {
+            Path skillDir = root.resolve(skill).normalize();
+            if (!skillDir.startsWith(root)) {
+                continue;
+            }
+            if (Files.isDirectory(skillDir)) {
+                return skillDir;
+            }
+        }
+        return null;
+    }
+
     private void joinQuietly(Thread thread) {
         if (thread == null) {
             return;
@@ -182,6 +207,31 @@ public class SystemSkillRunScript extends AbstractDeterministicTool {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private static List<Path> orderedRoots(Path localSkillsRoot, Path globalSkillsRoot) {
+        List<Path> roots = new ArrayList<>();
+        if (localSkillsRoot != null) {
+            roots.add(localSkillsRoot);
+        }
+        if (globalSkillsRoot != null) {
+            roots.add(globalSkillsRoot);
+        }
+        return roots;
+    }
+
+    private static List<Path> normalizeRoots(List<Path> roots) {
+        if (roots == null || roots.isEmpty()) {
+            return List.of();
+        }
+        Set<Path> normalized = new LinkedHashSet<>();
+        for (Path root : roots) {
+            if (root == null) {
+                continue;
+            }
+            normalized.add(root.toAbsolutePath().normalize());
+        }
+        return normalized.isEmpty() ? List.of() : List.copyOf(normalized);
     }
 
     private Path resolveScriptPath(Path skillDir, String script) {

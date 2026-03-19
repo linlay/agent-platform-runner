@@ -783,6 +783,3 @@ protocols:
 Agent 行为应由 LLM 推理和工具调用驱动（通过 prompt 引导），Java 层只负责编排、流式传输和工具执行管理。
 
 ## 变更记录
-
-一次性改造记录迁移到独立文档，`CLAUDE.md` 仅保留长期有效的架构与契约信息：
-- `docs/changes/2026-02-13-streaming-refactor.md`

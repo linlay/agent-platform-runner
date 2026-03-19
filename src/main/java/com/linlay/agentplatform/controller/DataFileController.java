@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.controller;
 
 import com.linlay.agentplatform.config.ChatImageTokenProperties;
-import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
+import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.security.ChatImageTokenService;
 import com.linlay.agentplatform.security.ChatImageTokenService.VerifyResult;
@@ -63,13 +63,13 @@ public class DataFileController {
     private final LoggingAgentProperties loggingAgentProperties;
 
     public DataFileController(
-            DataProperties properties,
+            ChatWindowMemoryProperties properties,
             ChatImageTokenProperties chatImageTokenProperties,
             ChatImageTokenService chatImageTokenService,
             ChatAssetAccessService chatAssetAccessService,
             LoggingAgentProperties loggingAgentProperties
     ) {
-        this.dataDir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
+        this.dataDir = Path.of(properties.getDir()).toAbsolutePath().normalize();
         this.chatImageTokenService = chatImageTokenService;
         this.chatAssetAccessService = chatAssetAccessService;
         this.dataTokenValidationEnabled = chatImageTokenProperties.isDataTokenValidationEnabled();

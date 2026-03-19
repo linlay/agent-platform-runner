@@ -1,5 +1,22 @@
 package com.linlay.agentplatform.tool;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.linlay.agentplatform.config.ToolProperties;
+import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.util.StringHelpers;
+import com.linlay.agentplatform.util.YamlCatalogSupport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.DependsOn;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.io.support.ResourcePatternResolver;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,21 +31,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.context.annotation.DependsOn;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.linlay.agentplatform.config.ToolProperties;
-import com.linlay.agentplatform.service.CatalogDiff;
-import com.linlay.agentplatform.util.StringHelpers;
-import com.linlay.agentplatform.util.YamlCatalogSupport;
-
 @Service
 @DependsOn("runtimeResourceSyncService")
 public class ToolFileRegistryService {
@@ -36,20 +38,37 @@ public class ToolFileRegistryService {
     private static final Logger log = LoggerFactory.getLogger(ToolFileRegistryService.class);
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
+    private static final String CLASSPATH_PATTERN = "classpath*:/tools/*.{yml,yaml}";
+
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
-    private final ToolProperties properties;
+    private final ResourcePatternResolver resourcePatternResolver;
+    private final Path legacyToolsDir;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, ToolDescriptor> byName = Map.of();
 
-    public ToolFileRegistryService(
-            ObjectMapper objectMapper,
-            ToolProperties properties
-    ) {
+    public ToolFileRegistryService(ObjectMapper objectMapper) {
+        this(objectMapper, new PathMatchingResourcePatternResolver(), null);
+    }
+
+    public ToolFileRegistryService(ObjectMapper objectMapper, ToolProperties properties) {
+        this(
+                objectMapper,
+                new PathMatchingResourcePatternResolver(),
+                properties == null ? null : Path.of(properties.getExternalDir()).toAbsolutePath().normalize()
+        );
+    }
+
+    ToolFileRegistryService(ObjectMapper objectMapper, ResourcePatternResolver resourcePatternResolver) {
+        this(objectMapper, resourcePatternResolver, null);
+    }
+
+    ToolFileRegistryService(ObjectMapper objectMapper, ResourcePatternResolver resourcePatternResolver, Path legacyToolsDir) {
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
-        this.properties = properties;
+        this.resourcePatternResolver = resourcePatternResolver;
+        this.legacyToolsDir = legacyToolsDir;
         refreshTools();
     }
 
@@ -71,39 +90,81 @@ public class ToolFileRegistryService {
             Map<String, ToolDescriptor> before = byName;
             Map<String, ToolDescriptor> loaded = new LinkedHashMap<>();
             Set<String> conflicts = new HashSet<>();
-
-            loadToolsDirectory(Path.of(properties.getExternalDir()).toAbsolutePath().normalize(), loaded, conflicts);
-
+            if (legacyToolsDir != null) {
+                loaded.putAll(loadToolsDirectory(legacyToolsDir));
+            } else {
+                for (Resource resource : classpathResources()) {
+                    parseClasspathResource(resource, loaded, conflicts);
+                }
+            }
             byName = Map.copyOf(loaded);
             CatalogDiff diff = CatalogDiff.between(before, byName);
-            log.debug("Refreshed tool file registry, size={}, changed={}", loaded.size(), diff.changedKeys().size());
+            log.debug("Refreshed classpath tool registry, size={}, changed={}", loaded.size(), diff.changedKeys().size());
             return diff;
         }
     }
 
-    private void loadToolsDirectory(Path dir, Map<String, ToolDescriptor> loaded, Set<String> conflicts) {
-        if (!Files.exists(dir)) {
-            return;
-        }
-        if (!Files.isDirectory(dir)) {
-            log.warn("Configured tools directory is not a directory: {}", dir);
-            return;
+    public Map<String, ToolDescriptor> loadToolsDirectory(Path dir) {
+        Map<String, ToolDescriptor> loaded = new LinkedHashMap<>();
+        Set<String> conflicts = new HashSet<>();
+        if (dir == null || !Files.isDirectory(dir)) {
+            return Map.of();
         }
         for (Path file : YamlCatalogSupport.selectYamlFiles(sortedFiles(dir), "tool", log)) {
-            parseFile(file, loaded, conflicts);
+            parseRawTool(file.toString(), safeReadString(file), loaded, conflicts);
+        }
+        return loaded.isEmpty() ? Map.of() : Map.copyOf(loaded);
+    }
+
+    private List<Resource> classpathResources() {
+        try {
+            Resource[] resources = resourcePatternResolver.getResources(CLASSPATH_PATTERN);
+            List<Resource> resolved = new ArrayList<>();
+            for (Resource resource : resources) {
+                if (resource != null && resource.exists() && resource.isReadable()) {
+                    resolved.add(resource);
+                }
+            }
+            resolved.sort(Comparator.comparing(this::resourceSortKey));
+            return resolved;
+        } catch (IOException ex) {
+            log.warn("Cannot scan classpath tool resources with pattern {}", CLASSPATH_PATTERN, ex);
+            return List.of();
         }
     }
 
-    private void parseFile(
-            Path file,
+    private void parseClasspathResource(
+            Resource resource,
             Map<String, ToolDescriptor> loaded,
             Set<String> conflicts
     ) {
+        String source = resourceDescription(resource);
         String raw;
         try {
-            raw = Files.readString(file);
-        } catch (Exception ex) {
+            raw = resource.getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            log.warn("Skip invalid tool resource: {}", source, ex);
+            return;
+        }
+        parseRawTool(source, raw, loaded, conflicts);
+    }
+
+    private String safeReadString(Path file) {
+        try {
+            return Files.readString(file);
+        } catch (IOException ex) {
             log.warn("Skip invalid tool file: {}", file, ex);
+            return null;
+        }
+    }
+
+    private void parseRawTool(
+            String source,
+            String raw,
+            Map<String, ToolDescriptor> loaded,
+            Set<String> conflicts
+    ) {
+        if (!StringUtils.hasText(raw)) {
             return;
         }
         YamlCatalogSupport.HeaderError headerError = YamlCatalogSupport.validateHeader(
@@ -111,23 +172,23 @@ public class ToolFileRegistryService {
                 List.of("name", "label", "description", "type")
         );
         if (headerError.isPresent()) {
-            log.warn("Skip tool '{}' due to invalid header: {} ({})", file.getFileName(), headerError.value(), file);
+            log.warn("Skip tool '{}' due to invalid header: {} ({})", source, headerError.value(), source);
             return;
         }
         JsonNode root;
         try {
             root = yamlMapper.readTree(raw);
         } catch (Exception ex) {
-            log.warn("Skip invalid tool file: {}", file, ex);
+            log.warn("Skip invalid tool file: {}", source, ex);
             return;
         }
 
         if (!root.isObject()) {
-            log.warn("Skip invalid tool file without object root: {}", file);
+            log.warn("Skip invalid tool file without object root: {}", source);
             return;
         }
         if (root.has("tools") && root.get("tools").isArray()) {
-            log.warn("Skip legacy multi-tool file; tools[] is no longer supported: {}", file);
+            log.warn("Skip legacy multi-tool file; tools[] is no longer supported: {}", source);
             return;
         }
 
@@ -135,7 +196,7 @@ public class ToolFileRegistryService {
         String name = normalize(root.path("name").asText(""));
         String normalizedName = normalizeName(name);
         if (normalizedName.isBlank()) {
-            log.warn("Skip tool file without name: {}", file);
+            log.warn("Skip tool file without name: {}", source);
             return;
         }
         if (conflicts.contains(normalizedName)) {
@@ -167,9 +228,9 @@ public class ToolFileRegistryService {
         );
         if (validationError != null) {
             if (!"function".equalsIgnoreCase(type)) {
-                log.warn("Skip non-function tool file: {}", file);
+                log.warn("Skip non-function tool file: {}", source);
             } else {
-                log.warn("Skip invalid tool file {}: {}", file, validationError);
+                log.warn("Skip invalid tool file {}: {}", source, validationError);
             }
             return;
         }
@@ -184,17 +245,17 @@ public class ToolFileRegistryService {
                 clientVisible,
                 toolAction,
                 toolType,
-                "local",
+                source.startsWith("classpath:") ? "local" : "agent-local",
                 null,
                 viewportKey,
-                file.toString()
+                source
         );
 
         ToolDescriptor old = loaded.putIfAbsent(normalizedName, descriptor);
         if (old != null) {
             loaded.remove(normalizedName);
             conflicts.add(normalizedName);
-            log.warn("Duplicate tool name '{}' found in {} and {}, both skipped", name, old.sourceFile(), file);
+            log.warn("Duplicate tool name '{}' found in {} and {}, both skipped", name, old.sourceFile(), source);
         }
     }
 
@@ -211,10 +272,7 @@ public class ToolFileRegistryService {
     }
 
     private Map<String, Object> parseInputSchema(JsonNode node) {
-        if (node == null || node.isNull()) {
-            return null;
-        }
-        if (!node.isObject()) {
+        if (node == null || node.isNull() || !node.isObject()) {
             return null;
         }
         try {
@@ -242,5 +300,21 @@ public class ToolFileRegistryService {
 
     private String normalize(String value) {
         return StringHelpers.trimToEmpty(value);
+    }
+
+    private String resourceSortKey(Resource resource) {
+        try {
+            return resource.getURL().toString();
+        } catch (IOException ex) {
+            return resourceDescription(resource);
+        }
+    }
+
+    private String resourceDescription(Resource resource) {
+        try {
+            return "classpath:" + resource.getURL();
+        } catch (IOException ex) {
+            return String.valueOf(resource);
+        }
     }
 }

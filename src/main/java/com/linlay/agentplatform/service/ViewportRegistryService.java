@@ -6,13 +6,14 @@ import com.linlay.agentplatform.model.ViewportType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,7 +21,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Stream;
 
 @Service
 @DependsOn("runtimeResourceSyncService")
@@ -28,19 +28,35 @@ public class ViewportRegistryService {
 
     private static final Logger log = LoggerFactory.getLogger(ViewportRegistryService.class);
     private static final Set<String> SUPPORTED_SUFFIXES = Set.of(".html", ".qlc");
+    private static final String CLASSPATH_PATTERN = "classpath*:/viewports/*";
 
     private final ObjectMapper objectMapper;
-    private final ViewportProperties properties;
+    private final ResourcePatternResolver resourcePatternResolver;
+    private final java.nio.file.Path legacyViewportDir;
 
     private final Object refreshLock = new Object();
     private volatile Map<String, ViewportEntry> byKey = Map.of();
 
-    public ViewportRegistryService(
-            ObjectMapper objectMapper,
-            ViewportProperties properties
-    ) {
+    public ViewportRegistryService(ObjectMapper objectMapper) {
+        this(objectMapper, new PathMatchingResourcePatternResolver(), null);
+    }
+
+    public ViewportRegistryService(ObjectMapper objectMapper, ViewportProperties properties) {
+        this(
+                objectMapper,
+                new PathMatchingResourcePatternResolver(),
+                properties == null ? null : java.nio.file.Path.of(properties.getExternalDir()).toAbsolutePath().normalize()
+        );
+    }
+
+    ViewportRegistryService(ObjectMapper objectMapper, ResourcePatternResolver resourcePatternResolver) {
+        this(objectMapper, resourcePatternResolver, null);
+    }
+
+    ViewportRegistryService(ObjectMapper objectMapper, ResourcePatternResolver resourcePatternResolver, java.nio.file.Path legacyViewportDir) {
         this.objectMapper = objectMapper;
-        this.properties = properties;
+        this.resourcePatternResolver = resourcePatternResolver;
+        this.legacyViewportDir = legacyViewportDir;
         refreshViewports();
     }
 
@@ -54,47 +70,66 @@ public class ViewportRegistryService {
 
     public void refreshViewports() {
         synchronized (refreshLock) {
-            Path dir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
             Map<String, ViewportEntry> updated = new LinkedHashMap<>();
-
-            if (!Files.exists(dir)) {
-                byKey = Map.of();
-                return;
+            if (legacyViewportDir != null) {
+                for (Resource resource : fileResources()) {
+                    tryLoad(resource).ifPresent(entry -> updated.putIfAbsent(entry.viewportKey(), entry));
+                }
+            } else {
+                for (Resource resource : classpathResources()) {
+                    tryLoad(resource).ifPresent(entry -> {
+                        String key = entry.viewportKey();
+                        if (updated.containsKey(key)) {
+                            log.warn("Duplicate viewportKey '{}' detected, skip resource {}", key, resource);
+                            return;
+                        }
+                        updated.put(key, entry);
+                    });
+                }
             }
-            if (!Files.isDirectory(dir)) {
-                log.warn("Configured viewport external path is not a directory: {}", dir);
-                return;
-            }
-
-            List<Path> files = new ArrayList<>();
-            try (Stream<Path> stream = Files.list(dir)) {
-                stream.filter(Files::isRegularFile)
-                        .filter(this::isSupported)
-                        .sorted(Comparator.comparing(path -> path.getFileName().toString()))
-                        .forEach(files::add);
-            } catch (IOException ex) {
-                log.warn("Cannot list viewport files from {}", dir, ex);
-                return;
-            }
-
-            for (Path file : files) {
-                tryLoad(file).ifPresent(entry -> {
-                    String key = entry.viewportKey();
-                    if (updated.containsKey(key)) {
-                        log.warn("Duplicate viewportKey '{}' detected, skip file {}", key, file);
-                        return;
-                    }
-                    updated.put(key, entry);
-                });
-            }
-
             byKey = Map.copyOf(updated);
-            log.debug("Refreshed viewport registry, size={}, dir={}", updated.size(), dir);
+            log.debug("Refreshed classpath viewport registry, size={}", updated.size());
         }
     }
 
-    private Optional<ViewportEntry> tryLoad(Path file) {
-        String fileName = file.getFileName().toString();
+    private List<Resource> fileResources() {
+        if (legacyViewportDir == null || !java.nio.file.Files.isDirectory(legacyViewportDir)) {
+            return List.of();
+        }
+        try (var stream = java.nio.file.Files.list(legacyViewportDir)) {
+            return stream.filter(java.nio.file.Files::isRegularFile)
+                    .filter(path -> {
+                        String fileName = path.getFileName().toString();
+                        return resolveSuffix(fileName) != null;
+                    })
+                    .sorted()
+                    .map(path -> (Resource) new org.springframework.core.io.FileSystemResource(path))
+                    .toList();
+        } catch (IOException ex) {
+            log.warn("Cannot list viewport files from {}", legacyViewportDir, ex);
+            return List.of();
+        }
+    }
+
+    private List<Resource> classpathResources() {
+        try {
+            Resource[] resources = resourcePatternResolver.getResources(CLASSPATH_PATTERN);
+            return java.util.Arrays.stream(resources)
+                    .filter(resource -> resource != null && resource.exists() && resource.isReadable())
+                    .filter(this::isSupported)
+                    .sorted(Comparator.comparing(this::resourceSortKey))
+                    .toList();
+        } catch (IOException ex) {
+            log.warn("Cannot list viewport resources from {}", CLASSPATH_PATTERN, ex);
+            return List.of();
+        }
+    }
+
+    private Optional<ViewportEntry> tryLoad(Resource resource) {
+        String fileName = resource.getFilename();
+        if (!StringUtils.hasText(fileName)) {
+            return Optional.empty();
+        }
         String suffix = resolveSuffix(fileName);
         if (suffix == null) {
             return Optional.empty();
@@ -102,7 +137,7 @@ public class ViewportRegistryService {
         String baseName = fileName.substring(0, fileName.length() - suffix.length());
         String viewportKey = normalizeKey(baseName);
         if (viewportKey.isBlank()) {
-            log.warn("Skip viewport file with empty key: {}", file);
+            log.warn("Skip viewport resource with empty key: {}", resource);
             return Optional.empty();
         }
 
@@ -112,23 +147,20 @@ public class ViewportRegistryService {
         }
 
         try {
-            String raw = Files.readString(file);
-            Object payload;
-            if (type == ViewportType.HTML) {
-                payload = raw;
-            } else {
-                payload = objectMapper.readValue(raw, Object.class);
-            }
+            String raw = resource.getContentAsString(StandardCharsets.UTF_8);
+            Object payload = type == ViewportType.HTML
+                    ? raw
+                    : objectMapper.readValue(raw, Object.class);
             return Optional.of(new ViewportEntry(viewportKey, type, payload));
         } catch (Exception ex) {
-            log.warn("Skip invalid viewport file: {}", file, ex);
+            log.warn("Skip invalid viewport resource: {}", resource, ex);
             return Optional.empty();
         }
     }
 
-    private boolean isSupported(Path file) {
-        String fileName = file.getFileName().toString().toLowerCase(Locale.ROOT);
-        return resolveSuffix(fileName) != null;
+    private boolean isSupported(Resource resource) {
+        String fileName = resource.getFilename();
+        return StringUtils.hasText(fileName) && resolveSuffix(fileName) != null;
     }
 
     private String resolveSuffix(String fileName) {
@@ -150,6 +182,14 @@ public class ViewportRegistryService {
 
     private String normalizeKey(String raw) {
         return raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String resourceSortKey(Resource resource) {
+        try {
+            return resource.getURL().toString();
+        } catch (IOException ex) {
+            return String.valueOf(resource);
+        }
     }
 
     public record ViewportEntry(

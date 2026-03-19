@@ -19,8 +19,11 @@ public class LocalToolInvoker implements ToolInvoker {
 
     @Override
     public JsonNode invoke(String toolName, Map<String, Object> args, ExecutionContext context) {
-        BaseTool tool = toolRegistry.nativeTool(toolName)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown tool: " + toolName));
+        BaseTool tool = context == null ? null : context.localNativeTool(toolName);
+        if (tool == null) {
+            tool = toolRegistry.nativeTool(toolName)
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown tool: " + toolName));
+        }
         if (tool instanceof ContextAwareTool contextAwareTool) {
             return contextAwareTool.invoke(args, context);
         }

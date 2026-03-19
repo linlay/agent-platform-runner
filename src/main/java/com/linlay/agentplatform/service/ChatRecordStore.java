@@ -341,7 +341,16 @@ public class ChatRecordStore {
     }
 
     private Path resolveHistoryPath(String chatId) {
-        return resolveBaseDir().resolve(chatId + ".json");
+        Path baseDir = resolveBaseDir();
+        Path jsonl = baseDir.resolve(chatId + ".jsonl");
+        if (Files.exists(jsonl)) {
+            return jsonl;
+        }
+        Path legacy = baseDir.resolve(chatId + ".json");
+        if (Files.exists(legacy)) {
+            return legacy;
+        }
+        return jsonl;
     }
 
     private JsonNode parseLine(String line) {

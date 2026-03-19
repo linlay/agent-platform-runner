@@ -12,13 +12,8 @@ agent:
   agents:
     external-dir: ${AGENTS_DIR:agents}
     refresh-interval-ms: ${AGENT_AGENTS_REFRESH_INTERVAL_MS:10000}
-  viewports:
-    external-dir: ${VIEWPORTS_DIR:viewports}
-    refresh-interval-ms: ${AGENT_VIEWPORTS_REFRESH_INTERVAL_MS:30000}
-  data:
-    external-dir: ${DATA_DIR:data}
   skills:
-    external-dir: ${SKILLS_DIR:skills}
+    external-dir: ${SKILLS_MARKET_DIR:skills-market}
     refresh-interval-ms: ${AGENT_SKILLS_REFRESH_INTERVAL_MS:30000}
     max-prompt-chars: ${AGENT_SKILLS_MAX_PROMPT_CHARS:8000}
   teams:
@@ -52,8 +47,6 @@ agent:
     registry:
       external-dir: ${VIEWPORT_SERVERS_DIR:viewport-servers}
   tools:
-    external-dir: ${TOOLS_DIR:tools}
-    refresh-interval-ms: ${AGENT_TOOLS_REFRESH_INTERVAL_MS:30000}
     frontend:
       submit-timeout-ms: ${AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS:300000}
     bash:
@@ -77,10 +70,8 @@ agent:
         user-dir: ${AGENT_CONTAINER_HUB_MOUNTS_USER_DIR:./user}
         skills-dir: ${AGENT_CONTAINER_HUB_MOUNTS_SKILLS_DIR:}
         pan-dir: ${AGENT_CONTAINER_HUB_MOUNTS_PAN_DIR:./pan}
-        tools-dir: ${AGENT_CONTAINER_HUB_MOUNTS_TOOLS_DIR:}
         agents-dir: ${AGENT_CONTAINER_HUB_MOUNTS_AGENTS_DIR:}
         models-dir: ${AGENT_CONTAINER_HUB_MOUNTS_MODELS_DIR:}
-        viewports-dir: ${AGENT_CONTAINER_HUB_MOUNTS_VIEWPORTS_DIR:}
         teams-dir: ${AGENT_CONTAINER_HUB_MOUNTS_TEAMS_DIR:}
         schedules-dir: ${AGENT_CONTAINER_HUB_MOUNTS_SCHEDULES_DIR:}
         mcp-servers-dir: ${AGENT_CONTAINER_HUB_MOUNTS_MCP_SERVERS_DIR:}

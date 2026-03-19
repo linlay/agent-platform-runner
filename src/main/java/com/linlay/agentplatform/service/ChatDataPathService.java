@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.service;
 
 import com.linlay.agentplatform.config.DataProperties;
+import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -12,6 +13,10 @@ import java.util.UUID;
 public class ChatDataPathService {
 
     private final Path dataDir;
+
+    public ChatDataPathService(ChatWindowMemoryProperties properties) {
+        this.dataDir = Path.of(properties.getDir()).toAbsolutePath().normalize();
+    }
 
     public ChatDataPathService(DataProperties properties) {
         this.dataDir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();

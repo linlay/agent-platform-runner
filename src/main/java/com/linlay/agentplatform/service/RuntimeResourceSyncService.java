@@ -27,37 +27,24 @@ public class RuntimeResourceSyncService {
     private static final Logger log = LoggerFactory.getLogger(RuntimeResourceSyncService.class);
 
     private final ResourcePatternResolver resourceResolver;
-    private final Path toolsDir;
-    private final Path skillsDir;
     private final Path schedulesDir;
-
-    public RuntimeResourceSyncService(
-            ToolProperties toolProperties,
-            SkillProperties skillProperties
-    ) {
-        this(toolProperties, skillProperties, new ScheduleProperties());
-    }
 
     @Autowired
     public RuntimeResourceSyncService(
-            ToolProperties toolProperties,
-            SkillProperties skillProperties,
             ScheduleProperties scheduleProperties
     ) {
         this(
                 new PathMatchingResourcePatternResolver(),
-                Path.of(toolProperties.getExternalDir()).toAbsolutePath().normalize(),
-                Path.of(skillProperties.getExternalDir()).toAbsolutePath().normalize(),
                 Path.of(scheduleProperties.getExternalDir()).toAbsolutePath().normalize()
         );
     }
 
     RuntimeResourceSyncService(
             ResourcePatternResolver resourceResolver,
-            Path toolsDir,
-            Path skillsDir
+            Path schedulesDir
     ) {
-        this(resourceResolver, toolsDir, skillsDir, null);
+        this.resourceResolver = resourceResolver;
+        this.schedulesDir = schedulesDir;
     }
 
     RuntimeResourceSyncService(
@@ -66,16 +53,27 @@ public class RuntimeResourceSyncService {
             Path skillsDir,
             Path schedulesDir
     ) {
-        this.resourceResolver = resourceResolver;
-        this.toolsDir = toolsDir;
-        this.skillsDir = skillsDir;
-        this.schedulesDir = schedulesDir;
+        this(resourceResolver, schedulesDir);
+    }
+
+    RuntimeResourceSyncService(
+            ResourcePatternResolver resourceResolver,
+            Path toolsDir,
+            Path skillsDir
+    ) {
+        this(resourceResolver, (Path) null);
+    }
+
+    RuntimeResourceSyncService(
+            ToolProperties toolProperties,
+            SkillProperties skillProperties,
+            ScheduleProperties scheduleProperties
+    ) {
+        this(scheduleProperties);
     }
 
     @PostConstruct
     public void syncRuntimeDirectories() {
-        syncResourceDirectory("tools", toolsDir);
-        syncResourceDirectory("skills", skillsDir);
         syncResourceDirectory("schedules", schedulesDir);
     }
 

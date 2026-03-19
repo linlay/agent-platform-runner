@@ -9,6 +9,7 @@ import java.util.Map;
 public final class RuntimeDirectoryEnvironmentSupport {
 
     private static final Map<String, String> DEPRECATED_DIRECTORY_VARIABLES = deprecatedDirectoryVariables();
+    private static final Map<String, String> DEPRECATED_PROPERTIES = deprecatedProperties();
 
     private RuntimeDirectoryEnvironmentSupport() {
     }
@@ -26,6 +27,19 @@ public final class RuntimeDirectoryEnvironmentSupport {
         }
     }
 
+    public static void validateNoDeprecatedProperties(ConfigurableEnvironment environment) {
+        if (environment == null) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : DEPRECATED_PROPERTIES.entrySet()) {
+            String configured = environment.getProperty(entry.getKey());
+            if (StringUtils.hasText(configured)) {
+                throw new IllegalStateException("Deprecated property '" + entry.getKey()
+                        + "' is no longer supported. Use '" + entry.getValue() + "' or the new directory layout instead.");
+            }
+        }
+    }
+
     private static Map<String, String> deprecatedDirectoryVariables() {
         LinkedHashMap<String, String> vars = new LinkedHashMap<>();
         vars.put("AGENT_CONFIG_DIR", "CONFIGS_DIR");
@@ -33,14 +47,28 @@ public final class RuntimeDirectoryEnvironmentSupport {
         vars.put("AGENT_TEAMS_EXTERNAL_DIR", "TEAMS_DIR");
         vars.put("AGENT_MODELS_EXTERNAL_DIR", "MODELS_DIR");
         vars.put("AGENT_PROVIDERS_EXTERNAL_DIR", "PROVIDERS_DIR");
-        vars.put("AGENT_TOOLS_EXTERNAL_DIR", "TOOLS_DIR");
-        vars.put("AGENT_SKILLS_EXTERNAL_DIR", "SKILLS_DIR");
-        vars.put("AGENT_VIEWPORTS_EXTERNAL_DIR", "VIEWPORTS_DIR");
+        vars.put("AGENT_TOOLS_EXTERNAL_DIR", "classpath:/tools");
+        vars.put("AGENT_SKILLS_EXTERNAL_DIR", "SKILLS_MARKET_DIR");
+        vars.put("AGENT_VIEWPORTS_EXTERNAL_DIR", "classpath:/viewports");
         vars.put("AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR", "MCP_SERVERS_DIR");
         vars.put("AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR", "VIEWPORT_SERVERS_DIR");
         vars.put("AGENT_SCHEDULE_EXTERNAL_DIR", "SCHEDULES_DIR");
-        vars.put("AGENT_DATA_EXTERNAL_DIR", "DATA_DIR");
+        vars.put("AGENT_DATA_EXTERNAL_DIR", "CHATS_DIR");
         vars.put("MEMORY_CHATS_DIR", "CHATS_DIR");
+        vars.put("SKILLS_DIR", "SKILLS_MARKET_DIR");
+        vars.put("TOOLS_DIR", "classpath:/tools");
+        vars.put("VIEWPORTS_DIR", "classpath:/viewports");
+        vars.put("DATA_DIR", "CHATS_DIR");
+        return Map.copyOf(vars);
+    }
+
+    private static Map<String, String> deprecatedProperties() {
+        LinkedHashMap<String, String> vars = new LinkedHashMap<>();
+        vars.put("agent.tools.external-dir", "classpath tools");
+        vars.put("agent.tools.refresh-interval-ms", "removed");
+        vars.put("agent.viewports.external-dir", "classpath viewports");
+        vars.put("agent.viewports.refresh-interval-ms", "removed");
+        vars.put("agent.data.external-dir", "memory.chats.dir");
         return Map.copyOf(vars);
     }
 }

@@ -30,6 +30,7 @@ import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolFileRegistryService;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
@@ -45,6 +46,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.nio.file.Path;
 
 public class DefinitionDrivenAgent implements Agent {
 
@@ -53,11 +56,17 @@ public class DefinitionDrivenAgent implements Agent {
     private final AgentDefinition definition;
     private final ChatWindowMemoryStore chatWindowMemoryStore;
     private final ToolRegistry toolRegistry;
+    private final ToolFileRegistryService toolFileRegistryService;
     private final Map<String, BaseTool> configuredToolsByName;
+    private final Map<String, ToolDescriptor> configuredToolDescriptorsByName;
+    private final Map<String, ToolDescriptor> localToolDescriptorsByName;
+    private final Map<String, BaseTool> localNativeToolsByName;
     private final List<String> effectiveToolNames;
     private final OrchestratorServices services;
     private final ObjectMapper objectMapper;
     private final SkillRegistryService skillRegistryService;
+    private final AgentMemoryService agentMemoryService;
+    private final AgentExperienceService agentExperienceService;
     private final ActiveRunService activeRunService;
     private final ContainerHubSandboxService containerHubSandboxService;
     private final AgentRunSnapshotLogger snapshotLogger;
@@ -67,10 +76,13 @@ public class DefinitionDrivenAgent implements Agent {
             AgentDefinition definition,
             LlmService llmService,
             ToolRegistry toolRegistry,
+            ToolFileRegistryService toolFileRegistryService,
             ObjectMapper objectMapper,
             ChatWindowMemoryStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
+            AgentMemoryService agentMemoryService,
+            AgentExperienceService agentExperienceService,
             LoggingAgentProperties loggingAgentProperties,
             ToolInvoker toolInvoker,
             ActiveRunService activeRunService,
@@ -78,14 +90,20 @@ public class DefinitionDrivenAgent implements Agent {
     ) {
         this.definition = definition;
         this.toolRegistry = toolRegistry;
+        this.toolFileRegistryService = toolFileRegistryService;
         this.chatWindowMemoryStore = chatWindowMemoryStore;
         this.objectMapper = objectMapper;
         this.skillRegistryService = skillRegistryService;
+        this.agentMemoryService = agentMemoryService;
+        this.agentExperienceService = agentExperienceService;
         this.activeRunService = activeRunService;
         this.containerHubSandboxService = containerHubSandboxService;
-        Map<String, BaseTool> resolvedTools = resolveConfiguredTools(definition.tools());
-        this.configuredToolsByName = resolvedTools;
-        this.effectiveToolNames = List.copyOf(resolvedTools.keySet());
+        this.localToolDescriptorsByName = loadLocalToolDescriptors();
+        ToolResolution toolResolution = resolveConfiguredTools(definition.tools());
+        this.configuredToolsByName = toolResolution.tools();
+        this.configuredToolDescriptorsByName = toolResolution.descriptors();
+        this.localNativeToolsByName = toolResolution.localNativeTools();
+        this.effectiveToolNames = List.copyOf(toolResolution.tools().keySet());
         this.snapshotLogger = new AgentRunSnapshotLogger(
                 log,
                 objectMapper,
@@ -106,6 +124,37 @@ public class DefinitionDrivenAgent implements Agent {
         );
         this.services = new OrchestratorServices(llmService, toolExecutionService, objectMapper);
         this.runLifecycle = new AgentRunLifecycle(definition.id(), containerHubSandboxService);
+    }
+
+    public DefinitionDrivenAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            ToolInvoker toolInvoker,
+            ActiveRunService activeRunService,
+            ContainerHubSandboxService containerHubSandboxService
+    ) {
+        this(
+                definition,
+                llmService,
+                toolRegistry,
+                new ToolFileRegistryService(objectMapper),
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService == null ? new SkillRegistryService(new com.linlay.agentplatform.skill.SkillProperties()) : skillRegistryService,
+                new AgentMemoryService(),
+                new AgentExperienceService(),
+                loggingAgentProperties,
+                toolInvoker,
+                activeRunService,
+                containerHubSandboxService
+        );
     }
 
     @Override
@@ -194,10 +243,15 @@ public class DefinitionDrivenAgent implements Agent {
                             latestSystem
                     );
                     SkillPromptBundle skillPromptBundle = resolveSkillPrompts();
+                    Map<String, String> skillExperiencePrompts = resolveSkillExperiencePrompts(skillPromptBundle.resolvedSkillsById());
                     ExecutionContext context = ExecutionContext.builder(definition, request)
                             .historyMessages(historyMessages)
+                            .baseSystemPrompt(buildBaseSystemPrompt())
                             .skillCatalogPrompt(skillPromptBundle.catalogPrompt())
                             .resolvedSkillsById(skillPromptBundle.resolvedSkillsById())
+                            .skillExperiencePromptById(skillExperiencePrompts)
+                            .resolvedToolDescriptorsByName(configuredToolDescriptorsByName)
+                            .localNativeToolsByName(localNativeToolsByName)
                             .runControl(runControl)
                             .build();
                     if (latestPlanSnapshot != null) {
@@ -220,9 +274,11 @@ public class DefinitionDrivenAgent implements Agent {
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
-    private Map<String, BaseTool> resolveConfiguredTools(List<String> configuredTools) {
+    private ToolResolution resolveConfiguredTools(List<String> configuredTools) {
         List<String> requested = configuredTools == null ? List.of() : configuredTools;
         Map<String, BaseTool> resolved = new LinkedHashMap<>();
+        Map<String, ToolDescriptor> descriptors = new LinkedHashMap<>();
+        Map<String, BaseTool> localNativeTools = new LinkedHashMap<>();
         for (String rawName : requested) {
             String name = normalizeToolName(rawName);
             if (name.isBlank()) {
@@ -236,15 +292,24 @@ public class DefinitionDrivenAgent implements Agent {
                 );
                 continue;
             }
-            ToolDescriptor descriptor = toolRegistry.descriptor(name).orElse(null);
+            ToolDescriptor descriptor = resolveToolDescriptor(name);
             if (descriptor == null) {
                 log.warn("[agent:{}] configured tool currently not registered, keep runtime placeholder: {}", id(), name);
                 resolved.put(name, ConfiguredToolAdapters.declaredPlaceholder(name));
             } else {
                 resolved.put(name, ConfiguredToolAdapters.resolvedConfiguredTool(name, descriptor));
+                descriptors.put(name, descriptor);
+                BaseTool nativeOverride = createLocalNativeToolOverride(name);
+                if (nativeOverride != null) {
+                    localNativeTools.put(name, nativeOverride);
+                }
             }
         }
-        return Map.copyOf(resolved);
+        return new ToolResolution(
+                Map.copyOf(resolved),
+                descriptors.isEmpty() ? Map.of() : Map.copyOf(descriptors),
+                localNativeTools.isEmpty() ? Map.of() : Map.copyOf(localNativeTools)
+        );
     }
 
     private String normalizeToolName(String raw) {
@@ -256,17 +321,23 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     private SkillPromptBundle resolveSkillPrompts() {
-        if (skillRegistryService == null || definition.skills().isEmpty()) {
+        if (skillRegistryService == null) {
+            return new SkillPromptBundle("", Map.of());
+        }
+        List<String> configuredSkills = new ArrayList<>();
+        configuredSkills.addAll(definition.perAgentSkills());
+        configuredSkills.addAll(definition.skills());
+        if (configuredSkills.isEmpty()) {
             return new SkillPromptBundle("", Map.of());
         }
         List<String> catalogBlocks = new ArrayList<>();
         Map<String, SkillDescriptor> resolvedSkillsById = new LinkedHashMap<>();
-        for (String configuredSkill : definition.skills()) {
+        for (String configuredSkill : configuredSkills) {
             String skillId = normalize(configuredSkill, "").trim().toLowerCase(Locale.ROOT);
             if (!StringUtils.hasText(skillId)) {
                 continue;
             }
-            SkillDescriptor descriptor = skillRegistryService.find(skillId).orElse(null);
+            SkillDescriptor descriptor = resolveSkillDescriptor(skillId);
             if (descriptor == null) {
                 log.warn("[agent:{}] configured skill not found and will be ignored: {}", id(), skillId);
                 continue;
@@ -288,6 +359,77 @@ public class DefinitionDrivenAgent implements Agent {
         String catalogPrompt = definition.agentMode().skillAppend().catalogHeader() + "\n\n"
                 + String.join("\n\n---\n\n", catalogBlocks);
         return new SkillPromptBundle(catalogPrompt, Map.copyOf(resolvedSkillsById));
+    }
+
+    private Map<String, ToolDescriptor> loadLocalToolDescriptors() {
+        if (toolFileRegistryService == null || definition.agentDir() == null) {
+            return Map.of();
+        }
+        Path toolsDir = definition.agentDir().resolve("tools");
+        return toolFileRegistryService.loadToolsDirectory(toolsDir);
+    }
+
+    private ToolDescriptor resolveToolDescriptor(String name) {
+        ToolDescriptor local = localToolDescriptorsByName.get(name);
+        if (local != null) {
+            return local;
+        }
+        return toolRegistry.descriptor(name).orElse(null);
+    }
+
+    private BaseTool createLocalNativeToolOverride(String name) {
+        if ("_skill_run_script_".equals(name) && definition.agentDir() != null) {
+            Path globalSkillsRoot = skillRegistryService == null ? null : skillRegistryService.skillsRoot();
+            Path localSkillsRoot = definition.agentDir().resolve("skills");
+            return new com.linlay.agentplatform.tool.SystemSkillRunScript(localSkillsRoot, globalSkillsRoot);
+        }
+        return null;
+    }
+
+    private SkillDescriptor resolveSkillDescriptor(String skillId) {
+        if (definition.agentDir() != null) {
+            Path perAgentSkillsDir = definition.agentDir().resolve("skills");
+            Optional<SkillDescriptor> local = skillRegistryService.findForAgent(skillId, perAgentSkillsDir);
+            if (local.isPresent()) {
+                return local.get();
+            }
+        }
+        return skillRegistryService.find(skillId).orElse(null);
+    }
+
+    private Map<String, String> resolveSkillExperiencePrompts(Map<String, SkillDescriptor> resolvedSkillsById) {
+        if (agentExperienceService == null || definition.agentDir() == null || resolvedSkillsById == null || resolvedSkillsById.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> prompts = new LinkedHashMap<>();
+        for (Map.Entry<String, SkillDescriptor> entry : resolvedSkillsById.entrySet()) {
+            String skillId = normalize(entry.getKey(), "").trim().toLowerCase(Locale.ROOT);
+            if (!StringUtils.hasText(skillId)) {
+                continue;
+            }
+            String prompt = agentExperienceService.formatForPrompt(
+                    agentExperienceService.loadExperiencesForSkill(definition.agentDir(), skillId)
+            );
+            if (StringUtils.hasText(prompt)) {
+                prompts.put(skillId, prompt);
+            }
+        }
+        return prompts.isEmpty() ? Map.of() : Map.copyOf(prompts);
+    }
+
+    private String buildBaseSystemPrompt() {
+        List<String> sections = new ArrayList<>();
+        if (StringUtils.hasText(definition.soulContent())) {
+            sections.add(definition.soulContent().trim());
+        }
+        if (StringUtils.hasText(definition.agentsContent())) {
+            sections.add(definition.agentsContent().trim());
+        }
+        String memoryPrompt = agentMemoryService == null ? null : agentMemoryService.loadMemory(definition.agentDir());
+        if (StringUtils.hasText(memoryPrompt)) {
+            sections.add("Memory:\n" + memoryPrompt.trim());
+        }
+        return String.join("\n\n", sections);
     }
 
     private List<ChatMessage> loadHistoryMessages(String chatId) {
@@ -375,7 +517,14 @@ public class DefinitionDrivenAgent implements Agent {
                     .sorted(java.util.Comparator.comparing(BaseTool::name))
                     .map(tool -> {
                         ChatMemoryTypes.SystemToolSnapshot item = new ChatMemoryTypes.SystemToolSnapshot();
-                        item.type = toolRegistry.toolCallType(tool.name());
+                        ToolDescriptor descriptor = resolveToolDescriptor(tool.name());
+                        item.type = descriptor == null
+                                ? toolRegistry.toolCallType(tool.name())
+                                : (descriptor.isAction()
+                                        ? "action"
+                                        : (descriptor.isFrontend() && StringUtils.hasText(descriptor.toolType())
+                                                ? descriptor.toolType()
+                                                : "function"));
                         item.name = tool.name();
                         item.description = tool.description();
                         item.parameters = tool.parametersSchema();
@@ -414,6 +563,13 @@ public class DefinitionDrivenAgent implements Agent {
 
     private String normalizeStatus(String raw) {
         return AgentDelta.normalizePlanTaskStatus(raw);
+    }
+
+    private record ToolResolution(
+            Map<String, BaseTool> tools,
+            Map<String, ToolDescriptor> descriptors,
+            Map<String, BaseTool> localNativeTools
+    ) {
     }
 
 }

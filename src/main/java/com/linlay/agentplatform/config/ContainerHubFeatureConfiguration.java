@@ -4,6 +4,7 @@ import com.linlay.agentplatform.agent.AgentProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
+import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
@@ -47,12 +48,10 @@ public class ContainerHubFeatureConfiguration {
     @Bean
     public ContainerHubMountResolver containerHubMountResolver(
             ContainerHubToolProperties properties,
-            DataProperties dataProperties,
+            ChatWindowMemoryProperties chatWindowMemoryProperties,
             SkillProperties skillProperties,
-            ToolProperties toolProperties,
             AgentProperties agentProperties,
             ModelProperties modelProperties,
-            ViewportProperties viewportProperties,
             TeamProperties teamProperties,
             ScheduleProperties scheduleProperties,
             McpProperties mcpProperties,
@@ -60,12 +59,10 @@ public class ContainerHubFeatureConfiguration {
     ) {
         return new ContainerHubMountResolver(
                 properties,
-                dataProperties,
+                chatWindowMemoryProperties,
                 skillProperties,
-                toolProperties,
                 agentProperties,
                 modelProperties,
-                viewportProperties,
                 teamProperties,
                 scheduleProperties,
                 mcpProperties,

@@ -27,7 +27,10 @@ public class ToolInvokerRouter implements ToolInvoker {
 
     @Override
     public JsonNode invoke(String toolName, Map<String, Object> args, ExecutionContext context) {
-        ToolDescriptor descriptor = toolRegistry.descriptor(toolName).orElse(null);
+        ToolDescriptor descriptor = context == null ? null : context.toolDescriptor(toolName);
+        if (descriptor == null) {
+            descriptor = toolRegistry.descriptor(toolName).orElse(null);
+        }
         if (descriptor != null && "mcp".equalsIgnoreCase(descriptor.sourceType())) {
             if (mcpToolInvoker == null) {
                 throw new IllegalStateException("MCP tool invoker is not available");

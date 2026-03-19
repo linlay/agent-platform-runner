@@ -52,11 +52,29 @@ public class SkillRegistryService {
         return Optional.ofNullable(byId.get(normalized));
     }
 
+    public Path skillsRoot() {
+        return Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
+    }
+
+    public Optional<SkillDescriptor> findForAgent(String skillId, Path perAgentSkillsDir) {
+        String normalized = normalizeSkillId(skillId);
+        if (!StringUtils.hasText(normalized)) {
+            return Optional.empty();
+        }
+        if (perAgentSkillsDir != null) {
+            Optional<SkillDescriptor> local = loadSkill(perAgentSkillsDir, normalized);
+            if (local.isPresent()) {
+                return local;
+            }
+        }
+        return find(normalized);
+    }
+
     public CatalogDiff refreshSkills() {
         synchronized (reloadLock) {
             Map<String, SkillDescriptor> before = byId;
             Map<String, SkillDescriptor> loaded = new LinkedHashMap<>();
-            Path dir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
+            Path dir = skillsRoot();
             if (!Files.exists(dir)) {
                 byId = Map.of();
                 return CatalogDiff.between(before, byId);
@@ -81,7 +99,8 @@ public class SkillRegistryService {
                             if (!Files.isDirectory(path)) {
                                 return;
                             }
-                            loadSkill(path).ifPresent(descriptor -> {
+                            String skillId = normalizeSkillId(path.getFileName() == null ? "" : path.getFileName().toString());
+                            loadSkill(dir, skillId).ifPresent(descriptor -> {
                                 SkillDescriptor old = loaded.putIfAbsent(descriptor.id(), descriptor);
                                 if (old != null) {
                                     log.warn(
@@ -104,12 +123,17 @@ public class SkillRegistryService {
         }
     }
 
-    private Optional<SkillDescriptor> loadSkill(Path skillDir) {
-        String id = normalizeSkillId(skillDir.getFileName() == null ? "" : skillDir.getFileName().toString());
+    private Optional<SkillDescriptor> loadSkill(Path skillsRoot, String skillId) {
+        String id = normalizeSkillId(skillId);
         if (!StringUtils.hasText(id)) {
             return Optional.empty();
         }
 
+        Path root = skillsRoot.toAbsolutePath().normalize();
+        Path skillDir = root.resolve(id).normalize();
+        if (!skillDir.startsWith(root)) {
+            return Optional.empty();
+        }
         Path skillFile = skillDir.resolve(SKILL_FILE).normalize();
         if (!skillFile.startsWith(skillDir) || !Files.isRegularFile(skillFile)) {
             log.debug("Skip skill '{}' without {}", id, SKILL_FILE);

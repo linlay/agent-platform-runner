@@ -13,7 +13,9 @@ import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.tool.BaseTool;
+import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolKind;
+import com.linlay.agentplatform.tool.ToolMetadataAware;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import com.linlay.agentplatform.util.IdGenerators;
 import com.linlay.agentplatform.util.StringHelpers;
@@ -138,7 +140,7 @@ public class ToolExecutionService {
             String callId = StringUtils.hasText(call.callId())
                     ? call.callId().trim()
                     : "call_" + toolName + "_" + seq + "_" + shortId();
-            String toolType = toolRegistry.toolCallType(toolName);
+            String toolType = resolveToolType(toolName, enabledToolsByName);
 
             Map<String, Object> plannedArgs = call.arguments() == null ? Map.of() : call.arguments();
             Map<String, Object> resolvedArgs = toolArgumentResolver.resolveToolArguments(toolName, plannedArgs, records);
@@ -322,7 +324,7 @@ public class ToolExecutionService {
         }
         return stageTools.values().stream()
                 .filter(tool -> tool != null && StringUtils.hasText(tool.name()))
-                .filter(tool -> isBackendTool(tool.name()))
+                .filter(tool -> isBackendTool(tool.name(), stageTools))
                 .sorted(Comparator.comparing(tool -> normalizeToolName(tool.name())))
                 .toList();
     }
@@ -350,7 +352,8 @@ public class ToolExecutionService {
         if (!enabledToolsByName.containsKey(toolName)) {
             return new FrontendToolHandler.InvokeResult(errorResult(toolName, "Tool is not enabled for this agent: " + toolName), null);
         }
-        if (toolRegistry.descriptor(toolName).isEmpty()) {
+        ToolDescriptor descriptor = resolveToolDescriptor(toolName, enabledToolsByName);
+        if (descriptor == null) {
             return new FrontendToolHandler.InvokeResult(
                     errorResult(toolName, TOOL_NOT_REGISTERED_CODE, "Tool is not registered: " + toolName),
                     null
@@ -365,7 +368,7 @@ public class ToolExecutionService {
             return new FrontendToolHandler.InvokeResult(objectMapper.getNodeFactory().textNode("OK"), null);
         }
 
-        if (toolRegistry.requiresFrontendSubmit(toolName)) {
+        if (descriptor.requiresFrontendSubmit()) {
             return frontendToolHandler.invoke(runId, toolId, toolName, context);
         }
 
@@ -493,10 +496,34 @@ public class ToolExecutionService {
         return AgentDelta.normalizePlanTaskStatus(raw);
     }
 
-    private boolean isBackendTool(String toolName) {
-        return toolRegistry.descriptor(toolName)
-                .map(descriptor -> descriptor.kind() == ToolKind.BACKEND)
-                .orElse(true);
+    private boolean isBackendTool(String toolName, Map<String, BaseTool> enabledToolsByName) {
+        ToolDescriptor descriptor = resolveToolDescriptor(toolName, enabledToolsByName);
+        return descriptor == null || descriptor.kind() == ToolKind.BACKEND;
+    }
+
+    private String resolveToolType(String toolName, Map<String, BaseTool> enabledToolsByName) {
+        ToolDescriptor descriptor = resolveToolDescriptor(toolName, enabledToolsByName);
+        if (descriptor == null) {
+            return toolRegistry.toolCallType(toolName);
+        }
+        if (descriptor.isAction()) {
+            return "action";
+        }
+        if (descriptor.isFrontend()) {
+            String normalizedToolType = normalize(descriptor.toolType());
+            return StringUtils.hasText(normalizedToolType) ? normalizedToolType : "function";
+        }
+        return "function";
+    }
+
+    private ToolDescriptor resolveToolDescriptor(String toolName, Map<String, BaseTool> enabledToolsByName) {
+        if (enabledToolsByName != null) {
+            BaseTool enabledTool = enabledToolsByName.get(normalizeToolName(toolName));
+            if (enabledTool instanceof ToolMetadataAware metadataAware && metadataAware.descriptor() != null) {
+                return metadataAware.descriptor();
+            }
+        }
+        return toolRegistry.descriptor(toolName).orElse(null);
     }
 
     private boolean isFatalToolError(JsonNode resultNode) {

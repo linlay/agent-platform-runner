@@ -7,6 +7,7 @@ import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
+import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
@@ -22,12 +23,10 @@ import java.util.List;
 public class ContainerHubMountResolver {
 
     private final ContainerHubToolProperties containerHubProperties;
-    private final DataProperties dataProperties;
+    private final ChatWindowMemoryProperties chatWindowMemoryProperties;
     private final SkillProperties skillProperties;
-    private final ToolProperties toolProperties;
     private final AgentProperties agentProperties;
     private final ModelProperties modelProperties;
-    private final ViewportProperties viewportProperties;
     private final TeamProperties teamProperties;
     private final ScheduleProperties scheduleProperties;
     private final McpProperties mcpProperties;
@@ -35,28 +34,50 @@ public class ContainerHubMountResolver {
 
     public ContainerHubMountResolver(
             ContainerHubToolProperties containerHubProperties,
-            DataProperties dataProperties,
+            ChatWindowMemoryProperties chatWindowMemoryProperties,
             SkillProperties skillProperties,
-            ToolProperties toolProperties,
             AgentProperties agentProperties,
             ModelProperties modelProperties,
-            ViewportProperties viewportProperties,
             TeamProperties teamProperties,
             ScheduleProperties scheduleProperties,
             McpProperties mcpProperties,
             ProviderProperties providerProperties
     ) {
         this.containerHubProperties = containerHubProperties;
-        this.dataProperties = dataProperties;
+        this.chatWindowMemoryProperties = chatWindowMemoryProperties;
         this.skillProperties = skillProperties;
-        this.toolProperties = toolProperties;
         this.agentProperties = agentProperties;
         this.modelProperties = modelProperties;
-        this.viewportProperties = viewportProperties;
         this.teamProperties = teamProperties;
         this.scheduleProperties = scheduleProperties;
         this.mcpProperties = mcpProperties;
         this.providerProperties = providerProperties;
+    }
+
+    public ContainerHubMountResolver(
+            ContainerHubToolProperties containerHubProperties,
+            DataProperties dataProperties,
+            SkillProperties skillProperties,
+            ToolProperties ignoredToolProperties,
+            AgentProperties agentProperties,
+            ModelProperties modelProperties,
+            ViewportProperties ignoredViewportProperties,
+            TeamProperties teamProperties,
+            ScheduleProperties scheduleProperties,
+            McpProperties mcpProperties,
+            ProviderProperties providerProperties
+    ) {
+        this(
+                containerHubProperties,
+                toChatWindowMemoryProperties(dataProperties),
+                skillProperties,
+                agentProperties,
+                modelProperties,
+                teamProperties,
+                scheduleProperties,
+                mcpProperties,
+                providerProperties
+        );
     }
 
     public List<MountSpec> resolve(SandboxLevel level, String chatId) {
@@ -89,10 +110,8 @@ public class ContainerHubMountResolver {
             mounts.add(existingDirectoryMount("pan-dir", panDir, "/pan"));
         }
 
-        addOptionalDirectoryMount(mounts, "tools-dir", resolveToolsDir(mountConfig), "/tools");
         addOptionalDirectoryMount(mounts, "agents-dir", resolveAgentsDir(mountConfig), "/agents");
         addOptionalDirectoryMount(mounts, "models-dir", resolveModelsDir(mountConfig), "/models");
-        addOptionalDirectoryMount(mounts, "viewports-dir", resolveViewportsDir(mountConfig), "/viewports");
         addOptionalDirectoryMount(mounts, "teams-dir", resolveTeamsDir(mountConfig), "/teams");
         addOptionalDirectoryMount(mounts, "schedules-dir", resolveSchedulesDir(mountConfig), "/schedules");
         addOptionalDirectoryMount(mounts, "mcp-servers-dir", resolveMcpServersDir(mountConfig), "/mcp-servers");
@@ -105,8 +124,8 @@ public class ContainerHubMountResolver {
         if (mountConfig != null && StringUtils.hasText(mountConfig.getDataDir())) {
             return mountConfig.getDataDir().trim();
         }
-        if (dataProperties != null && StringUtils.hasText(dataProperties.getExternalDir())) {
-            return dataProperties.getExternalDir().trim();
+        if (chatWindowMemoryProperties != null && StringUtils.hasText(chatWindowMemoryProperties.getDir())) {
+            return chatWindowMemoryProperties.getDir().trim();
         }
         return null;
     }
@@ -121,20 +140,12 @@ public class ContainerHubMountResolver {
         return null;
     }
 
-    private String resolveToolsDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        return resolveDirectory(mountConfig == null ? null : mountConfig.getToolsDir(), toolProperties == null ? null : toolProperties.getExternalDir());
-    }
-
     private String resolveAgentsDir(ContainerHubToolProperties.MountConfig mountConfig) {
         return resolveDirectory(mountConfig == null ? null : mountConfig.getAgentsDir(), agentProperties == null ? null : agentProperties.getExternalDir());
     }
 
     private String resolveModelsDir(ContainerHubToolProperties.MountConfig mountConfig) {
         return resolveDirectory(mountConfig == null ? null : mountConfig.getModelsDir(), modelProperties == null ? null : modelProperties.getExternalDir());
-    }
-
-    private String resolveViewportsDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        return resolveDirectory(mountConfig == null ? null : mountConfig.getViewportsDir(), viewportProperties == null ? null : viewportProperties.getExternalDir());
     }
 
     private String resolveTeamsDir(ContainerHubToolProperties.MountConfig mountConfig) {
@@ -214,6 +225,14 @@ public class ContainerHubMountResolver {
 
     private String normalizeRawPath(String rawPath) {
         return rawPath == null ? "" : rawPath.trim();
+    }
+
+    private static ChatWindowMemoryProperties toChatWindowMemoryProperties(DataProperties dataProperties) {
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        if (dataProperties != null && StringUtils.hasText(dataProperties.getExternalDir())) {
+            properties.setDir(dataProperties.getExternalDir());
+        }
+        return properties;
     }
 
     public record MountSpec(String mountName, String rawPath, String hostPath, String containerPath) {

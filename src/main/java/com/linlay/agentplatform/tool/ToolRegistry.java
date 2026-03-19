@@ -118,23 +118,23 @@ public class ToolRegistry {
                 if (!isExposedTool(name)) {
                     continue;
                 }
-                if (descriptor.kind() == ToolKind.BACKEND) {
-                    BaseTool nativeTool = nativeToolsByName.get(name);
-                    if (nativeTool == null) {
+                    if (descriptor.kind() == ToolKind.BACKEND) {
+                        BaseTool nativeTool = nativeToolsByName.get(name);
+                        if (nativeTool == null) {
                         if (missingBackendWarnings.add(name)) {
                             log.warn("Skip backend tool '{}' because no Java tool implementation is found", name);
+                            }
+                            continue;
                         }
+                        merged.put(name, ToolAdapters.descriptorBacked(name, mergedBackendDescriptor(nativeTool, descriptor)));
                         continue;
                     }
-                    merged.put(name, new BackendMetadataTool(nativeTool, descriptor));
-                    continue;
+                    if (merged.containsKey(name)) {
+                        continue;
+                    }
+                    merged.put(name, ToolAdapters.descriptorBacked(name, descriptor));
                 }
-                if (merged.containsKey(name)) {
-                    continue;
-                }
-                merged.put(name, new VirtualTool(descriptor));
             }
-        }
 
         if (mcpToolSyncService != null) {
             for (ToolDescriptor descriptor : mcpToolSyncService.list()) {
@@ -145,7 +145,7 @@ public class ToolRegistry {
                     }
                     continue;
                 }
-                merged.put(name, new VirtualTool(descriptor));
+                merged.put(name, ToolAdapters.descriptorBacked(name, descriptor));
             }
         }
         return List.copyOf(merged.values());
@@ -293,80 +293,5 @@ public class ToolRegistry {
                 descriptor.viewportKey(),
                 descriptor.sourceFile()
         );
-    }
-
-    private static final class VirtualTool implements BaseTool {
-        private final ToolDescriptor descriptor;
-
-        private VirtualTool(ToolDescriptor descriptor) {
-            this.descriptor = descriptor;
-        }
-
-        @Override
-        public String name() {
-            return descriptor.name();
-        }
-
-        @Override
-        public String description() {
-            return descriptor.description();
-        }
-
-        @Override
-        public String afterCallHint() {
-            return descriptor.afterCallHint();
-        }
-
-        @Override
-        public Map<String, Object> parametersSchema() {
-            return descriptor.parameters();
-        }
-
-        @Override
-        public JsonNode invoke(Map<String, Object> args) {
-            throw new IllegalStateException("Virtual tool cannot be invoked directly: " + descriptor.name());
-        }
-    }
-
-    private static final class BackendMetadataTool implements BaseTool {
-        private final BaseTool delegate;
-        private final ToolDescriptor descriptor;
-
-        private BackendMetadataTool(BaseTool delegate, ToolDescriptor descriptor) {
-            this.delegate = delegate;
-            this.descriptor = descriptor;
-        }
-
-        @Override
-        public String name() {
-            return delegate.name();
-        }
-
-        @Override
-        public String description() {
-            String runtimeDescription = delegate.description();
-            if (StringUtils.hasText(runtimeDescription)) {
-                return runtimeDescription;
-            }
-            return descriptor.description();
-        }
-
-        @Override
-        public String afterCallHint() {
-            if (descriptor.afterCallHint() != null && !descriptor.afterCallHint().isBlank()) {
-                return descriptor.afterCallHint();
-            }
-            return delegate.afterCallHint();
-        }
-
-        @Override
-        public Map<String, Object> parametersSchema() {
-            return descriptor.parameters();
-        }
-
-        @Override
-        public JsonNode invoke(Map<String, Object> args) {
-            return delegate.invoke(args);
-        }
     }
 }

@@ -65,13 +65,9 @@ public class AgentDefinitionLoader {
             return List.of();
         }
 
-        List<Path> filesToLoad;
+        List<Path> entries;
         try (Stream<Path> stream = Files.list(dir)) {
-            filesToLoad = YamlCatalogSupport.selectYamlFiles(
-                    stream.filter(Files::isRegularFile).toList(),
-                    "agent",
-                    log
-            );
+            entries = stream.sorted(Comparator.comparing(path -> path.getFileName().toString())).toList();
         } catch (IOException ex) {
             log.warn("Cannot list external agents from {}", dir, ex);
             return List.of();
@@ -79,11 +75,31 @@ public class AgentDefinitionLoader {
 
         Map<String, AgentDefinition> loaded = new LinkedHashMap<>();
         Map<String, Path> sourceFilesByAgentId = new LinkedHashMap<>();
+        for (Path path : entries) {
+            if (!Files.isDirectory(path)) {
+                continue;
+            }
+            tryLoadDirectoryAgent(path).ifPresent(definition -> {
+                Path existing = sourceFilesByAgentId.get(definition.id());
+                if (existing != null) {
+                    log.warn("Skip duplicated agent key '{}' from directory {}, already loaded from {}", definition.id(), path, existing);
+                    return;
+                }
+                loaded.put(definition.id(), definition);
+                sourceFilesByAgentId.put(definition.id(), path);
+            });
+        }
+
+        List<Path> filesToLoad = YamlCatalogSupport.selectYamlFiles(
+                entries.stream().filter(Files::isRegularFile).toList(),
+                "agent",
+                log
+        );
         for (Path path : filesToLoad) {
             tryLoadExternal(path).ifPresent(definition -> {
                 Path existing = sourceFilesByAgentId.get(definition.id());
                 if (existing != null) {
-                    log.warn("Skip duplicated agent key '{}' from file {}, already loaded from {}", definition.id(), path, existing);
+                    log.warn("Skip deprecated flat agent '{}' from file {}, already loaded from {}", definition.id(), path, existing);
                     return;
                 }
                 loaded.put(definition.id(), definition);
@@ -97,14 +113,49 @@ public class AgentDefinitionLoader {
         return new ArrayList<>(loaded.values());
     }
 
+    private Optional<AgentDefinition> tryLoadDirectoryAgent(Path agentDir) {
+        Path configFile = resolveDirectoryAgentConfig(agentDir);
+        if (configFile == null) {
+            return Optional.empty();
+        }
+        String dirName = agentDir.getFileName() == null ? "" : agentDir.getFileName().toString().trim();
+        Optional<AgentDefinition> loaded = tryLoadDefinition(
+                configFile,
+                dirName,
+                agentDir,
+                readOptionalMarkdown(agentDir.resolve("SOUL.md")),
+                readOptionalMarkdown(agentDir.resolve("AGENTS.md")),
+                scanPerAgentSkillIds(agentDir.resolve("skills")),
+                false
+        );
+        loaded.ifPresent(definition -> {
+            if (!dirName.equals(definition.id())) {
+                throw new IllegalStateException("Agent directory name must equal agent key: dir=" + dirName + ", key=" + definition.id() + ", path=" + agentDir);
+            }
+        });
+        return loaded;
+    }
+
     private Optional<AgentDefinition> tryLoadExternal(Path file) {
-        String fileName = file.getFileName().toString();
         String fileBasedId = YamlCatalogSupport.fileBaseName(file).trim();
         if (fileBasedId.isEmpty()) {
             log.warn("Skip external agent with empty name: {}", file);
             return Optional.empty();
         }
+        log.warn("Deprecated flat agent file layout detected, please migrate to agents/<key>/agent.yml: {}", file);
+        return tryLoadDefinition(file, fileBasedId, null, null, null, List.of(), true);
+    }
 
+    private Optional<AgentDefinition> tryLoadDefinition(
+            Path file,
+            String fileBasedId,
+            Path agentDir,
+            String soulContent,
+            String agentsContent,
+            List<String> perAgentSkills,
+            boolean allowKeyFallbackToFilename
+    ) {
+        String fileName = file.getFileName().toString();
         try {
             String raw = Files.readString(file);
             YamlCatalogSupport.HeaderError headerError = YamlCatalogSupport.validateHeader(
@@ -132,7 +183,11 @@ public class AgentDefinitionLoader {
                 log.warn("Skip agent without resolvable modelKey in {}", file);
                 return Optional.empty();
             }
-            String key = normalize(config.getKey(), fileBasedId);
+            String key = normalize(config.getKey(), allowKeyFallbackToFilename ? fileBasedId : "");
+            if (!StringUtils.hasText(key)) {
+                log.warn("Skip agent without key in {}", file);
+                return Optional.empty();
+            }
             String name = normalize(config.getName(), key);
             Object icon = normalizeIcon(config.getIcon());
             String description = normalize(config.getDescription(), "external agent from " + fileName);
@@ -161,11 +216,60 @@ public class AgentDefinitionLoader {
                     tools,
                     skills,
                     sandboxConfig,
-                    modelKeys
+                    modelKeys,
+                    soulContent,
+                    agentsContent,
+                    perAgentSkills,
+                    agentDir
             ));
         } catch (Exception ex) {
             log.warn("Skip invalid external agent file: {}", file, ex);
             return Optional.empty();
+        }
+    }
+
+    private Path resolveDirectoryAgentConfig(Path agentDir) {
+        if (agentDir == null || !Files.isDirectory(agentDir)) {
+            return null;
+        }
+        Path yml = agentDir.resolve("agent.yml");
+        if (Files.isRegularFile(yml)) {
+            return yml;
+        }
+        Path yaml = agentDir.resolve("agent.yaml");
+        if (Files.isRegularFile(yaml)) {
+            return yaml;
+        }
+        return null;
+    }
+
+    private String readOptionalMarkdown(Path path) {
+        if (path == null || !Files.isRegularFile(path)) {
+            return null;
+        }
+        try {
+            String content = Files.readString(path);
+            return StringUtils.hasText(content) ? content.trim() : null;
+        } catch (IOException ex) {
+            log.warn("Failed to read optional markdown: {}", path, ex);
+            return null;
+        }
+    }
+
+    private List<String> scanPerAgentSkillIds(Path skillsDir) {
+        if (skillsDir == null || !Files.isDirectory(skillsDir)) {
+            return List.of();
+        }
+        try (Stream<Path> stream = Files.list(skillsDir)) {
+            return stream.filter(Files::isDirectory)
+                    .filter(path -> Files.isRegularFile(path.resolve("SKILL.md")))
+                    .map(path -> normalize(path.getFileName() == null ? null : path.getFileName().toString(), "").trim().toLowerCase(Locale.ROOT))
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList();
+        } catch (IOException ex) {
+            log.warn("Failed to scan per-agent skills from {}", skillsDir, ex);
+            return List.of();
         }
     }
 

@@ -8,6 +8,8 @@ import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.skill.SkillDescriptor;
+import com.linlay.agentplatform.tool.BaseTool;
+import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.util.IdGenerators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,8 +35,12 @@ public class ExecutionContext {
     private final AgentRequest request;
     private final Budget budget;
     private final long startedAtMs;
+    private final String baseSystemPrompt;
     private final String skillCatalogPrompt;
     private final Map<String, SkillDescriptor> resolvedSkillsById;
+    private final Map<String, String> skillExperiencePromptById;
+    private final Map<String, ToolDescriptor> resolvedToolDescriptorsByName;
+    private final Map<String, BaseTool> localNativeToolsByName;
     private final SkillAppend skillAppend;
     private final RunControl runControl;
 
@@ -57,8 +63,12 @@ public class ExecutionContext {
         this.request = builder.request;
         this.budget = definition.runSpec().budget();
         this.startedAtMs = System.currentTimeMillis();
+        this.baseSystemPrompt = StringUtils.hasText(builder.baseSystemPrompt) ? builder.baseSystemPrompt.trim() : "";
         this.skillCatalogPrompt = StringUtils.hasText(builder.skillCatalogPrompt) ? builder.skillCatalogPrompt.trim() : "";
         this.resolvedSkillsById = normalizeResolvedSkills(builder.resolvedSkillsById);
+        this.skillExperiencePromptById = normalizeSkillExperiencePrompts(builder.skillExperiencePromptById);
+        this.resolvedToolDescriptorsByName = normalizeToolDescriptors(builder.resolvedToolDescriptorsByName);
+        this.localNativeToolsByName = normalizeLocalTools(builder.localNativeToolsByName);
         this.skillAppend = builder.skillAppend == null ? SkillAppend.DEFAULTS : builder.skillAppend;
         this.runControl = builder.runControl == null ? new RunControl() : builder.runControl;
 
@@ -167,15 +177,34 @@ public class ExecutionContext {
         return skillCatalogPrompt;
     }
 
+    public ToolDescriptor toolDescriptor(String toolName) {
+        String normalized = normalizeToolName(toolName);
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        return resolvedToolDescriptorsByName.get(normalized);
+    }
+
+    public BaseTool localNativeTool(String toolName) {
+        String normalized = normalizeToolName(toolName);
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        return localNativeToolsByName.get(normalized);
+    }
+
     public String stageSystemPrompt(String stageSystemPrompt) {
-        // Skill catalog is always merged into system prompt at stage entrance.
-        if (!StringUtils.hasText(skillCatalogPrompt)) {
-            return stageSystemPrompt == null ? "" : stageSystemPrompt;
+        List<String> sections = new ArrayList<>();
+        if (StringUtils.hasText(baseSystemPrompt)) {
+            sections.add(baseSystemPrompt);
         }
-        if (!StringUtils.hasText(stageSystemPrompt)) {
-            return skillCatalogPrompt;
+        if (StringUtils.hasText(stageSystemPrompt)) {
+            sections.add(stageSystemPrompt.trim());
         }
-        return stageSystemPrompt + "\n\n" + skillCatalogPrompt;
+        if (StringUtils.hasText(skillCatalogPrompt)) {
+            sections.add(skillCatalogPrompt);
+        }
+        return String.join("\n\n", sections);
     }
 
     public void registerSkillUsageFromToolCalls(List<PlannedToolCall> toolCalls) {
@@ -438,7 +467,65 @@ public class ExecutionContext {
         }
         String label = normalizeLabel(skillAppend.instructionsLabel(), "instructions");
         block.append("\n").append(label).append('\n').append(prompt);
+        String experiencePrompt = skillExperiencePromptById.get(normalizeSkillId(descriptor.id()));
+        if (StringUtils.hasText(experiencePrompt)) {
+            block.append("\n\n").append(experiencePrompt.trim());
+        }
         return block.toString();
+    }
+
+    private Map<String, String> normalizeSkillExperiencePrompts(Map<String, String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : raw.entrySet()) {
+            String key = normalizeSkillId(entry.getKey());
+            String value = entry.getValue();
+            if (!StringUtils.hasText(key) || !StringUtils.hasText(value)) {
+                continue;
+            }
+            normalized.putIfAbsent(key, value.trim());
+        }
+        return normalized.isEmpty() ? Map.of() : Map.copyOf(normalized);
+    }
+
+    private Map<String, ToolDescriptor> normalizeToolDescriptors(Map<String, ToolDescriptor> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, ToolDescriptor> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, ToolDescriptor> entry : raw.entrySet()) {
+            ToolDescriptor descriptor = entry.getValue();
+            String key = normalizeToolName(entry.getKey());
+            if (!StringUtils.hasText(key) && descriptor != null) {
+                key = normalizeToolName(descriptor.name());
+            }
+            if (!StringUtils.hasText(key) || descriptor == null) {
+                continue;
+            }
+            normalized.putIfAbsent(key, descriptor);
+        }
+        return normalized.isEmpty() ? Map.of() : Map.copyOf(normalized);
+    }
+
+    private Map<String, BaseTool> normalizeLocalTools(Map<String, BaseTool> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, BaseTool> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, BaseTool> entry : raw.entrySet()) {
+            String key = normalizeToolName(entry.getKey());
+            BaseTool tool = entry.getValue();
+            if (!StringUtils.hasText(key) && tool != null) {
+                key = normalizeToolName(tool.name());
+            }
+            if (!StringUtils.hasText(key) || tool == null) {
+                continue;
+            }
+            normalized.putIfAbsent(key, tool);
+        }
+        return normalized.isEmpty() ? Map.of() : Map.copyOf(normalized);
     }
 
     private String normalizeLabel(String raw, String fallback) {
@@ -489,8 +576,12 @@ public class ExecutionContext {
         private final AgentDefinition definition;
         private final AgentRequest request;
         private List<ChatMessage> historyMessages = List.of();
+        private String baseSystemPrompt = "";
         private String skillCatalogPrompt = "";
         private Map<String, SkillDescriptor> resolvedSkillsById = Map.of();
+        private Map<String, String> skillExperiencePromptById = Map.of();
+        private Map<String, ToolDescriptor> resolvedToolDescriptorsByName = Map.of();
+        private Map<String, BaseTool> localNativeToolsByName = Map.of();
         private SkillAppend skillAppend;
         private RunControl runControl;
 
@@ -507,6 +598,11 @@ public class ExecutionContext {
             return this;
         }
 
+        public Builder baseSystemPrompt(String baseSystemPrompt) {
+            this.baseSystemPrompt = baseSystemPrompt == null ? "" : baseSystemPrompt;
+            return this;
+        }
+
         public Builder skillCatalogPrompt(String skillCatalogPrompt) {
             this.skillCatalogPrompt = skillCatalogPrompt == null ? "" : skillCatalogPrompt;
             return this;
@@ -514,6 +610,21 @@ public class ExecutionContext {
 
         public Builder resolvedSkillsById(Map<String, SkillDescriptor> resolvedSkillsById) {
             this.resolvedSkillsById = resolvedSkillsById == null ? Map.of() : Map.copyOf(resolvedSkillsById);
+            return this;
+        }
+
+        public Builder skillExperiencePromptById(Map<String, String> skillExperiencePromptById) {
+            this.skillExperiencePromptById = skillExperiencePromptById == null ? Map.of() : Map.copyOf(skillExperiencePromptById);
+            return this;
+        }
+
+        public Builder resolvedToolDescriptorsByName(Map<String, ToolDescriptor> resolvedToolDescriptorsByName) {
+            this.resolvedToolDescriptorsByName = resolvedToolDescriptorsByName == null ? Map.of() : Map.copyOf(resolvedToolDescriptorsByName);
+            return this;
+        }
+
+        public Builder localNativeToolsByName(Map<String, BaseTool> localNativeToolsByName) {
+            this.localNativeToolsByName = localNativeToolsByName == null ? Map.of() : Map.copyOf(localNativeToolsByName);
             return this;
         }
 
