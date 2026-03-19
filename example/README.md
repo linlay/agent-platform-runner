@@ -13,6 +13,7 @@
 - `tools/`：demo 工具定义
 - `skills/`：demo 技能目录
 - `schedules/`：demo 计划任务定义
+- `providers/`：demo provider 配置模板
 
 计划任务相关示例：
 
@@ -23,6 +24,12 @@
 
 - `example/mcp-servers/imagine.yml`：`mcp-server-imagine` 的 runner 注册示例，默认指向 `http://127.0.0.1:11962/mcp`，`serverKey` 使用 `imagine`。
 - `example/agents/demoImageGenerator.yml`：图像生成 demo，使用 `image.models.list`、`image.generate`、`image.edit`、`image.import` 四个 MCP 工具。
+
+办公文档相关示例：
+
+- `example/agents/dailyOfficeAssistant.yml`：daily-office 容器办公助手，使用 `container_hub_bash` 配合 `docx` / `pptx` skills 读取和重写 Word、按提纲生成 PPTX。
+- `example/skills/docx/`：Word 文档读写与结构化编辑技能。
+- `example/skills/pptx/`：PPT/PPTX 读取、编辑与生成技能。
 
 命名说明：
 
@@ -44,6 +51,7 @@
 - `tools`
 - `skills`
 - `schedules`
+- `providers`
 
 特性：
 

@@ -236,6 +236,7 @@
 │   ├── tools/
 │   ├── skills/
 │   ├── schedules/
+│   ├── providers/
 │   ├── install-example-mac.sh
 │   ├── install-example-linux.sh
 │   └── install-example-windows.ps1
@@ -287,13 +288,13 @@ docker compose up -d --build
 
 - `.env` 负责简单环境开关与端口（如 `HOST_PORT`、`SERVER_PORT`、`AGENT_AUTH_ENABLED`）。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
-- `providers/` 负责 provider YAML 注册中心；默认目录可由 `AGENT_PROVIDERS_EXTERNAL_DIR` / `agent.providers.external-dir` 覆盖。
+- `providers/` 负责 provider YAML 注册中心；默认目录可由 `AGENT_PROVIDERS_EXTERNAL_DIR` / `agent.providers.external-dir` 覆盖，示例模板建议从 `example/providers/` 同步。
 - `docker-compose.yml` 负责容器运行时路径装配与目录挂载；外置目录以 compose 中的 `/opt/...` 映射为准。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
 - `docker-compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（`environment.SERVER_PORT=8080`）。
-- compose 默认显式挂载并映射这些运行目录：`agents/`、`teams/`、`models/`、`tools/`、`mcp-servers/`、`viewport-servers/`、`viewports/`、`skills/`、`schedules/`、`data/`、`chats/`。
+- compose 默认显式挂载并映射这些运行目录：`agents/`、`teams/`、`models/`、`tools/`、`mcp-servers/`、`viewport-servers/`、`viewports/`、`skills/`、`schedules/`、`providers/`、`data/`、`chats/`。
 
 ### release-local 配置说明
 
@@ -494,8 +495,8 @@ toolConfig:
   - `AGENT_TOOLS_EXTERNAL_DIR`
   - `AGENT_SKILLS_EXTERNAL_DIR`
   - `AGENT_SCHEDULE_EXTERNAL_DIR`
-- 其中 `skills` 当前仅同步内置验证 skill `container_hub_validation`；数学、文本处理和 GIF 等 demo skills 请通过 `example/install-example-*` 从 `example/skills/` 初始化。
-- `agents|teams|models|mcp-servers|viewport-servers|viewports` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
+- 其中 `skills` 当前仅同步内置验证 skill `container_hub_validation`；数学、文本处理、办公文档和 GIF 等 demo skills 请通过 `example/install-example-*` 从 `example/skills/` 初始化。
+- `agents|teams|models|mcp-servers|viewport-servers|viewports|providers` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
 - 示例安装为覆盖写入同名文件，但不会清空目标目录，不会删除额外文件。
 - 目录监听热重载策略：
   - `agents/` 变更：全量刷新 agent 定义。
@@ -616,9 +617,11 @@ toolConfig:
 ### 示例 Skills
 
 - 以下 demo skills 位于 `example/skills/`，可通过 `example/install-example-*` 安装到运行目录：
+- `docx`：Word 文档读写、内容提取、转换与结构化生成。
 - `screenshot`：截图流程示例（含脚本 smoke test）。
 - `math_basic`：算术计算（add/sub/mul/div/pow/mod）。
 - `math_stats`：统计计算（summary/count/sum/min/max/mean/median/mode/stdev）。
+- `pptx`：PPT/PPTX 读取、编辑、从提纲生成幻灯片。
 - `text_utils`：文本指标（字符/词数/行数，可选空白归一化）。
 - `slack-gif-creator`：GIF 动画创建。
 
@@ -650,6 +653,42 @@ agent:
 - 第二阶段的 Python 验证是“容器内 Python”，不是本机 skill 脚本执行。
 - RUN 级 session 下，若配置了 container hub `data-dir` 挂载，容器中的 `/tmp/<file>` 预期会映射到 host 侧 `data/<chatId>/<file>`。
 - 若容器环境缺少 `python3`，应将其记录为环境缺口，而不是宣称验证通过。
+
+## Daily Office Agent
+
+仓库提供了通用办公 agent 示例 `dailyOfficeAssistant`（文件：`example/agents/dailyOfficeAssistant.yml`），默认对接 `agent-container-hub` 中的 `daily-office` 环境，用于：
+
+- 读取、总结和内容级重写 Word 文档（输出新的 `.docx`）
+- 根据提纲、摘要或 Word 提炼结果生成 `.pptx`
+
+该 agent 依赖 `example/skills/` 中的 `docx` 与 `pptx` skills；请先通过 `example/install-example-*` 同步示例资产，再在运行目录启用。
+
+启用前提：
+
+1. 在 runner 侧启用 `configs/container-hub.yml`（可从 `configs/container-hub.example.yml` 复制）。
+2. `agent-container-hub` 服务中存在可用的 `daily-office` environment。
+3. 建议配置 `data-dir` 挂载，这样 RUN 级沙箱会把 `data/<chatId>/` 挂到容器内 `/tmp`。
+
+最小配置示例：
+
+```yaml
+agent:
+  tools:
+    container-hub:
+      enabled: true
+      base-url: http://127.0.0.1:8080
+      default-environment-id: daily-office
+```
+
+运行约定：
+
+- `dailyOfficeAssistant` 只使用 `container_hub_bash`，不会回退到 `_bash_` 或 `_skill_run_script_`。
+- Agent 会把容器内 `/tmp` 视为唯一工作目录：上传或已有 chat 资产从 `/tmp` 读取，新生成的 `.docx/.pptx` 也写回 `/tmp`。
+- RUN 级 session 下，若已配置 container hub `data-dir` 挂载，容器中的 `/tmp/<filename>` 会映射到 host 侧 `data/<chatId>/<filename>`。
+- 产物可通过 `/api/data` 下载，推荐格式：
+  - `/api/data?file=<chatId>%2F<filename>&download=true`
+- 若 agent 能从当前上下文确定具体 `chatId`，应返回完整下载链接；否则至少返回上述模板。
+- Word“改写”按内容级重写处理，不承诺保留复杂版式、批注、修订痕迹、页眉页脚等高保真格式。
 
 ## Container Hub 工具说明
 

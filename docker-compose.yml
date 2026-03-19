@@ -13,6 +13,7 @@ services:
       AGENT_AGENTS_EXTERNAL_DIR: /opt/agents
       AGENT_TEAMS_EXTERNAL_DIR: /opt/teams
       AGENT_MODELS_EXTERNAL_DIR: /opt/models
+      AGENT_PROVIDERS_EXTERNAL_DIR: /opt/providers
       AGENT_TOOLS_EXTERNAL_DIR: /opt/tools
       AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR: /opt/mcp-servers
       AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR: /opt/viewport-servers
@@ -26,6 +27,7 @@ services:
       - ./agents:/opt/agents
       - ./teams:/opt/teams
       - ./models:/opt/models
+      - ./providers:/opt/providers
       - ./tools:/opt/tools
       - ./mcp-servers:/opt/mcp-servers
       - ./viewport-servers:/opt/viewport-servers

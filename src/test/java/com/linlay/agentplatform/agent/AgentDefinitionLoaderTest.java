@@ -141,6 +141,31 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldLoadExampleDailyOfficeAssistantDefinition() throws IOException {
+        Files.copy(
+                Path.of("example", "agents", "dailyOfficeAssistant.yml"),
+                tempDir.resolve("dailyOfficeAssistant.yml")
+        );
+
+        AgentDefinition definition = loadById().get("dailyOfficeAssistant");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.name()).isEqualTo("文澜");
+        assertThat(definition.tools()).containsExactly("container_hub_bash");
+        assertThat(definition.skills()).containsExactly("docx", "pptx");
+        assertThat(definition.sandboxConfig().environmentId()).isEqualTo("daily-office");
+        assertThat(definition.sandboxConfig().level()).isEqualTo(SandboxLevel.RUN);
+        assertThat(definition.mode()).isEqualTo(AgentRuntimeMode.REACT);
+
+        ReactMode mode = (ReactMode) definition.agentMode();
+        assertThat(mode.maxSteps()).isEqualTo(10);
+        assertThat(mode.stage().systemPrompt()).contains("container_hub_bash");
+        assertThat(mode.stage().systemPrompt()).contains("/tmp");
+        assertThat(mode.stage().systemPrompt()).contains("pptxgenjs");
+        assertThat(mode.stage().systemPrompt()).contains("/api/data?file=<chatId>%2F<filename>&download=true");
+    }
+
+    @Test
     void shouldLoadExternalAgentWithIconObject() throws IOException {
         writeYaml("demo_icon_object.yml", """
                 key: demo_icon_object
