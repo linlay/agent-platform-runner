@@ -4,9 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.LocalToolInvoker;
 import com.linlay.agentplatform.agent.runtime.McpToolInvoker;
 import com.linlay.agentplatform.agent.runtime.ToolInvokerRouter;
+import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.service.ActiveRunService;
+import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.SystemBash;
 import com.linlay.agentplatform.tool.TestSystemBashFactory;
 import com.linlay.agentplatform.tool.ToolRegistry;
@@ -24,6 +28,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 class AgentRegistryTest {
 
@@ -60,9 +65,12 @@ class AgentRegistryTest {
                 toolRegistry,
                 new ObjectMapper(),
                 memoryStore,
-                null,
-                null,
-                toolInvokerRouter
+                mock(FrontendSubmitCoordinator.class),
+                mock(SkillRegistryService.class),
+                new LoggingAgentProperties(),
+                toolInvokerRouter,
+                mock(ActiveRunService.class),
+                beanFactory.getBeanProvider(com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService.class)
         );
 
         assertThat(registry.listIds()).contains("demo_one");
@@ -189,9 +197,12 @@ class AgentRegistryTest {
                 toolRegistry,
                 new ObjectMapper(),
                 memoryStore,
-                null,
-                null,
-                toolInvokerRouter
+                mock(FrontendSubmitCoordinator.class),
+                mock(SkillRegistryService.class),
+                new LoggingAgentProperties(),
+                toolInvokerRouter,
+                mock(ActiveRunService.class),
+                beanFactory.getBeanProvider(com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService.class)
         );
     }
 

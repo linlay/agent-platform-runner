@@ -1,14 +1,14 @@
 package com.linlay.agentplatform.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.AgentProviderProperties;
+import com.linlay.agentplatform.config.ProviderProperties;
+import com.linlay.agentplatform.config.ProviderRegistryService;
 import com.linlay.agentplatform.service.CatalogDiff;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,7 +47,7 @@ class ModelRegistryServiceTest {
         ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider()))
+                providerRegistry(Map.of("bailian", "https://example.com"))
         );
 
         ModelDefinition model = service.find("bailian-qwen3-max").orElseThrow();
@@ -74,7 +74,7 @@ class ModelRegistryServiceTest {
         ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider()))
+                providerRegistry(Map.of("bailian", "https://example.com"))
         );
 
         assertThat(service.find("unknown-provider")).isEmpty();
@@ -100,7 +100,7 @@ class ModelRegistryServiceTest {
         ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider()))
+                providerRegistry(Map.of("bailian", "https://example.com"))
         );
 
         assertThat(service.find("dup-key").orElseThrow().modelId()).isEqualTo("first-model");
@@ -120,7 +120,7 @@ class ModelRegistryServiceTest {
         ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider()))
+                providerRegistry(Map.of("bailian", "https://example.com"))
         );
 
         assertThat(service.find("bad-protocol")).isEmpty();
@@ -140,7 +140,7 @@ class ModelRegistryServiceTest {
         ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider()))
+                providerRegistry(Map.of("bailian", "https://example.com"))
         );
 
         assertThat(service.find("legacy-protocol")).isEmpty();
@@ -160,7 +160,7 @@ class ModelRegistryServiceTest {
         ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider()))
+                providerRegistry(Map.of("bailian", "https://example.com"))
         );
 
         assertThat(service.find("anthropic-model")).isEmpty();
@@ -180,7 +180,7 @@ class ModelRegistryServiceTest {
         ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider()))
+                providerRegistry(Map.of("bailian", "https://example.com"))
         );
 
         Files.writeString(modelsDir.resolve("b.yml"), """
@@ -204,7 +204,7 @@ class ModelRegistryServiceTest {
         assertThatThrownBy(() -> new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
-                providerProperties(Map.of("bailian", provider()))
+                providerRegistry(Map.of("bailian", "https://example.com"))
         ))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Legacy JSON model files are no longer supported");
@@ -216,18 +216,20 @@ class ModelRegistryServiceTest {
         return properties;
     }
 
-    private AgentProviderProperties providerProperties(Map<String, AgentProviderProperties.ProviderConfig> providers) {
-        AgentProviderProperties properties = new AgentProviderProperties();
-        properties.setProviders(new LinkedHashMap<>(providers));
-        return properties;
-    }
-
-    private AgentProviderProperties.ProviderConfig provider() {
-        AgentProviderProperties.ProviderConfig config = new AgentProviderProperties.ProviderConfig();
-        config.setBaseUrl("https://example.com");
-        config.setApiKey("dummy");
-        config.setModel("dummy-model");
-        return config;
+    private ProviderRegistryService providerRegistry(Map<String, String> providers) throws Exception {
+        Path providersDir = tempDir.resolve("providers");
+        Files.createDirectories(providersDir);
+        for (Map.Entry<String, String> entry : providers.entrySet()) {
+            Files.writeString(providersDir.resolve(entry.getKey() + ".yml"), """
+                    key: %s
+                    baseUrl: %s
+                    apiKey: dummy
+                    model: dummy-model
+                    """.formatted(entry.getKey(), entry.getValue()));
+        }
+        ProviderProperties properties = new ProviderProperties();
+        properties.setExternalDir(providersDir.toString());
+        return new ProviderRegistryService(properties);
     }
 
 }

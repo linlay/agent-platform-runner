@@ -52,96 +52,37 @@ public class ExecutionContext {
     private int modelCalls;
     private int toolCalls;
 
-    public ExecutionContext(AgentDefinition definition, AgentRequest request, List<ChatMessage> historyMessages) {
-        this(definition, request, historyMessages, "", Map.of(), new RunControl());
-    }
-
-    public ExecutionContext(
-            AgentDefinition definition,
-            AgentRequest request,
-            List<ChatMessage> historyMessages,
-            String skillPrompt
-    ) {
-        this(definition, request, historyMessages, skillPrompt, Map.of(), new RunControl());
-    }
-
-    public ExecutionContext(
-            AgentDefinition definition,
-            AgentRequest request,
-            List<ChatMessage> historyMessages,
-            String skillCatalogPrompt,
-            Map<String, SkillDescriptor> resolvedSkillsById
-    ) {
-        this(definition, request, historyMessages, skillCatalogPrompt, resolvedSkillsById, new RunControl());
-    }
-
-    public ExecutionContext(
-            AgentDefinition definition,
-            AgentRequest request,
-            List<ChatMessage> historyMessages,
-            String skillCatalogPrompt,
-            Map<String, SkillDescriptor> resolvedSkillsById,
-            RunControl runControl
-    ) {
-        this(
-                definition,
-                request,
-                historyMessages,
-                skillCatalogPrompt,
-                resolvedSkillsById,
-                definition == null || definition.agentMode() == null
-                        ? SkillAppend.DEFAULTS
-                        : definition.agentMode().skillAppend(),
-                runControl
-        );
-    }
-
-    public ExecutionContext(
-            AgentDefinition definition,
-            AgentRequest request,
-            List<ChatMessage> historyMessages,
-            String skillCatalogPrompt,
-            Map<String, SkillDescriptor> resolvedSkillsById,
-            SkillAppend skillAppend
-    ) {
-        this(definition, request, historyMessages, skillCatalogPrompt, resolvedSkillsById, skillAppend, new RunControl());
-    }
-
-    public ExecutionContext(
-            AgentDefinition definition,
-            AgentRequest request,
-            List<ChatMessage> historyMessages,
-            String skillCatalogPrompt,
-            Map<String, SkillDescriptor> resolvedSkillsById,
-            SkillAppend skillAppend,
-            RunControl runControl
-    ) {
-        this.definition = definition;
-        this.request = request;
+    private ExecutionContext(Builder builder) {
+        this.definition = builder.definition;
+        this.request = builder.request;
         this.budget = definition.runSpec().budget();
         this.startedAtMs = System.currentTimeMillis();
-        this.skillCatalogPrompt = StringUtils.hasText(skillCatalogPrompt) ? skillCatalogPrompt.trim() : "";
-        this.resolvedSkillsById = normalizeResolvedSkills(resolvedSkillsById);
-        this.skillAppend = skillAppend == null ? SkillAppend.DEFAULTS : skillAppend;
-        this.runControl = runControl == null ? new RunControl() : runControl;
+        this.skillCatalogPrompt = StringUtils.hasText(builder.skillCatalogPrompt) ? builder.skillCatalogPrompt.trim() : "";
+        this.resolvedSkillsById = normalizeResolvedSkills(builder.resolvedSkillsById);
+        this.skillAppend = builder.skillAppend == null ? SkillAppend.DEFAULTS : builder.skillAppend;
+        this.runControl = builder.runControl == null ? new RunControl() : builder.runControl;
 
         this.conversationMessages = new ArrayList<>();
-        if (historyMessages != null) {
-            this.conversationMessages.addAll(historyMessages);
+        if (builder.historyMessages != null) {
+            this.conversationMessages.addAll(builder.historyMessages);
         }
         this.conversationMessages.add(new ChatMessage.UserMsg(request.message()));
 
         this.planMessages = new ArrayList<>();
-        if (historyMessages != null) {
-            this.planMessages.addAll(historyMessages);
+        if (builder.historyMessages != null) {
+            this.planMessages.addAll(builder.historyMessages);
         }
         this.planMessages.add(new ChatMessage.UserMsg(request.message()));
 
         this.executeMessages = new ArrayList<>();
-        if (historyMessages != null) {
-            this.executeMessages.addAll(historyMessages);
+        if (builder.historyMessages != null) {
+            this.executeMessages.addAll(builder.historyMessages);
         }
         this.executeMessages.add(new ChatMessage.UserMsg(request.message()));
+    }
+
+    public static Builder builder(AgentDefinition definition, AgentRequest request) {
+        return new Builder(definition, request);
     }
 
     public AgentDefinition definition() {
@@ -541,6 +482,53 @@ public class ExecutionContext {
     ) {
         public SandboxSession(String sessionId, String environmentId, String defaultCwd) {
             this(sessionId, environmentId, defaultCwd, SandboxLevel.RUN);
+        }
+    }
+
+    public static final class Builder {
+        private final AgentDefinition definition;
+        private final AgentRequest request;
+        private List<ChatMessage> historyMessages = List.of();
+        private String skillCatalogPrompt = "";
+        private Map<String, SkillDescriptor> resolvedSkillsById = Map.of();
+        private SkillAppend skillAppend;
+        private RunControl runControl;
+
+        private Builder(AgentDefinition definition, AgentRequest request) {
+            this.definition = definition;
+            this.request = request;
+            this.skillAppend = definition == null || definition.agentMode() == null
+                    ? SkillAppend.DEFAULTS
+                    : definition.agentMode().skillAppend();
+        }
+
+        public Builder historyMessages(List<ChatMessage> historyMessages) {
+            this.historyMessages = historyMessages == null ? List.of() : List.copyOf(historyMessages);
+            return this;
+        }
+
+        public Builder skillCatalogPrompt(String skillCatalogPrompt) {
+            this.skillCatalogPrompt = skillCatalogPrompt == null ? "" : skillCatalogPrompt;
+            return this;
+        }
+
+        public Builder resolvedSkillsById(Map<String, SkillDescriptor> resolvedSkillsById) {
+            this.resolvedSkillsById = resolvedSkillsById == null ? Map.of() : Map.copyOf(resolvedSkillsById);
+            return this;
+        }
+
+        public Builder skillAppend(SkillAppend skillAppend) {
+            this.skillAppend = skillAppend;
+            return this;
+        }
+
+        public Builder runControl(RunControl runControl) {
+            this.runControl = runControl;
+            return this;
+        }
+
+        public ExecutionContext build() {
+            return new ExecutionContext(this);
         }
     }
 }

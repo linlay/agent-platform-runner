@@ -301,8 +301,6 @@ public class ChatWindowMemoryStore {
             JsonNode planNode = null;
             if (node.has("plan") && !node.get("plan").isNull()) {
                 planNode = node.get("plan");
-            } else if (node.has("planSnapshot") && !node.get("planSnapshot").isNull()) {
-                planNode = node.get("planSnapshot");
             }
             ChatMemoryTypes.PlanSnapshot plan = planNode == null
                     ? null

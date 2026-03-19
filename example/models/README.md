@@ -23,7 +23,7 @@ modelId: qwen-max
 
 1. 新增 `<model-key>.yml`。
 2. 必填字段：`key/provider/protocol/modelId`。
-3. `protocol` 表示线协议，当前推荐使用 `OPENAI`；provider 的 endpoint 差异通过 `configs/providers/<provider>.yml` 中的 `agent.providers.<provider>.protocols.<PROTOCOL>.endpoint-path` 配置。
+3. `protocol` 表示线协议，当前推荐使用 `OPENAI`；provider 的 endpoint 差异通过项目根目录 `providers/<provider>.yml` 中的 `protocols.<PROTOCOL>.endpointPath` 配置。
 4. 执行示例安装脚本同步到外层 `models/`。
 
 ## 与外层目录关系

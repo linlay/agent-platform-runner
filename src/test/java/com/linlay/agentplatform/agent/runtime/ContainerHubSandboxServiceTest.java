@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.agent.AgentDefinition;
+import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.agent.mode.OneshotMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
@@ -11,7 +12,17 @@ import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.ContainerHubToolProperties;
+import com.linlay.agentplatform.config.DataProperties;
+import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.ProviderProperties;
+import com.linlay.agentplatform.config.ToolProperties;
+import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.model.AgentRequest;
+import com.linlay.agentplatform.model.ChatMessage;
+import com.linlay.agentplatform.model.ModelProperties;
+import com.linlay.agentplatform.schedule.ScheduleProperties;
+import com.linlay.agentplatform.skill.SkillProperties;
+import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import org.junit.jupiter.api.Test;
 
@@ -90,7 +101,7 @@ class ContainerHubSandboxServiceTest {
         CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
         ContainerHubToolProperties properties = containerHubProperties("run");
         RecordingStubContainerHubClient client = new RecordingStubContainerHubClient(events);
-        ContainerHubMountResolver mountResolver = new ContainerHubMountResolver(properties, null, null);
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null);
         ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
 
         ExecutionContext context = createContext(definitionWithLevel(SandboxLevel.RUN));
@@ -119,7 +130,7 @@ class ContainerHubSandboxServiceTest {
         CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
         ContainerHubToolProperties properties = containerHubProperties("run");
         StubContainerHubClient client = new StubContainerHubClient(events);
-        ContainerHubMountResolver mountResolver = new ContainerHubMountResolver(properties, null, null);
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null);
         ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
 
         AgentDefinition definition = definitionWithLevel(SandboxLevel.AGENT);
@@ -150,7 +161,7 @@ class ContainerHubSandboxServiceTest {
         CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
         ContainerHubToolProperties properties = containerHubProperties("run");
         StubContainerHubClient client = new StubContainerHubClient(events);
-        ContainerHubMountResolver mountResolver = new ContainerHubMountResolver(properties, null, null);
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null);
         ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
 
         AgentDefinition def1 = definitionWithLevel(SandboxLevel.GLOBAL, "agent-a");
@@ -180,7 +191,7 @@ class ContainerHubSandboxServiceTest {
         CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
         ContainerHubToolProperties properties = containerHubProperties("run");
         StubContainerHubClient client = new StubContainerHubClient(events);
-        ContainerHubMountResolver mountResolver = new ContainerHubMountResolver(properties, null, null);
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null);
         ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
 
         // Create agent session
@@ -214,7 +225,7 @@ class ContainerHubSandboxServiceTest {
                 return error;
             }
         };
-        ContainerHubMountResolver mountResolver = new ContainerHubMountResolver(properties, null, null);
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null);
         ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
 
         ExecutionContext context = createContext(definitionWithLevel(SandboxLevel.RUN));
@@ -229,7 +240,7 @@ class ContainerHubSandboxServiceTest {
         ContainerHubToolProperties properties = containerHubProperties("run");
         properties.getMounts().setUserDir("/path/that/does/not/exist");
         StubContainerHubClient client = new StubContainerHubClient(events);
-        ContainerHubMountResolver mountResolver = new ContainerHubMountResolver(properties, null, null);
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null);
         ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
 
         ExecutionContext context = createContext(definitionWithLevel(SandboxLevel.RUN));
@@ -268,8 +279,28 @@ class ContainerHubSandboxServiceTest {
 
     private ContainerHubSandboxService createService(ContainerHubToolProperties properties) {
         StubContainerHubClient client = new StubContainerHubClient(new CopyOnWriteArrayList<>());
-        ContainerHubMountResolver mountResolver = new ContainerHubMountResolver(properties, null, null);
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null);
         return new ContainerHubSandboxService(properties, client, mountResolver);
+    }
+
+    private ContainerHubMountResolver containerHubMountResolver(
+            ContainerHubToolProperties properties,
+            DataProperties dataProperties,
+            SkillProperties skillProperties
+    ) {
+        return new ContainerHubMountResolver(
+                properties,
+                dataProperties,
+                skillProperties,
+                new ToolProperties(),
+                new AgentProperties(),
+                new ModelProperties(),
+                new ViewportProperties(),
+                new TeamProperties(),
+                new ScheduleProperties(),
+                new McpProperties(),
+                new ProviderProperties()
+        );
     }
 
     private AgentDefinition definitionWithLevel(SandboxLevel level) {
@@ -303,7 +334,17 @@ class ContainerHubSandboxServiceTest {
 
     private ExecutionContext createContext(AgentDefinition definition, String chatId, String runId) {
         AgentRequest request = new AgentRequest("test", chatId, "req-1", runId, Map.of());
-        return new ExecutionContext(definition, request, List.of());
+        return executionContext(definition, request, List.of());
+    }
+
+    private ExecutionContext executionContext(
+            AgentDefinition definition,
+            AgentRequest request,
+            List<ChatMessage> historyMessages
+    ) {
+        return ExecutionContext.builder(definition, request)
+                .historyMessages(historyMessages)
+                .build();
     }
 
     private static class StubContainerHubClient extends ContainerHubClient {

@@ -1,9 +1,13 @@
 package com.linlay.agentplatform.config;
 
+import com.linlay.agentplatform.agent.AgentProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
+import com.linlay.agentplatform.model.ModelProperties;
+import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
+import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import com.linlay.agentplatform.tool.SystemContainerHubBash;
 import org.slf4j.Logger;
@@ -44,9 +48,29 @@ public class ContainerHubFeatureConfiguration {
     public ContainerHubMountResolver containerHubMountResolver(
             ContainerHubToolProperties properties,
             DataProperties dataProperties,
-            SkillProperties skillProperties
+            SkillProperties skillProperties,
+            ToolProperties toolProperties,
+            AgentProperties agentProperties,
+            ModelProperties modelProperties,
+            ViewportProperties viewportProperties,
+            TeamProperties teamProperties,
+            ScheduleProperties scheduleProperties,
+            McpProperties mcpProperties,
+            ProviderProperties providerProperties
     ) {
-        return new ContainerHubMountResolver(properties, dataProperties, skillProperties);
+        return new ContainerHubMountResolver(
+                properties,
+                dataProperties,
+                skillProperties,
+                toolProperties,
+                agentProperties,
+                modelProperties,
+                viewportProperties,
+                teamProperties,
+                scheduleProperties,
+                mcpProperties,
+                providerProperties
+        );
     }
 
     @Bean

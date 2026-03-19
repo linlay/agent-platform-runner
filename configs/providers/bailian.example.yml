@@ -1,6 +1,0 @@
-agent:
-  providers:
-    bailian:
-      base-url: https://dashscope.aliyuncs.com/compatible-mode
-      api-key: replace-with-your-bailian-api-key
-      model: qwen3.5-plus

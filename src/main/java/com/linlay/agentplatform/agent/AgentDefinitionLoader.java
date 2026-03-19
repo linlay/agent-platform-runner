@@ -3,6 +3,8 @@ package com.linlay.agentplatform.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.linlay.agentplatform.agent.config.AgentModelConfig;
+import com.linlay.agentplatform.agent.config.AgentToolConfig;
 import com.linlay.agentplatform.agent.mode.AgentMode;
 import com.linlay.agentplatform.agent.mode.AgentModeFactory;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
@@ -114,15 +116,6 @@ public class AgentDefinitionLoader {
                 return Optional.empty();
             }
             JsonNode root = yamlMapper.readTree(raw);
-            if (AgentDefinitionValidator.isLegacyConfig(root)) {
-                log.warn("Skip legacy agent config {}. Only Agent Definition v2 is supported.", file);
-                return Optional.empty();
-            }
-            if (AgentDefinitionValidator.hasRemovedFields(root)) {
-                log.warn("Skip agent config {}. Removed fields are no longer supported.", file);
-                return Optional.empty();
-            }
-
             AgentConfigFile config = objectMapper.treeToValue(root, AgentConfigFile.class);
             AgentRuntimeMode mode = config.getMode();
             if (mode == null) {
@@ -205,7 +198,7 @@ public class AgentDefinitionLoader {
         return stageConfig != null && hasModelKey(stageConfig.getModelConfig());
     }
 
-    private boolean hasModelKey(AgentConfigFile.ModelConfig modelConfig) {
+    private boolean hasModelKey(AgentModelConfig modelConfig) {
         return modelConfig != null && StringUtils.hasText(modelConfig.getModelKey());
     }
 
@@ -317,7 +310,7 @@ public class AgentDefinitionLoader {
         return merged.stream().distinct().toList();
     }
 
-    private void addModelKey(List<String> merged, AgentConfigFile.ModelConfig modelConfig) {
+    private void addModelKey(List<String> merged, AgentModelConfig modelConfig) {
         if (modelConfig == null || !StringUtils.hasText(modelConfig.getModelKey())) {
             return;
         }
@@ -327,7 +320,7 @@ public class AgentDefinitionLoader {
         }
     }
 
-    private List<String> toolNames(AgentConfigFile.ToolConfig toolConfig) {
+    private List<String> toolNames(AgentToolConfig toolConfig) {
         if (toolConfig == null) {
             return List.of();
         }

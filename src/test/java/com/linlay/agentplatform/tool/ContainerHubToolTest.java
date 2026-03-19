@@ -13,6 +13,7 @@ import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.model.AgentRequest;
+import com.linlay.agentplatform.model.ChatMessage;
 import org.junit.jupiter.api.Test;
 
 import javax.net.ssl.SSLContext;
@@ -59,7 +60,7 @@ class ContainerHubToolTest {
         ContainerHubToolProperties properties = properties("http://container-hub.test");
         ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
         SystemContainerHubBash tool = new SystemContainerHubBash(properties, client);
-        ExecutionContext context = new ExecutionContext(definition(), new AgentRequest("test", "chat1", "req1", "run1", Map.of()), List.of());
+        ExecutionContext context = executionContext(definition(), new AgentRequest("test", "chat1", "req1", "run1", Map.of()), List.of());
         context.bindSandboxSession(new ExecutionContext.SandboxSession("run-run1", "shell", "/workspace"));
 
         JsonNode result = tool.invoke(Map.of("command", "pwd && echo ok"), context);
@@ -84,7 +85,7 @@ class ContainerHubToolTest {
         ContainerHubToolProperties properties = properties("http://container-hub.test");
         ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
         SystemContainerHubBash tool = new SystemContainerHubBash(properties, client);
-        ExecutionContext context = new ExecutionContext(definition(), new AgentRequest("test", "chat1", "req1", "run1", Map.of()), List.of());
+        ExecutionContext context = executionContext(definition(), new AgentRequest("test", "chat1", "req1", "run1", Map.of()), List.of());
         context.bindSandboxSession(new ExecutionContext.SandboxSession("run-run1", "shell", "/workspace"));
 
         JsonNode result = tool.invoke(Map.of("command", "pwd"), context);
@@ -116,6 +117,16 @@ class ContainerHubToolTest {
         properties.setDefaultEnvironmentId("shell");
         properties.setRequestTimeoutMs(1000);
         return properties;
+    }
+
+    private ExecutionContext executionContext(
+            AgentDefinition definition,
+            AgentRequest request,
+            List<ChatMessage> historyMessages
+    ) {
+        return ExecutionContext.builder(definition, request)
+                .historyMessages(historyMessages)
+                .build();
     }
 
     private static String readBody(HttpRequest request) {

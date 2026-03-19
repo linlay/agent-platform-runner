@@ -224,8 +224,7 @@
 ├── .env.example
 ├── configs/
 │   ├── *.example.yml
-│   ├── auth/
-│   └── providers/
+│   └── auth/
 ├── docker-compose.yml
 ├── example/
 │   ├── agents/
@@ -241,6 +240,7 @@
 │   ├── install-example-linux.sh
 │   └── install-example-windows.ps1
 ├── src/
+├── providers/
 ├── data/
 ├── schedules/
 ├── release-scripts/
@@ -286,7 +286,8 @@ docker compose up -d --build
 约定：
 
 - `.env` 负责简单环境开关与端口（如 `HOST_PORT`、`SERVER_PORT`、`AGENT_AUTH_ENABLED`）。
-- `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash、container hub 与 provider（`agent.providers.*`）。
+- `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
+- `providers/` 负责 provider YAML 注册中心；默认目录可由 `AGENT_PROVIDERS_EXTERNAL_DIR` / `agent.providers.external-dir` 覆盖。
 - `docker-compose.yml` 负责容器运行时路径装配与目录挂载；外置目录以 compose 中的 `/opt/...` 映射为准。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
 - `docker-compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
@@ -336,7 +337,9 @@ docker compose up -d --build
 - 容器部署时，运行目录挂载与 `AGENT_*_EXTERNAL_DIR` / `MEMORY_CHATS_DIR` 的对应关系以 `docker-compose.yml` 为准，而不是依赖应用内部相对路径默认值。
 - `agent.cors.enabled` 在主配置中默认是 `false`，即默认不启用 CORS 过滤器。
 - `agent.cors.allowed-origin-patterns` 仅匹配请求头 `Origin`，当前服务不读取/校验 `Referer`。
-- 实际模型调用统一使用 `agent.providers.*`；provider 负责基础地址、鉴权和协议级 endpoint 配置。
+- provider 目录默认是项目根目录 `providers/`，支持热加载，且仅扫描 `.yml/.yaml`。
+- provider 文件契约是单文件单对象 flat schema：`key/baseUrl/apiKey/model/protocols.<PROTOCOL>.endpointPath`。
+- 实际模型调用统一使用 `providers/*.yml`；provider 负责基础地址、鉴权和协议级 endpoint 配置。
 
 ### settings.xml 说明
 

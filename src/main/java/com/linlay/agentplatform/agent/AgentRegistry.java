@@ -53,83 +53,6 @@ public class AgentRegistry {
     private volatile AgentDependencyIndex dependencyIndex = AgentDependencyIndex.empty();
     private volatile long selectiveReloadFallbackCount = 0;
 
-    public AgentRegistry(
-            AgentDefinitionLoader definitionLoader,
-            LlmService llmService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator,
-            SkillRegistryService skillRegistryService,
-            ToolInvokerRouter toolInvokerRouter
-    ) {
-        this(
-                definitionLoader,
-                llmService,
-                toolRegistry,
-                objectMapper,
-                chatWindowMemoryStore,
-                frontendSubmitCoordinator,
-                skillRegistryService,
-                toolInvokerRouter,
-                null,
-                (ContainerHubSandboxService) null
-        );
-    }
-
-    public AgentRegistry(
-            AgentDefinitionLoader definitionLoader,
-            LlmService llmService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator,
-            SkillRegistryService skillRegistryService,
-            ToolInvokerRouter toolInvokerRouter,
-            ActiveRunService activeRunService,
-            ContainerHubSandboxService containerHubSandboxService
-    ) {
-        this(
-                definitionLoader,
-                llmService,
-                toolRegistry,
-                objectMapper,
-                chatWindowMemoryStore,
-                frontendSubmitCoordinator,
-                skillRegistryService,
-                new LoggingAgentProperties(),
-                toolInvokerRouter,
-                activeRunService,
-                containerHubSandboxService
-        );
-    }
-
-    public AgentRegistry(
-            AgentDefinitionLoader definitionLoader,
-            LlmService llmService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator,
-            SkillRegistryService skillRegistryService,
-            LoggingAgentProperties loggingAgentProperties,
-            ToolInvokerRouter toolInvokerRouter
-    ) {
-        this(
-                definitionLoader,
-                llmService,
-                toolRegistry,
-                objectMapper,
-                chatWindowMemoryStore,
-                frontendSubmitCoordinator,
-                skillRegistryService,
-                loggingAgentProperties,
-                toolInvokerRouter,
-                null,
-                (ContainerHubSandboxService) null
-        );
-    }
-
     @Autowired
     public AgentRegistry(
             AgentDefinitionLoader definitionLoader,
@@ -144,34 +67,6 @@ public class AgentRegistry {
             ActiveRunService activeRunService,
             ObjectProvider<ContainerHubSandboxService> containerHubSandboxServiceProvider
     ) {
-        this(
-                definitionLoader,
-                llmService,
-                toolRegistry,
-                objectMapper,
-                chatWindowMemoryStore,
-                frontendSubmitCoordinator,
-                skillRegistryService,
-                loggingAgentProperties,
-                toolInvokerRouter,
-                activeRunService,
-                containerHubSandboxServiceProvider.getIfAvailable()
-        );
-    }
-
-    public AgentRegistry(
-            AgentDefinitionLoader definitionLoader,
-            LlmService llmService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator,
-            SkillRegistryService skillRegistryService,
-            LoggingAgentProperties loggingAgentProperties,
-            ToolInvokerRouter toolInvokerRouter,
-            ActiveRunService activeRunService,
-            ContainerHubSandboxService containerHubSandboxService
-    ) {
         this.definitionLoader = definitionLoader;
         this.llmService = llmService;
         this.toolRegistry = toolRegistry;
@@ -182,7 +77,7 @@ public class AgentRegistry {
         this.loggingAgentProperties = loggingAgentProperties;
         this.toolInvokerRouter = toolInvokerRouter;
         this.activeRunService = activeRunService;
-        this.containerHubSandboxService = containerHubSandboxService;
+        this.containerHubSandboxService = containerHubSandboxServiceProvider.getIfAvailable();
         refreshAgents();
     }
 

@@ -6,7 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
-import com.linlay.agentplatform.config.AgentProviderProperties;
+import com.linlay.agentplatform.config.ProviderConfig;
+import com.linlay.agentplatform.config.ProtocolConfig;
+import com.linlay.agentplatform.config.ProviderRegistryService;
 import com.linlay.agentplatform.model.ModelProtocol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,15 +40,15 @@ class OpenAiCompatibleSseClient {
     private static final Logger log = LoggerFactory.getLogger(OpenAiCompatibleSseClient.class);
     private static final long DEFAULT_STREAM_TIMEOUT_MS = 60_000L;
 
-    private final AgentProviderProperties providerProperties;
+    private final ProviderRegistryService providerRegistryService;
     private final ObjectMapper objectMapper;
     private final LlmCallLogger callLogger;
     private final OpenAiSseDeltaParser openAiSseDeltaParser;
     private final ConnectionProvider connectionProvider;
 
-    OpenAiCompatibleSseClient(AgentProviderProperties providerProperties, ObjectMapper objectMapper,
+    OpenAiCompatibleSseClient(ProviderRegistryService providerRegistryService, ObjectMapper objectMapper,
                               LlmCallLogger callLogger, ConnectionProvider connectionProvider) {
-        this.providerProperties = providerProperties;
+        this.providerRegistryService = providerRegistryService;
         this.objectMapper = objectMapper;
         this.callLogger = callLogger;
         this.openAiSseDeltaParser = new OpenAiSseDeltaParser(objectMapper);
@@ -109,7 +111,7 @@ class OpenAiCompatibleSseClient {
             String endpointPath
     ) {
         return Flux.defer(() -> {
-            AgentProviderProperties.ProviderConfig config = resolveProviderConfig(providerKey);
+            ProviderConfig config = resolveProviderConfig(providerKey);
             WebClient webClient = buildRawWebClient(config);
             Map<String, Object> request = buildRawStreamRequest(
                     providerKey,
@@ -135,7 +137,7 @@ class OpenAiCompatibleSseClient {
             AtomicBoolean firstChunkReceived = new AtomicBoolean(false);
 
             return webClient.post()
-                    .uri(resolveRawCompletionsUri(providerKey, protocol, config.getBaseUrl(), endpointPath))
+                    .uri(resolveRawCompletionsUri(providerKey, protocol, config.baseUrl(), endpointPath))
                     .accept(MediaType.TEXT_EVENT_STREAM)
                     .bodyValue(request)
                     .retrieve()
@@ -198,7 +200,7 @@ class OpenAiCompatibleSseClient {
             callLogger.logHistoryMessages(log, traceId, stage, historyMessages);
             callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream user prompt:\n{}"), callLogger.normalizePrompt(userPrompt));
 
-            AgentProviderProperties.ProviderConfig config = resolveProviderConfig(providerKey);
+            ProviderConfig config = resolveProviderConfig(providerKey);
             WebClient webClient = buildRawWebClient(config);
             Map<String, Object> request = buildRawStreamRequest(
                     providerKey,
@@ -216,7 +218,7 @@ class OpenAiCompatibleSseClient {
             );
             AtomicBoolean firstChunkReceived = new AtomicBoolean(false);
             return webClient.post()
-                    .uri(resolveRawCompletionsUri(providerKey, protocol, config.getBaseUrl(), endpointPath))
+                    .uri(resolveRawCompletionsUri(providerKey, protocol, config.baseUrl(), endpointPath))
                     .accept(MediaType.TEXT_EVENT_STREAM)
                     .bodyValue(request)
                     .retrieve()
@@ -253,24 +255,24 @@ class OpenAiCompatibleSseClient {
 
     // --- private helpers ---
 
-    private AgentProviderProperties.ProviderConfig resolveProviderConfig(String providerKey) {
-        if (providerProperties == null) {
-            throw new IllegalStateException("Provider properties not configured");
+    private ProviderConfig resolveProviderConfig(String providerKey) {
+        if (providerRegistryService == null) {
+            throw new IllegalStateException("Provider registry not configured");
         }
-        AgentProviderProperties.ProviderConfig config = providerProperties.getProvider(providerKey);
+        ProviderConfig config = providerRegistryService.find(providerKey).orElse(null);
         if (config == null) {
             throw new IllegalStateException("No provider config found for key: " + providerKey);
         }
-        if (!StringUtils.hasText(config.getBaseUrl())) {
+        if (!StringUtils.hasText(config.baseUrl())) {
             throw new IllegalStateException("Missing base-url for key: " + providerKey);
         }
-        if (!StringUtils.hasText(config.getApiKey())) {
+        if (!StringUtils.hasText(config.apiKey())) {
             throw new IllegalStateException("Missing api-key for key: " + providerKey);
         }
         return config;
     }
 
-    private WebClient buildRawWebClient(AgentProviderProperties.ProviderConfig config) {
+    private WebClient buildRawWebClient(ProviderConfig config) {
         if (config == null) {
             throw new IllegalStateException("Provider config not found");
         }
@@ -279,17 +281,17 @@ class OpenAiCompatibleSseClient {
                 : HttpClient.create();
         return WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
-                .baseUrl(config.getBaseUrl())
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + config.getApiKey())
+                .baseUrl(config.baseUrl())
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + config.apiKey())
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
     }
 
     String resolveRawCompletionsUri(String providerKey, ModelProtocol protocol) {
-        AgentProviderProperties.ProviderConfig config = resolveProviderConfig(providerKey);
-        AgentProviderProperties.ProtocolConfig protocolConfig = config.getProtocol(protocol);
-        String endpointPath = protocolConfig == null ? null : protocolConfig.getEndpointPath();
-        return resolveRawCompletionsUri(providerKey, protocol, config.getBaseUrl(), endpointPath);
+        ProviderConfig config = resolveProviderConfig(providerKey);
+        ProtocolConfig protocolConfig = config.getProtocol(protocol);
+        String endpointPath = protocolConfig == null ? null : protocolConfig.endpointPath();
+        return resolveRawCompletionsUri(providerKey, protocol, config.baseUrl(), endpointPath);
     }
 
     private String resolveRawCompletionsUri(String providerKey, ModelProtocol protocol, String baseUrl, String endpointPath) {

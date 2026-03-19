@@ -1,6 +1,9 @@
 package com.linlay.agentplatform.agent.mode;
 
 import com.linlay.agentplatform.agent.AgentConfigFile;
+import com.linlay.agentplatform.agent.config.AgentModelConfig;
+import com.linlay.agentplatform.agent.config.AgentRuntimePromptsConfig;
+import com.linlay.agentplatform.agent.config.AgentToolConfig;
 import com.linlay.agentplatform.agent.PlanToolConstants;
 import com.linlay.agentplatform.agent.SkillAppend;
 import com.linlay.agentplatform.agent.ToolAppend;
@@ -27,7 +30,7 @@ public final class AgentModeFactory {
             Path file,
             Function<String, ModelDefinition> modelResolver
     ) {
-        AgentConfigFile.RuntimePromptsConfig runtimePromptsConfig = config == null ? null : config.getRuntimePrompts();
+        AgentRuntimePromptsConfig runtimePromptsConfig = config == null ? null : config.getRuntimePrompts();
         SkillAppend skillAppend = buildSkillAppend(runtimePromptsConfig);
         ToolAppend toolAppend = buildToolAppend(runtimePromptsConfig);
         String taskExecutionPromptTemplate = buildTaskExecutionPromptTemplate(runtimePromptsConfig);
@@ -104,11 +107,11 @@ public final class AgentModeFactory {
         };
     }
 
-    private static SkillAppend buildSkillAppend(AgentConfigFile.RuntimePromptsConfig config) {
+    private static SkillAppend buildSkillAppend(AgentRuntimePromptsConfig config) {
         if (config == null) {
             return SkillAppend.DEFAULTS;
         }
-        AgentConfigFile.SkillPromptConfig skillConfig = config.getSkill();
+        AgentRuntimePromptsConfig.SkillPromptConfig skillConfig = config.getSkill();
         if (skillConfig == null) {
             return SkillAppend.DEFAULTS;
         }
@@ -119,11 +122,11 @@ public final class AgentModeFactory {
         );
     }
 
-    private static ToolAppend buildToolAppend(AgentConfigFile.RuntimePromptsConfig config) {
+    private static ToolAppend buildToolAppend(AgentRuntimePromptsConfig config) {
         if (config == null) {
             return ToolAppend.DEFAULTS;
         }
-        AgentConfigFile.ToolAppendixPromptConfig toolAppendixConfig = config.getToolAppendix();
+        AgentRuntimePromptsConfig.ToolAppendixPromptConfig toolAppendixConfig = config.getToolAppendix();
         if (toolAppendixConfig == null) {
             return ToolAppend.DEFAULTS;
         }
@@ -133,11 +136,11 @@ public final class AgentModeFactory {
         );
     }
 
-    private static String buildTaskExecutionPromptTemplate(AgentConfigFile.RuntimePromptsConfig config) {
+    private static String buildTaskExecutionPromptTemplate(AgentRuntimePromptsConfig config) {
         if (config == null) {
             return null;
         }
-        AgentConfigFile.PlanExecutePromptConfig peConfig = config.getPlanExecute();
+        AgentRuntimePromptsConfig.PlanExecutePromptConfig peConfig = config.getPlanExecute();
         if (peConfig == null) {
             return null;
         }
@@ -165,7 +168,7 @@ public final class AgentModeFactory {
             List<String> requiredTools,
             Function<String, ModelDefinition> modelResolver
     ) {
-        AgentConfigFile.ModelConfig resolvedModelConfig = resolveModelConfig(config, stage);
+        AgentModelConfig resolvedModelConfig = resolveModelConfig(config, stage);
         if (resolvedModelConfig == null || !StringUtils.hasText(resolvedModelConfig.getModelKey())) {
             throw new IllegalArgumentException("modelConfig.modelKey is required");
         }
@@ -197,8 +200,8 @@ public final class AgentModeFactory {
         );
     }
 
-    private static AgentConfigFile.ModelConfig resolveModelConfig(AgentConfigFile config, AgentConfigFile.StageConfig stage) {
-        AgentConfigFile.ModelConfig top = config == null ? null : config.getModelConfig();
+    private static AgentModelConfig resolveModelConfig(AgentConfigFile config, AgentConfigFile.StageConfig stage) {
+        AgentModelConfig top = config == null ? null : config.getModelConfig();
         if (stage == null || !stage.isModelConfigProvided() || stage.getModelConfig() == null) {
             return top;
         }
@@ -210,7 +213,7 @@ public final class AgentModeFactory {
             AgentConfigFile.StageConfig stage,
             List<String> requiredTools
     ) {
-        AgentConfigFile.ToolConfig top = config == null ? null : config.getToolConfig();
+        AgentToolConfig top = config == null ? null : config.getToolConfig();
         List<String> resolved;
         if (stage == null || !stage.isToolConfigProvided()) {
             resolved = normalizeTools(top);
@@ -224,7 +227,7 @@ public final class AgentModeFactory {
         return mergeRequiredTools(resolved, requiredTools);
     }
 
-    private static List<String> normalizeTools(AgentConfigFile.ToolConfig toolConfig) {
+    private static List<String> normalizeTools(AgentToolConfig toolConfig) {
         if (toolConfig == null) {
             return List.of();
         }

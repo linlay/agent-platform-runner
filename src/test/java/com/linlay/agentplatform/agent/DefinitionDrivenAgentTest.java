@@ -19,7 +19,11 @@ import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
+import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ToolProperties;
+import com.linlay.agentplatform.config.ViewportProperties;
+import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.AgentRequest;
@@ -29,6 +33,7 @@ import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.skill.SkillProperties;
+import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.stream.model.StreamEvent;
 import com.linlay.agentplatform.stream.model.StreamInput;
@@ -82,6 +87,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.linlay.agentplatform.schedule.ScheduleProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -141,7 +147,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(echoTool)),
@@ -187,7 +193,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of()),
@@ -263,7 +269,7 @@ class DefinitionDrivenAgentTest {
         frontendToolProperties.setSubmitTimeoutMs(60L);
         FrontendSubmitCoordinator frontendSubmitCoordinator = new FrontendSubmitCoordinator(frontendToolProperties);
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 toolRegistry,
@@ -348,7 +354,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 toolRegistry,
@@ -397,7 +403,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of()),
@@ -488,7 +494,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 toolRegistry,
@@ -530,7 +536,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of()),
@@ -590,7 +596,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of()),
@@ -656,7 +662,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(skillScriptRunTool())),
@@ -733,7 +739,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(skillScriptRunTool())),
@@ -800,7 +806,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(skillScriptRunTool())),
@@ -870,7 +876,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(skillScriptRunTool())),
@@ -961,7 +967,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanUpdateTask())),
@@ -1060,7 +1066,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(echoTool)),
@@ -1110,7 +1116,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of()),
@@ -1184,7 +1190,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(echoTool)),
@@ -1255,7 +1261,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanUpdateTask())),
@@ -1348,7 +1354,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanUpdateTask())),
@@ -1450,7 +1456,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanUpdateTask(), promptTool)),
@@ -1530,7 +1536,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanGetTasks(), new SystemPlanUpdateTask())),
@@ -1643,7 +1649,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanGetTasks(), new SystemPlanUpdateTask())),
@@ -1728,7 +1734,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanUpdateTask())),
@@ -1784,7 +1790,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanUpdateTask())),
@@ -1844,7 +1850,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanUpdateTask())),
@@ -1924,7 +1930,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(echoTool)),
@@ -2007,7 +2013,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(echoTool)),
@@ -2084,7 +2090,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of(new SystemPlanAddTasks(), new SystemPlanUpdateTask())),
@@ -2131,7 +2137,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 new ToolRegistry(List.of()),
@@ -2180,7 +2186,7 @@ class DefinitionDrivenAgentTest {
         ContainerHubToolProperties properties = containerHubProperties("http://container-hub.test", "shell");
         ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
         ContainerHubSandboxService sandboxService = new ContainerHubSandboxService(
-                properties, client, new ContainerHubMountResolver(properties, null, null));
+                properties, client, containerHubMountResolver(properties, null, null));
         BaseTool containerHubTool = new SystemContainerHubBash(properties, client);
         ToolRegistry toolRegistry = new ToolRegistry(List.of(containerHubTool));
 
@@ -2223,7 +2229,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 toolRegistry,
@@ -2288,7 +2294,7 @@ class DefinitionDrivenAgentTest {
         ContainerHubToolProperties properties = containerHubProperties("http://container-hub.test", "shell");
         ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
         ContainerHubSandboxService sandboxService = new ContainerHubSandboxService(
-                properties, client, new ContainerHubMountResolver(properties, null, null));
+                properties, client, containerHubMountResolver(properties, null, null));
         BaseTool containerHubTool = new SystemContainerHubBash(properties, client);
         ToolRegistry toolRegistry = new ToolRegistry(List.of(containerHubTool));
 
@@ -2342,7 +2348,7 @@ class DefinitionDrivenAgentTest {
             }
         };
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 llmService,
                 toolRegistry,
@@ -2392,7 +2398,7 @@ class DefinitionDrivenAgentTest {
         ContainerHubToolProperties properties = containerHubProperties("http://container-hub.test", "shell");
         ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
         ContainerHubSandboxService sandboxService = new ContainerHubSandboxService(
-                properties, client, new ContainerHubMountResolver(properties, null, null));
+                properties, client, containerHubMountResolver(properties, null, null));
         BaseTool containerHubTool = new SystemContainerHubBash(properties, client);
         ToolRegistry toolRegistry = new ToolRegistry(List.of(containerHubTool));
 
@@ -2415,7 +2421,7 @@ class DefinitionDrivenAgentTest {
                 List.of()
         );
 
-        DefinitionDrivenAgent agent = new DefinitionDrivenAgent(
+        DefinitionDrivenAgent agent = createAgent(
                 definition,
                 new StubLlmService() {
                 },
@@ -2488,6 +2494,132 @@ class DefinitionDrivenAgentTest {
         };
     }
 
+    private DefinitionDrivenAgent createAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator
+    ) {
+        return createAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                null,
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null
+        );
+    }
+
+    private DefinitionDrivenAgent createAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService
+    ) {
+        return createAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null
+        );
+    }
+
+    private DefinitionDrivenAgent createAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties
+    ) {
+        return createAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                loggingAgentProperties,
+                null,
+                null,
+                null
+        );
+    }
+
+    private DefinitionDrivenAgent createAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            com.linlay.agentplatform.agent.runtime.ToolInvoker toolInvoker
+    ) {
+        return createAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                loggingAgentProperties,
+                toolInvoker,
+                null,
+                null
+        );
+    }
+
+    private DefinitionDrivenAgent createAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            com.linlay.agentplatform.agent.runtime.ToolInvoker toolInvoker,
+            com.linlay.agentplatform.service.ActiveRunService activeRunService,
+            ContainerHubSandboxService containerHubSandboxService
+    ) {
+        return new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                loggingAgentProperties,
+                toolInvoker,
+                activeRunService,
+                containerHubSandboxService
+        );
+    }
+
     private AgentDefinition definition(
             String id,
             AgentRuntimeMode mode,
@@ -2521,6 +2653,26 @@ class DefinitionDrivenAgentTest {
         properties.getMounts().setSkillsDir(createTempMountDir("definition-agent-skills").toString());
         properties.getMounts().setPanDir(createTempMountDir("definition-agent-pan").toString());
         return properties;
+    }
+
+    private ContainerHubMountResolver containerHubMountResolver(
+            ContainerHubToolProperties properties,
+            com.linlay.agentplatform.config.DataProperties dataProperties,
+            SkillProperties skillProperties
+    ) {
+        return new ContainerHubMountResolver(
+                properties,
+                dataProperties,
+                skillProperties,
+                new ToolProperties(),
+                new AgentProperties(),
+                new ModelProperties(),
+                new ViewportProperties(),
+                new TeamProperties(),
+                new ScheduleProperties(),
+                new McpProperties(),
+                new ProviderProperties()
+        );
     }
 
     private Path createTempMountDir(String prefix) {

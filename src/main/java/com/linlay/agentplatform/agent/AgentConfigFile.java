@@ -2,19 +2,17 @@ package com.linlay.agentplatform.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
+import com.linlay.agentplatform.agent.config.AgentBudgetConfig;
+import com.linlay.agentplatform.agent.config.AgentModelConfig;
+import com.linlay.agentplatform.agent.config.AgentRuntimePromptsConfig;
+import com.linlay.agentplatform.agent.config.AgentToolConfig;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
-import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AgentConfigFile {
@@ -24,20 +22,20 @@ public class AgentConfigFile {
     private JsonNode icon;
     private String description;
     private String role;
-    private ModelConfig modelConfig;
-    private ToolConfig toolConfig;
+    private AgentModelConfig modelConfig;
+    private AgentToolConfig toolConfig;
     private SandboxConfig sandboxConfig;
     private SkillConfig skillConfig;
     private List<String> skills;
     private AgentRuntimeMode mode;
 
     private ToolChoice toolChoice;
-    private BudgetConfig budget;
+    private AgentBudgetConfig budget;
 
     private OneshotConfig plain;
     private ReactConfig react;
     private PlanExecuteConfig planExecute;
-    private RuntimePromptsConfig runtimePrompts;
+    private AgentRuntimePromptsConfig runtimePrompts;
 
     public String getKey() {
         return key;
@@ -80,19 +78,19 @@ public class AgentConfigFile {
         this.role = role;
     }
 
-    public ModelConfig getModelConfig() {
+    public AgentModelConfig getModelConfig() {
         return modelConfig;
     }
 
-    public void setModelConfig(ModelConfig modelConfig) {
+    public void setModelConfig(AgentModelConfig modelConfig) {
         this.modelConfig = modelConfig;
     }
 
-    public ToolConfig getToolConfig() {
+    public AgentToolConfig getToolConfig() {
         return toolConfig;
     }
 
-    public void setToolConfig(ToolConfig toolConfig) {
+    public void setToolConfig(AgentToolConfig toolConfig) {
         this.toolConfig = toolConfig;
     }
 
@@ -136,11 +134,11 @@ public class AgentConfigFile {
         this.toolChoice = toolChoice;
     }
 
-    public BudgetConfig getBudget() {
+    public AgentBudgetConfig getBudget() {
         return budget;
     }
 
-    public void setBudget(BudgetConfig budget) {
+    public void setBudget(AgentBudgetConfig budget) {
         this.budget = budget;
     }
 
@@ -168,121 +166,12 @@ public class AgentConfigFile {
         this.planExecute = planExecute;
     }
 
-    public RuntimePromptsConfig getRuntimePrompts() {
+    public AgentRuntimePromptsConfig getRuntimePrompts() {
         return runtimePrompts;
     }
 
-    public void setRuntimePrompts(RuntimePromptsConfig runtimePrompts) {
+    public void setRuntimePrompts(AgentRuntimePromptsConfig runtimePrompts) {
         this.runtimePrompts = runtimePrompts;
-    }
-
-    public static class BudgetConfig {
-        private static final Set<String> LEGACY_FIELDS = Set.of(
-                "maxModelCalls",
-                "maxToolCalls",
-                "timeoutMs",
-                "retryCount"
-        );
-
-        private Long runTimeoutMs;
-        private ScopeConfig model;
-        private ScopeConfig tool;
-        private final Map<String, Object> unknownFields = new LinkedHashMap<>();
-
-        public Long getRunTimeoutMs() {
-            return runTimeoutMs;
-        }
-
-        public void setRunTimeoutMs(Long runTimeoutMs) {
-            this.runTimeoutMs = runTimeoutMs;
-        }
-
-        public ScopeConfig getModel() {
-            return model;
-        }
-
-        public void setModel(ScopeConfig model) {
-            this.model = model;
-        }
-
-        public ScopeConfig getTool() {
-            return tool;
-        }
-
-        public void setTool(ScopeConfig tool) {
-            this.tool = tool;
-        }
-
-        @JsonAnySetter
-        public void setUnknownField(String key, Object value) {
-            if (key == null || key.isBlank()) {
-                return;
-            }
-            unknownFields.put(key, value);
-        }
-
-        public Map<String, Object> getUnknownFields() {
-            return Map.copyOf(unknownFields);
-        }
-
-        public Budget toBudget() {
-            if (!unknownFields.isEmpty()) {
-                List<String> names = unknownFields.keySet().stream().sorted().toList();
-                List<String> legacy = names.stream().filter(LEGACY_FIELDS::contains).toList();
-                if (!legacy.isEmpty()) {
-                    throw new IllegalArgumentException(
-                            "budget legacy fields are not supported: " + String.join(", ", legacy)
-                    );
-                }
-                throw new IllegalArgumentException(
-                        "budget contains unsupported fields: " + String.join(", ", names)
-                );
-            }
-            return new Budget(
-                    runTimeoutMs == null ? 0L : runTimeoutMs,
-                    model == null ? null : model.toScope(),
-                    tool == null ? null : tool.toScope()
-            );
-        }
-
-        @JsonIgnoreProperties(ignoreUnknown = true)
-        public static class ScopeConfig {
-            private Integer maxCalls;
-            private Long timeoutMs;
-            private Integer retryCount;
-
-            public Integer getMaxCalls() {
-                return maxCalls;
-            }
-
-            public void setMaxCalls(Integer maxCalls) {
-                this.maxCalls = maxCalls;
-            }
-
-            public Long getTimeoutMs() {
-                return timeoutMs;
-            }
-
-            public void setTimeoutMs(Long timeoutMs) {
-                this.timeoutMs = timeoutMs;
-            }
-
-            public Integer getRetryCount() {
-                return retryCount;
-            }
-
-            public void setRetryCount(Integer retryCount) {
-                this.retryCount = retryCount;
-            }
-
-            private Budget.Scope toScope() {
-                return new Budget.Scope(
-                        maxCalls == null ? 0 : maxCalls,
-                        timeoutMs == null ? 0L : timeoutMs,
-                        retryCount == null ? 0 : retryCount
-                );
-            }
-        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -330,88 +219,6 @@ public class AgentConfigFile {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class ModelConfig {
-        private String modelKey;
-        private ReasoningConfig reasoning;
-        private Double temperature;
-        @JsonProperty("top_p")
-        private Double topP;
-        @JsonProperty("max_tokens")
-        private Integer maxTokens;
-
-        public String getModelKey() {
-            return modelKey;
-        }
-
-        public void setModelKey(String modelKey) {
-            this.modelKey = modelKey;
-        }
-
-        public ReasoningConfig getReasoning() {
-            return reasoning;
-        }
-
-        public void setReasoning(ReasoningConfig reasoning) {
-            this.reasoning = reasoning;
-        }
-
-        public Double getTemperature() {
-            return temperature;
-        }
-
-        public void setTemperature(Double temperature) {
-            this.temperature = temperature;
-        }
-
-        public Double getTopP() {
-            return topP;
-        }
-
-        public void setTopP(Double topP) {
-            this.topP = topP;
-        }
-
-        public Integer getMaxTokens() {
-            return maxTokens;
-        }
-
-        public void setMaxTokens(Integer maxTokens) {
-            this.maxTokens = maxTokens;
-        }
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class ToolConfig {
-        private List<String> backends;
-        private List<String> frontends;
-        private List<String> actions;
-
-        public List<String> getBackends() {
-            return backends;
-        }
-
-        public void setBackends(List<String> backends) {
-            this.backends = backends;
-        }
-
-        public List<String> getFrontends() {
-            return frontends;
-        }
-
-        public void setFrontends(List<String> frontends) {
-            this.frontends = frontends;
-        }
-
-        public List<String> getActions() {
-            return actions;
-        }
-
-        public void setActions(List<String> actions) {
-            this.actions = actions;
-        }
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class SkillConfig {
         private List<String> skills;
 
@@ -428,8 +235,8 @@ public class AgentConfigFile {
     public static class StageConfig {
         private String systemPrompt;
         private boolean deepThinking;
-        private ModelConfig modelConfig;
-        private ToolConfig toolConfig;
+        private AgentModelConfig modelConfig;
+        private AgentToolConfig toolConfig;
         @JsonIgnore
         private boolean deepThinkingProvided;
         @JsonIgnore
@@ -457,22 +264,22 @@ public class AgentConfigFile {
             this.deepThinkingProvided = true;
         }
 
-        public ModelConfig getModelConfig() {
+        public AgentModelConfig getModelConfig() {
             return modelConfig;
         }
 
         @JsonSetter("modelConfig")
-        public void setModelConfig(ModelConfig modelConfig) {
+        public void setModelConfig(AgentModelConfig modelConfig) {
             this.modelConfig = modelConfig;
             this.modelConfigProvided = true;
         }
 
-        public ToolConfig getToolConfig() {
+        public AgentToolConfig getToolConfig() {
             return toolConfig;
         }
 
         @JsonSetter("toolConfig")
-        public void setToolConfig(ToolConfig toolConfig) {
+        public void setToolConfig(AgentToolConfig toolConfig) {
             this.toolConfig = toolConfig;
             this.toolConfigProvided = true;
             this.toolConfigExplicitNull = toolConfig == null;
@@ -552,100 +359,4 @@ public class AgentConfigFile {
         }
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class RuntimePromptsConfig {
-        private PlanExecutePromptConfig planExecute;
-        private SkillPromptConfig skill;
-        private ToolAppendixPromptConfig toolAppendix;
-
-        public PlanExecutePromptConfig getPlanExecute() {
-            return planExecute;
-        }
-
-        public void setPlanExecute(PlanExecutePromptConfig planExecute) {
-            this.planExecute = planExecute;
-        }
-
-        public SkillPromptConfig getSkill() {
-            return skill;
-        }
-
-        public void setSkill(SkillPromptConfig skill) {
-            this.skill = skill;
-        }
-
-        public ToolAppendixPromptConfig getToolAppendix() {
-            return toolAppendix;
-        }
-
-        public void setToolAppendix(ToolAppendixPromptConfig toolAppendix) {
-            this.toolAppendix = toolAppendix;
-        }
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class PlanExecutePromptConfig {
-        private String taskExecutionPromptTemplate;
-
-        public String getTaskExecutionPromptTemplate() {
-            return taskExecutionPromptTemplate;
-        }
-
-        public void setTaskExecutionPromptTemplate(String taskExecutionPromptTemplate) {
-            this.taskExecutionPromptTemplate = taskExecutionPromptTemplate;
-        }
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class SkillPromptConfig {
-        private String catalogHeader;
-        private String disclosureHeader;
-        private String instructionsLabel;
-
-        public String getCatalogHeader() {
-            return catalogHeader;
-        }
-
-        public void setCatalogHeader(String catalogHeader) {
-            this.catalogHeader = catalogHeader;
-        }
-
-        public String getDisclosureHeader() {
-            return disclosureHeader;
-        }
-
-        public void setDisclosureHeader(String disclosureHeader) {
-            this.disclosureHeader = disclosureHeader;
-        }
-
-        public String getInstructionsLabel() {
-            return instructionsLabel;
-        }
-
-        public void setInstructionsLabel(String instructionsLabel) {
-            this.instructionsLabel = instructionsLabel;
-        }
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class ToolAppendixPromptConfig {
-        private String toolDescriptionTitle;
-        private String afterCallHintTitle;
-
-        public String getToolDescriptionTitle() {
-            return toolDescriptionTitle;
-        }
-
-        public void setToolDescriptionTitle(String toolDescriptionTitle) {
-            this.toolDescriptionTitle = toolDescriptionTitle;
-        }
-
-        public String getAfterCallHintTitle() {
-            return afterCallHintTitle;
-        }
-
-        public void setAfterCallHintTitle(String afterCallHintTitle) {
-            this.afterCallHintTitle = afterCallHintTitle;
-        }
-    }
 }

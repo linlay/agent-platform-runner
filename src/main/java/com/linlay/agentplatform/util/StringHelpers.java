@@ -13,6 +13,10 @@ public final class StringHelpers {
         return value == null || value.isBlank() ? fallback : value;
     }
 
+    public static String normalizeKey(String value) {
+        return trimToEmpty(value).toLowerCase();
+    }
+
     public static String trimOrDefault(String value, String fallback) {
         return StringUtils.hasText(value) ? value.trim() : fallback;
     }

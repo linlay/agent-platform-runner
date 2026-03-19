@@ -92,6 +92,14 @@ public class ContainerHubToolProperties {
         private String userDir = "./user";
         private String skillsDir;
         private String panDir = "./pan";
+        private String toolsDir;
+        private String agentsDir;
+        private String modelsDir;
+        private String viewportsDir;
+        private String teamsDir;
+        private String schedulesDir;
+        private String mcpServersDir;
+        private String providersDir;
 
         public String getDataDir() {
             return dataDir;
@@ -123,6 +131,70 @@ public class ContainerHubToolProperties {
 
         public void setPanDir(String panDir) {
             this.panDir = panDir;
+        }
+
+        public String getToolsDir() {
+            return toolsDir;
+        }
+
+        public void setToolsDir(String toolsDir) {
+            this.toolsDir = toolsDir;
+        }
+
+        public String getAgentsDir() {
+            return agentsDir;
+        }
+
+        public void setAgentsDir(String agentsDir) {
+            this.agentsDir = agentsDir;
+        }
+
+        public String getModelsDir() {
+            return modelsDir;
+        }
+
+        public void setModelsDir(String modelsDir) {
+            this.modelsDir = modelsDir;
+        }
+
+        public String getViewportsDir() {
+            return viewportsDir;
+        }
+
+        public void setViewportsDir(String viewportsDir) {
+            this.viewportsDir = viewportsDir;
+        }
+
+        public String getTeamsDir() {
+            return teamsDir;
+        }
+
+        public void setTeamsDir(String teamsDir) {
+            this.teamsDir = teamsDir;
+        }
+
+        public String getSchedulesDir() {
+            return schedulesDir;
+        }
+
+        public void setSchedulesDir(String schedulesDir) {
+            this.schedulesDir = schedulesDir;
+        }
+
+        public String getMcpServersDir() {
+            return mcpServersDir;
+        }
+
+        public void setMcpServersDir(String mcpServersDir) {
+            this.mcpServersDir = mcpServersDir;
+        }
+
+        public String getProvidersDir() {
+            return providersDir;
+        }
+
+        public void setProvidersDir(String providersDir) {
+            this.providersDir = providersDir;
         }
     }
 }

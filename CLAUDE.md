@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Spring Boot agent gateway — 基于 WebFlux 的响应式 LLM Agent 编排服务，通过 JSON 配置定义 Agent，支持多种执行模式和原生 OpenAI Function Calling 协议。
+Spring Boot agent gateway — 基于 WebFlux 的响应式 LLM Agent 编排服务，通过 YAML 配置定义 Agent，支持多种执行模式和原生 OpenAI Function Calling 协议。
 
 **技术栈:** Java 21, Spring Boot 3.3.8, WebFlux (Reactor), Jackson
 
@@ -193,7 +193,7 @@ plain:
 **modelConfig 继承：**
 - 支持外层默认 + stage 内层覆盖；内层优先。
 - 外层 `modelConfig` 可省略，但"外层或任一 stage"至少要有一处 `modelConfig.modelKey`。
-- `provider/modelId/protocol` 不在 Agent Definition 文件中声明，统一由 `models/<modelKey>.json` 解析得到。
+- `provider/modelId/protocol` 不在 Agent Definition 文件中声明，统一由 `models/<modelKey>.yml` 解析得到。
 
 **toolConfig 继承：**
 - 支持外层默认 + stage 覆盖。
@@ -205,12 +205,12 @@ plain:
 - 支持两种写法（会合并去重）：`"skillConfig": {"skills": [...]}` 或 `"skills": [...]`。
 
 **文件格式与优先级：**
-- `agents/` 支持 `.json`、`.yml`、`.yaml`。
-- 同 basename 或同 `key` 冲突时，YAML 优先于 JSON；同优先级下按文件名升序决定首个生效项。
+- `agents/` 仅支持 `.yml`、`.yaml`。
+- 目录中若出现旧 `*.json` 会直接 fail-fast。
+- 同 basename 冲突时优先 `.yml`，并忽略对应 `.yaml`。
 
 **多行 Prompt 写法：**
 - YAML 推荐使用 block scalar（`|` / `>`）。
-- JSON 兼容 `"""..."""` 三引号格式（非标准 JSON，预处理阶段转换）。仅匹配字段名含 `systemPrompt` 的键（大小写不敏感）。
 
 **步骤上限：**
 - `react.maxSteps` 控制 REACT 循环上限。
@@ -221,7 +221,7 @@ plain:
 - 运行目录：`models/`（默认，可通过 `agent.models.external-dir` 覆盖）。
 - 不再内置同步 `models/`；可从 `example/models/` 复制到外置目录。
 - 热加载：目录变更会触发模型刷新，并按 `modelKey` 依赖精准刷新受影响 agent。
-- 文件格式：每个模型一个 JSON（建议 `models/<modelKey>.json`）。
+- 文件格式：每个模型一个 YAML（建议 `models/<modelKey>.yml`）。
 - 必填字段：`key`、`provider`、`protocol`、`modelId`。
 - 常用字段：`isReasoner`、`isFunction`、`maxTokens`、`maxInputTokens`、`maxOutputTokens`。
 - 计费字段：`pricing.promptPointsPer1k`、`pricing.completionPointsPer1k`、`pricing.perCallPoints`、`pricing.priceRatio`、`pricing.tiers[]`。
@@ -436,6 +436,14 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 | `/home` | `{userDir}` | `{userDir}` | `mounts.user-dir`（默认 `./user`） |
 | `/skills` | `{skillsDir}` | `{skillsDir}` | `mounts.skills-dir` → `agent.skills.external-dir` |
 | `/pan` | `{panDir}` | `{panDir}` | `mounts.pan-dir`（默认 `./pan`） |
+| `/tools` | `{toolsDir}` | `{toolsDir}` | `mounts.tools-dir` → `agent.tools.external-dir` |
+| `/agents` | `{agentsDir}` | `{agentsDir}` | `mounts.agents-dir` → `agent.agents.external-dir` |
+| `/models` | `{modelsDir}` | `{modelsDir}` | `mounts.models-dir` → `agent.models.external-dir` |
+| `/viewports` | `{viewportsDir}` | `{viewportsDir}` | `mounts.viewports-dir` → `agent.viewports.external-dir` |
+| `/teams` | `{teamsDir}` | `{teamsDir}` | `mounts.teams-dir` → `agent.teams.external-dir` |
+| `/schedules` | `{schedulesDir}` | `{schedulesDir}` | `mounts.schedules-dir` → `agent.schedule.external-dir` |
+| `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `mounts.mcp-servers-dir` → `agent.mcp-servers.registry.external-dir` |
+| `/providers` | `{providersDir}` | `{providersDir}` | `mounts.providers-dir`（敏感目录，默认不挂载，不 fallback） |
 
 ### Agent Definition 中的 sandboxConfig
 
@@ -456,6 +464,14 @@ sandboxConfig:
 | `AGENT_CONTAINER_HUB_MOUNTS_USER_DIR` | `agent.tools.container-hub.mounts.user-dir` | `./user` | 挂载用户目录 |
 | `AGENT_CONTAINER_HUB_MOUNTS_SKILLS_DIR` | `agent.tools.container-hub.mounts.skills-dir` | （空，fallback `agent.skills.external-dir`） | 挂载技能目录 |
 | `AGENT_CONTAINER_HUB_MOUNTS_PAN_DIR` | `agent.tools.container-hub.mounts.pan-dir` | `./pan` | 挂载 pan 目录 |
+| `AGENT_CONTAINER_HUB_MOUNTS_TOOLS_DIR` | `agent.tools.container-hub.mounts.tools-dir` | （空，fallback `agent.tools.external-dir`） | 挂载 tools 目录 |
+| `AGENT_CONTAINER_HUB_MOUNTS_AGENTS_DIR` | `agent.tools.container-hub.mounts.agents-dir` | （空，fallback `agent.agents.external-dir`） | 挂载 agents 目录 |
+| `AGENT_CONTAINER_HUB_MOUNTS_MODELS_DIR` | `agent.tools.container-hub.mounts.models-dir` | （空，fallback `agent.models.external-dir`） | 挂载 models 目录 |
+| `AGENT_CONTAINER_HUB_MOUNTS_VIEWPORTS_DIR` | `agent.tools.container-hub.mounts.viewports-dir` | （空，fallback `agent.viewports.external-dir`） | 挂载 viewports 目录 |
+| `AGENT_CONTAINER_HUB_MOUNTS_TEAMS_DIR` | `agent.tools.container-hub.mounts.teams-dir` | （空，fallback `agent.teams.external-dir`） | 挂载 teams 目录 |
+| `AGENT_CONTAINER_HUB_MOUNTS_SCHEDULES_DIR` | `agent.tools.container-hub.mounts.schedules-dir` | （空，fallback `agent.schedule.external-dir`） | 挂载 schedules 目录 |
+| `AGENT_CONTAINER_HUB_MOUNTS_MCP_SERVERS_DIR` | `agent.tools.container-hub.mounts.mcp-servers-dir` | （空，fallback `agent.mcp-servers.registry.external-dir`） | 挂载 mcp-servers 目录 |
+| `AGENT_CONTAINER_HUB_MOUNTS_PROVIDERS_DIR` | `agent.tools.container-hub.mounts.providers-dir` | （空，默认关闭） | 显式启用 providers 敏感目录挂载 |
 
 ### 并发与销毁策略
 
@@ -531,7 +547,7 @@ sandboxConfig:
 - 存储文件：`chats/{chatId}.json`，JSONL 格式，**一行一个 step**，逐步增量写入。
 - 行类型通过 `_type` 字段区分：
   - `"query"`：用户原始请求行。必带 `chatId`、`runId`、`updatedAt`、`query`。
-  - `"step"`：一个执行步骤行。必带 `chatId`、`runId`、`_stage`、`_seq`、`updatedAt`、`messages`；可选 `taskId`、`system`、`plan`（旧名 `planSnapshot`，读取时兼容）。
+  - `"step"`：一个执行步骤行。必带 `chatId`、`runId`、`_stage`、`_seq`、`updatedAt`、`messages`；可选 `taskId`、`system`、`plan`。
 - `_stage` 标识步骤阶段：`"oneshot"` / `"react"` / `"plan"` / `"execute"` / `"summary"`。
 - `_seq` 全局递增序号，标识 run 内的步骤顺序。
 - `query` 保存完整 query 结构（`requestId/chatId/agentKey/role/message/references/params/scene/stream`）。
@@ -547,12 +563,11 @@ sandboxConfig:
 
 ## Chat Memory V3.1 变更
 
-基于 V3 格式的增量改进，向后兼容旧 V3 数据。
+基于 V3 格式的增量改进；当前只读取新字段名，不再兼容旧的 `planSnapshot` / `plan` 历史别名。
 
 ### 字段重命名
 
-- step 行的 `planSnapshot` 字段重命名为 `plan`；内层 `PlanSnapshot.plan` 数组字段重命名为 `tasks`。
-- 读取时兼容旧字段名：先查 `"plan"` 再 fallback `"planSnapshot"`；`@JsonAlias("plan")` 兼容旧 `tasks` 字段。
+- step 行统一使用 `plan` 字段；内层 `PlanSnapshot` 统一使用 `tasks` 数组字段。
 
 ### _msgId
 
@@ -618,8 +633,10 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 |---------|--------|-------|------|
 | `AGENT_AGENTS_EXTERNAL_DIR` | `agent.agents.external-dir` | `agents` | Agent Definition 目录 |
 | `AGENT_AGENTS_REFRESH_INTERVAL_MS` | `agent.agents.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
-| `AGENT_MODELS_EXTERNAL_DIR` | `agent.models.external-dir` | `models` | Model JSON 定义目录 |
+| `AGENT_MODELS_EXTERNAL_DIR` | `agent.models.external-dir` | `models` | Model YAML 定义目录 |
 | `AGENT_MODELS_REFRESH_INTERVAL_MS` | `agent.models.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |
+| `AGENT_PROVIDERS_EXTERNAL_DIR` | `agent.providers.external-dir` | `providers` | Provider YAML 定义目录 |
+| `AGENT_PROVIDERS_REFRESH_INTERVAL_MS` | `agent.providers.refresh-interval-ms` | `30000` | Provider 目录刷新间隔（ms） |
 | `AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR` | `agent.mcp-servers.registry.external-dir` | `mcp-servers` | MCP server 注册目录 |
 | `AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR` | `agent.viewport-servers.registry.external-dir` | `viewport-servers` | Viewport server 注册目录 |
 | `AGENT_VIEWPORTS_EXTERNAL_DIR` | `agent.viewports.external-dir` | `viewports` | Viewport 目录 |
@@ -702,17 +719,32 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `agent.cors.allow-credentials` | `false` | 是否允许凭证 |
 | `agent.cors.max-age-seconds` | `3600` | 预检缓存秒数 |
 
-### Provider 配置（通常在 `configs/providers/<provider>.yml`）
+### Provider 配置（通常在 `providers/<provider>.yml`）
 
-`agent.providers.<providerKey>` 支持：
-- `base-url`
-- `api-key`
+provider 采用外置 YAML 注册中心模式，目录默认值为项目根目录 `providers/`，支持热加载，且仅扫描 `.yml/.yaml`。
+
+最小示例：
+
+```yaml
+key: bailian
+baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
+apiKey: ${DASHSCOPE_API_KEY}
+protocols:
+  OPENAI:
+    endpointPath: /chat/completions
+```
+
+字段说明：
+- `key`
+- `baseUrl`
+- `apiKey`
 - `model`（可选，作为 provider 默认 model）
-- `protocols.<PROTOCOL>.endpoint-path`（可选，按线协议覆盖请求 endpoint 路径）
+- `protocols.<PROTOCOL>.endpointPath`（可选，按线协议覆盖请求 endpoint 路径）
 
 说明：
+- provider 不再支持 `agent.providers.<providerKey>.*` 属性绑定契约。
 - provider 不再绑定 protocol；协议由 `models/*.yml` 中 `protocol` 字段决定。
-- `OPENAI` 未显式配置 `protocols.OPENAI.endpoint-path` 时，会按 `base-url` 自动推导默认 completions 路径。
+- `OPENAI` 未显式配置 `protocols.OPENAI.endpointPath` 时，会按 `baseUrl` 自动推导默认 completions 路径。
 
 ### Logging（主配置默认）
 

@@ -168,7 +168,7 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
-    void shouldRejectAvatarAlias() throws IOException {
+    void shouldIgnoreAvatarAlias() throws IOException {
         writeYaml("legacy_avatar.yml", """
                 key: legacy_avatar
                 name: 旧头像字段
@@ -182,7 +182,9 @@ class AgentDefinitionLoaderTest {
                   systemPrompt: test
                 """);
 
-        assertThat(loadById()).doesNotContainKey("legacy_avatar");
+        AgentDefinition definition = loadById().get("legacy_avatar");
+        assertThat(definition).isNotNull();
+        assertThat(definition.icon()).isNull();
     }
 
     @Test
@@ -695,7 +697,7 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
-    void shouldRejectRemovedVerifyAndRuntimePromptFields() throws IOException {
+    void shouldIgnoreRemovedVerifyAndRuntimePromptFields() throws IOException {
         writeYaml("removed_fields.yml", """
                 key: removed_fields
                 name: Removed Fields
@@ -712,7 +714,9 @@ class AgentDefinitionLoaderTest {
                     systemPrompt: legacy
                 """);
 
-        assertThat(loadById()).doesNotContainKey("removed_fields");
+        AgentDefinition definition = loadById().get("removed_fields");
+        assertThat(definition).isNotNull();
+        assertThat(definition.id()).isEqualTo("removed_fields");
     }
 
     @Test

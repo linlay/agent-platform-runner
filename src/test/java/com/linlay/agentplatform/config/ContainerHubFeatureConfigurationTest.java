@@ -1,9 +1,13 @@
 package com.linlay.agentplatform.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
+import com.linlay.agentplatform.model.ModelProperties;
+import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
+import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import com.linlay.agentplatform.tool.SystemContainerHubBash;
 import org.junit.jupiter.api.Test;
@@ -48,7 +52,19 @@ class ContainerHubFeatureConfigurationTest {
     }
 
     @Configuration(proxyBeanMethods = false)
-    @EnableConfigurationProperties({ContainerHubToolProperties.class, DataProperties.class, SkillProperties.class})
+    @EnableConfigurationProperties({
+            ContainerHubToolProperties.class,
+            DataProperties.class,
+            SkillProperties.class,
+            ToolProperties.class,
+            AgentProperties.class,
+            ModelProperties.class,
+            ViewportProperties.class,
+            TeamProperties.class,
+            ScheduleProperties.class,
+            McpProperties.class,
+            ProviderProperties.class
+    })
     @Import(ContainerHubFeatureConfiguration.class)
     static class ContainerHubFeatureTestConfiguration {
 

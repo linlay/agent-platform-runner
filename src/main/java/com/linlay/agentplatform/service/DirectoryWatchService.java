@@ -4,6 +4,8 @@ import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.ProviderProperties;
+import com.linlay.agentplatform.config.ProviderRegistryService;
 import com.linlay.agentplatform.config.ViewportServerProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.model.ModelProperties;
@@ -52,6 +54,7 @@ public class DirectoryWatchService implements DisposableBean {
             ViewportRegistryService viewportRegistryService,
             ToolFileRegistryService toolFileRegistryService,
             ModelRegistryService modelRegistryService,
+            ProviderRegistryService providerRegistryService,
             SkillRegistryService skillRegistryService,
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
@@ -65,6 +68,7 @@ public class DirectoryWatchService implements DisposableBean {
             McpProperties mcpProperties,
             ViewportServerProperties viewportServerProperties,
             ModelProperties modelProperties,
+            ProviderProperties providerProperties,
             SkillProperties skillProperties,
             TeamProperties teamProperties,
             ScheduleProperties scheduleProperties
@@ -106,6 +110,24 @@ public class DirectoryWatchService implements DisposableBean {
                     }
                     java.util.Set<String> affectedAgents = agentRegistry.findAgentIdsByModels(diff.changedKeys());
                     agentRegistry.refreshAgentsByIds(affectedAgents, "models-directory");
+                }
+        );
+        watchedDirs.put(
+                Path.of(providerProperties.getExternalDir()).toAbsolutePath().normalize(),
+                () -> {
+                    CatalogDiff providerDiff = providerRegistryService.refreshProviders();
+                    if (providerDiff.isEmpty()) {
+                        return;
+                    }
+                    java.util.Set<String> referencingModelKeys = modelRegistryService.findModelKeysByProviders(providerDiff.changedKeys());
+                    CatalogDiff modelDiff = modelRegistryService.refreshModels();
+                    java.util.Set<String> affectedModelKeys = new java.util.LinkedHashSet<>(referencingModelKeys);
+                    affectedModelKeys.addAll(modelDiff.changedKeys());
+                    if (affectedModelKeys.isEmpty()) {
+                        return;
+                    }
+                    java.util.Set<String> affectedAgents = agentRegistry.findAgentIdsByModels(affectedModelKeys);
+                    agentRegistry.refreshAgentsByIds(affectedAgents, "providers-directory");
                 }
         );
         watchedDirs.put(

@@ -325,6 +325,16 @@ class OrchestratorServicesTest {
                 List.of()
         );
         AgentRequest request = new AgentRequest("hello", "chat_1", "req_1", "run_1");
-        return new ExecutionContext(definition, request, List.of());
+        return executionContext(definition, request, List.of());
+    }
+
+    private ExecutionContext executionContext(
+            AgentDefinition definition,
+            AgentRequest request,
+            List<ChatMessage> historyMessages
+    ) {
+        return ExecutionContext.builder(definition, request)
+                .historyMessages(historyMessages)
+                .build();
     }
 }

@@ -24,6 +24,9 @@ agent:
   teams:
     external-dir: ${AGENT_TEAMS_EXTERNAL_DIR:teams}
     refresh-interval-ms: ${AGENT_TEAMS_REFRESH_INTERVAL_MS:30000}
+  providers:
+    external-dir: ${AGENT_PROVIDERS_EXTERNAL_DIR:providers}
+    refresh-interval-ms: ${AGENT_PROVIDERS_REFRESH_INTERVAL_MS:30000}
   models:
     external-dir: ${AGENT_MODELS_EXTERNAL_DIR:models}
     refresh-interval-ms: ${AGENT_MODELS_REFRESH_INTERVAL_MS:30000}
@@ -74,6 +77,14 @@ agent:
         user-dir: ${AGENT_CONTAINER_HUB_MOUNTS_USER_DIR:./user}
         skills-dir: ${AGENT_CONTAINER_HUB_MOUNTS_SKILLS_DIR:}
         pan-dir: ${AGENT_CONTAINER_HUB_MOUNTS_PAN_DIR:./pan}
+        tools-dir: ${AGENT_CONTAINER_HUB_MOUNTS_TOOLS_DIR:}
+        agents-dir: ${AGENT_CONTAINER_HUB_MOUNTS_AGENTS_DIR:}
+        models-dir: ${AGENT_CONTAINER_HUB_MOUNTS_MODELS_DIR:}
+        viewports-dir: ${AGENT_CONTAINER_HUB_MOUNTS_VIEWPORTS_DIR:}
+        teams-dir: ${AGENT_CONTAINER_HUB_MOUNTS_TEAMS_DIR:}
+        schedules-dir: ${AGENT_CONTAINER_HUB_MOUNTS_SCHEDULES_DIR:}
+        mcp-servers-dir: ${AGENT_CONTAINER_HUB_MOUNTS_MCP_SERVERS_DIR:}
+        providers-dir: ${AGENT_CONTAINER_HUB_MOUNTS_PROVIDERS_DIR:}
   h2a:
     render:
       flush-interval-ms: ${AGENT_H2A_RENDER_FLUSH_INTERVAL_MS:0}

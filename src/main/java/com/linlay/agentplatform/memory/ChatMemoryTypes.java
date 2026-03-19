@@ -193,7 +193,6 @@ public final class ChatMemoryTypes {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PlanSnapshot {
         public String planId;
-        @JsonAlias("plan")
         @JsonProperty("tasks")
         public List<PlanTaskSnapshot> tasks;
     }

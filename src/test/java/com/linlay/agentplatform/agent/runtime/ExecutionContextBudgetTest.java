@@ -9,6 +9,7 @@ import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.model.AgentRequest;
+import com.linlay.agentplatform.model.ChatMessage;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -82,6 +83,16 @@ class ExecutionContextBudgetTest {
                 List.of()
         );
         AgentRequest request = new AgentRequest("hello", "chat_1", "req_1", "run_1");
-        return new ExecutionContext(definition, request, List.of());
+        return executionContext(definition, request, List.of());
+    }
+
+    private ExecutionContext executionContext(
+            AgentDefinition definition,
+            AgentRequest request,
+            List<ChatMessage> historyMessages
+    ) {
+        return ExecutionContext.builder(definition, request)
+                .historyMessages(historyMessages)
+                .build();
     }
 }

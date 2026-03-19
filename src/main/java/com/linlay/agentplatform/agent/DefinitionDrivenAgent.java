@@ -7,15 +7,10 @@ import com.linlay.agentplatform.agent.mode.PlanExecuteMode;
 import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
-import com.linlay.agentplatform.agent.runtime.BudgetExceededException;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
-import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
-import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
 import com.linlay.agentplatform.agent.runtime.RunControl;
-import com.linlay.agentplatform.agent.runtime.RunInterruptedException;
 import com.linlay.agentplatform.agent.runtime.RunInputBroker;
-import com.linlay.agentplatform.agent.runtime.RunLoopState;
 import com.linlay.agentplatform.agent.runtime.SkillPromptBundle;
 import com.linlay.agentplatform.agent.runtime.TextBlockIdAssigner;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
@@ -54,7 +49,6 @@ import java.util.Map;
 public class DefinitionDrivenAgent implements Agent {
 
     private static final Logger log = LoggerFactory.getLogger(DefinitionDrivenAgent.class);
-    private static final String FRONTEND_TIMEOUT_FALLBACK_MESSAGE = "前端工具等待用户提交超时，本次运行已结束。请重新发起或在超时前提交。";
 
     private final AgentDefinition definition;
     private final ChatWindowMemoryStore chatWindowMemoryStore;
@@ -67,104 +61,7 @@ public class DefinitionDrivenAgent implements Agent {
     private final ActiveRunService activeRunService;
     private final ContainerHubSandboxService containerHubSandboxService;
     private final AgentRunSnapshotLogger snapshotLogger;
-
-    public DefinitionDrivenAgent(
-            AgentDefinition definition,
-            LlmService llmService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator
-    ) {
-        this(
-                definition,
-                llmService,
-                toolRegistry,
-                objectMapper,
-                chatWindowMemoryStore,
-                frontendSubmitCoordinator,
-                null,
-                new LoggingAgentProperties(),
-                null,
-                null,
-                null
-        );
-    }
-
-    public DefinitionDrivenAgent(
-            AgentDefinition definition,
-            LlmService llmService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator,
-            SkillRegistryService skillRegistryService
-    ) {
-        this(
-                definition,
-                llmService,
-                toolRegistry,
-                objectMapper,
-                chatWindowMemoryStore,
-                frontendSubmitCoordinator,
-                skillRegistryService,
-                new LoggingAgentProperties(),
-                null,
-                null,
-                null
-        );
-    }
-
-    public DefinitionDrivenAgent(
-            AgentDefinition definition,
-            LlmService llmService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator,
-            SkillRegistryService skillRegistryService,
-            LoggingAgentProperties loggingAgentProperties
-    ) {
-        this(
-                definition,
-                llmService,
-                toolRegistry,
-                objectMapper,
-                chatWindowMemoryStore,
-                frontendSubmitCoordinator,
-                skillRegistryService,
-                loggingAgentProperties,
-                null,
-                null,
-                null
-        );
-    }
-
-    public DefinitionDrivenAgent(
-            AgentDefinition definition,
-            LlmService llmService,
-            ToolRegistry toolRegistry,
-            ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
-            FrontendSubmitCoordinator frontendSubmitCoordinator,
-            SkillRegistryService skillRegistryService,
-            LoggingAgentProperties loggingAgentProperties,
-            ToolInvoker toolInvoker
-    ) {
-        this(
-                definition,
-                llmService,
-                toolRegistry,
-                objectMapper,
-                chatWindowMemoryStore,
-                frontendSubmitCoordinator,
-                skillRegistryService,
-                loggingAgentProperties,
-                toolInvoker,
-                null,
-                null
-        );
-    }
+    private final AgentRunLifecycle runLifecycle;
 
     public DefinitionDrivenAgent(
             AgentDefinition definition,
@@ -208,6 +105,7 @@ public class DefinitionDrivenAgent implements Agent {
                 toolInvoker
         );
         this.services = new OrchestratorServices(llmService, toolExecutionService, objectMapper);
+        this.runLifecycle = new AgentRunLifecycle(definition.id(), containerHubSandboxService);
     }
 
     @Override
@@ -296,19 +194,20 @@ public class DefinitionDrivenAgent implements Agent {
                             latestSystem
                     );
                     SkillPromptBundle skillPromptBundle = resolveSkillPrompts();
-                    ExecutionContext context = new ExecutionContext(
-                            definition,
-                            request,
-                            historyMessages,
-                            skillPromptBundle.catalogPrompt(),
-                            skillPromptBundle.resolvedSkillsById(),
-                            runControl
-                    );
+                    ExecutionContext context = ExecutionContext.builder(definition, request)
+                            .historyMessages(historyMessages)
+                            .skillCatalogPrompt(skillPromptBundle.catalogPrompt())
+                            .resolvedSkillsById(skillPromptBundle.resolvedSkillsById())
+                            .runControl(runControl)
+                            .build();
                     if (latestPlanSnapshot != null) {
                         context.initializePlan(latestPlanSnapshot.planId, toPlanTasks(latestPlanSnapshot.tasks));
                     }
                     TextBlockIdAssigner textBlockIdAssigner = new TextBlockIdAssigner(runId);
-                    return Flux.<AgentDelta>create(sink -> runWithMode(context, sink), FluxSink.OverflowStrategy.BUFFER)
+                    return Flux.<AgentDelta>create(
+                                    sink -> runLifecycle.run(definition, context, configuredToolsByName, services, sink),
+                                    FluxSink.OverflowStrategy.BUFFER
+                            )
                             .map(textBlockIdAssigner::assign)
                             .doOnNext(trace::capture)
                             .doOnComplete(() -> finalizeTrace(request, trace))
@@ -319,107 +218,6 @@ public class DefinitionDrivenAgent implements Agent {
                             });
                 })
                 .subscribeOn(Schedulers.boundedElastic());
-    }
-
-    private void runWithMode(ExecutionContext context, FluxSink<AgentDelta> sink) {
-        context.bindRunnerThread(Thread.currentThread());
-        context.runControl().transitionState(RunLoopState.IDLE);
-        try {
-            openSandboxIfNeeded(context);
-            if (context.hasPlan()) {
-                services.emit(sink, AgentDelta.planUpdate(context.planId(), context.request().chatId(), context.planTasks()));
-            }
-            definition.agentMode().run(context, configuredToolsByName, services, sink);
-            if (context.isInterrupted()) {
-                throw new RunInterruptedException();
-            }
-            services.emit(sink, AgentDelta.finish("stop"));
-            context.runControl().transitionState(RunLoopState.COMPLETED);
-            if (!sink.isCancelled()) {
-                sink.complete();
-            }
-        } catch (RunInterruptedException ex) {
-            context.runControl().transitionState(RunLoopState.CANCELLED);
-            if (!sink.isCancelled()) {
-                sink.complete();
-            }
-        } catch (FatalToolExecutionException ex) {
-            log.info("[agent:{}] fatal tool error code={}, message={}", definition.id(), ex.code(), ex.getMessage());
-            services.emit(sink, AgentDelta.content(resolveFatalToolMessage(ex)));
-            services.emit(sink, AgentDelta.finish("tool_error"));
-            context.runControl().transitionState(RunLoopState.FAILED);
-            if (!sink.isCancelled()) {
-                sink.complete();
-            }
-        } catch (FrontendSubmitTimeoutException ex) {
-            log.info("[agent:{}] frontend submit timeout: {}", definition.id(), ex.getMessage());
-            if (StringUtils.hasText(ex.toolId()) && StringUtils.hasText(ex.resultText())) {
-                services.emit(sink, AgentDelta.toolResult(ex.toolId(), ex.resultText()));
-            }
-            String timeoutMessage = resolveFrontendTimeoutMessage(ex);
-            services.emit(sink, AgentDelta.content(timeoutMessage));
-            services.emit(sink, AgentDelta.finish("timeout"));
-            context.runControl().transitionState(RunLoopState.FAILED);
-            if (!sink.isCancelled()) {
-                sink.complete();
-            }
-        } catch (BudgetExceededException ex) {
-            log.warn("[agent:{}] budget exceeded kind={}, message={}", definition.id(), ex.kind(), ex.getMessage());
-            String budgetMessage = resolveBudgetExceededMessage(ex);
-            services.emit(sink, AgentDelta.content(budgetMessage));
-            services.emit(sink, AgentDelta.finish("budget_exceeded"));
-            context.runControl().transitionState(RunLoopState.FAILED);
-            if (!sink.isCancelled()) {
-                sink.complete();
-            }
-        } catch (Exception ex) {
-            log.warn("[agent:{}] orchestration failed", definition.id(), ex);
-            services.emit(sink, AgentDelta.content("模型调用失败，请稍后重试。"));
-            services.emit(sink, AgentDelta.finish("stop"));
-            context.runControl().transitionState(RunLoopState.FAILED);
-            if (!sink.isCancelled()) {
-                sink.complete();
-            }
-        } finally {
-            context.bindRunnerThread(null);
-        }
-    }
-
-    private void openSandboxIfNeeded(ExecutionContext context) {
-        if (containerHubSandboxService == null) {
-            return;
-        }
-        try {
-            containerHubSandboxService.openIfNeeded(context);
-        } catch (IllegalStateException ex) {
-            throw new FatalToolExecutionException("sandbox_error", ex.getMessage());
-        }
-    }
-
-    private String resolveFrontendTimeoutMessage(FrontendSubmitTimeoutException ex) {
-        if (ex == null || !StringUtils.hasText(ex.getMessage())) {
-            return FRONTEND_TIMEOUT_FALLBACK_MESSAGE;
-        }
-        String raw = ex.getMessage().trim();
-        if (raw.contains("Frontend tool submit timeout")) {
-            return FRONTEND_TIMEOUT_FALLBACK_MESSAGE;
-        }
-        return raw;
-    }
-
-    private String resolveBudgetExceededMessage(BudgetExceededException ex) {
-        return switch (ex.kind()) {
-            case RUN_TIMEOUT -> "运行超时，本次执行已结束。请缩短问题范围或稍后重试。";
-            case MODEL_CALLS -> "模型调用次数已达上限，本次执行已结束。";
-            case TOOL_CALLS -> "工具调用次数已达上限，本次执行已结束。";
-        };
-    }
-
-    private String resolveFatalToolMessage(FatalToolExecutionException ex) {
-        if (ex == null || !StringUtils.hasText(ex.getMessage())) {
-            return "工具调用失败，本次运行已结束。";
-        }
-        return ex.getMessage().trim();
     }
 
     private Map<String, BaseTool> resolveConfiguredTools(List<String> configuredTools) {

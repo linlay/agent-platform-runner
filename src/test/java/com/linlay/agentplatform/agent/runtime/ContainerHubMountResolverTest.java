@@ -1,9 +1,18 @@
 package com.linlay.agentplatform.agent.runtime;
 
+import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.DataProperties;
+import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.ProviderProperties;
+import com.linlay.agentplatform.config.ToolProperties;
+import com.linlay.agentplatform.config.ViewportProperties;
+import com.linlay.agentplatform.model.ModelProperties;
+import com.linlay.agentplatform.schedule.ScheduleProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import com.linlay.agentplatform.skill.SkillProperties;
+import com.linlay.agentplatform.team.TeamProperties;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,7 +36,7 @@ class ContainerHubMountResolverTest {
         properties.getMounts().setUserDir("");
         properties.getMounts().setSkillsDir("");
         properties.getMounts().setPanDir("");
-        ContainerHubMountResolver resolver = new ContainerHubMountResolver(properties, null, null);
+        ContainerHubMountResolver resolver = containerHubMountResolver(properties, null, null);
 
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.RUN, "chat-123");
 
@@ -49,7 +58,7 @@ class ContainerHubMountResolverTest {
         properties.getMounts().setSkillsDir("");
         properties.getMounts().setPanDir("");
 
-        ContainerHubMountResolver resolver = new ContainerHubMountResolver(properties, dataProperties, null);
+        ContainerHubMountResolver resolver = containerHubMountResolver(properties, dataProperties, null);
 
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.RUN, "chat-fallback");
 
@@ -71,7 +80,7 @@ class ContainerHubMountResolverTest {
         properties.getMounts().setUserDir("");
         properties.getMounts().setSkillsDir("");
         properties.getMounts().setPanDir("");
-        ContainerHubMountResolver resolver = new ContainerHubMountResolver(properties, null, null);
+        ContainerHubMountResolver resolver = containerHubMountResolver(properties, null, null);
 
         assertThatThrownBy(() -> resolver.resolve(SandboxLevel.RUN, "chat-error"))
                 .isInstanceOf(IllegalStateException.class)
@@ -88,12 +97,32 @@ class ContainerHubMountResolverTest {
         properties.getMounts().setSkillsDir("");
         properties.getMounts().setPanDir("");
 
-        ContainerHubMountResolver resolver = new ContainerHubMountResolver(properties, null, null);
+        ContainerHubMountResolver resolver = containerHubMountResolver(properties, null, null);
 
         assertThatThrownBy(() -> resolver.resolve(SandboxLevel.RUN, "chat-mount"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("container-hub mount validation failed for user-dir")
                 .hasMessageContaining("configured=" + tempDir.resolve("missing-home"))
                 .hasMessageContaining("containerPath=/home");
+    }
+
+    private ContainerHubMountResolver containerHubMountResolver(
+            ContainerHubToolProperties properties,
+            DataProperties dataProperties,
+            SkillProperties skillProperties
+    ) {
+        return new ContainerHubMountResolver(
+                properties,
+                dataProperties,
+                skillProperties,
+                new ToolProperties(),
+                new AgentProperties(),
+                new ModelProperties(),
+                new ViewportProperties(),
+                new TeamProperties(),
+                new ScheduleProperties(),
+                new McpProperties(),
+                new ProviderProperties()
+        );
     }
 }

@@ -3,8 +3,9 @@ package com.linlay.agentplatform.model;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.linlay.agentplatform.config.AgentProviderProperties;
+import com.linlay.agentplatform.config.ProviderRegistryService;
 import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,9 +20,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 @Service
@@ -33,7 +34,7 @@ public class ModelRegistryService {
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final ModelProperties properties;
-    private final AgentProviderProperties providerProperties;
+    private final ProviderRegistryService providerRegistryService;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, ModelDefinition> byKey = Map.of();
@@ -41,12 +42,12 @@ public class ModelRegistryService {
     public ModelRegistryService(
             ObjectMapper objectMapper,
             ModelProperties properties,
-            AgentProviderProperties providerProperties
+            ProviderRegistryService providerRegistryService
     ) {
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.properties = properties;
-        this.providerProperties = providerProperties;
+        this.providerRegistryService = providerRegistryService;
         refreshModels();
     }
 
@@ -61,6 +62,23 @@ public class ModelRegistryService {
             return Optional.empty();
         }
         return Optional.ofNullable(byKey.get(normalize(modelKey)));
+    }
+
+    public Set<String> findModelKeysByProviders(Set<String> providerKeys) {
+        if (providerKeys == null || providerKeys.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> normalizedProviderKeys = providerKeys.stream()
+                .map(StringHelpers::normalizeKey)
+                .filter(StringUtils::hasText)
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (normalizedProviderKeys.isEmpty()) {
+            return Set.of();
+        }
+        return byKey.values().stream()
+                .filter(model -> normalizedProviderKeys.contains(normalize(model.provider())))
+                .map(ModelDefinition::key)
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
     }
 
     public CatalogDiff refreshModels() {
@@ -129,7 +147,7 @@ public class ModelRegistryService {
                 log.warn("Skip model '{}' without provider: {}", key, file);
                 return Optional.empty();
             }
-            if (providerProperties == null || providerProperties.getProvider(provider) == null) {
+            if (providerRegistryService == null || providerRegistryService.find(provider).isEmpty()) {
                 log.warn("Skip model '{}' with unknown provider '{}': {}", key, provider, file);
                 return Optional.empty();
             }
@@ -222,9 +240,6 @@ public class ModelRegistryService {
     }
 
     private String normalize(String raw) {
-        if (!StringUtils.hasText(raw)) {
-            return "";
-        }
-        return raw.trim().toLowerCase(Locale.ROOT);
+        return StringHelpers.normalizeKey(raw);
     }
 }

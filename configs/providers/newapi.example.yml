@@ -1,9 +1,0 @@
-agent:
-  providers:
-    newpai:
-      base-url: https://api.newpai.com
-      api-key: replace-with-your-babelark-api-key
-      model: Qwen3.5-397B-A17B
-      protocols:
-        OPENAI:
-          endpoint-path: /v1/chat/completions

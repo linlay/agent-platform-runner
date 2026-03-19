@@ -14,6 +14,7 @@ import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.SystemPlanGetTasks;
@@ -53,7 +54,7 @@ class ToolExecutionServiceTest {
                 null
         );
 
-        ExecutionContext context = new ExecutionContext(
+        ExecutionContext context = executionContext(
                 definition(),
                 new AgentRequest("test", "chat_plan_1", null, "run_plan_1"),
                 List.of()
@@ -113,7 +114,7 @@ class ToolExecutionServiceTest {
                 new Budget.Scope(10, 60_000L, 0),
                 new Budget.Scope(10, 500L, 2)
         );
-        ExecutionContext context = new ExecutionContext(
+        ExecutionContext context = executionContext(
                 definition(List.of("flaky_tool"), budget),
                 new AgentRequest("test", "chat_retry_1", null, "run_retry_1"),
                 List.of()
@@ -146,7 +147,7 @@ class ToolExecutionServiceTest {
                 null
         );
 
-        ExecutionContext context = new ExecutionContext(
+        ExecutionContext context = executionContext(
                 definition(List.of("first_tool", "second_tool"), Budget.DEFAULT),
                 new AgentRequest("test", "chat_end_order_1", null, "run_end_order_1"),
                 List.of()
@@ -189,7 +190,7 @@ class ToolExecutionServiceTest {
                 null
         );
 
-        ExecutionContext context = new ExecutionContext(
+        ExecutionContext context = executionContext(
                 definition(List.of("confirm_dialog"), Budget.DEFAULT),
                 new AgentRequest("test", "chat_frontend_1", null, "run_frontend_1"),
                 List.of()
@@ -256,7 +257,7 @@ class ToolExecutionServiceTest {
                 null
         );
 
-        ExecutionContext context = new ExecutionContext(
+        ExecutionContext context = executionContext(
                 definition(List.of("confirm_dialog"), Budget.DEFAULT),
                 new AgentRequest("test", "chat_frontend_timeout", null, "run_frontend_timeout"),
                 List.of()
@@ -294,7 +295,7 @@ class ToolExecutionServiceTest {
                 (name, args, context) -> objectMapper.valueToTree(Map.of("ok", true, "source", "mcp"))
         );
 
-        ExecutionContext context = new ExecutionContext(
+        ExecutionContext context = executionContext(
                 definition(List.of("mock.weather.query"), Budget.DEFAULT),
                 new AgentRequest("test", "chat_mcp_viewport", null, "run_mcp_viewport"),
                 List.of()
@@ -330,7 +331,7 @@ class ToolExecutionServiceTest {
                 new Budget.Scope(10, 60_000L, 0),
                 new Budget.Scope(10, 500L, 3)
         );
-        ExecutionContext context = new ExecutionContext(
+        ExecutionContext context = executionContext(
                 definition(List.of("bad_args_tool"), budget),
                 new AgentRequest("test", "chat_retry_2", null, "run_retry_2"),
                 List.of()
@@ -369,7 +370,7 @@ class ToolExecutionServiceTest {
                 new Budget.Scope(10, 60_000L, 0),
                 new Budget.Scope(10, 20L, 2)
         );
-        ExecutionContext context = new ExecutionContext(
+        ExecutionContext context = executionContext(
                 definition(List.of("slow_tool"), budget),
                 new AgentRequest("test", "chat_retry_3", null, "run_retry_3"),
                 List.of()
@@ -417,7 +418,7 @@ class ToolExecutionServiceTest {
                 enabledTools(toolRegistry),
                 new ArrayList<>(),
                 "run_mcp_router_1",
-                new ExecutionContext(
+                executionContext(
                         definition(List.of("mock.weather.query"), Budget.DEFAULT),
                         new AgentRequest("test", "chat_mcp_router_1", null, "run_mcp_router_1"),
                         List.of()
@@ -469,7 +470,7 @@ class ToolExecutionServiceTest {
                 enabledTools(toolRegistry),
                 new ArrayList<>(),
                 "run_mcp_error_1",
-                new ExecutionContext(
+                executionContext(
                         definition(List.of("mock.weather.query", "mock.todo.tasks.list"), Budget.DEFAULT),
                         new AgentRequest("test", "chat_mcp_error_1", null, "run_mcp_error_1"),
                         List.of()
@@ -511,7 +512,7 @@ class ToolExecutionServiceTest {
                 Map.copyOf(stageTools),
                 new ArrayList<>(),
                 "run_missing_tool_1",
-                new ExecutionContext(
+                executionContext(
                         definition(List.of("missing_tool", "registered_tool"), Budget.DEFAULT),
                         new AgentRequest("test", "chat_missing_tool_1", null, "run_missing_tool_1"),
                         List.of()
@@ -565,6 +566,16 @@ class ToolExecutionServiceTest {
                 tools,
                 List.of()
         );
+    }
+
+    private ExecutionContext executionContext(
+            AgentDefinition definition,
+            AgentRequest request,
+            List<ChatMessage> historyMessages
+    ) {
+        return ExecutionContext.builder(definition, request)
+                .historyMessages(historyMessages)
+                .build();
     }
 
     private static final class ConstantTool implements BaseTool {

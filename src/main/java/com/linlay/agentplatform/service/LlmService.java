@@ -4,8 +4,9 @@ import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
-import com.linlay.agentplatform.config.AgentProviderProperties;
 import com.linlay.agentplatform.config.LlmInteractionLogProperties;
+import com.linlay.agentplatform.config.ProviderProperties;
+import com.linlay.agentplatform.config.ProviderRegistryService;
 import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.model.ModelProtocol;
 import org.slf4j.Logger;
@@ -40,7 +41,7 @@ public class LlmService {
 
     public LlmService() {
         this(
-                new AgentProviderProperties(),
+                emptyProviderRegistryService(),
                 new ObjectMapper(),
                 new LlmInteractionLogProperties(),
                 null
@@ -49,14 +50,19 @@ public class LlmService {
 
     @Autowired
     public LlmService(
-            AgentProviderProperties providerProperties,
+            ProviderRegistryService providerRegistryService,
             ObjectMapper objectMapper,
             LlmInteractionLogProperties logProperties,
             ConnectionProvider llmConnectionProvider
     ) {
-        AgentProviderProperties resolvedProviderProperties = providerProperties == null ? new AgentProviderProperties() : providerProperties;
         this.callLogger = new LlmCallLogger(logProperties);
-        this.openAiCompatibleSseClient = new OpenAiCompatibleSseClient(resolvedProviderProperties, objectMapper, this.callLogger, llmConnectionProvider);
+        this.openAiCompatibleSseClient = new OpenAiCompatibleSseClient(providerRegistryService, objectMapper, this.callLogger, llmConnectionProvider);
+    }
+
+    private static ProviderRegistryService emptyProviderRegistryService() {
+        ProviderProperties providerProperties = new ProviderProperties();
+        providerProperties.setExternalDir("__missing_providers__");
+        return new ProviderRegistryService(providerProperties);
     }
 
     public Flux<String> streamContent(LlmCallSpec spec) {

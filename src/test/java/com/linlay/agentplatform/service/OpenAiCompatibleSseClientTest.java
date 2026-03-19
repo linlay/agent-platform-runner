@@ -3,24 +3,29 @@ package com.linlay.agentplatform.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
-import com.linlay.agentplatform.config.AgentProviderProperties;
 import com.linlay.agentplatform.config.LlmInteractionLogProperties;
+import com.linlay.agentplatform.config.ProviderProperties;
+import com.linlay.agentplatform.config.ProviderRegistryService;
 import com.linlay.agentplatform.model.ModelProtocol;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class OpenAiCompatibleSseClientTest {
 
+    @TempDir
+    Path tempDir;
+
     @Test
-    void shouldPreferConfiguredProtocolEndpointPath() {
-        AgentProviderProperties properties = providerProperties("https://api.babelark.com", "/v1/chat/completions");
+    void shouldPreferConfiguredProtocolEndpointPath() throws Exception {
         OpenAiCompatibleSseClient client = new OpenAiCompatibleSseClient(
-                properties,
+                providerRegistry("https://api.babelark.com", "/v1/chat/completions"),
                 new ObjectMapper(),
                 new LlmCallLogger(new LlmInteractionLogProperties()),
                 null
@@ -31,17 +36,15 @@ class OpenAiCompatibleSseClientTest {
     }
 
     @Test
-    void shouldInferOpenAiEndpointWhenProviderDoesNotConfigureOne() {
-        AgentProviderProperties versionedBaseUrl = providerProperties("https://example.com/v1", null);
-        AgentProviderProperties rootBaseUrl = providerProperties("https://example.com", null);
+    void shouldInferOpenAiEndpointWhenProviderDoesNotConfigureOne() throws Exception {
         OpenAiCompatibleSseClient versionedClient = new OpenAiCompatibleSseClient(
-                versionedBaseUrl,
+                providerRegistry("https://example.com/v1", null),
                 new ObjectMapper(),
                 new LlmCallLogger(new LlmInteractionLogProperties()),
                 null
         );
         OpenAiCompatibleSseClient rootClient = new OpenAiCompatibleSseClient(
-                rootBaseUrl,
+                providerRegistry("https://example.com", null),
                 new ObjectMapper(),
                 new LlmCallLogger(new LlmInteractionLogProperties()),
                 null
@@ -54,9 +57,9 @@ class OpenAiCompatibleSseClientTest {
     }
 
     @Test
-    void shouldAlwaysIncludeEnableThinkingFalseForNonBailianWhenReasoningDisabled() {
+    void shouldAlwaysIncludeEnableThinkingFalseForNonBailianWhenReasoningDisabled() throws Exception {
         OpenAiCompatibleSseClient client = new OpenAiCompatibleSseClient(
-                providerProperties("https://api.babelark.com", "/v1/chat/completions"),
+                providerRegistry("https://api.babelark.com", "/v1/chat/completions"),
                 new ObjectMapper(),
                 new LlmCallLogger(new LlmInteractionLogProperties()),
                 null
@@ -82,9 +85,9 @@ class OpenAiCompatibleSseClientTest {
     }
 
     @Test
-    void shouldAlwaysIncludeEnableThinkingTrueAndReasoningForNonBailianWhenReasoningEnabled() {
+    void shouldAlwaysIncludeEnableThinkingTrueAndReasoningForNonBailianWhenReasoningEnabled() throws Exception {
         OpenAiCompatibleSseClient client = new OpenAiCompatibleSseClient(
-                providerProperties("https://api.babelark.com", "/v1/chat/completions"),
+                providerRegistry("https://api.babelark.com", "/v1/chat/completions"),
                 new ObjectMapper(),
                 new LlmCallLogger(new LlmInteractionLogProperties()),
                 null
@@ -110,9 +113,9 @@ class OpenAiCompatibleSseClientTest {
     }
 
     @Test
-    void shouldSendEnableThinkingAlongsideRequiredToolChoiceForPlanGenerationPayload() {
+    void shouldSendEnableThinkingAlongsideRequiredToolChoiceForPlanGenerationPayload() throws Exception {
         OpenAiCompatibleSseClient client = new OpenAiCompatibleSseClient(
-                providerProperties("https://api.babelark.com", "/v1/chat/completions"),
+                providerRegistry("https://api.babelark.com", "/v1/chat/completions"),
                 new ObjectMapper(),
                 new LlmCallLogger(new LlmInteractionLogProperties()),
                 null
@@ -146,21 +149,24 @@ class OpenAiCompatibleSseClientTest {
         assertThat(request).containsKey("tools");
     }
 
-    private AgentProviderProperties providerProperties(String baseUrl, String endpointPath) {
-        AgentProviderProperties properties = new AgentProviderProperties();
-        AgentProviderProperties.ProviderConfig provider = new AgentProviderProperties.ProviderConfig();
-        provider.setBaseUrl(baseUrl);
-        provider.setApiKey("dummy");
-        if (endpointPath != null) {
-            AgentProviderProperties.ProtocolConfig protocol = new AgentProviderProperties.ProtocolConfig();
-            protocol.setEndpointPath(endpointPath);
-            LinkedHashMap<com.linlay.agentplatform.model.ModelProtocol, AgentProviderProperties.ProtocolConfig> protocols = new LinkedHashMap<>();
-            protocols.put(ModelProtocol.OPENAI, protocol);
-            provider.setProtocols(protocols);
-        }
-        LinkedHashMap<String, AgentProviderProperties.ProviderConfig> providers = new LinkedHashMap<>();
-        providers.put("babelark", provider);
-        properties.setProviders(providers);
-        return properties;
+    private ProviderRegistryService providerRegistry(String baseUrl, String endpointPath) throws Exception {
+        Path providersDir = tempDir.resolve(java.util.UUID.randomUUID().toString());
+        Files.createDirectories(providersDir);
+        String protocolsBlock = endpointPath == null
+                ? ""
+                : """
+                protocols:
+                  OPENAI:
+                    endpointPath: %s
+                """.formatted(endpointPath);
+        Files.writeString(providersDir.resolve("babelark.yml"), """
+                key: babelark
+                baseUrl: %s
+                apiKey: dummy
+                %s
+                """.formatted(baseUrl, protocolsBlock));
+        ProviderProperties properties = new ProviderProperties();
+        properties.setExternalDir(providersDir.toString());
+        return new ProviderRegistryService(properties);
     }
 }

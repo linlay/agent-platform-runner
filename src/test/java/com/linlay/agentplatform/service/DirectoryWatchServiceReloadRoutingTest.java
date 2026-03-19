@@ -4,6 +4,8 @@ import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.ProviderProperties;
+import com.linlay.agentplatform.config.ProviderRegistryService;
 import com.linlay.agentplatform.config.ViewportServerProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.model.ModelProperties;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.lang.reflect.Field;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -52,6 +55,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportRegistryService.class),
                 toolFileRegistryService,
                 mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
@@ -87,6 +91,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportRegistryService.class),
                 mock(ToolFileRegistryService.class),
                 modelRegistryService,
+                mock(ProviderRegistryService.class),
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
@@ -101,6 +106,52 @@ class DirectoryWatchServiceReloadRoutingTest {
             verify(agentRegistry).findAgentIdsByModels(changedModels);
             verify(agentRegistry).refreshAgentsByIds(affectedAgents, "models-directory");
             verify(agentRegistry, never()).refreshAgents();
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldRefreshReferencingModelsAndAgentsWhenProvidersChanged() throws Exception {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        ModelRegistryService modelRegistryService = mock(ModelRegistryService.class);
+        ProviderRegistryService providerRegistryService = mock(ProviderRegistryService.class);
+
+        Set<String> changedProviders = Set.of("provider.alpha");
+        Set<String> referencingModels = Set.of("model.before");
+        Set<String> changedModels = Set.of("model.after");
+        Set<String> affectedModels = new LinkedHashSet<>(referencingModels);
+        affectedModels.addAll(changedModels);
+        Set<String> affectedAgents = Set.of("agent.provider");
+
+        when(providerRegistryService.refreshProviders())
+                .thenReturn(new CatalogDiff(Set.of(), Set.of(), changedProviders));
+        when(modelRegistryService.findModelKeysByProviders(changedProviders)).thenReturn(referencingModels);
+        when(modelRegistryService.refreshModels())
+                .thenReturn(new CatalogDiff(Set.of(), Set.of(), changedModels));
+        when(agentRegistry.findAgentIdsByModels(affectedModels)).thenReturn(affectedAgents);
+
+        DirectoryWatchService service = createService(
+                agentRegistry,
+                mock(ViewportRegistryService.class),
+                mock(ToolFileRegistryService.class),
+                modelRegistryService,
+                providerRegistryService,
+                mock(SkillRegistryService.class),
+                mock(TeamRegistryService.class),
+                mock(McpServerRegistryService.class),
+                mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
+        );
+        try {
+            callbackFor(service, tempDir.resolve("providers")).run();
+
+            verify(providerRegistryService).refreshProviders();
+            verify(modelRegistryService).findModelKeysByProviders(changedProviders);
+            verify(modelRegistryService).refreshModels();
+            verify(agentRegistry).findAgentIdsByModels(affectedModels);
+            verify(agentRegistry).refreshAgentsByIds(affectedAgents, "providers-directory");
         } finally {
             service.destroy();
         }
@@ -123,6 +174,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportRegistryService.class),
                 mock(ToolFileRegistryService.class),
                 mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mcpServerRegistryService,
@@ -154,6 +206,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportRegistryService.class),
                 mock(ToolFileRegistryService.class),
                 mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
                 skillRegistryService,
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
@@ -180,6 +233,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportRegistryService.class),
                 mock(ToolFileRegistryService.class),
                 mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
@@ -207,6 +261,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportRegistryService.class),
                 mock(ToolFileRegistryService.class),
                 mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
                 mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
@@ -231,6 +286,7 @@ class DirectoryWatchServiceReloadRoutingTest {
             ViewportRegistryService viewportRegistryService,
             ToolFileRegistryService toolFileRegistryService,
             ModelRegistryService modelRegistryService,
+            ProviderRegistryService providerRegistryService,
             SkillRegistryService skillRegistryService,
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
@@ -243,6 +299,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 viewportRegistryService,
                 toolFileRegistryService,
                 modelRegistryService,
+                providerRegistryService,
                 skillRegistryService,
                 teamRegistryService,
                 mcpServerRegistryService,
@@ -258,6 +315,7 @@ class DirectoryWatchServiceReloadRoutingTest {
             ViewportRegistryService viewportRegistryService,
             ToolFileRegistryService toolFileRegistryService,
             ModelRegistryService modelRegistryService,
+            ProviderRegistryService providerRegistryService,
             SkillRegistryService skillRegistryService,
             TeamRegistryService teamRegistryService,
             McpServerRegistryService mcpServerRegistryService,
@@ -277,6 +335,9 @@ class DirectoryWatchServiceReloadRoutingTest {
 
         ModelProperties modelProperties = new ModelProperties();
         modelProperties.setExternalDir(tempDir.resolve("models").toString());
+
+        ProviderProperties providerProperties = new ProviderProperties();
+        providerProperties.setExternalDir(tempDir.resolve("providers").toString());
 
         SkillProperties skillProperties = new SkillProperties();
         skillProperties.setExternalDir(tempDir.resolve("skills").toString());
@@ -298,6 +359,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 viewportRegistryService,
                 toolFileRegistryService,
                 modelRegistryService,
+                providerRegistryService,
                 skillRegistryService,
                 teamRegistryService,
                 mcpServerRegistryService,
@@ -311,6 +373,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mcpProperties,
                 viewportServerProperties,
                 modelProperties,
+                providerProperties,
                 skillProperties,
                 teamProperties,
                 scheduleProperties

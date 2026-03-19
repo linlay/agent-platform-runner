@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -63,6 +62,8 @@ public class ToolExecutionService {
     private final ToolInvoker toolInvoker;
     private final PlanTaskDeltaBuilder planTaskDeltaBuilder;
     private final ToolInvocationLogger toolInvocationLogger;
+    private final PlanToolHandler planToolHandler;
+    private final FrontendToolHandler frontendToolHandler;
 
     public ToolExecutionService(
             ToolRegistry toolRegistry,
@@ -82,6 +83,8 @@ public class ToolExecutionService {
                 : toolInvoker;
         this.planTaskDeltaBuilder = new PlanTaskDeltaBuilder(objectMapper);
         this.toolInvocationLogger = new ToolInvocationLogger(log, this.loggingAgentProperties);
+        this.planToolHandler = new PlanToolHandler(this.planTaskDeltaBuilder);
+        this.frontendToolHandler = new FrontendToolHandler(objectMapper, frontendSubmitCoordinator);
     }
 
     public ToolExecutionBatch executeToolCalls(
@@ -164,7 +167,7 @@ public class ToolExecutionService {
                     call.toolType(),
                     call.argsJson()
             );
-            InvokeResult invokeResult = invokeByKind(
+            FrontendToolHandler.InvokeResult invokeResult = invokeByKind(
                     runId,
                     call.callId(),
                     call.toolName(),
@@ -191,7 +194,7 @@ public class ToolExecutionService {
                     (System.nanoTime() - invokeStartNanos) / 1_000_000L
             );
 
-            AgentDelta planDelta = planTaskDeltaBuilder.planUpdateDelta(context, call.toolName(), call.resolvedArgs(), resultNode);
+            AgentDelta planDelta = planToolHandler.planUpdateDelta(context, call.toolName(), call.resolvedArgs(), resultNode);
             if (planDelta != null) {
                 deltas.add(planDelta);
             }
@@ -235,12 +238,7 @@ public class ToolExecutionService {
     }
 
     public PlanSnapshot planSnapshot(ExecutionContext context) {
-        if (context == null) {
-            return new PlanSnapshot("plan_default", null, List.of());
-        }
-        String planId = context.planId();
-        String chatId = context.request() == null ? null : context.request().chatId();
-        return new PlanSnapshot(planId, chatId, context.planTasks());
+        return planToolHandler.planSnapshot(context);
     }
 
     public String applyBackendPrompts(String systemPrompt, Map<String, BaseTool> stageTools) {
@@ -339,7 +337,7 @@ public class ToolExecutionService {
         return title + "\n" + String.join("\n", lines);
     }
 
-    private InvokeResult invokeByKind(
+    private FrontendToolHandler.InvokeResult invokeByKind(
             String runId,
             String toolId,
             String toolName,
@@ -350,95 +348,28 @@ public class ToolExecutionService {
     ) {
         failIfInterrupted(context);
         if (!enabledToolsByName.containsKey(toolName)) {
-            return new InvokeResult(errorResult(toolName, "Tool is not enabled for this agent: " + toolName), null);
+            return new FrontendToolHandler.InvokeResult(errorResult(toolName, "Tool is not enabled for this agent: " + toolName), null);
         }
         if (toolRegistry.descriptor(toolName).isEmpty()) {
-            return new InvokeResult(
+            return new FrontendToolHandler.InvokeResult(
                     errorResult(toolName, TOOL_NOT_REGISTERED_CODE, "Tool is not registered: " + toolName),
                     null
             );
         }
 
-        if (PlanToolConstants.PLAN_GET_TASKS_TOOL.equals(toolName)) {
-            return new InvokeResult(planTaskDeltaBuilder.planGetResult(planSnapshot(context)), null);
+        if (planToolHandler.handles(toolName)) {
+            return new FrontendToolHandler.InvokeResult(planToolHandler.invoke(toolName, context), null);
         }
 
         if ("action".equalsIgnoreCase(toolType)) {
-            return new InvokeResult(objectMapper.getNodeFactory().textNode("OK"), null);
+            return new FrontendToolHandler.InvokeResult(objectMapper.getNodeFactory().textNode("OK"), null);
         }
 
         if (toolRegistry.requiresFrontendSubmit(toolName)) {
-            if (context == null) {
-                return new InvokeResult(errorResult(toolName, "Execution context is required for frontend tool submission"), null);
-            }
-            if (frontendSubmitCoordinator == null && context.runControl() == null) {
-                return new InvokeResult(errorResult(toolName, "Frontend submit coordinator is not configured"), null);
-            }
-            if (!StringUtils.hasText(runId)) {
-                return new InvokeResult(errorResult(toolName, "Missing runId for frontend tool submission"), null);
-            }
-            try {
-                context.runControl().transitionState(RunLoopState.WAITING_SUBMIT);
-                Object payload = awaitFrontendSubmit(runId.trim(), toolId, context);
-                failIfInterrupted(context);
-                Object normalized = payload == null ? Map.of() : payload;
-                return new InvokeResult(
-                        objectMapper.valueToTree(normalized),
-                        buildSubmitDelta(context, runId, toolId, normalized)
-                );
-            } catch (Exception ex) {
-                if (isInterrupted(context, ex)) {
-                    throw new RunInterruptedException();
-                }
-                if (isFrontendSubmitTimeout(ex)) {
-                    return new InvokeResult(errorResult(toolName, FRONTEND_SUBMIT_TIMEOUT_CODE, resolveErrorMessage(ex)), null);
-                }
-                return new InvokeResult(errorResult(toolName, resolveErrorMessage(ex)), null);
-            } finally {
-                if (!context.isInterrupted()) {
-                    context.runControl().transitionState(RunLoopState.TOOL_EXECUTING);
-                }
-            }
+            return frontendToolHandler.invoke(runId, toolId, toolName, context);
         }
 
-        return new InvokeResult(invokeBackendWithPolicy(toolName, args, context), null);
-    }
-
-    private AgentDelta buildSubmitDelta(
-            ExecutionContext context,
-            String runId,
-            String toolId,
-            Object payload
-    ) {
-        if (context == null || context.request() == null || !StringUtils.hasText(context.request().chatId())) {
-            return null;
-        }
-        String normalizedRunId = StringUtils.hasText(runId) ? runId.trim() : "";
-        String normalizedToolId = StringUtils.hasText(toolId) ? toolId.trim() : "";
-        if (normalizedRunId.isBlank() || normalizedToolId.isBlank()) {
-            return null;
-        }
-        String requestId = StringUtils.hasText(context.request().requestId())
-                ? context.request().requestId().trim()
-                : normalizedRunId;
-        return AgentDelta.requestSubmit(
-                requestId,
-                context.request().chatId(),
-                normalizedRunId,
-                normalizedToolId,
-                payload == null ? Map.of() : payload,
-                null
-        );
-    }
-
-    private Object awaitFrontendSubmit(String runId, String toolId, ExecutionContext context) throws TimeoutException {
-        Budget.Scope scope = context == null || context.budget() == null
-                ? Budget.DEFAULT.tool()
-                : context.budget().tool();
-        if (context != null && context.runControl() != null) {
-            return context.runControl().awaitSubmit(runId, toolId, scope.timeoutMs());
-        }
-        return frontendSubmitCoordinator.awaitSubmit(runId.trim(), toolId).block();
+        return new FrontendToolHandler.InvokeResult(invokeBackendWithPolicy(toolName, args, context), null);
     }
 
     private JsonNode invokeBackendWithPolicy(
@@ -597,21 +528,6 @@ public class ToolExecutionService {
         return error;
     }
 
-    private boolean isFrontendSubmitTimeout(Throwable throwable) {
-        Throwable cursor = throwable;
-        while (cursor != null) {
-            if (cursor instanceof TimeoutException) {
-                return true;
-            }
-            String message = cursor.getMessage();
-            if (StringUtils.hasText(message) && message.contains("Frontend tool submit timeout")) {
-                return true;
-            }
-            cursor = cursor.getCause();
-        }
-        return false;
-    }
-
     private void failIfInterrupted(ExecutionContext context) {
         if (context != null && context.isInterrupted()) {
             throw new RunInterruptedException();
@@ -624,23 +540,12 @@ public class ToolExecutionService {
         }
         Throwable cursor = throwable;
         while (cursor != null) {
-            if (cursor instanceof RunInterruptedException || cursor instanceof CancellationException) {
+            if (cursor instanceof RunInterruptedException) {
                 return true;
             }
             cursor = cursor.getCause();
         }
         return false;
-    }
-
-    private String resolveErrorMessage(Throwable throwable) {
-        Throwable cursor = throwable;
-        while (cursor != null) {
-            if (StringUtils.hasText(cursor.getMessage())) {
-                return cursor.getMessage();
-            }
-            cursor = cursor.getCause();
-        }
-        return "unknown error";
     }
 
     public record ToolExecutionEvent(
@@ -658,12 +563,6 @@ public class ToolExecutionService {
             String toolType,
             Map<String, Object> resolvedArgs,
             String argsJson
-    ) {
-    }
-
-    private record InvokeResult(
-            JsonNode resultNode,
-            AgentDelta submitDelta
     ) {
     }
 

@@ -91,8 +91,6 @@ final class ChatHistoryFileReader {
                     ChatMemoryTypes.PlanSnapshot plan = null;
                     if (node.has("plan") && !node.get("plan").isNull()) {
                         plan = objectMapper.treeToValue(node.get("plan"), ChatMemoryTypes.PlanSnapshot.class);
-                    } else if (node.has("planSnapshot") && !node.get("planSnapshot").isNull()) {
-                        plan = objectMapper.treeToValue(node.get("planSnapshot"), ChatMemoryTypes.PlanSnapshot.class);
                     }
 
                     List<ChatMemoryTypes.StoredMessage> messages = new ArrayList<>();

@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ConfigDirectoryEnvironmentPostProcessorTest {
 
@@ -23,8 +22,7 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
     @Test
     void shouldLoadStructuredConfigFilesFromConfiguredDirectory() throws Exception {
         Path configsDir = tempDir.resolve("configs");
-        Path providersDir = configsDir.resolve("providers");
-        Files.createDirectories(providersDir);
+        Files.createDirectories(configsDir);
         Files.writeString(configsDir.resolve("auth.yml"), """
                 agent:
                   auth:
@@ -44,23 +42,6 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
                       enabled: true
                       default-environment-id: shell
                 """);
-        Files.writeString(providersDir.resolve("babelark.yml"), """
-                agent:
-                  providers:
-                    babelark:
-                      base-url: https://api.babelark.com
-                      api-key: test-key
-                      model: Qwen3.5-397B-A17B
-                      protocols:
-                        OPENAI:
-                          endpoint-path: /v1/chat/completions
-                """);
-        Files.writeString(providersDir.resolve("ignored.example.yml"), """
-                agent:
-                  providers:
-                    ignored:
-                      base-url: https://ignored.example.com
-                """);
 
         StandardEnvironment environment = new StandardEnvironment();
         environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
@@ -74,9 +55,6 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
         assertThat(environment.getProperty("agent.tools.bash.allowed-commands")).isEqualTo("ls,pwd");
         assertThat(environment.getProperty("agent.tools.container-hub.enabled")).isEqualTo("true");
         assertThat(environment.getProperty("agent.tools.container-hub.default-environment-id")).isEqualTo("shell");
-        assertThat(environment.getProperty("agent.providers.babelark.base-url")).isEqualTo("https://api.babelark.com");
-        assertThat(environment.getProperty("agent.providers.babelark.protocols.OPENAI.endpoint-path")).isEqualTo("/v1/chat/completions");
-        assertThat(environment.getProperty("agent.providers.ignored.base-url")).isNull();
     }
 
     @Test
@@ -92,21 +70,13 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
     }
 
     @Test
-    void shouldRejectDuplicateProviderKeysAcrossFiles() throws Exception {
+    void shouldIgnoreNestedProvidersDirectory() throws Exception {
         Path configsDir = tempDir.resolve("configs");
         Path providersDir = configsDir.resolve("providers");
         Files.createDirectories(providersDir);
         Files.writeString(providersDir.resolve("a.yml"), """
-                agent:
-                  providers:
-                    babelark:
-                      base-url: https://api.one.example
-                """);
-        Files.writeString(providersDir.resolve("b.yml"), """
-                agent:
-                  providers:
-                    babelark:
-                      base-url: https://api.two.example
+                key: ignored
+                baseUrl: https://api.one.example
                 """);
 
         StandardEnvironment environment = new StandardEnvironment();
@@ -114,8 +84,9 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
                 ConfigDirectorySupport.CONFIG_DIR_ENV, configsDir.toString()
         )));
 
-        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Duplicate provider key 'babelark'");
+        processor.postProcessEnvironment(environment, new SpringApplication(Object.class));
+
+        assertThat(environment.getProperty("key")).isNull();
+        assertThat(environment.getProperty("baseUrl")).isNull();
     }
 }
