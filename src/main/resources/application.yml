@@ -10,28 +10,28 @@ spring:
 
 agent:
   agents:
-    external-dir: ${AGENT_AGENTS_EXTERNAL_DIR:agents}
+    external-dir: ${AGENTS_DIR:agents}
     refresh-interval-ms: ${AGENT_AGENTS_REFRESH_INTERVAL_MS:10000}
   viewports:
-    external-dir: ${AGENT_VIEWPORTS_EXTERNAL_DIR:viewports}
+    external-dir: ${VIEWPORTS_DIR:viewports}
     refresh-interval-ms: ${AGENT_VIEWPORTS_REFRESH_INTERVAL_MS:30000}
   data:
-    external-dir: ${AGENT_DATA_EXTERNAL_DIR:data}
+    external-dir: ${DATA_DIR:data}
   skills:
-    external-dir: ${AGENT_SKILLS_EXTERNAL_DIR:skills}
+    external-dir: ${SKILLS_DIR:skills}
     refresh-interval-ms: ${AGENT_SKILLS_REFRESH_INTERVAL_MS:30000}
     max-prompt-chars: ${AGENT_SKILLS_MAX_PROMPT_CHARS:8000}
   teams:
-    external-dir: ${AGENT_TEAMS_EXTERNAL_DIR:teams}
+    external-dir: ${TEAMS_DIR:teams}
     refresh-interval-ms: ${AGENT_TEAMS_REFRESH_INTERVAL_MS:30000}
   providers:
-    external-dir: ${AGENT_PROVIDERS_EXTERNAL_DIR:providers}
+    external-dir: ${PROVIDERS_DIR:providers}
     refresh-interval-ms: ${AGENT_PROVIDERS_REFRESH_INTERVAL_MS:30000}
   models:
-    external-dir: ${AGENT_MODELS_EXTERNAL_DIR:models}
+    external-dir: ${MODELS_DIR:models}
     refresh-interval-ms: ${AGENT_MODELS_REFRESH_INTERVAL_MS:30000}
   schedule:
-    external-dir: ${AGENT_SCHEDULE_EXTERNAL_DIR:schedules}
+    external-dir: ${SCHEDULES_DIR:schedules}
     enabled: ${AGENT_SCHEDULE_ENABLED:true}
     default-zone-id: ${AGENT_SCHEDULE_DEFAULT_ZONE_ID:}
     pool-size: ${AGENT_SCHEDULE_POOL_SIZE:4}
@@ -42,7 +42,7 @@ agent:
     retry: ${AGENT_MCP_SERVERS_RETRY:1}
     reconnect-interval-ms: ${AGENT_MCP_SERVERS_RECONNECT_INTERVAL_MS:60000}
     registry:
-      external-dir: ${AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR:mcp-servers}
+      external-dir: ${MCP_SERVERS_DIR:mcp-servers}
   viewport-servers:
     enabled: ${AGENT_VIEWPORT_SERVERS_ENABLED:true}
     protocol-version: ${AGENT_VIEWPORT_SERVERS_PROTOCOL_VERSION:2025-06}
@@ -50,9 +50,9 @@ agent:
     retry: ${AGENT_VIEWPORT_SERVERS_RETRY:1}
     reconnect-interval-ms: ${AGENT_VIEWPORT_SERVERS_RECONNECT_INTERVAL_MS:60000}
     registry:
-      external-dir: ${AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR:viewport-servers}
+      external-dir: ${VIEWPORT_SERVERS_DIR:viewport-servers}
   tools:
-    external-dir: ${AGENT_TOOLS_EXTERNAL_DIR:tools}
+    external-dir: ${TOOLS_DIR:tools}
     refresh-interval-ms: ${AGENT_TOOLS_REFRESH_INTERVAL_MS:30000}
     frontend:
       submit-timeout-ms: ${AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS:300000}
@@ -132,7 +132,7 @@ agent:
 
 memory:
   chats:
-    dir: ${MEMORY_CHATS_DIR:./chats}
+    dir: ${CHATS_DIR:./chats}
     k: ${MEMORY_CHATS_K:20}
     charset: ${MEMORY_CHATS_CHARSET:UTF-8}
     action-tools: ${MEMORY_CHATS_ACTION_TOOLS:}

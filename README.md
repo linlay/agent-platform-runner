@@ -263,15 +263,30 @@
 
 ```bash
 mvn clean test
-set -a
-. ./.env
-set +a
-mvn spring-boot:run
+make run
 ```
 
 默认端口 `8080`（来自 `src/main/resources/application.yml` 的 `SERVER_PORT` 默认值）。
 若 `.env` 或环境变量覆盖了端口（例如开发常用 `11949`），则以覆盖值为准。
-注意：直接执行 `mvn spring-boot:run` 不会自动加载根目录 `.env`；若本地依赖 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE` 等环境变量，请先在当前 shell 导入 `.env`。
+注意：`make run` 会自动加载根目录 `.env`；直接执行 `mvn spring-boot:run` 则不会自动加载。
+
+推荐把运行时目录统一放到项目外，再通过 `.env` 指向它们。例如代码仓库保留在当前工作区，而运行目录放在共享目录：
+
+```bash
+CONFIGS_DIR=/Users/you/runtime/runner/configs
+AGENTS_DIR=/Users/you/runtime/runner/agents
+TEAMS_DIR=/Users/you/runtime/runner/teams
+MODELS_DIR=/Users/you/runtime/runner/models
+PROVIDERS_DIR=/Users/you/runtime/runner/providers
+TOOLS_DIR=/Users/you/runtime/runner/tools
+MCP_SERVERS_DIR=/Users/you/runtime/runner/mcp-servers
+VIEWPORT_SERVERS_DIR=/Users/you/runtime/runner/viewport-servers
+VIEWPORTS_DIR=/Users/you/runtime/runner/viewports
+SKILLS_DIR=/Users/you/runtime/runner/skills
+SCHEDULES_DIR=/Users/you/runtime/runner/schedules
+DATA_DIR=/Users/you/runtime/runner/data
+CHATS_DIR=/Users/you/runtime/runner/chats
+```
 
 ### 根目录 `.env` 与 Docker Compose（发布部署版）
 
@@ -288,14 +303,14 @@ docker compose up -d --build
 
 - `.env` 负责简单环境开关与端口（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
-- `providers/` 负责 provider YAML 注册中心；默认目录可由 `AGENT_PROVIDERS_EXTERNAL_DIR` / `agent.providers.external-dir` 覆盖，示例模板建议从 `example/providers/example.yml` 复制并重命名。
-- `docker-compose.yml` 负责容器运行时路径装配与目录挂载；默认镜像工作目录是 `/opt`，因此应用会直接使用 `agents/`、`models/`、`providers/` 等相对目录默认值，不再需要为这些目录显式设置 `AGENT_*_EXTERNAL_DIR`。
+- `providers/` 负责 provider YAML 注册中心；默认目录可由 `PROVIDERS_DIR` / `agent.providers.external-dir` 覆盖，示例模板建议从 `example/providers/example.yml` 复制并重命名。
+- `docker-compose.yml` 会把 `.env` 中的 `*_DIR` 变量用于宿主机 bind mount，同时在容器内把同名变量固定为 `/opt/...` 路径；因此同一份 `.env` 可以同时服务 `make run` 和 `docker compose`。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
 - `docker-compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（compose 会显式覆盖 `SERVER_PORT=8080`）。
-- compose 默认显式挂载并映射这些运行目录：`configs/`、`agents/`、`teams/`、`models/`、`providers/`、`tools/`、`mcp-servers/`、`viewport-servers/`、`viewports/`、`skills/`、`schedules/`、`chats/`。
+- compose 默认显式挂载并映射这些运行目录：`CONFIGS_DIR`、`AGENTS_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`TOOLS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`VIEWPORTS_DIR`、`SKILLS_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
 ### release-local 配置说明
@@ -336,8 +351,8 @@ docker compose up -d --build
 - 主配置事实源为 `src/main/resources/application.yml`，运行时结构化覆盖来自 `configs/`。
 - 可先复制环境变量示例：`cp .env.example .env`，再按环境调整端口与认证开关。
 - 再按实际存在的模板复制需要的 `configs/*.example.yml` 与 `configs/**/*.example.*` 为真实配置文件。
-- 运行时默认读取 `./configs`；Docker 镜像工作目录为 `/opt`，因此容器默认会从 `/opt/configs` 读取结构化覆盖配置；只有自定义目录布局时才需要额外设置 `AGENT_CONFIG_DIR`。
-- 默认 compose 直接复用应用的相对目录默认值；`AGENT_*_EXTERNAL_DIR` 与 `MEMORY_CHATS_DIR` 现在属于高级覆盖项，而不是容器部署的必填项。
+- 运行时默认读取 `./configs`；本地开发可通过 `CONFIGS_DIR` 指向项目外目录；Docker 镜像工作目录为 `/opt`，容器内会固定使用 `/opt/configs`。
+- 目录型变量统一使用 `*_DIR` 命名；默认值仍是 `agents/`、`teams/`、`models/`、`providers/`、`tools/`、`skills/`、`viewports/`、`schedules/`、`data/`、`chats/` 等相对目录。
 - `agent.cors.enabled` 在主配置中默认是 `false`，即默认不启用 CORS 过滤器。
 - `agent.cors.allowed-origin-patterns` 仅匹配请求头 `Origin`，当前服务不读取/校验 `Referer`。
 - provider 目录默认是项目根目录 `providers/`，支持热加载，且仅扫描 `.yml/.yaml`。
@@ -387,7 +402,7 @@ AGENT_AUTH_JWKS_CACHE_SECONDS=300
 - 以 `key` 作为 agentId；若缺失 `key`，视为无效定义
 - `modelConfig.modelKey` 为必填，模型信息统一从 `models/*.yml` / `models/*.yaml` 解析
 - 服务启动时会先加载一次，并通过目录监听自动刷新
-- 可通过 `AGENT_AGENTS_EXTERNAL_DIR` 指定目录
+- 可通过 `AGENTS_DIR` 指定目录
 - Agent 配置只支持 YAML；若目录内仍有旧 `*.json`，启动和 refresh 都会 fail-fast
 - `systemPrompt` 等普通字段可使用 YAML `|` / `>` 多行写法，但头部披露字段必须保持单行
 - 同 basename 冲突时优先 `.yml`，并忽略对应 `.yaml`
@@ -494,9 +509,9 @@ toolConfig:
   - skills: `skills/`
 - schedules: `schedules/`
 - 启动时同步内置 `src/main/resources/tools|skills|schedules` 到外部目录：
-  - `AGENT_TOOLS_EXTERNAL_DIR`
-  - `AGENT_SKILLS_EXTERNAL_DIR`
-  - `AGENT_SCHEDULE_EXTERNAL_DIR`
+  - `TOOLS_DIR`
+  - `SKILLS_DIR`
+  - `SCHEDULES_DIR`
 - 其中 `skills` 当前仅同步内置验证 skill `container_hub_validation`；数学、文本处理、办公文档和 GIF 等 demo skills 请通过 `example/install-example-*` 从 `example/skills/` 初始化。
 - `agents|teams|models|mcp-servers|viewport-servers|viewports|providers` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
 - 示例安装为覆盖写入同名文件，但不会清空目标目录，不会删除额外文件。
@@ -539,12 +554,12 @@ toolConfig:
   - 目录结构：`mcp-servers/<server-key>.yml`
   - 关键字段：`name`、`transport`、`url/baseUrl`、可选 `headers`
   - agent 通过 `toolConfig.backends` 引用同步后的 MCP 工具名，不直接写 server key
-  - 环境变量：`AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR`
+  - 环境变量：`MCP_SERVERS_DIR`
 - `viewport-servers`:
   - 目录结构：`viewport-servers/<server-key>.yml`
   - 关键字段：`name`、`transport`、`url/baseUrl`
   - 用于远端 viewport 注册与拉取，与本地 `viewports/` 并存；本地文件和远端注册表互不替代
-  - 环境变量：`AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR`
+  - 环境变量：`VIEWPORT_SERVERS_DIR`
 
 ### 示例资源初始化
 
@@ -777,12 +792,25 @@ for f in *.md; do echo "$f"; done
 
 常用运维变量：
 
-- 默认 Docker Compose 部署直接使用镜像内 `/opt` 工作目录下的标准相对路径；`AGENT_*_EXTERNAL_DIR` 与 `MEMORY_CHATS_DIR` 主要用于自定义目录布局，不属于默认 compose 的必填变量。
+- 目录型变量统一使用 `*_DIR` 命名；本地 `make run` 直接把这些值当作运行目录，Docker Compose 则把它们当作宿主机 bind source，并在容器内覆盖为 `/opt/...` 目标路径。
 
 | 环境变量 | 默认值 | 说明 |
 |---------|-------|------|
 | `HOST_PORT` | `11949` | Docker Compose 宿主机暴露端口（映射到容器 `8080`） |
 | `SERVER_PORT` | `8080` | 应用 HTTP 监听端口（容器内固定 `8080`；本地非 Docker 运行可覆盖） |
+| `CONFIGS_DIR` | `configs` | 结构化配置目录 |
+| `AGENTS_DIR` | `agents` | Agent 定义目录 |
+| `TEAMS_DIR` | `teams` | Team 定义目录 |
+| `MODELS_DIR` | `models` | Model 定义目录 |
+| `PROVIDERS_DIR` | `providers` | Provider 定义目录 |
+| `TOOLS_DIR` | `tools` | Tool 定义目录 |
+| `MCP_SERVERS_DIR` | `mcp-servers` | MCP server 注册目录 |
+| `VIEWPORT_SERVERS_DIR` | `viewport-servers` | Viewport server 注册目录 |
+| `VIEWPORTS_DIR` | `viewports` | Viewport 目录 |
+| `SKILLS_DIR` | `skills` | Skill 目录 |
+| `SCHEDULES_DIR` | `schedules` | Schedule 目录 |
+| `DATA_DIR` | `data` | 静态文件目录 |
+| `CHATS_DIR` | `./chats` | 聊天记忆目录 |
 | `AGENT_SCHEDULE_ENABLED` | `true` | 计划任务总开关 |
 | `AGENT_SCHEDULE_DEFAULT_ZONE_ID` | 系统时区 | 计划任务默认时区 |
 | `AGENT_SCHEDULE_POOL_SIZE` | `4` | 计划任务线程池大小 |
@@ -798,7 +826,7 @@ for f in *.md; do echo "$f"; done
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `300000` | 前端工具提交超时 |
 | `AGENT_AUTH_ENABLED` | `true` | JWT 认证开关 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |
-| `MEMORY_CHATS_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `MEMORY_CHATS_DIR` 解析） |
+| `MEMORY_CHATS_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `CHATS_DIR` 解析） |
 | `MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `true` | sqlite 索引 schema 不兼容时是否自动备份并重建 |
 | `MEMORY_CHATS_K` | `20` | 滑动窗口大小 |
 | `LOGGING_AGENT_REQUEST_ENABLED` | `true` | API 请求摘要日志开关（不记录 header） |
@@ -826,20 +854,26 @@ for f in *.md; do echo "$f"; done
   - `agent.mcp.*` -> `agent.mcp-servers.*`
   - `memory.chat.*` -> `memory.chats.*`
 - 关键环境变量迁移：
-  - `AGENT_EXTERNAL_DIR` -> `AGENT_AGENTS_EXTERNAL_DIR`
-  - `AGENT_VIEWPORT_EXTERNAL_DIR` -> `AGENT_VIEWPORTS_EXTERNAL_DIR`
-  - `AGENT_SKILL_EXTERNAL_DIR` -> `AGENT_SKILLS_EXTERNAL_DIR`
-  - `AGENT_TEAM_EXTERNAL_DIR` -> `AGENT_TEAMS_EXTERNAL_DIR`
-  - `AGENT_MODEL_EXTERNAL_DIR` -> `AGENT_MODELS_EXTERNAL_DIR`
-  - `AGENT_MCP_*` -> `AGENT_MCP_SERVERS_*`
-  - `MEMORY_CHAT_*` -> `MEMORY_CHATS_*`
+  - `AGENT_CONFIG_DIR` -> `CONFIGS_DIR`
+  - `AGENT_AGENTS_EXTERNAL_DIR` -> `AGENTS_DIR`
+  - `AGENT_TEAMS_EXTERNAL_DIR` -> `TEAMS_DIR`
+  - `AGENT_MODELS_EXTERNAL_DIR` -> `MODELS_DIR`
+  - `AGENT_PROVIDERS_EXTERNAL_DIR` -> `PROVIDERS_DIR`
+  - `AGENT_TOOLS_EXTERNAL_DIR` -> `TOOLS_DIR`
+  - `AGENT_SKILLS_EXTERNAL_DIR` -> `SKILLS_DIR`
+  - `AGENT_VIEWPORTS_EXTERNAL_DIR` -> `VIEWPORTS_DIR`
+  - `AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR` -> `MCP_SERVERS_DIR`
+  - `AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR` -> `VIEWPORT_SERVERS_DIR`
+  - `AGENT_SCHEDULE_EXTERNAL_DIR` -> `SCHEDULES_DIR`
+  - `AGENT_DATA_EXTERNAL_DIR` -> `DATA_DIR`
+  - `MEMORY_CHATS_DIR` -> `CHATS_DIR`
 
 ## 静态文件服务（Data）
 
 `data/` 目录用于存放图片、PDF、CSV 等静态文件，通过 `/api/data?file={filename}` 端点提供访问。
 
 - 支持子目录，适合容器环境挂载。
-- 默认目录 `data/`，可通过 `AGENT_DATA_EXTERNAL_DIR` 环境变量覆盖。
+- 默认目录 `data/`，可通过 `DATA_DIR` 环境变量覆盖。
 - `file` 参数与 Markdown 路径一对一透传（服务端接收 URL decode 后值），不对 `/data/` 做特殊语义处理。
 - 映射示例：
   - Markdown `![示例照片](/data/sample_photo.jpg)` → `file=/data/sample_photo.jpg`

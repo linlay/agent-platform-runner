@@ -136,7 +136,7 @@ class BashToolPropertiesBindingTest {
 
         contextRunner
                 .withPropertyValues(
-                        "AGENT_CONFIG_DIR=" + configsDir,
+                        "CONFIGS_DIR=" + configsDir,
                         "agent.tools.bash.allowed-paths=" + projectDir,
                         "agent.tools.bash.allowed-commands=cat"
                 )
@@ -159,7 +159,7 @@ class BashToolPropertiesBindingTest {
 
         contextRunner
                 .withPropertyValues(
-                        "AGENT_CONFIG_DIR=" + configsDir,
+                        "CONFIGS_DIR=" + configsDir,
                         "agent.tools.bash.working-directory=" + explicitDir,
                         "agent.tools.bash.allowed-paths=" + explicitDir,
                         "agent.tools.bash.allowed-commands=cat"

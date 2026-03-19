@@ -50,7 +50,7 @@ fi
 cp "$BACKEND_JAR" "$RELEASE_DIR/app.jar"
 
 # 复制运行时数据目录
-for dir in agents viewport-servers viewports tools skills data configs; do
+for dir in agents teams models providers tools mcp-servers viewport-servers viewports skills schedules data configs; do
   if [ -d "$ROOT_DIR/$dir" ]; then
     cp -R "$ROOT_DIR/$dir" "$RELEASE_DIR/$dir"
     log "copied $dir/"
@@ -95,13 +95,19 @@ fi
 JAVA_OPTS="${JAVA_OPTS:--server -Xms256m -Xmx512m}"
 
 # 目录类环境变量默认解析为安装目录的绝对路径
-export AGENT_AGENTS_EXTERNAL_DIR="${AGENT_AGENTS_EXTERNAL_DIR:-$APP_DIR/agents}"
-export AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR="${AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR:-$APP_DIR/viewport-servers}"
-export AGENT_VIEWPORTS_EXTERNAL_DIR="${AGENT_VIEWPORTS_EXTERNAL_DIR:-$APP_DIR/viewports}"
-export AGENT_TOOLS_EXTERNAL_DIR="${AGENT_TOOLS_EXTERNAL_DIR:-$APP_DIR/tools}"
-export AGENT_SKILLS_EXTERNAL_DIR="${AGENT_SKILLS_EXTERNAL_DIR:-$APP_DIR/skills}"
-export MEMORY_CHATS_DIR="${MEMORY_CHATS_DIR:-$APP_DIR/chats}"
-export AGENT_CONFIG_DIR="${AGENT_CONFIG_DIR:-$APP_DIR/configs}"
+export CONFIGS_DIR="${CONFIGS_DIR:-$APP_DIR/configs}"
+export AGENTS_DIR="${AGENTS_DIR:-$APP_DIR/agents}"
+export TEAMS_DIR="${TEAMS_DIR:-$APP_DIR/teams}"
+export MODELS_DIR="${MODELS_DIR:-$APP_DIR/models}"
+export PROVIDERS_DIR="${PROVIDERS_DIR:-$APP_DIR/providers}"
+export TOOLS_DIR="${TOOLS_DIR:-$APP_DIR/tools}"
+export MCP_SERVERS_DIR="${MCP_SERVERS_DIR:-$APP_DIR/mcp-servers}"
+export VIEWPORT_SERVERS_DIR="${VIEWPORT_SERVERS_DIR:-$APP_DIR/viewport-servers}"
+export VIEWPORTS_DIR="${VIEWPORTS_DIR:-$APP_DIR/viewports}"
+export SKILLS_DIR="${SKILLS_DIR:-$APP_DIR/skills}"
+export SCHEDULES_DIR="${SCHEDULES_DIR:-$APP_DIR/schedules}"
+export DATA_DIR="${DATA_DIR:-$APP_DIR/data}"
+export CHATS_DIR="${CHATS_DIR:-$APP_DIR/chats}"
 
 DAEMON=false
 if [ "${1:-}" = "-d" ]; then
@@ -234,11 +240,16 @@ release-local/
 ├── configs/             # Structured YAML config files and templates
 ├── app.pid              # PID file (auto-managed)
 ├── app.log              # Log file (background mode)
-├── agents/              # Agent JSON definitions
+├── agents/              # Agent YAML definitions
+├── teams/               # Team definitions
+├── models/              # Model definitions
+├── providers/           # Provider definitions
+├── mcp-servers/         # MCP server configs
 ├── viewport-servers/    # Remote viewport server configs
 ├── viewports/           # Viewport files
 ├── tools/               # Tool definition files
 ├── skills/              # Skill directories
+├── schedules/           # Scheduled query definitions
 ├── data/                # Data files
 └── chats/               # Chat memory (auto-created)
 ```
@@ -261,6 +272,6 @@ log "  $RELEASE_DIR/app.jar"
 log "  $RELEASE_DIR/start.sh"
 log "  $RELEASE_DIR/stop.sh"
 log "  $RELEASE_DIR/DEPLOY.md"
-for dir in agents viewport-servers viewports tools skills data configs; do
+for dir in agents teams models providers mcp-servers viewport-servers viewports tools skills schedules data configs; do
   [ -d "$RELEASE_DIR/$dir" ] && log "  $RELEASE_DIR/$dir/"
 done

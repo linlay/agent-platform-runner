@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.security;
 
 import com.linlay.agentplatform.config.AppAuthProperties;
+import com.linlay.agentplatform.config.ConfigDirectorySupport;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
@@ -66,8 +67,8 @@ class JwksJwtVerifierLocalKeyValidationTests {
 
     @Test
     void shouldFailFastWhenLocalKeyFileIsMissing(@TempDir Path tempDir) {
-        String previous = System.getProperty("AGENT_CONFIG_DIR");
-        System.setProperty("AGENT_CONFIG_DIR", tempDir.toString());
+        String previous = System.getProperty(ConfigDirectorySupport.CONFIG_DIR_ENV);
+        System.setProperty(ConfigDirectorySupport.CONFIG_DIR_ENV, tempDir.toString());
         try {
             contextRunner
                 .withPropertyValues(
@@ -86,11 +87,11 @@ class JwksJwtVerifierLocalKeyValidationTests {
 
     @Test
     void shouldLoadLocalKeyFromPemFile(@TempDir Path tempDir) throws Exception {
-        String previous = System.getProperty("AGENT_CONFIG_DIR");
+        String previous = System.getProperty(ConfigDirectorySupport.CONFIG_DIR_ENV);
         Path authDir = tempDir.resolve("auth");
         Files.createDirectories(authDir);
         Files.writeString(authDir.resolve("local-public-key.pem"), toPem(generateRsaKey()), StandardCharsets.UTF_8);
-        System.setProperty("AGENT_CONFIG_DIR", tempDir.toString());
+        System.setProperty(ConfigDirectorySupport.CONFIG_DIR_ENV, tempDir.toString());
         try {
             contextRunner
                 .withPropertyValues(
@@ -134,9 +135,9 @@ class JwksJwtVerifierLocalKeyValidationTests {
 
     private static void restoreConfigDir(String previous) {
         if (previous == null) {
-            System.clearProperty("AGENT_CONFIG_DIR");
+            System.clearProperty(ConfigDirectorySupport.CONFIG_DIR_ENV);
         } else {
-            System.setProperty("AGENT_CONFIG_DIR", previous);
+            System.setProperty(ConfigDirectorySupport.CONFIG_DIR_ENV, previous);
         }
     }
 

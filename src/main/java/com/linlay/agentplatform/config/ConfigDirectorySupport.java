@@ -10,7 +10,7 @@ import java.util.Set;
 
 public final class ConfigDirectorySupport {
 
-    public static final String CONFIG_DIR_ENV = "AGENT_CONFIG_DIR";
+    public static final String CONFIG_DIR_ENV = "CONFIGS_DIR";
     private static final Path LOCAL_CONFIG_DIR = Path.of("configs").toAbsolutePath().normalize();
     private static final Path CONTAINER_CONFIG_DIR = Path.of("/opt/configs").toAbsolutePath().normalize();
 

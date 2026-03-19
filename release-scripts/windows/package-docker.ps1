@@ -106,19 +106,57 @@ services:
       - "${HOST_PORT}:8080"
     environment:
       SERVER_PORT: 8080
+      CONFIGS_DIR: /opt/configs
+      AGENTS_DIR: /opt/agents
+      TEAMS_DIR: /opt/teams
+      MODELS_DIR: /opt/models
+      PROVIDERS_DIR: /opt/providers
+      TOOLS_DIR: /opt/tools
+      MCP_SERVERS_DIR: /opt/mcp-servers
+      VIEWPORT_SERVERS_DIR: /opt/viewport-servers
+      VIEWPORTS_DIR: /opt/viewports
+      SKILLS_DIR: /opt/skills
+      SCHEDULES_DIR: /opt/schedules
+      DATA_DIR: /opt/data
+      CHATS_DIR: /opt/chats
     volumes:
-      - ./agents:/opt/agents
-      - ./teams:/opt/teams
-      - ./models:/opt/models
-      - ./providers:/opt/providers
-      - ./mcp-servers:/opt/mcp-servers
-      - ./viewport-servers:/opt/viewport-servers
-      - ./viewports:/opt/viewports
-      - ./tools:/opt/tools
-      - ./skills:/opt/skills
-      - ./schedules:/opt/schedules
-      - ./configs:/opt/configs:ro
-      - ./chats:/opt/chats
+      - type: bind
+        source: ${AGENTS_DIR:-./agents}
+        target: /opt/agents
+      - type: bind
+        source: ${TEAMS_DIR:-./teams}
+        target: /opt/teams
+      - type: bind
+        source: ${MODELS_DIR:-./models}
+        target: /opt/models
+      - type: bind
+        source: ${PROVIDERS_DIR:-./providers}
+        target: /opt/providers
+      - type: bind
+        source: ${MCP_SERVERS_DIR:-./mcp-servers}
+        target: /opt/mcp-servers
+      - type: bind
+        source: ${VIEWPORT_SERVERS_DIR:-./viewport-servers}
+        target: /opt/viewport-servers
+      - type: bind
+        source: ${VIEWPORTS_DIR:-./viewports}
+        target: /opt/viewports
+      - type: bind
+        source: ${TOOLS_DIR:-./tools}
+        target: /opt/tools
+      - type: bind
+        source: ${SKILLS_DIR:-./skills}
+        target: /opt/skills
+      - type: bind
+        source: ${SCHEDULES_DIR:-./schedules}
+        target: /opt/schedules
+      - type: bind
+        source: ${CONFIGS_DIR:-./configs}
+        target: /opt/configs
+        read_only: true
+      - type: bind
+        source: ${CHATS_DIR:-./chats}
+        target: /opt/chats
     env_file:
       - .env
     networks:
@@ -142,7 +180,20 @@ AGENT_AUTH_ENABLED=false
 # AGENT_AUTH_JWKS_URI=
 # AGENT_AUTH_ISSUER=
 
-# Structured YAML config lives under ./configs
+# Runtime directories for both `make run` and Docker bind mounts.
+# CONFIGS_DIR=./configs
+# AGENTS_DIR=./agents
+# TEAMS_DIR=./teams
+# MODELS_DIR=./models
+# PROVIDERS_DIR=./providers
+# TOOLS_DIR=./tools
+# MCP_SERVERS_DIR=./mcp-servers
+# VIEWPORT_SERVERS_DIR=./viewport-servers
+# VIEWPORTS_DIR=./viewports
+# SKILLS_DIR=./skills
+# SCHEDULES_DIR=./schedules
+# DATA_DIR=./data
+# CHATS_DIR=./chats
 
 # Bash tool security (explicit allowlists required)
 # AGENT_BASH_WORKING_DIRECTORY=/opt

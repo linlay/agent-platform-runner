@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ConfigDirectoryEnvironmentPostProcessorTest {
 
@@ -55,6 +56,19 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
         assertThat(environment.getProperty("agent.tools.bash.allowed-commands")).isEqualTo("ls,pwd");
         assertThat(environment.getProperty("agent.tools.container-hub.enabled")).isEqualTo("true");
         assertThat(environment.getProperty("agent.tools.container-hub.default-environment-id")).isEqualTo("shell");
+    }
+
+    @Test
+    void shouldFailFastWhenDeprecatedDirectoryEnvVariableIsConfigured() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
+                "AGENT_AGENTS_EXTERNAL_DIR", tempDir.resolve("agents").toString()
+        )));
+
+        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("AGENT_AGENTS_EXTERNAL_DIR")
+                .hasMessageContaining("AGENTS_DIR");
     }
 
     @Test

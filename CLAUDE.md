@@ -623,7 +623,7 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 |----|--------|------|
 | `server.port` | `8080` | HTTP 端口（环境变量 `SERVER_PORT`） |
 | `spring.application.name` | `springai-agent-platform` | 服务名 |
-| `AGENT_CONFIG_DIR` | `./configs` 或 `/opt/configs` | 结构化配置目录；显式设置时优先生效 |
+| `CONFIGS_DIR` | `./configs` 或 `/opt/configs` | 结构化配置目录；显式设置时优先生效 |
 
 ### 环境变量完整列表
 
@@ -631,23 +631,24 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 
 | 环境变量 | 属性键 | 默认值 | 说明 |
 |---------|--------|-------|------|
-| `AGENT_AGENTS_EXTERNAL_DIR` | `agent.agents.external-dir` | `agents` | Agent Definition 目录 |
+| `AGENTS_DIR` | `agent.agents.external-dir` | `agents` | Agent Definition 目录 |
 | `AGENT_AGENTS_REFRESH_INTERVAL_MS` | `agent.agents.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
-| `AGENT_MODELS_EXTERNAL_DIR` | `agent.models.external-dir` | `models` | Model YAML 定义目录 |
+| `TEAMS_DIR` | `agent.teams.external-dir` | `teams` | Team 定义目录 |
+| `MODELS_DIR` | `agent.models.external-dir` | `models` | Model YAML 定义目录 |
 | `AGENT_MODELS_REFRESH_INTERVAL_MS` | `agent.models.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |
-| `AGENT_PROVIDERS_EXTERNAL_DIR` | `agent.providers.external-dir` | `providers` | Provider YAML 定义目录 |
+| `PROVIDERS_DIR` | `agent.providers.external-dir` | `providers` | Provider YAML 定义目录 |
 | `AGENT_PROVIDERS_REFRESH_INTERVAL_MS` | `agent.providers.refresh-interval-ms` | `30000` | Provider 目录刷新间隔（ms） |
-| `AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR` | `agent.mcp-servers.registry.external-dir` | `mcp-servers` | MCP server 注册目录 |
-| `AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR` | `agent.viewport-servers.registry.external-dir` | `viewport-servers` | Viewport server 注册目录 |
-| `AGENT_VIEWPORTS_EXTERNAL_DIR` | `agent.viewports.external-dir` | `viewports` | Viewport 目录 |
+| `MCP_SERVERS_DIR` | `agent.mcp-servers.registry.external-dir` | `mcp-servers` | MCP server 注册目录 |
+| `VIEWPORT_SERVERS_DIR` | `agent.viewport-servers.registry.external-dir` | `viewport-servers` | Viewport server 注册目录 |
+| `VIEWPORTS_DIR` | `agent.viewports.external-dir` | `viewports` | Viewport 目录 |
 | `AGENT_VIEWPORTS_REFRESH_INTERVAL_MS` | `agent.viewports.refresh-interval-ms` | `30000` | Viewport 刷新间隔（ms） |
-| `AGENT_DATA_EXTERNAL_DIR` | `agent.data.external-dir` | `data` | 静态文件目录 |
+| `DATA_DIR` | `agent.data.external-dir` | `data` | 静态文件目录 |
 
 #### Tools / Skills
 
 | 环境变量 | 属性键 | 默认值 | 说明 |
 |---------|--------|-------|------|
-| `AGENT_TOOLS_EXTERNAL_DIR` | `agent.tools.external-dir` | `tools` | 工具定义文件目录 |
+| `TOOLS_DIR` | `agent.tools.external-dir` | `tools` | 工具定义文件目录 |
 | `AGENT_TOOLS_REFRESH_INTERVAL_MS` | `agent.tools.refresh-interval-ms` | `30000` | 工具目录刷新间隔（ms） |
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `agent.tools.frontend.submit-timeout-ms` | `300000` | 前端工具提交等待超时（ms） |
 | `AGENT_BASH_WORKING_DIRECTORY` | `agent.tools.bash.working-directory` | 项目运行根目录（通常为 `configs/` 上级目录） | Bash 工具工作目录 |
@@ -666,10 +667,10 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `AGENT_AGENTBOX_DEFAULT_VERSION` | `agent.tools.agentbox.default-version` | `latest` | 创建会话时默认 version |
 | `AGENT_AGENTBOX_DEFAULT_CWD` | `agent.tools.agentbox.default-cwd` | `/workspace` | 创建会话时默认工作目录 |
 | `AGENT_AGENTBOX_REQUEST_TIMEOUT_MS` | `agent.tools.agentbox.request-timeout-ms` | `30000` | agentbox HTTP 调用超时（ms） |
-| `AGENT_SKILLS_EXTERNAL_DIR` | `agent.skills.external-dir` | `skills` | 技能目录 |
+| `SKILLS_DIR` | `agent.skills.external-dir` | `skills` | 技能目录 |
 | `AGENT_SKILLS_REFRESH_INTERVAL_MS` | `agent.skills.refresh-interval-ms` | `30000` | 技能刷新间隔（ms） |
 | `AGENT_SKILLS_MAX_PROMPT_CHARS` | `agent.skills.max-prompt-chars` | `8000` | 技能 prompt 最大字符数 |
-| `AGENT_SCHEDULE_EXTERNAL_DIR` | `agent.schedule.external-dir` | `schedules` | 计划任务目录 |
+| `SCHEDULES_DIR` | `agent.schedule.external-dir` | `schedules` | 计划任务目录 |
 | `AGENT_SCHEDULE_ENABLED` | `agent.schedule.enabled` | `true` | 计划任务总开关 |
 | `AGENT_SCHEDULE_DEFAULT_ZONE_ID` | `agent.schedule.default-zone-id` | 系统时区 | 计划任务默认时区 |
 | `AGENT_SCHEDULE_POOL_SIZE` | `agent.schedule.pool-size` | `4` | 计划任务线程池大小 |
@@ -686,7 +687,7 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 | `CHAT_IMAGE_TOKEN_PREVIOUS_SECRETS` | `agent.chat-image-token.previous-secrets` | （空） | 历史密钥列表（逗号分隔），用于密钥轮换验证 |
 | `CHAT_IMAGE_TOKEN_TTL_SECONDS` | `agent.chat-image-token.ttl-seconds` | `86400` | 图片令牌过期秒数 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `agent.chat-image-token.data-token-validation-enabled` | `true` | `/api/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |
-| `MEMORY_CHATS_DIR` | `memory.chats.dir` | `./chats` | 聊天记忆目录 |
+| `CHATS_DIR` | `memory.chats.dir` | `./chats` | 聊天记忆目录 |
 | `MEMORY_CHATS_K` | `memory.chats.k` | `20` | 滑动窗口大小（按 run） |
 | `MEMORY_CHATS_CHARSET` | `memory.chats.charset` | `UTF-8` | 记忆文件编码 |
 | `MEMORY_CHATS_ACTION_TOOLS` | `memory.chats.action-tools` | （空） | action 工具白名单 |
@@ -703,7 +704,7 @@ SSE 事件中的 reasoningId/contentId 同步使用新前缀格式：`{runId}_r_
 迁移说明（Breaking Change）：
 
 - 旧键已禁用：`agent.catalog.*`、`agent.viewport.*`、`agent.capability.*`、`agent.skill.*`、`agent.team.*`、`agent.model.*`、`agent.mcp.*`、`memory.chat.*`。
-- 旧环境变量已禁用：`AGENT_EXTERNAL_DIR`、`AGENT_VIEWPORT_EXTERNAL_DIR`、`AGENT_SKILL_EXTERNAL_DIR`、`AGENT_TEAM_EXTERNAL_DIR`、`AGENT_MODEL_EXTERNAL_DIR`、`AGENT_MCP_*`、`MEMORY_CHAT_*` 等。
+- 旧环境变量已禁用：`AGENT_CONFIG_DIR`、`AGENT_AGENTS_EXTERNAL_DIR`、`AGENT_TEAMS_EXTERNAL_DIR`、`AGENT_MODELS_EXTERNAL_DIR`、`AGENT_PROVIDERS_EXTERNAL_DIR`、`AGENT_TOOLS_EXTERNAL_DIR`、`AGENT_SKILLS_EXTERNAL_DIR`、`AGENT_VIEWPORTS_EXTERNAL_DIR`、`AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_SCHEDULE_EXTERNAL_DIR`、`AGENT_DATA_EXTERNAL_DIR`、`MEMORY_CHATS_DIR` 等。
 - 启动时若检测到旧键或旧变量，服务会直接失败；请按新命名迁移后再启动。
 
 ### CORS（主配置默认）
