@@ -32,6 +32,7 @@ import java.util.function.Supplier;
 public class ContainerHubMountResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ContainerHubMountResolver.class);
+    private static final String WORKSPACE_PATH = "/workspace";
 
     private final ChatWindowMemoryProperties chatWindowMemoryProperties;
     private final RootProperties rootProperties;
@@ -119,10 +120,13 @@ public class ContainerHubMountResolver {
             if (level == SandboxLevel.RUN && StringUtils.hasText(chatId)) {
                 hostPath = prepareRunDataMountDirectory(dataDir, chatId);
             } else {
-                hostPath = requireExistingDirectory("data-dir", dataDir, toAbsolute(dataDir), "/tmp");
+                hostPath = requireExistingDirectory("data-dir", dataDir, toAbsolute(dataDir), WORKSPACE_PATH);
+                if (StringUtils.hasText(chatId)) {
+                    prepareSharedDataMountDirectory(hostPath, chatId);
+                }
             }
-            mounts.add(new MountSpec("data-dir", normalizeRawPath(dataDir), hostPath, "/tmp"));
-            usedContainerPaths.add("/tmp");
+            mounts.add(new MountSpec("data-dir", normalizeRawPath(dataDir), hostPath, WORKSPACE_PATH));
+            usedContainerPaths.add(WORKSPACE_PATH);
         }
 
         String rootDir = resolveRootDir();
@@ -337,7 +341,7 @@ public class ContainerHubMountResolver {
         } catch (IOException ex) {
             throw new IllegalStateException(
                     "container-hub mount validation failed for data-dir: failed to prepare chat-scoped directory "
-                            + "(configured=%s, resolved=%s, containerPath=/tmp)".formatted(
+                            + "(configured=%s, resolved=%s, containerPath=/workspace)".formatted(
                             normalizeRawPath(dataDir),
                             path
                     ),
@@ -345,6 +349,23 @@ public class ContainerHubMountResolver {
             );
         }
         return path.toString();
+    }
+
+    private void prepareSharedDataMountDirectory(String dataDir, String chatId) {
+        Path path = Path.of(dataDir, chatId).toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(path);
+        } catch (IOException ex) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for data-dir: failed to prepare chat-scoped directory "
+                            + "(configured=%s, resolved=%s, containerPath=/workspace/%s)".formatted(
+                            normalizeRawPath(dataDir),
+                            path,
+                            chatId.trim()
+                    ),
+                    ex
+            );
+        }
     }
 
     private String normalizeRawPath(String rawPath) {

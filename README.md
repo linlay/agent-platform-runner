@@ -651,7 +651,7 @@ skills:
 
 ## Container Hub 验证 Agent
 
-仓库提供了示例 agent `demoContainerHubValidator`（目录：`example/agents/demoContainerHubValidator/`），用于验证 `container_hub_bash` 的 RUN 级沙箱能力。该 agent 会先执行 Bash smoke test，再在同一个 run sandbox 中通过 `python3` 写入 `/tmp/validation_report.txt`。
+仓库提供了示例 agent `demoContainerHubValidator`（目录：`example/agents/demoContainerHubValidator/`），用于验证 `container_hub_bash` 的 RUN 级沙箱能力。该 agent 会先执行 Bash smoke test，再在同一个 run sandbox 中通过 `python3` 写入 `/workspace/validation_report.txt`。
 
 启用前请先配置 `configs/container-hub.yml`（可从 `configs/container-hub.example.yml` 复制）：
 
@@ -665,7 +665,7 @@ default-environment-id: shell
 
 - `demoContainerHubValidator` 只使用 `container_hub_bash`，不会回退到 `_bash_` 或任何宿主机执行路径。
 - 第二阶段的 Python 验证是“容器内 Python”，不是本机 skill 脚本执行。
-- RUN 级 session 下，容器中的 `/tmp/<file>` 预期会映射到 host 侧 `CHATS_DIR/<chatId>/<file>`。
+- RUN 级 session 下，容器中的 `/workspace/<file>` 预期会映射到 host 侧 `CHATS_DIR/<chatId>/<file>`。
 - 若容器环境缺少 `python3`，应将其记录为环境缺口，而不是宣称验证通过。
 
 ## Daily Office Agent
@@ -681,7 +681,7 @@ default-environment-id: shell
 
 1. 在 runner 侧启用 `configs/container-hub.yml`（可从 `configs/container-hub.example.yml` 复制）。
 2. `agent-container-hub` 服务中存在可用的 `daily-office` environment。
-3. 建议配置 `CHATS_DIR`、`ROOT_DIR`、`PAN_DIR` 等 runner 全局目录，这样 RUN 级沙箱会自动把共享目录挂到容器内 `/tmp`、`/root`、`/pan`。
+3. 建议配置 `CHATS_DIR`、`ROOT_DIR`、`PAN_DIR` 等 runner 全局目录，这样 RUN 级沙箱会自动把共享目录挂到容器内 `/workspace`、`/root`、`/pan`。
 
 最小配置示例：
 
@@ -694,8 +694,8 @@ default-environment-id: daily-office
 运行约定：
 
 - `dailyOfficeAssistant` 只使用 `container_hub_bash`，不会回退到 `_bash_` 或任何宿主机执行路径。
-- Agent 会把容器内 `/tmp` 视为唯一工作目录：上传或已有 chat 资产从 `/tmp` 读取，新生成的 `.docx/.pptx` 也写回 `/tmp`。
-- RUN 级 session 下，容器中的 `/tmp/<filename>` 会映射到 host 侧 `CHATS_DIR/<chatId>/<filename>`。
+- Agent 会把容器内 `/workspace` 视为唯一工作目录：上传或已有 chat 资产从 `/workspace` 读取，新生成的 `.docx/.pptx` 也写回 `/workspace`。
+- RUN 级 session 下，容器中的 `/workspace/<filename>` 会映射到 host 侧 `CHATS_DIR/<chatId>/<filename>`。
 - `docx` / `pptx` skills 提供的是操作手册，不是自动执行器；agent 需要自己通过 `container_hub_bash` 在容器内访问 `/skills/docx` 与 `/skills/pptx` 并执行对应命令。
 - 产物可通过 `/api/data` 下载，推荐格式：
   - `/api/data?file=<chatId>%2F<filename>&download=true`
@@ -718,7 +718,7 @@ default-environment-id: shell
 
 - `meta.sourceType` 在 `/api/tools` 与 `/api/tool?toolName=container_hub_bash` 中应表现为 `local`。
 - 该工具的职责是把 runner 的 tool call 桥接为 `agent-container-hub` 的 HTTP session API，而不是提供一个 MCP transport 封装。
-- `RUN` 级 sandbox 在创建 session 前会自动准备 `CHATS_DIR/<chatId>` 目录，并把它挂载到容器内的 `/tmp`。
+- `RUN` 级 sandbox 在创建 session 前会自动准备 `CHATS_DIR/<chatId>` 目录，并把它挂载到容器内的 `/workspace`。
 - `/root` 与 `/pan` 分别来自 runner 全局目录 `ROOT_DIR` 与 `PAN_DIR`；`configs/container-hub.yml` 不再单独配置挂载源目录。
 
 ## Bash 工具配置
@@ -1019,7 +1019,7 @@ curl -N -X POST "$BASE_URL/api/query" \
 curl -N -X POST "$BASE_URL/api/query" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"message":"先检查 /skills/docx 和 pandoc/soffice 是否可用，再总结 /tmp/report.docx 的内容","agentKey":"dailyOfficeAssistant"}'
+  -d '{"message":"先检查 /skills/docx 和 pandoc/soffice 是否可用，再总结 /workspace/report.docx 的内容","agentKey":"dailyOfficeAssistant"}'
 ```
 
 ```bash

@@ -19,14 +19,14 @@ Rules:
 Run the checks in this order when the user asks to validate the sandbox:
 
 1. `pwd`
-2. `ls /tmp`
-3. `echo hello > /tmp/bash_ok.txt`
-4. `cat /tmp/bash_ok.txt`
+2. `ls /workspace`
+3. `echo hello > /workspace/bash_ok.txt`
+4. `cat /workspace/bash_ok.txt`
 
 Phase 1 passes only if:
 
 - commands return `exitCode: 0`
-- `/tmp/bash_ok.txt` can be read back with the expected content
+- `/workspace/bash_ok.txt` can be read back with the expected content
 
 ## Phase 2: Python Write
 
@@ -34,16 +34,16 @@ After Bash passes, validate container-side Python by running `python3` through `
 
 Preferred outcome:
 
-- write `/tmp/validation_report.txt`
+- write `/workspace/validation_report.txt`
 - include a short report body describing the validation timestamp or stage summary
 - read the file back in a follow-up command
 
 Suggested command shape:
 
-- `python3 -c "from pathlib import Path; Path('/tmp/validation_report.txt').write_text(...)"`  
-- then `cat /tmp/validation_report.txt`
+- `python3 -c "from pathlib import Path; Path('/workspace/validation_report.txt').write_text(...)"`  
+- then `cat /workspace/validation_report.txt`
 
-If the environment is configured with container hub `data-dir` mount, explain that `/tmp/<file>` is expected to map back to `data/<chatId>/<file>` on the host for RUN-level sessions.
+If the environment is configured with container hub `data-dir` mount, explain that `/workspace/<file>` is expected to map back to `data/<chatId>/<file>` on the host for RUN-level sessions.
 
 ## Final Answer Format
 

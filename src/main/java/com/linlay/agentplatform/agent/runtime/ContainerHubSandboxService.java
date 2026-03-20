@@ -26,6 +26,7 @@ public class ContainerHubSandboxService implements DisposableBean {
 
     public static final String TOOL_NAME = "container_hub_bash";
     private static final Logger log = LoggerFactory.getLogger(ContainerHubSandboxService.class);
+    private static final String DEFAULT_WORKSPACE_CWD = "/workspace";
 
     private final ContainerHubToolProperties properties;
     private final ContainerHubClient client;
@@ -117,7 +118,7 @@ public class ContainerHubSandboxService implements DisposableBean {
                 resolveExtraMounts(context.definition())
         );
 
-        ObjectNode payload = buildCreatePayload(sessionId, environmentId, buildLabels(context), mounts);
+        ObjectNode payload = buildCreatePayload(sessionId, environmentId, buildLabels(context), mounts, DEFAULT_WORKSPACE_CWD);
         JsonNode response = client.createSession(payload);
         if (isErrorResponse(response)) {
             throw new IllegalStateException("container-hub sandbox create failed: " + readError(response));
@@ -129,9 +130,14 @@ public class ContainerHubSandboxService implements DisposableBean {
         }
         String defaultCwd = readText(response, "cwd");
         if (!StringUtils.hasText(defaultCwd)) {
-            defaultCwd = "/root";
+            defaultCwd = DEFAULT_WORKSPACE_CWD;
         }
-        context.bindSandboxSession(new ExecutionContext.SandboxSession(returnedSessionId, environmentId, defaultCwd, level));
+        context.bindSandboxSession(new ExecutionContext.SandboxSession(
+                returnedSessionId,
+                environmentId,
+                effectiveCwd(level, context.request().chatId()),
+                level
+        ));
     }
 
     private void acquireAgentSession(ExecutionContext context, String environmentId) {
@@ -150,7 +156,7 @@ public class ContainerHubSandboxService implements DisposableBean {
                     context.definition().id(),
                     resolveExtraMounts(context.definition())
             );
-            ObjectNode payload = buildCreatePayload(sessionId, environmentId, buildLabels(context), mounts);
+            ObjectNode payload = buildCreatePayload(sessionId, environmentId, buildLabels(context), mounts, DEFAULT_WORKSPACE_CWD);
             JsonNode response = client.createSession(payload);
             if (isErrorResponse(response)) {
                 throw new IllegalStateException("container-hub sandbox create failed: " + readError(response));
@@ -161,7 +167,7 @@ public class ContainerHubSandboxService implements DisposableBean {
             }
             String defaultCwd = readText(response, "cwd");
             if (!StringUtils.hasText(defaultCwd)) {
-                defaultCwd = "/root";
+                defaultCwd = DEFAULT_WORKSPACE_CWD;
             }
             ManagedSession session = new ManagedSession(
                     returnedSessionId, environmentId, defaultCwd,
@@ -174,7 +180,11 @@ public class ContainerHubSandboxService implements DisposableBean {
         });
 
         context.bindSandboxSession(new ExecutionContext.SandboxSession(
-                managed.sessionId, managed.environmentId, managed.defaultCwd, SandboxLevel.AGENT));
+                managed.sessionId,
+                managed.environmentId,
+                effectiveCwd(SandboxLevel.AGENT, context.request().chatId()),
+                SandboxLevel.AGENT
+        ));
     }
 
     private void releaseAgentSession(String agentKey) {
@@ -198,7 +208,11 @@ public class ContainerHubSandboxService implements DisposableBean {
             current.activeUsers.incrementAndGet();
             current.lastAccessedMs.set(System.currentTimeMillis());
             context.bindSandboxSession(new ExecutionContext.SandboxSession(
-                    current.sessionId, current.environmentId, current.defaultCwd, SandboxLevel.GLOBAL));
+                    current.sessionId,
+                    current.environmentId,
+                    effectiveCwd(SandboxLevel.GLOBAL, context.request().chatId()),
+                    SandboxLevel.GLOBAL
+            ));
             return;
         }
         synchronized (globalSessionLock) {
@@ -207,17 +221,21 @@ public class ContainerHubSandboxService implements DisposableBean {
                 current.activeUsers.incrementAndGet();
                 current.lastAccessedMs.set(System.currentTimeMillis());
                 context.bindSandboxSession(new ExecutionContext.SandboxSession(
-                        current.sessionId, current.environmentId, current.defaultCwd, SandboxLevel.GLOBAL));
+                        current.sessionId,
+                        current.environmentId,
+                        effectiveCwd(SandboxLevel.GLOBAL, context.request().chatId()),
+                        SandboxLevel.GLOBAL
+                ));
                 return;
             }
             String sessionId = "global-singleton";
             List<ContainerHubMountResolver.MountSpec> mounts = mountResolver.resolve(
                     SandboxLevel.GLOBAL,
-                    null,
+                    context.request().chatId(),
                     context.definition().id(),
                     resolveExtraMounts(context.definition())
             );
-            ObjectNode payload = buildCreatePayload(sessionId, environmentId, buildLabels(context), mounts);
+            ObjectNode payload = buildCreatePayload(sessionId, environmentId, buildLabels(context), mounts, DEFAULT_WORKSPACE_CWD);
             JsonNode response = client.createSession(payload);
             if (isErrorResponse(response)) {
                 throw new IllegalStateException("container-hub sandbox create failed: " + readError(response));
@@ -228,7 +246,7 @@ public class ContainerHubSandboxService implements DisposableBean {
             }
             String defaultCwd = readText(response, "cwd");
             if (!StringUtils.hasText(defaultCwd)) {
-                defaultCwd = "/root";
+                defaultCwd = DEFAULT_WORKSPACE_CWD;
             }
             ManagedSession session = new ManagedSession(
                     returnedSessionId, environmentId, defaultCwd,
@@ -239,7 +257,11 @@ public class ContainerHubSandboxService implements DisposableBean {
             this.globalSession = session;
             log.info("container-hub global session created, sessionId={}", returnedSessionId);
             context.bindSandboxSession(new ExecutionContext.SandboxSession(
-                    returnedSessionId, environmentId, defaultCwd, SandboxLevel.GLOBAL));
+                    returnedSessionId,
+                    environmentId,
+                    effectiveCwd(SandboxLevel.GLOBAL, context.request().chatId()),
+                    SandboxLevel.GLOBAL
+            ));
         }
     }
 
@@ -353,11 +375,15 @@ public class ContainerHubSandboxService implements DisposableBean {
             String sessionId,
             String environmentId,
             Map<String, String> labels,
-            List<ContainerHubMountResolver.MountSpec> mounts
+            List<ContainerHubMountResolver.MountSpec> mounts,
+            String cwd
     ) {
         ObjectNode payload = ExecutionContext.OBJECT_MAPPER.createObjectNode();
         payload.put("session_id", sessionId);
         payload.put("environment_name", environmentId);
+        if (StringUtils.hasText(cwd)) {
+            payload.put("cwd", cwd.trim());
+        }
         payload.set("labels", ExecutionContext.OBJECT_MAPPER.valueToTree(labels));
 
         if (mounts != null && !mounts.isEmpty()) {
@@ -372,6 +398,13 @@ public class ContainerHubSandboxService implements DisposableBean {
         }
 
         return payload;
+    }
+
+    private String effectiveCwd(SandboxLevel level, String chatId) {
+        if (level == SandboxLevel.RUN || !StringUtils.hasText(chatId)) {
+            return DEFAULT_WORKSPACE_CWD;
+        }
+        return DEFAULT_WORKSPACE_CWD + "/" + chatId.trim();
     }
 
     private Map<String, String> buildLabels(ExecutionContext context) {

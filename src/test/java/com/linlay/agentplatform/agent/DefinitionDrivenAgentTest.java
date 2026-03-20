@@ -2195,7 +2195,7 @@ class DefinitionDrivenAgentTest {
         httpClient.register("/api/sessions/create", request -> {
             httpClient.record("create");
             return new StubHttpResponse(request, 200, """
-                    {"session_id":"run-run1","cwd":"/root","status":"running"}
+                    {"session_id":"run-run1","cwd":"/workspace","status":"running"}
                     """);
         });
         httpClient.register("/api/sessions/run-run1/execute", request -> {
@@ -2291,7 +2291,7 @@ class DefinitionDrivenAgentTest {
         httpClient.register("/api/sessions/create", request -> {
             httpClient.record("create");
             return new StubHttpResponse(request, 200, """
-                    {"session_id":"run-run1","cwd":"/root","status":"running"}
+                    {"session_id":"run-run1","cwd":"/workspace","status":"running"}
                     """);
         });
         httpClient.register("/api/sessions/run-run1/execute", request -> {
@@ -2317,7 +2317,7 @@ class DefinitionDrivenAgentTest {
                 "container_hub_validation",
                 "container_hub_validation",
                 "validate container hub",
-                "Follow the checklist: bash smoke first, then python3 writes /tmp/validation_report.txt."
+                "Follow the checklist: bash smoke first, then python3 writes /workspace/validation_report.txt."
         );
         Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
 
@@ -2358,7 +2358,7 @@ class DefinitionDrivenAgentTest {
                                     "call_bash_1",
                                     "function",
                                     "container_hub_bash",
-                                    "{\"command\":\"echo hello > /tmp/bash_ok.txt && cat /tmp/bash_ok.txt\"}"
+                                    "{\"command\":\"echo hello > /workspace/bash_ok.txt && cat /workspace/bash_ok.txt\"}"
                             )),
                             "tool_calls"
                     ));
@@ -2368,7 +2368,7 @@ class DefinitionDrivenAgentTest {
                                     "call_python_1",
                                     "function",
                                     "container_hub_bash",
-                                    "{\"command\":\"python3 -c \\\"from pathlib import Path; Path('/tmp/validation_report.txt').write_text('container hub ok\\\\n', encoding='utf-8')\\\" && cat /tmp/validation_report.txt\"}"
+                                    "{\"command\":\"python3 -c \\\"from pathlib import Path; Path('/workspace/validation_report.txt').write_text('container hub ok\\\\n', encoding='utf-8')\\\" && cat /workspace/validation_report.txt\"}"
                             )),
                             "tool_calls"
                     ));
@@ -2407,9 +2407,9 @@ class DefinitionDrivenAgentTest {
                 .contains("skillId: container_hub_validation")
                 .doesNotContain("Follow the checklist:");
         assertThat(executedCommands).hasSize(2);
-        assertThat(executedCommands.get(0)).contains("/tmp/bash_ok.txt");
+        assertThat(executedCommands.get(0)).contains("/workspace/bash_ok.txt");
         assertThat(executedCommands.get(1)).contains("python3");
-        assertThat(executedCommands.get(1)).contains("/tmp/validation_report.txt");
+        assertThat(executedCommands.get(1)).contains("/workspace/validation_report.txt");
 
         Thread.sleep(200);
         assertThat(httpClient.events()).containsExactly("create", "execute", "execute", "stop");

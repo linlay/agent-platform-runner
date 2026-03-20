@@ -114,13 +114,15 @@ class ContainerHubSandboxServiceTest {
         assertThat(context.sandboxSession().sessionId()).startsWith("run-");
         assertThat(events).contains("createSession");
         assertThat(client.lastCreatePayload).isNotNull();
+        assertThat(client.lastCreatePayload.path("cwd").asText()).isEqualTo("/workspace");
         assertThat(client.lastCreatePayload.path("mounts").isArray()).isTrue();
         JsonNode mounts = client.lastCreatePayload.path("mounts");
         assertThat(mounts).isNotEmpty();
         assertThat(mounts.get(0).path("source").asText()).isNotBlank();
-        assertThat(mounts.get(0).path("destination").asText()).isEqualTo("/tmp");
+        assertThat(mounts.get(0).path("destination").asText()).isEqualTo("/workspace");
         assertThat(mounts.get(0).has("host_path")).isFalse();
         assertThat(mounts.get(0).has("container_path")).isFalse();
+        assertThat(context.sandboxSession().defaultCwd()).isEqualTo("/workspace");
 
         service.closeQuietly(context);
         assertThat(context.sandboxSession()).isNull();
@@ -142,6 +144,7 @@ class ContainerHubSandboxServiceTest {
         service.openIfNeeded(ctx1);
         assertThat(ctx1.sandboxSession()).isNotNull();
         assertThat(ctx1.sandboxSession().level()).isEqualTo(SandboxLevel.AGENT);
+        assertThat(ctx1.sandboxSession().defaultCwd()).isEqualTo("/workspace/chat1");
         String sessionId1 = ctx1.sandboxSession().sessionId();
 
         // Second run - should reuse session
@@ -149,6 +152,7 @@ class ContainerHubSandboxServiceTest {
         service.openIfNeeded(ctx2);
         assertThat(ctx2.sandboxSession()).isNotNull();
         assertThat(ctx2.sandboxSession().sessionId()).isEqualTo(sessionId1);
+        assertThat(ctx2.sandboxSession().defaultCwd()).isEqualTo("/workspace/chat2");
 
         // Only one createSession call
         long createCount = events.stream().filter("createSession"::equals).count();
@@ -174,10 +178,12 @@ class ContainerHubSandboxServiceTest {
         assertThat(ctx1.sandboxSession()).isNotNull();
         assertThat(ctx1.sandboxSession().level()).isEqualTo(SandboxLevel.GLOBAL);
         assertThat(ctx1.sandboxSession().sessionId()).isEqualTo("global-singleton");
+        assertThat(ctx1.sandboxSession().defaultCwd()).isEqualTo("/workspace/chat1");
 
         ExecutionContext ctx2 = createContext(def2, "chat2", "run2");
         service.openIfNeeded(ctx2);
         assertThat(ctx2.sandboxSession().sessionId()).isEqualTo("global-singleton");
+        assertThat(ctx2.sandboxSession().defaultCwd()).isEqualTo("/workspace/chat2");
 
         // Only one createSession call for global
         long createCount = events.stream().filter("createSession"::equals).count();
@@ -386,7 +392,7 @@ class ContainerHubSandboxServiceTest {
             events.add("createSession");
             ObjectNode response = ExecutionContext.OBJECT_MAPPER.createObjectNode();
             response.put("session_id", payload.path("session_id").asText());
-            response.put("cwd", "/root");
+            response.put("cwd", "/workspace");
             response.put("status", "running");
             return response;
         }

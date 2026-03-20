@@ -30,7 +30,7 @@ class ContainerHubMountResolverTest {
     Path tempDir;
 
     @Test
-    void runLevelShouldCreateChatScopedDataDirectoryAndMountItToTmp() throws Exception {
+    void runLevelShouldCreateChatScopedDataDirectoryAndMountItToWorkspace() throws Exception {
         Path dataRoot = Files.createDirectories(tempDir.resolve("data-root"));
         RootProperties rootProperties = rootProperties(Files.createDirectories(tempDir.resolve("root")));
         SkillProperties skillProperties = skillProperties(Files.createDirectories(tempDir.resolve("skills")));
@@ -50,7 +50,7 @@ class ContainerHubMountResolverTest {
         Path chatDir = dataRoot.resolve("chat-123");
         assertThat(Files.isDirectory(chatDir)).isTrue();
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .contains("/tmp", "/root", "/skills", "/pan");
+                .contains("/workspace", "/root", "/skills", "/pan");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(chatDir.toAbsolutePath().normalize().toString());
     }
@@ -78,7 +78,7 @@ class ContainerHubMountResolverTest {
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(chatDir.toAbsolutePath().normalize().toString());
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .contains("/tmp");
+                .contains("/workspace");
     }
 
     @Test
@@ -101,10 +101,37 @@ class ContainerHubMountResolverTest {
 
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.AGENT, "chat", "atlas", List.of());
 
+        assertThat(Files.isDirectory(dataDir.resolve("chat"))).isTrue();
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .containsExactly("/tmp", "/root", "/skills", "/pan", "/agent");
+                .containsExactly("/workspace", "/root", "/skills", "/pan", "/agent");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .contains(dataDir.toAbsolutePath().normalize().toString())
                 .contains(agentDir.toAbsolutePath().normalize().toString());
+    }
+
+    @Test
+    void globalLevelShouldPrepareChatScopedSubdirectoryWhileMountingSharedWorkspace() throws Exception {
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
+        Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
+        Path panDir = Files.createDirectories(tempDir.resolve("pan"));
+        Path dataDir = Files.createDirectories(tempDir.resolve("data"));
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(dataDir),
+                skillProperties(skillsDir),
+                rootProperties(rootDir),
+                panProperties(panDir),
+                providerProperties(tempDir.resolve("providers"))
+        );
+
+        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.GLOBAL, "chat-global", "flat-agent", List.of());
+
+        assertThat(Files.isDirectory(dataDir.resolve("chat-global"))).isTrue();
+        assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
+                .containsExactly("/workspace", "/root", "/skills", "/pan");
+        assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .contains(dataDir.toAbsolutePath().normalize().toString());
     }
 
     @Test
@@ -126,7 +153,7 @@ class ContainerHubMountResolverTest {
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.AGENT, "chat", "flat-agent", List.of());
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .containsExactly("/tmp", "/root", "/skills", "/pan");
+                .containsExactly("/workspace", "/root", "/skills", "/pan");
     }
 
     @Test
@@ -307,7 +334,7 @@ class ContainerHubMountResolverTest {
         );
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .containsExactly("/tmp", "/root", "/skills", "/pan");
+                .containsExactly("/workspace", "/root", "/skills", "/pan");
     }
 
     @Test
@@ -330,7 +357,7 @@ class ContainerHubMountResolverTest {
         assertThatThrownBy(() -> resolver.resolve(SandboxLevel.RUN, "chat-error", "flat-agent", List.of()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("container-hub mount validation failed for data-dir")
-                .hasMessageContaining("containerPath=/tmp")
+                .hasMessageContaining("containerPath=/workspace")
                 .hasMessageContaining(fileAsRoot.resolve("chat-error").toAbsolutePath().normalize().toString());
     }
 

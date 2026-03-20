@@ -53,8 +53,9 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
         payload.set("args", OBJECT_MAPPER.valueToTree(List.of("-lc", command)));
 
         String cwd = readText(root, "cwd");
-        if (StringUtils.hasText(cwd)) {
-            payload.put("cwd", cwd);
+        String workingDirectory = StringUtils.hasText(cwd) ? cwd : context.sandboxSession().defaultCwd();
+        if (StringUtils.hasText(workingDirectory)) {
+            payload.put("cwd", workingDirectory);
         }
 
         Long timeoutMs = parsePositiveLong(root.get("timeout_ms"));
@@ -73,7 +74,6 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
         int exitCode = response.path("exit_code").asInt(-1);
         String stdout = response.path("stdout").asText("");
         String stderr = response.path("stderr").asText("");
-        String workingDirectory = StringUtils.hasText(cwd) ? cwd : context.sandboxSession().defaultCwd();
         return textResult(exitCode, stdout, stderr, workingDirectory);
     }
 
@@ -89,7 +89,7 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
     }
 
     private JsonNode failureText(String error) {
-        return textResult(-1, "", error, "/root");
+        return textResult(-1, "", error, "/workspace");
     }
 
     private boolean isErrorResponse(JsonNode response) {
