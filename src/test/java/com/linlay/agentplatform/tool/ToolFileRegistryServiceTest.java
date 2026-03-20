@@ -176,6 +176,21 @@ class ToolFileRegistryServiceTest {
     }
 
     @Test
+    void shouldLoadAllPlanToolsAsClientInvisibleFromClasspath() {
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper());
+
+        assertThat(service.find("_plan_add_tasks_"))
+                .map(ToolDescriptor::clientVisible)
+                .contains(false);
+        assertThat(service.find("_plan_update_task_"))
+                .map(ToolDescriptor::clientVisible)
+                .contains(false);
+        assertThat(service.find("_plan_get_tasks_"))
+                .map(ToolDescriptor::clientVisible)
+                .contains(false);
+    }
+
+    @Test
     void shouldIgnoreScaffoldToolPlaceholder() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);

@@ -34,7 +34,19 @@ class PlanToolsContractTest {
     }
 
     @Test
-    void planAddTasksShouldRejectInvalidStatus() {
+    void planAddTasksShouldDefaultStatusToInitWhenMissing() {
+        SystemPlanAddTasks tool = new SystemPlanAddTasks();
+        JsonNode result = tool.invoke(Map.of(
+                "tasks",
+                List.of(Map.of("description", "任务一"))
+        ));
+
+        assertThat(result.isTextual()).isTrue();
+        assertTaskLine(result.asText(), "init", "任务一");
+    }
+
+    @Test
+    void planAddTasksShouldDefaultStatusToInitWhenInvalid() {
         SystemPlanAddTasks tool = new SystemPlanAddTasks();
         JsonNode result = tool.invoke(Map.of(
                 "tasks",
@@ -42,7 +54,33 @@ class PlanToolsContractTest {
         ));
 
         assertThat(result.isTextual()).isTrue();
-        assertThat(result.asText()).startsWith("失败:");
+        assertTaskLine(result.asText(), "init", "任务一");
+    }
+
+    @Test
+    void planAddTasksShouldKeepSingleTaskFallbackAndDefaultStatusToInit() {
+        SystemPlanAddTasks tool = new SystemPlanAddTasks();
+
+        JsonNode missingStatus = tool.invoke(Map.of("description", "扁平任务"));
+        assertThat(missingStatus.isTextual()).isTrue();
+        assertTaskLine(missingStatus.asText(), "init", "扁平任务");
+
+        JsonNode invalidStatus = tool.invoke(Map.of("description", "扁平任务", "status", "pending"));
+        assertThat(invalidStatus.isTextual()).isTrue();
+        assertTaskLine(invalidStatus.asText(), "init", "扁平任务");
+    }
+
+    @Test
+    void planAddTasksShouldFailWhenDescriptionIsMissing() {
+        SystemPlanAddTasks tool = new SystemPlanAddTasks();
+
+        JsonNode emptyTasks = tool.invoke(Map.of("tasks", List.of(Map.of("status", "init"))));
+        assertThat(emptyTasks.isTextual()).isTrue();
+        assertThat(emptyTasks.asText()).isEqualTo("失败: 缺少任务描述");
+
+        JsonNode emptyPayload = tool.invoke(Map.of());
+        assertThat(emptyPayload.isTextual()).isTrue();
+        assertThat(emptyPayload.asText()).isEqualTo("失败: 缺少任务描述");
     }
 
     @Test
@@ -61,5 +99,9 @@ class PlanToolsContractTest {
         assertThat(invalidStatus.isTextual()).isTrue();
         assertThat(invalidStatus.asText()).startsWith("失败:");
     }
-}
 
+    private void assertTaskLine(String text, String status, String description) {
+        assertThat(text).matches(TASK_LINE_PATTERN);
+        assertThat(text).contains(" | " + status + " | " + description);
+    }
+}

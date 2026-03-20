@@ -20,7 +20,7 @@ public class SystemPlanAddTasks extends AbstractDeterministicTool {
 
     @Override
     public String description() {
-        return "创建计划任务（追加模式），支持一次添加一个或多个任务。成功返回多行文本：taskId | status | description。";
+        return "创建计划任务（追加模式），支持一次添加多个任务。每个任务必须包含 description（任务描述文本）。成功返回多行文本：taskId | status | description。";
     }
 
     @Override
@@ -36,20 +36,14 @@ public class SystemPlanAddTasks extends AbstractDeterministicTool {
                 if (description == null || description.isBlank()) {
                     continue;
                 }
-                String status = PlanTaskStatusNormalizer.normalizeStrict(readString(map, "status"));
-                if (status == null) {
-                    return OBJECT_MAPPER.getNodeFactory().textNode("失败: 非法状态，仅支持 init/completed/failed/canceled");
-                }
+                String status = normalizePlanStatus(readString(map, "status"));
                 tasks.add(new TaskItem(shortId(), description.trim(), status));
             }
         }
 
         String singleDescription = args == null ? null : readString(args, "description");
         if (tasks.isEmpty() && singleDescription != null && !singleDescription.isBlank()) {
-            String status = PlanTaskStatusNormalizer.normalizeStrict(args == null ? null : readString(args, "status"));
-            if (status == null) {
-                return OBJECT_MAPPER.getNodeFactory().textNode("失败: 非法状态，仅支持 init/completed/failed/canceled");
-            }
+            String status = normalizePlanStatus(args == null ? null : readString(args, "status"));
             tasks.add(new TaskItem(shortId(), singleDescription.trim(), status));
         }
 
@@ -77,6 +71,11 @@ public class SystemPlanAddTasks extends AbstractDeterministicTool {
 
     private String shortId() {
         return IdGenerators.shortHexId();
+    }
+
+    private String normalizePlanStatus(String rawStatus) {
+        String normalized = PlanTaskStatusNormalizer.normalizeStrict(rawStatus);
+        return normalized == null ? "init" : normalized;
     }
 
     private record TaskItem(

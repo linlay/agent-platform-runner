@@ -32,6 +32,7 @@ import com.linlay.agentplatform.service.AgentDeltaToStreamInputMapper;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.service.RuntimeResourceSyncService;
 import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
@@ -439,6 +440,126 @@ class DefinitionDrivenAgentTest {
         String logs = output.getOut() + output.getErr();
         assertThat(logs).contains("WARN");
         assertThat(logs).contains("configured tool currently not registered, keep runtime placeholder: missing_tool");
+    }
+
+    @Test
+    void planExecuteShouldExposeSyncedPlanToolSchemasToModel(@TempDir Path tempDir) throws Exception {
+        Path toolsDir = tempDir.resolve("tools");
+        Path skillsDir = tempDir.resolve("skills");
+        Path schedulesDir = tempDir.resolve("schedules");
+        Path viewportsDir = tempDir.resolve("viewports");
+
+        ToolProperties toolProperties = new ToolProperties();
+        toolProperties.setExternalDir(toolsDir.toString());
+        SkillProperties skillProperties = new SkillProperties();
+        skillProperties.setExternalDir(skillsDir.toString());
+        ScheduleProperties scheduleProperties = new ScheduleProperties();
+        scheduleProperties.setExternalDir(schedulesDir.toString());
+        ViewportProperties viewportProperties = new ViewportProperties();
+        viewportProperties.setExternalDir(viewportsDir.toString());
+
+        RuntimeResourceSyncService runtimeResourceSyncService = new RuntimeResourceSyncService(
+                toolProperties,
+                skillProperties,
+                scheduleProperties,
+                viewportProperties
+        );
+        runtimeResourceSyncService.syncRuntimeDirectories();
+
+        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper(), toolProperties);
+
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("toolFileRegistryService", toolFileRegistryService);
+
+        ToolRegistry toolRegistry = new ToolRegistry(
+                List.of(new SystemPlanAddTasks(), new SystemPlanUpdateTask()),
+                beanFactory.getBeanProvider(ToolFileRegistryService.class)
+        );
+
+        Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
+        AgentDefinition definition = definition(
+                "demoPlanToolSchemas",
+                AgentRuntimeMode.PLAN_EXECUTE,
+                new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
+                new PlanExecuteMode(
+                        new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_"), false, ComputePolicy.MEDIUM),
+                        new StageSettings("执行系统提示", null, null, List.of("_plan_update_task_"), false, ComputePolicy.MEDIUM),
+                        new StageSettings("总结系统提示", null, null, List.of(), false, ComputePolicy.MEDIUM),
+                        null,
+                        null
+                ),
+                List.of("_plan_add_tasks_", "_plan_update_task_")
+        );
+
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                stageSpecs.put(spec.stage(), spec);
+                if ("agent-plan-generate".equals(spec.stage())) {
+                    return Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta(
+                                    "call_plan_schema",
+                                    "function",
+                                    "_plan_add_tasks_",
+                                    "{\"tasks\":[{\"description\":\"任务A\"}]}"
+                            )),
+                            "tool_calls"
+                    ));
+                }
+                if ("agent-plan-execute-step-1".equals(spec.stage())) {
+                    String taskId = currentTaskId(spec);
+                    return Flux.just(new LlmDelta(
+                            null,
+                            List.of(new ToolCallDelta(
+                                    "call_update_schema",
+                                    "function",
+                                    "_plan_update_task_",
+                                    "{\"taskId\":\"" + taskId + "\",\"status\":\"completed\"}"
+                            )),
+                            "tool_calls"
+                    ));
+                }
+                return Flux.just(new LlmDelta("最终回答", null, "stop"));
+            }
+        };
+
+        DefinitionDrivenAgent agent = createAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                null,
+                null
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试 plan tool schema", null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(stageSpecs.get("agent-plan-generate")).isNotNull();
+        assertThat(stageSpecs.get("agent-plan-execute-step-1")).isNotNull();
+
+        assertThat(stageSpecs.get("agent-plan-generate").tools()).singleElement().satisfies(tool -> {
+            assertThat(tool.name()).isEqualTo("_plan_add_tasks_");
+            assertThat(tool.parameters().get("required")).isEqualTo(List.of("tasks"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) tool.parameters().get("properties");
+            assertThat(properties).containsKey("tasks");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> tasks = (Map<String, Object>) properties.get("tasks");
+            assertThat(tasks).containsEntry("type", "array");
+        });
+
+        assertThat(stageSpecs.get("agent-plan-execute-step-1").tools()).singleElement().satisfies(tool -> {
+            assertThat(tool.name()).isEqualTo("_plan_update_task_");
+            assertThat(tool.parameters().get("required")).isEqualTo(List.of("taskId", "status"));
+            assertThat(tool.parameters().get("additionalProperties")).isEqualTo(false);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) tool.parameters().get("properties");
+            assertThat(properties).containsKeys("taskId", "status", "description");
+        });
     }
 
     @Test
