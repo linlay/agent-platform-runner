@@ -71,7 +71,10 @@ public class QueryController {
             ServerHttpResponse response,
             ServerWebExchange exchange
     ) {
-        AgentQueryService.QuerySession session = agentQueryService.prepare(request);
+        AgentQueryService.QuerySession session = agentQueryService.prepare(
+                request,
+                chatImageTokenHelper.resolvePrincipal(exchange)
+        );
         exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_REQUEST_ID, session.request().requestId());
         exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_RUN_ID, session.request().runId());
         Map<String, Object> bodySummary = new LinkedHashMap<>();

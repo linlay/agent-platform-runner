@@ -193,6 +193,7 @@ public class AgentDefinitionLoader {
             String role = normalize(config.getRole(), name);
             List<String> tools = collectToolNames(config);
             List<String> skills = collectSkillNames(config);
+            List<String> contextTags = collectContextTags(config);
             List<AgentControl> controls = collectControls(config);
             List<String> modelKeys = collectModelKeys(config);
             AgentDefinition.SandboxConfig sandboxConfig = toSandboxConfig(config.getSandboxConfig());
@@ -220,6 +221,7 @@ public class AgentDefinitionLoader {
                     modelKeys,
                     promptFiles.soulContent(),
                     promptFiles.agentsContent(),
+                    contextTags,
                     perAgentSkills,
                     agentDir
             ));
@@ -242,6 +244,13 @@ public class AgentDefinitionLoader {
             return yaml;
         }
         return null;
+    }
+
+    private List<String> collectContextTags(AgentConfigFile config) {
+        if (config == null || config.getContextConfig() == null) {
+            return List.of();
+        }
+        return RuntimeContextTags.normalize(config.getContextConfig().getTags());
     }
 
     private String readOptionalMarkdown(Path path) {

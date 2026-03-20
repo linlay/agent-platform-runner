@@ -113,6 +113,36 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldLoadContextConfigTags() throws IOException {
+        writeYaml("context_agent.yml", """
+                key: context_agent
+                name: Context Agent
+                role: Context Agent
+                description: context agent
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                contextConfig:
+                  tags:
+                    - system_environment
+                    - owner_profile
+                    - unsupported_tag
+                    - session_context
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test
+                """);
+
+        AgentDefinition definition = loadById().get("context_agent");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.contextTags()).containsExactly(
+                RuntimeContextTags.SYSTEM_ENVIRONMENT,
+                RuntimeContextTags.OWNER_PROFILE,
+                RuntimeContextTags.SESSION_CONTEXT
+        );
+    }
+
+    @Test
     void shouldRejectInvalidControls() throws IOException {
         writeYaml("invalid_controls.yml", """
                 key: invalid_controls

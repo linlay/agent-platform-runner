@@ -522,22 +522,47 @@ public class DirectoryWatchService implements DisposableBean {
 
     private void logWatchedRootSummary(Map<Path, Integer> registeredDirCounts, List<WatchedRoot> skippedRoots) {
         if (registeredDirCounts != null && !registeredDirCounts.isEmpty()) {
-            String summary = watchedRoots.values().stream()
+            watchedRoots.values().stream()
                     .filter(root -> registeredDirCounts.containsKey(root.path()))
-                    .map(root -> root.kind() + "=" + root.path() + " (dirs=" + registeredDirCounts.getOrDefault(root.path(), 0) + ")")
-                    .toList()
-                    .toString();
-            log.info("Directory watch roots active: {}", summary);
+                    .sorted(Comparator
+                            .comparingInt((WatchedRoot root) -> logOrder(root.kind()))
+                            .thenComparing(root -> root.path().toString()))
+                    .forEach(root -> log.info(
+                            "Directory watch root active: {}={} (dirs={})",
+                            root.kind(),
+                            root.path(),
+                            registeredDirCounts.getOrDefault(root.path(), 0)
+                    ));
         } else {
-            log.info("Directory watch roots active: []");
+            log.info("Directory watch roots active: none");
         }
         if (skippedRoots != null && !skippedRoots.isEmpty()) {
-            String skipped = skippedRoots.stream()
-                    .map(root -> root.kind() + "=" + root.path())
-                    .toList()
-                    .toString();
-            log.info("Directory watch roots skipped: {}", skipped);
+            skippedRoots.stream()
+                    .sorted(Comparator
+                            .comparingInt((WatchedRoot root) -> logOrder(root.kind()))
+                            .thenComparing(root -> root.path().toString()))
+                    .forEach(root -> log.info(
+                            "Directory watch root skipped: {}={} (reason=missing)",
+                            root.kind(),
+                            root.path()
+                    ));
         }
+    }
+
+    private int logOrder(RootKind kind) {
+        return switch (kind) {
+            case AGENTS -> 0;
+            case MODELS -> 1;
+            case PROVIDERS -> 2;
+            case MCP_SERVERS -> 3;
+            case VIEWPORT_SERVERS -> 4;
+            case TEAMS -> 5;
+            case SCHEDULES -> 6;
+            case SKILLS_MARKET -> 7;
+            case TOOLS -> 8;
+            case VIEWPORTS -> 9;
+            case TEST -> 10;
+        };
     }
 
     Set<Path> watchedRootPathsForTesting() {

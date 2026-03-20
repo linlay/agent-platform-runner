@@ -17,6 +17,7 @@ import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.ContainerHubToolProperties;
+import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.config.McpProperties;
@@ -26,11 +27,15 @@ import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.config.ViewportServerProperties;
 import com.linlay.agentplatform.config.RootProperties;
+import com.linlay.agentplatform.memory.ChatMemoryTypes;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.model.RuntimeRequestContext;
+import com.linlay.agentplatform.model.api.QueryRequest;
+import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.service.AgentDeltaToStreamInputMapper;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmCallSpec;
@@ -59,6 +64,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.mock.env.MockEnvironment;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
@@ -79,6 +85,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -807,6 +814,133 @@ class DefinitionDrivenAgentTest {
         assertThat(systemPrompt.indexOf("soul prompt")).isLessThan(systemPrompt.indexOf("plain markdown"));
         assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("Memory:\nmemory note"));
         assertThat(systemPrompt.indexOf("Memory:\nmemory note")).isLessThan(systemPrompt.indexOf("yaml prompt"));
+    }
+
+    @Test
+    void shouldInjectRuntimeContextBeforeStageMarkdownAndPersistIntoSystemSnapshot() throws Exception {
+        Path runtimeHome = Files.createTempDirectory("runtime-home");
+        Files.createDirectories(runtimeHome.resolve("configs"));
+        Files.writeString(runtimeHome.resolve("OWNER.md"), """
+                ---
+                name: Linlay
+                preferred_name: Linlay
+                language: zh-CN
+                timezone: Asia/Shanghai
+                style: concise
+                ---
+
+                # Working Preferences
+                - Prefer Chinese unless asked otherwise.
+                """);
+
+        Path agentDir = Files.createTempDirectory("oneshot-runtime-context-agent");
+        Files.createDirectories(agentDir.resolve("memory"));
+        Files.writeString(agentDir.resolve("memory").resolve("memory.md"), "memory note");
+
+        AgentDefinition definition = new AgentDefinition(
+                "runtimeContextOneshot",
+                "runtimeContextOneshot",
+                null,
+                "runtime context oneshot",
+                "runtime role",
+                null,
+                "bailian",
+                "qwen3-max",
+                null,
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ToolChoice.NONE, Budget.DEFAULT),
+                new OneshotMode(
+                        new StageSettings("yaml prompt", null, null, List.of(), false, ComputePolicy.MEDIUM, "plain markdown"),
+                        null,
+                        null
+                ),
+                List.of(),
+                List.of(),
+                List.of(),
+                null,
+                List.of(),
+                "soul prompt",
+                "shared prompt",
+                List.of(RuntimeContextTags.SESSION_CONTEXT, RuntimeContextTags.OWNER_PROFILE, RuntimeContextTags.AUTH_IDENTITY),
+                List.of(),
+                agentDir
+        );
+
+        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        properties.setDir(runtimeHome.resolve("chats").toString());
+        ChatWindowMemoryStore chatWindowMemoryStore = new ChatWindowMemoryStore(objectMapper, properties);
+
+        String originalUserDir = System.getProperty("user.dir");
+        System.setProperty("user.dir", runtimeHome.toString());
+        try {
+            RuntimeContextPromptService runtimeContextPromptService = runtimeContextPromptService();
+            String chatId = UUID.randomUUID().toString();
+            RuntimeRequestContext requestContext = new RuntimeRequestContext(
+                    "runtimeContextOneshot",
+                    "team-1",
+                    "user",
+                    "Chat Demo",
+                    new QueryRequest.Scene("https://example.com", "Example"),
+                    List.of(new QueryRequest.Reference("ref-1", "file", "notes.md", "text/markdown", 42L, null, null, null)),
+                    new JwksJwtVerifier.JwtPrincipal(
+                            "user-1",
+                            "device-1",
+                            "chat:write",
+                            Instant.parse("2026-03-20T10:15:30Z"),
+                            Instant.parse("2026-03-21T10:15:30Z")
+                    ),
+                    runtimeContextPromptService.resolveWorkspacePaths(chatId)
+            );
+
+            AtomicReference<LlmCallSpec> captured = new AtomicReference<>();
+            LlmService llmService = new StubLlmService() {
+                @Override
+                public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                    captured.set(spec);
+                    return Flux.just(new LlmDelta("完成", null, "stop"));
+                }
+            };
+
+            DefinitionDrivenAgent agent = createAgent(
+                    definition,
+                    llmService,
+                    new ToolRegistry(List.of()),
+                    objectMapper,
+                    chatWindowMemoryStore,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    runtimeContextPromptService
+            );
+
+            agent.stream(new AgentRequest("测试 runtime context", chatId, "req-runtime", "run-runtime", Map.of(), requestContext))
+                    .collectList()
+                    .block(Duration.ofSeconds(3));
+
+            String systemPrompt = captured.get().systemPrompt();
+            assertThat(systemPrompt).contains("soul prompt");
+            assertThat(systemPrompt).contains("Runtime Context: Session");
+            assertThat(systemPrompt).contains("Runtime Context: Owner Profile");
+            assertThat(systemPrompt).contains("Runtime Context: Auth Identity");
+            assertThat(systemPrompt).contains("plain markdown");
+            assertThat(systemPrompt).contains("Memory:\nmemory note");
+            assertThat(systemPrompt).contains("yaml prompt");
+            assertThat(systemPrompt.indexOf("soul prompt")).isLessThan(systemPrompt.indexOf("Runtime Context: Session"));
+            assertThat(systemPrompt.indexOf("Runtime Context: Session")).isLessThan(systemPrompt.indexOf("plain markdown"));
+            assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("Memory:\nmemory note"));
+            assertThat(systemPrompt.indexOf("Memory:\nmemory note")).isLessThan(systemPrompt.indexOf("yaml prompt"));
+
+            ChatMemoryTypes.SystemSnapshot snapshot = chatWindowMemoryStore.loadLatestSystemSnapshot(chatId);
+            assertThat(snapshot).isNotNull();
+            assertThat(snapshot.messages).hasSize(1);
+            assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Session");
+            assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Owner Profile");
+        } finally {
+            restoreUserDir(originalUserDir);
+        }
     }
 
     @Test
@@ -2600,8 +2734,9 @@ class DefinitionDrivenAgentTest {
                 loggingAgentProperties,
                 toolInvoker,
                 null,
-                null
-        );
+                null,
+                new RuntimeContextPromptService()
+            );
     }
 
     private DefinitionDrivenAgent createAgent(
@@ -2617,6 +2752,36 @@ class DefinitionDrivenAgentTest {
             com.linlay.agentplatform.service.ActiveRunService activeRunService,
             ContainerHubSandboxService containerHubSandboxService
     ) {
+        return createAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                loggingAgentProperties,
+                toolInvoker,
+                activeRunService,
+                containerHubSandboxService,
+                new RuntimeContextPromptService()
+        );
+    }
+
+    private DefinitionDrivenAgent createAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            com.linlay.agentplatform.agent.runtime.ToolInvoker toolInvoker,
+            com.linlay.agentplatform.service.ActiveRunService activeRunService,
+            ContainerHubSandboxService containerHubSandboxService,
+            RuntimeContextPromptService runtimeContextPromptService
+    ) {
         return new DefinitionDrivenAgent(
                 definition,
                 llmService,
@@ -2628,7 +2793,8 @@ class DefinitionDrivenAgentTest {
                 loggingAgentProperties,
                 toolInvoker,
                 activeRunService,
-                containerHubSandboxService
+                containerHubSandboxService,
+                runtimeContextPromptService
         );
     }
 
@@ -2662,6 +2828,28 @@ class DefinitionDrivenAgentTest {
         properties.setRequestTimeoutMs(1000);
         properties.setDestroyQueueDelayMs(0);
         return properties;
+    }
+
+    private RuntimeContextPromptService runtimeContextPromptService() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("agent.agents.external-dir", "agents")
+                .withProperty("agent.skills.external-dir", "skills-market")
+                .withProperty("agent.schedule.external-dir", "schedules");
+        RootProperties rootProperties = new RootProperties();
+        rootProperties.setExternalDir("root");
+        DataProperties dataProperties = new DataProperties();
+        dataProperties.setExternalDir("data");
+        ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
+        memoryProperties.setDir("chats");
+        return new RuntimeContextPromptService(environment, rootProperties, dataProperties, memoryProperties);
+    }
+
+    private void restoreUserDir(String originalUserDir) {
+        if (originalUserDir == null) {
+            System.clearProperty("user.dir");
+            return;
+        }
+        System.setProperty("user.dir", originalUserDir);
     }
 
     private ContainerHubMountResolver containerHubMountResolver(

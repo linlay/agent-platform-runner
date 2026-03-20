@@ -50,6 +50,7 @@ public class AgentRegistry {
     private final ToolInvokerRouter toolInvokerRouter;
     private final ActiveRunService activeRunService;
     private final ContainerHubSandboxService containerHubSandboxService;
+    private final RuntimeContextPromptService runtimeContextPromptService;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, Agent> agents = Map.of();
@@ -72,7 +73,8 @@ public class AgentRegistry {
             LoggingAgentProperties loggingAgentProperties,
             ToolInvokerRouter toolInvokerRouter,
             ActiveRunService activeRunService,
-            ObjectProvider<ContainerHubSandboxService> containerHubSandboxServiceProvider
+            ObjectProvider<ContainerHubSandboxService> containerHubSandboxServiceProvider,
+            ObjectProvider<RuntimeContextPromptService> runtimeContextPromptServiceProvider
     ) {
         this.definitionLoader = definitionLoader;
         this.llmService = llmService;
@@ -88,6 +90,7 @@ public class AgentRegistry {
         this.toolInvokerRouter = toolInvokerRouter;
         this.activeRunService = activeRunService;
         this.containerHubSandboxService = containerHubSandboxServiceProvider.getIfAvailable();
+        this.runtimeContextPromptService = runtimeContextPromptServiceProvider.getIfAvailable(RuntimeContextPromptService::new);
         refreshAgents();
     }
 
@@ -118,7 +121,9 @@ public class AgentRegistry {
                 loggingAgentProperties,
                 toolInvokerRouter,
                 activeRunService,
-                containerHubSandboxServiceProvider
+                containerHubSandboxServiceProvider,
+                new org.springframework.beans.factory.support.StaticListableBeanFactory()
+                        .getBeanProvider(RuntimeContextPromptService.class)
         );
     }
 
@@ -272,7 +277,8 @@ public class AgentRegistry {
                 loggingAgentProperties,
                 toolInvokerRouter,
                 activeRunService,
-                containerHubSandboxService
+                containerHubSandboxService,
+                runtimeContextPromptService
         );
     }
 

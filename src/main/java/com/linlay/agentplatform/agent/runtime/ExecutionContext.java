@@ -31,6 +31,7 @@ public class ExecutionContext {
     private final Budget budget;
     private final long startedAtMs;
     private final String baseSystemPrompt;
+    private final String runtimeContextPrompt;
     private final String memoryPrompt;
     private final String skillCatalogPrompt;
     private final Map<String, SkillDescriptor> resolvedSkillsById;
@@ -58,6 +59,7 @@ public class ExecutionContext {
         this.budget = definition.runSpec().budget();
         this.startedAtMs = System.currentTimeMillis();
         this.baseSystemPrompt = StringUtils.hasText(builder.baseSystemPrompt) ? builder.baseSystemPrompt.trim() : "";
+        this.runtimeContextPrompt = StringUtils.hasText(builder.runtimeContextPrompt) ? builder.runtimeContextPrompt.trim() : "";
         this.memoryPrompt = StringUtils.hasText(builder.memoryPrompt) ? builder.memoryPrompt.trim() : "";
         this.skillCatalogPrompt = StringUtils.hasText(builder.skillCatalogPrompt) ? builder.skillCatalogPrompt.trim() : "";
         this.resolvedSkillsById = normalizeResolvedSkills(builder.resolvedSkillsById);
@@ -192,6 +194,9 @@ public class ExecutionContext {
         List<String> sections = new ArrayList<>();
         if (StringUtils.hasText(baseSystemPrompt)) {
             sections.add(baseSystemPrompt);
+        }
+        if (StringUtils.hasText(runtimeContextPrompt)) {
+            sections.add(runtimeContextPrompt);
         }
         if (StringUtils.hasText(instructionsPrompt)) {
             sections.add(instructionsPrompt.trim());
@@ -483,6 +488,7 @@ public class ExecutionContext {
         private final AgentRequest request;
         private List<ChatMessage> historyMessages = List.of();
         private String baseSystemPrompt = "";
+        private String runtimeContextPrompt = "";
         private String memoryPrompt = "";
         private String skillCatalogPrompt = "";
         private Map<String, SkillDescriptor> resolvedSkillsById = Map.of();
@@ -507,6 +513,11 @@ public class ExecutionContext {
 
         public Builder baseSystemPrompt(String baseSystemPrompt) {
             this.baseSystemPrompt = baseSystemPrompt == null ? "" : baseSystemPrompt;
+            return this;
+        }
+
+        public Builder runtimeContextPrompt(String runtimeContextPrompt) {
+            this.runtimeContextPrompt = runtimeContextPrompt == null ? "" : runtimeContextPrompt;
             return this;
         }
 

@@ -8,7 +8,9 @@ import com.linlay.agentplatform.agent.Agent;
 import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.model.RuntimeRequestContext;
 import com.linlay.agentplatform.model.api.QueryRequest;
+import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.model.ViewportType;
 import com.linlay.agentplatform.team.TeamRegistryService;
@@ -22,6 +24,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -263,6 +266,69 @@ class AgentQueryServiceTest {
 
         assertThat(session.request().hidden()).isTrue();
         assertThat(session.agentRequest().query()).containsEntry("hidden", true);
+    }
+
+    @Test
+    void prepareShouldAttachRuntimeContextWhenPrincipalProvided() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        Agent agent = mock(Agent.class);
+        when(agent.id()).thenReturn("demo-agent");
+        when(agent.name()).thenReturn("Demo Agent");
+        when(agentRegistry.get("demo-agent")).thenReturn(agent);
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        String chatId = UUID.randomUUID().toString();
+        when(chatRecordStore.findBoundAgentKey(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.findBoundTeamId(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.ensureChat(chatId, "demo-agent", "Demo Agent", null, "hello"))
+                .thenReturn(new ChatRecordStore.ChatSummary(chatId, "Chat Alpha", "demo-agent", null, 1L, 2L, "", "", 1, 2L, false));
+
+        AgentQueryService service = new AgentQueryService(
+                agentRegistry,
+                mock(com.linlay.agentplatform.stream.service.StreamSseStreamer.class),
+                objectMapper,
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                mock(ViewportRegistryService.class),
+                new FrontendToolProperties(),
+                mock(TeamRegistryService.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null
+        );
+
+        QueryRequest request = new QueryRequest(
+                "req-1",
+                chatId,
+                "demo-agent",
+                null,
+                "user",
+                "hello",
+                List.of(new QueryRequest.Reference("ref-1", "file", "notes.md", "text/markdown", 42L, null, null, null)),
+                Map.of("ignored", "value"),
+                new QueryRequest.Scene("https://example.com", "Example"),
+                true
+        );
+        JwksJwtVerifier.JwtPrincipal principal = new JwksJwtVerifier.JwtPrincipal(
+                "user-1",
+                "device-1",
+                "chat:write",
+                Instant.parse("2026-03-20T10:15:30Z"),
+                Instant.parse("2026-03-21T10:15:30Z")
+        );
+
+        AgentQueryService.QuerySession session = service.prepare(request, principal);
+
+        RuntimeRequestContext runtimeContext = session.agentRequest().runtimeContext();
+        assertThat(runtimeContext).isNotNull();
+        assertThat(runtimeContext.agentKey()).isEqualTo("demo-agent");
+        assertThat(runtimeContext.chatName()).isEqualTo("Chat Alpha");
+        assertThat(runtimeContext.scene()).isEqualTo(request.scene());
+        assertThat(runtimeContext.references()).hasSize(1);
+        assertThat(runtimeContext.authPrincipal()).isEqualTo(principal);
+        assertThat(runtimeContext.workspacePaths()).isNotNull();
+        assertThat(runtimeContext.workspacePaths().chatAttachmentsDir()).contains(chatId);
     }
 
     @Test

@@ -71,6 +71,7 @@ public class DefinitionDrivenAgent implements Agent {
     private final ContainerHubSandboxService containerHubSandboxService;
     private final AgentRunSnapshotLogger snapshotLogger;
     private final AgentRunLifecycle runLifecycle;
+    private final RuntimeContextPromptService runtimeContextPromptService;
 
     public DefinitionDrivenAgent(
             AgentDefinition definition,
@@ -86,7 +87,8 @@ public class DefinitionDrivenAgent implements Agent {
             LoggingAgentProperties loggingAgentProperties,
             ToolInvoker toolInvoker,
             ActiveRunService activeRunService,
-            ContainerHubSandboxService containerHubSandboxService
+            ContainerHubSandboxService containerHubSandboxService,
+            RuntimeContextPromptService runtimeContextPromptService
     ) {
         this.definition = definition;
         this.toolRegistry = toolRegistry;
@@ -98,6 +100,7 @@ public class DefinitionDrivenAgent implements Agent {
         this.agentExperienceService = agentExperienceService;
         this.activeRunService = activeRunService;
         this.containerHubSandboxService = containerHubSandboxService;
+        this.runtimeContextPromptService = runtimeContextPromptService;
         this.localToolDescriptorsByName = loadLocalToolDescriptors();
         ToolResolution toolResolution = resolveConfiguredTools(definition.tools());
         this.configuredToolsByName = toolResolution.tools();
@@ -143,6 +146,36 @@ public class DefinitionDrivenAgent implements Agent {
                 definition,
                 llmService,
                 toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                loggingAgentProperties,
+                toolInvoker,
+                activeRunService,
+                containerHubSandboxService,
+                new RuntimeContextPromptService()
+        );
+    }
+
+    public DefinitionDrivenAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatWindowMemoryStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            ToolInvoker toolInvoker,
+            ActiveRunService activeRunService,
+            ContainerHubSandboxService containerHubSandboxService,
+            RuntimeContextPromptService runtimeContextPromptService
+    ) {
+        this(
+                definition,
+                llmService,
+                toolRegistry,
                 new ToolFileRegistryService(objectMapper),
                 objectMapper,
                 chatWindowMemoryStore,
@@ -153,7 +186,8 @@ public class DefinitionDrivenAgent implements Agent {
                 loggingAgentProperties,
                 toolInvoker,
                 activeRunService,
-                containerHubSandboxService
+                containerHubSandboxService,
+                runtimeContextPromptService
         );
     }
 
@@ -245,18 +279,21 @@ public class DefinitionDrivenAgent implements Agent {
                             ? new RunControl()
                             : activeRunService.findControl(runId).orElseGet(RunControl::new);
                     runControl.enqueueQuery(new RunInputBroker.QueryEnvelope(request.requestId(), request.message()));
+                    ExecutionContext[] contextHolder = new ExecutionContext[1];
                     TurnTraceWriter trace = new TurnTraceWriter(
                             chatWindowMemoryStore,
-                            () -> buildSystemSnapshot(request),
+                            () -> buildSystemSnapshot(request, contextHolder[0]),
                             request,
                             runId,
                             latestSystem
                     );
                     SkillPromptBundle skillPromptBundle = resolveSkillPrompts();
                     Map<String, String> skillExperiencePrompts = resolveSkillExperiencePrompts(skillPromptBundle.resolvedSkillsById());
+                    String runtimeContextPrompt = buildRuntimeContextPrompt(request);
                     ExecutionContext context = ExecutionContext.builder(definition, request)
                             .historyMessages(historyMessages)
                             .baseSystemPrompt(buildBaseSystemPrompt())
+                            .runtimeContextPrompt(runtimeContextPrompt)
                             .memoryPrompt(buildMemoryPrompt())
                             .skillCatalogPrompt(skillPromptBundle.catalogPrompt())
                             .resolvedSkillsById(skillPromptBundle.resolvedSkillsById())
@@ -265,6 +302,7 @@ public class DefinitionDrivenAgent implements Agent {
                             .localNativeToolsByName(localNativeToolsByName)
                             .runControl(runControl)
                             .build();
+                    contextHolder[0] = context;
                     if (latestPlanState != null) {
                         context.initializePlan(latestPlanState.planId, toPlanTasks(latestPlanState.tasks));
                     }
@@ -423,6 +461,13 @@ public class DefinitionDrivenAgent implements Agent {
         return String.join("\n\n", sections);
     }
 
+    private String buildRuntimeContextPrompt(AgentRequest request) {
+        if (runtimeContextPromptService == null) {
+            return "";
+        }
+        return runtimeContextPromptService.buildPrompt(definition, request);
+    }
+
     private String buildMemoryPrompt() {
         String memoryPrompt = agentMemoryService == null ? null : agentMemoryService.loadMemory(definition.agentDir());
         if (StringUtils.hasText(memoryPrompt)) {
@@ -500,14 +545,15 @@ public class DefinitionDrivenAgent implements Agent {
         return RunIdGenerator.nextRunId();
     }
 
-    private ChatMemoryTypes.SystemSnapshot buildSystemSnapshot(AgentRequest request) {
+    private ChatMemoryTypes.SystemSnapshot buildSystemSnapshot(AgentRequest request, ExecutionContext context) {
         ChatMemoryTypes.SystemSnapshot snapshot = new ChatMemoryTypes.SystemSnapshot();
         snapshot.model = model();
 
-        if (StringUtils.hasText(systemPrompt())) {
+        String snapshotPrompt = buildSnapshotSystemPrompt(context);
+        if (StringUtils.hasText(snapshotPrompt)) {
             ChatMemoryTypes.SystemMessageSnapshot systemMessage = new ChatMemoryTypes.SystemMessageSnapshot();
             systemMessage.role = "system";
-            systemMessage.content = systemPrompt();
+            systemMessage.content = snapshotPrompt;
             snapshot.messages = List.of(systemMessage);
         }
 
@@ -554,6 +600,27 @@ public class DefinitionDrivenAgent implements Agent {
             return Boolean.parseBoolean(value.trim());
         }
         return true;
+    }
+
+    private String buildSnapshotSystemPrompt(ExecutionContext context) {
+        if (context == null) {
+            return systemPrompt();
+        }
+        return context.stageSystemPrompt(primaryInstructionsPrompt(), systemPrompt());
+    }
+
+    private String primaryInstructionsPrompt() {
+        AgentMode agentMode = definition.agentMode();
+        if (agentMode instanceof OneshotMode oneshotMode) {
+            return oneshotMode.stage().instructionsPrompt();
+        }
+        if (agentMode instanceof ReactMode reactMode) {
+            return reactMode.stage().instructionsPrompt();
+        }
+        if (agentMode instanceof PlanExecuteMode planExecuteMode) {
+            return planExecuteMode.planStage().instructionsPrompt();
+        }
+        return null;
     }
 
     private String normalize(String value, String fallback) {

@@ -30,6 +30,7 @@ public record AgentDefinition(
         List<String> modelKeys,
         String soulContent,
         String agentsContent,
+        List<String> contextTags,
         List<String> perAgentSkills,
         Path agentDir
 ) {
@@ -39,6 +40,55 @@ public record AgentDefinition(
             Object icon,
             String description,
             String role,
+            String modelKey,
+            String providerKey,
+            String model,
+            ModelProtocol protocol,
+            AgentRuntimeMode mode,
+            RunSpec runSpec,
+            AgentMode agentMode,
+            List<String> tools,
+            List<String> skills,
+            List<AgentControl> controls,
+            SandboxConfig sandboxConfig,
+            List<String> modelKeys,
+            String soulContent,
+            String agentsContent,
+            List<String> perAgentSkills,
+            Path agentDir
+    ) {
+        this(
+                id,
+                name,
+                icon,
+                description,
+                role,
+                modelKey,
+                providerKey,
+                model,
+                protocol,
+                mode,
+                runSpec,
+                agentMode,
+                tools,
+                skills,
+                controls,
+                sandboxConfig,
+                modelKeys,
+                soulContent,
+                agentsContent,
+                List.of(),
+                perAgentSkills,
+                agentDir
+        );
+    }
+
+    public AgentDefinition(
+            String id,
+            String name,
+            Object icon,
+            String description,
+            String role,
             String providerKey,
             String model,
             AgentRuntimeMode mode,
@@ -47,7 +97,7 @@ public record AgentDefinition(
             List<String> tools,
             List<String> skills
     ) {
-        this(id, name, icon, description, role, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of(), null, List.of(), null, null, List.of(), null);
+        this(id, name, icon, description, role, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of(), null, List.of(), null, null, List.of(), List.of(), null);
     }
 
     public AgentDefinition(
@@ -63,7 +113,7 @@ public record AgentDefinition(
             List<String> tools,
             List<String> skills
     ) {
-        this(id, name, icon, description, name, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of(), null, List.of(), null, null, List.of(), null);
+        this(id, name, icon, description, name, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of(), null, List.of(), null, null, List.of(), List.of(), null);
     }
 
     public AgentDefinition(
@@ -82,7 +132,7 @@ public record AgentDefinition(
             List<String> tools,
             List<String> skills
     ) {
-        this(id, name, icon, description, role, modelKey, providerKey, model, protocol, mode, runSpec, agentMode, tools, skills, List.of(), null, List.of(), null, null, List.of(), null);
+        this(id, name, icon, description, role, modelKey, providerKey, model, protocol, mode, runSpec, agentMode, tools, skills, List.of(), null, List.of(), null, null, List.of(), List.of(), null);
     }
 
     public AgentDefinition(
@@ -102,7 +152,7 @@ public record AgentDefinition(
             List<String> skills,
             List<String> modelKeys
     ) {
-        this(id, name, icon, description, role, modelKey, providerKey, model, protocol, mode, runSpec, agentMode, tools, skills, List.of(), null, modelKeys, null, null, List.of(), null);
+        this(id, name, icon, description, role, modelKey, providerKey, model, protocol, mode, runSpec, agentMode, tools, skills, List.of(), null, modelKeys, null, null, List.of(), List.of(), null);
     }
 
     public AgentDefinition(
@@ -121,7 +171,7 @@ public record AgentDefinition(
             SandboxConfig sandboxConfig,
             List<String> modelKeys
     ) {
-        this(id, name, icon, description, role, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of(), sandboxConfig, modelKeys, null, null, List.of(), null);
+        this(id, name, icon, description, role, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of(), sandboxConfig, modelKeys, null, null, List.of(), List.of(), null);
     }
 
     public AgentDefinition(
@@ -139,7 +189,7 @@ public record AgentDefinition(
             SandboxConfig sandboxConfig,
             List<String> modelKeys
     ) {
-        this(id, name, icon, description, name, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of(), sandboxConfig, modelKeys, null, null, List.of(), null);
+        this(id, name, icon, description, name, null, providerKey, model, null, mode, runSpec, agentMode, tools, skills, List.of(), sandboxConfig, modelKeys, null, null, List.of(), List.of(), null);
     }
 
     public AgentDefinition(
@@ -160,7 +210,7 @@ public record AgentDefinition(
             SandboxConfig sandboxConfig,
             List<String> modelKeys
     ) {
-        this(id, name, icon, description, role, modelKey, providerKey, model, protocol, mode, runSpec, agentMode, tools, skills, List.of(), sandboxConfig, modelKeys, null, null, List.of(), null);
+        this(id, name, icon, description, role, modelKey, providerKey, model, protocol, mode, runSpec, agentMode, tools, skills, List.of(), sandboxConfig, modelKeys, null, null, List.of(), List.of(), null);
     }
 
     public AgentDefinition {
@@ -192,6 +242,7 @@ public record AgentDefinition(
         }
         soulContent = normalizeOptionalText(soulContent);
         agentsContent = normalizeOptionalText(agentsContent);
+        contextTags = RuntimeContextTags.normalize(contextTags);
         if (perAgentSkills == null) {
             perAgentSkills = List.of();
         } else {

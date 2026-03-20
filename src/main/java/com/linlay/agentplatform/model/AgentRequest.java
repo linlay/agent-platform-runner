@@ -10,7 +10,8 @@ public record AgentRequest(
         String chatId,
         String requestId,
         String runId,
-        Map<String, Object> query
+        Map<String, Object> query,
+        RuntimeRequestContext runtimeContext
 ) {
 
     public AgentRequest(
@@ -19,6 +20,16 @@ public record AgentRequest(
             String requestId,
             String runId
     ) {
-        this(message, chatId, requestId, runId, null);
+        this(message, chatId, requestId, runId, null, null);
+    }
+
+    public AgentRequest(
+            String message,
+            String chatId,
+            String requestId,
+            String runId,
+            Map<String, Object> query
+    ) {
+        this(message, chatId, requestId, runId, query, null);
     }
 }

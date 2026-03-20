@@ -6,6 +6,7 @@ import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.service.RenderQueue;
 import com.linlay.agentplatform.stream.service.StreamEventAssembler;
 import com.linlay.agentplatform.stream.service.StreamSseStreamer;
+import com.linlay.agentplatform.agent.RuntimeContextPromptService;
 import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,6 +18,8 @@ import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.model.RuntimeRequestContext;
+import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.team.TeamDescriptor;
 import com.linlay.agentplatform.team.TeamRegistryService;
 import com.linlay.agentplatform.tool.ToolRegistry;
@@ -67,6 +70,7 @@ public class AgentQueryService {
     private final ChatAssetCatalogService chatAssetCatalogService;
     private final ActiveRunService activeRunService;
     private final RenderQueue renderQueue;
+    private final RuntimeContextPromptService runtimeContextPromptService;
     private final SseEventNormalizer sseEventNormalizer;
 
     @Autowired
@@ -82,7 +86,8 @@ public class AgentQueryService {
             LoggingAgentProperties loggingAgentProperties,
             ChatAssetCatalogService chatAssetCatalogService,
             ActiveRunService activeRunService,
-            RenderQueue renderQueue
+            RenderQueue renderQueue,
+            RuntimeContextPromptService runtimeContextPromptService
     ) {
         this.agentRegistry = agentRegistry;
         this.streamSseStreamer = streamSseStreamer;
@@ -96,10 +101,15 @@ public class AgentQueryService {
         this.chatAssetCatalogService = chatAssetCatalogService;
         this.activeRunService = activeRunService;
         this.renderQueue = renderQueue;
+        this.runtimeContextPromptService = runtimeContextPromptService;
         this.sseEventNormalizer = new SseEventNormalizer(objectMapper, toolRegistry, viewportRegistryService, frontendToolProperties);
     }
 
     public QuerySession prepare(QueryRequest request) {
+        return prepare(request, null);
+    }
+
+    public QuerySession prepare(QueryRequest request, JwksJwtVerifier.JwtPrincipal principal) {
         String chatId = parseOrGenerateUuid(request.chatId(), "chatId");
         String boundTeamId = Optional.ofNullable(chatRecordStore.findBoundTeamId(chatId))
                 .orElse(Optional.empty())
@@ -156,9 +166,50 @@ public class AgentQueryService {
                 chatId,
                 requestId,
                 runId,
-                querySnapshot
+                querySnapshot,
+                buildRuntimeRequestContext(
+                        chatId,
+                        role,
+                        effectiveAgentKey,
+                        effectiveTeamId,
+                        chatName,
+                        request.scene(),
+                        mergedReferences,
+                        principal
+                )
         );
         return new QuerySession(agent, streamRequest, agentRequest);
+    }
+
+    AgentQueryService(
+            AgentRegistry agentRegistry,
+            StreamSseStreamer streamSseStreamer,
+            ObjectMapper objectMapper,
+            ChatRecordStore chatRecordStore,
+            ToolRegistry toolRegistry,
+            ViewportRegistryService viewportRegistryService,
+            FrontendToolProperties frontendToolProperties,
+            TeamRegistryService teamRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            ChatAssetCatalogService chatAssetCatalogService,
+            ActiveRunService activeRunService,
+            RenderQueue renderQueue
+    ) {
+        this(
+                agentRegistry,
+                streamSseStreamer,
+                objectMapper,
+                chatRecordStore,
+                toolRegistry,
+                viewportRegistryService,
+                frontendToolProperties,
+                teamRegistryService,
+                loggingAgentProperties,
+                chatAssetCatalogService,
+                activeRunService,
+                renderQueue,
+                new RuntimeContextPromptService()
+        );
     }
 
     public Flux<ServerSentEvent<String>> stream(QuerySession session) {
@@ -406,6 +457,31 @@ public class AgentQueryService {
         snapshot.put("stream", request.stream());
         snapshot.put("hidden", request.hidden());
         return snapshot;
+    }
+
+    private RuntimeRequestContext buildRuntimeRequestContext(
+            String chatId,
+            String role,
+            String effectiveAgentKey,
+            String teamId,
+            String chatName,
+            QueryRequest.Scene scene,
+            List<QueryRequest.Reference> references,
+            JwksJwtVerifier.JwtPrincipal principal
+    ) {
+        RuntimeRequestContext.WorkspacePaths workspacePaths = runtimeContextPromptService == null
+                ? null
+                : runtimeContextPromptService.resolveWorkspacePaths(chatId);
+        return new RuntimeRequestContext(
+                effectiveAgentKey,
+                teamId,
+                role,
+                chatName,
+                scene,
+                references,
+                principal,
+                workspacePaths
+        );
     }
 
     private List<QueryRequest.Reference> mergeReferences(String chatId, List<QueryRequest.Reference> references) {

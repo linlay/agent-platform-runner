@@ -26,6 +26,7 @@ public class AgentConfigFile {
     private AgentToolConfig toolConfig;
     private SandboxConfig sandboxConfig;
     private SkillConfig skillConfig;
+    private ContextConfig contextConfig;
     private List<String> skills;
     private List<AgentControl> controls;
     private AgentRuntimeMode mode;
@@ -109,6 +110,14 @@ public class AgentConfigFile {
 
     public void setSkillConfig(SkillConfig skillConfig) {
         this.skillConfig = skillConfig;
+    }
+
+    public ContextConfig getContextConfig() {
+        return contextConfig;
+    }
+
+    public void setContextConfig(ContextConfig contextConfig) {
+        this.contextConfig = contextConfig;
     }
 
     public List<String> getSkills() {
@@ -286,6 +295,19 @@ public class AgentConfigFile {
 
         public void setSkills(List<String> skills) {
             this.skills = skills;
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class ContextConfig {
+        private List<String> tags;
+
+        public List<String> getTags() {
+            return tags;
+        }
+
+        public void setTags(List<String> tags) {
+            this.tags = tags;
         }
     }
 
