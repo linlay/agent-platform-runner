@@ -8,6 +8,7 @@ import com.linlay.agentplatform.config.PanProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
+import com.linlay.agentplatform.config.ViewportServerProperties;
 import com.linlay.agentplatform.config.RootProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.ModelProperties;
@@ -52,6 +53,7 @@ public class ContainerHubMountResolver {
     private final ToolProperties toolProperties;
     private final ModelProperties modelProperties;
     private final ViewportProperties viewportProperties;
+    private final ViewportServerProperties viewportServerProperties;
     private final TeamProperties teamProperties;
     private final ScheduleProperties scheduleProperties;
     private final McpProperties mcpProperties;
@@ -66,6 +68,7 @@ public class ContainerHubMountResolver {
             ToolProperties toolProperties,
             ModelProperties modelProperties,
             ViewportProperties viewportProperties,
+            ViewportServerProperties viewportServerProperties,
             TeamProperties teamProperties,
             ScheduleProperties scheduleProperties,
             McpProperties mcpProperties,
@@ -79,6 +82,7 @@ public class ContainerHubMountResolver {
         this.toolProperties = toolProperties;
         this.modelProperties = modelProperties;
         this.viewportProperties = viewportProperties;
+        this.viewportServerProperties = viewportServerProperties;
         this.teamProperties = teamProperties;
         this.scheduleProperties = scheduleProperties;
         this.mcpProperties = mcpProperties;
@@ -94,6 +98,7 @@ public class ContainerHubMountResolver {
             AgentProperties agentProperties,
             ModelProperties modelProperties,
             ViewportProperties viewportProperties,
+            ViewportServerProperties viewportServerProperties,
             TeamProperties teamProperties,
             ScheduleProperties scheduleProperties,
             McpProperties mcpProperties,
@@ -108,6 +113,7 @@ public class ContainerHubMountResolver {
                 toolProperties,
                 modelProperties,
                 viewportProperties,
+                viewportServerProperties,
                 teamProperties,
                 scheduleProperties,
                 mcpProperties,
@@ -129,7 +135,13 @@ public class ContainerHubMountResolver {
             if (level == SandboxLevel.RUN && StringUtils.hasText(chatId)) {
                 hostPath = prepareRunDataMountDirectory(dataDir, chatId);
             } else {
-                hostPath = requireExistingDirectory("data-dir", dataDir, toAbsolute(dataDir), WORKSPACE_PATH);
+                hostPath = requireExistingPath(
+                        "data-dir",
+                        dataDir,
+                        toAbsolute(dataDir),
+                        WORKSPACE_PATH,
+                        MountSourceType.DIRECTORY
+                );
                 if (StringUtils.hasText(chatId)) {
                     prepareSharedDataMountDirectory(hostPath, chatId);
                 }
@@ -210,6 +222,10 @@ public class ContainerHubMountResolver {
         return resolveDirectory(toolProperties == null ? null : toolProperties.getExternalDir());
     }
 
+    private String resolveChatsDir() {
+        return resolveDataDir();
+    }
+
     private String resolveAgentsDir() {
         return resolveDirectory(agentProperties == null ? null : agentProperties.getExternalDir());
     }
@@ -220,6 +236,12 @@ public class ContainerHubMountResolver {
 
     private String resolveViewportsDir() {
         return resolveDirectory(viewportProperties == null ? null : viewportProperties.getExternalDir());
+    }
+
+    private String resolveViewportServersDir() {
+        return resolveDirectory(viewportServerProperties == null || viewportServerProperties.getRegistry() == null
+                ? null
+                : viewportServerProperties.getRegistry().getExternalDir());
     }
 
     private String resolveTeamsDir() {
@@ -250,6 +272,19 @@ public class ContainerHubMountResolver {
         }
         Path agentDir = Path.of(agentsDir, agentKey).toAbsolutePath().normalize();
         return Files.isDirectory(agentDir) ? agentDir.toString() : null;
+    }
+
+    private String resolveOwnerFilePath() {
+        String agentsDir = resolveAgentsDir();
+        if (!StringUtils.hasText(agentsDir)) {
+            return null;
+        }
+        Path agentsPath = Path.of(agentsDir).toAbsolutePath().normalize();
+        Path parent = agentsPath.getParent();
+        if (parent == null) {
+            return null;
+        }
+        return parent.resolve("OWNER.md").toString();
     }
 
     private String resolveDirectory(String path) {
@@ -283,7 +318,14 @@ public class ContainerHubMountResolver {
                             .formatted(platform, platformMountDef.containerPath())
             );
         }
-        addResolvedMount(mountsByContainerPath, "extra-mount:" + platform, source, platformMountDef.containerPath(), mode.readOnly());
+        addResolvedMount(
+                mountsByContainerPath,
+                "extra-mount:" + platform,
+                source,
+                platformMountDef.containerPath(),
+                mode.readOnly(),
+                platformMountDef.sourceType()
+        );
     }
 
     private void resolveCustomMount(
@@ -317,14 +359,17 @@ public class ContainerHubMountResolver {
 
     private Map<String, PlatformMountDef> platformMountDefs() {
         return Map.of(
-                "models", new PlatformMountDef(this::resolveModelsDir, "/models"),
-                "tools", new PlatformMountDef(this::resolveToolsDir, "/tools"),
-                "agents", new PlatformMountDef(this::resolveAgentsDir, "/agents"),
-                "viewports", new PlatformMountDef(this::resolveViewportsDir, "/viewports"),
-                "teams", new PlatformMountDef(this::resolveTeamsDir, "/teams"),
-                "schedules", new PlatformMountDef(this::resolveSchedulesDir, "/schedules"),
-                "mcp-servers", new PlatformMountDef(this::resolveMcpServersDir, "/mcp-servers"),
-                "providers", new PlatformMountDef(this::resolveProvidersDir, "/providers")
+                "models", new PlatformMountDef(this::resolveModelsDir, "/models", MountSourceType.DIRECTORY),
+                "tools", new PlatformMountDef(this::resolveToolsDir, "/tools", MountSourceType.DIRECTORY),
+                "agents", new PlatformMountDef(this::resolveAgentsDir, "/agents", MountSourceType.DIRECTORY),
+                "viewports", new PlatformMountDef(this::resolveViewportsDir, "/viewports", MountSourceType.DIRECTORY),
+                "viewport-servers", new PlatformMountDef(this::resolveViewportServersDir, "/viewport-servers", MountSourceType.DIRECTORY),
+                "teams", new PlatformMountDef(this::resolveTeamsDir, "/teams", MountSourceType.DIRECTORY),
+                "schedules", new PlatformMountDef(this::resolveSchedulesDir, "/schedules", MountSourceType.DIRECTORY),
+                "mcp-servers", new PlatformMountDef(this::resolveMcpServersDir, "/mcp-servers", MountSourceType.DIRECTORY),
+                "providers", new PlatformMountDef(this::resolveProvidersDir, "/providers", MountSourceType.DIRECTORY),
+                "chats", new PlatformMountDef(this::resolveChatsDir, "/chats", MountSourceType.DIRECTORY),
+                "owner.md", new PlatformMountDef(this::resolveOwnerFilePath, "/OWNER.md", MountSourceType.FILE)
         );
     }
 
@@ -339,8 +384,19 @@ public class ContainerHubMountResolver {
             String containerPath,
             boolean readOnly
     ) {
+        addResolvedMount(mountsByContainerPath, mountName, rawPath, containerPath, readOnly, MountSourceType.DIRECTORY);
+    }
+
+    private void addResolvedMount(
+            Map<String, MountSpec> mountsByContainerPath,
+            String mountName,
+            String rawPath,
+            String containerPath,
+            boolean readOnly,
+            MountSourceType sourceType
+    ) {
         validateContainerPathConflict(mountsByContainerPath.keySet(), mountName, containerPath);
-        String hostPath = requireExistingDirectory(mountName, rawPath, toAbsolute(rawPath), containerPath);
+        String hostPath = requireExistingPath(mountName, rawPath, toAbsolute(rawPath), containerPath, sourceType);
         addMount(mountsByContainerPath, new MountSpec(mountName, normalizeRawPath(rawPath), hostPath, containerPath, readOnly));
     }
 
@@ -396,12 +452,28 @@ public class ContainerHubMountResolver {
         return Path.of(path).toAbsolutePath().normalize().toString();
     }
 
-    private String requireExistingDirectory(String mountName, String rawPath, String resolvedPath, String containerPath) {
+    private String requireExistingPath(
+            String mountName,
+            String rawPath,
+            String resolvedPath,
+            String containerPath,
+            MountSourceType sourceType
+    ) {
         Path path = Path.of(resolvedPath);
-        if (Files.isDirectory(path)) {
+        if (sourceType == MountSourceType.DIRECTORY && Files.isDirectory(path)) {
             return path.toAbsolutePath().normalize().toString();
         }
-        String reason = Files.exists(path) ? "source is not a directory" : "source does not exist";
+        if (sourceType == MountSourceType.FILE && Files.isRegularFile(path)) {
+            return path.toAbsolutePath().normalize().toString();
+        }
+        String reason;
+        if (!Files.exists(path)) {
+            reason = "source does not exist";
+        } else if (sourceType == MountSourceType.FILE) {
+            reason = "source is not a file";
+        } else {
+            reason = "source is not a directory";
+        }
         throw new IllegalStateException("container-hub mount validation failed for %s: %s (configured=%s, resolved=%s, containerPath=%s)"
                 .formatted(mountName, reason, normalizeRawPath(rawPath), path.toAbsolutePath().normalize(), containerPath));
     }
@@ -459,7 +531,12 @@ public class ContainerHubMountResolver {
         return properties;
     }
 
-    private record PlatformMountDef(Supplier<String> sourceSupplier, String containerPath) {
+    private record PlatformMountDef(Supplier<String> sourceSupplier, String containerPath, MountSourceType sourceType) {
+    }
+
+    private enum MountSourceType {
+        DIRECTORY,
+        FILE
     }
 
     public record MountSpec(String mountName, String rawPath, String hostPath, String containerPath, boolean readOnly) {

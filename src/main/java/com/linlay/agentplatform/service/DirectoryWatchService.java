@@ -257,23 +257,27 @@ public class DirectoryWatchService implements DisposableBean {
 
         Map<WatchKey, RegisteredDirectory> keyRegistrations = new LinkedHashMap<>();
         Map<Path, WatchKey> pathRegistrations = new LinkedHashMap<>();
+        Map<Path, Integer> registeredDirCounts = new LinkedHashMap<>();
+        List<WatchedRoot> skippedRoots = new java.util.ArrayList<>();
         for (WatchedRoot root : watchedRoots.values()) {
             if (!Files.isDirectory(root.path())) {
-                log.debug("Directory does not exist, skip watching: {}", root.path());
+                skippedRoots.add(root);
                 continue;
             }
             if (root.recursive()) {
-                registerDirectoryTree(root.path(), root, keyRegistrations, pathRegistrations);
+                registerDirectoryTree(root.path(), root, keyRegistrations, pathRegistrations, registeredDirCounts);
             } else {
-                registerDirectory(root.path(), root, keyRegistrations, pathRegistrations);
+                registerDirectory(root.path(), root, keyRegistrations, pathRegistrations, registeredDirCounts);
             }
         }
 
         if (keyRegistrations.isEmpty()) {
+            logWatchedRootSummary(registeredDirCounts, skippedRoots);
             closeWatchService();
             return;
         }
 
+        logWatchedRootSummary(registeredDirCounts, skippedRoots);
         watchThread = new Thread(() -> pollLoop(keyRegistrations, pathRegistrations), "dir-watch");
         watchThread.setDaemon(true);
         watchThread.start();
@@ -360,7 +364,13 @@ public class DirectoryWatchService implements DisposableBean {
                     && kind == StandardWatchEventKinds.ENTRY_CREATE
                     && Files.isDirectory(absoluteChangedPath)
                     && !containsHiddenPathSegment(root.path(), absoluteChangedPath)) {
-                registerDirectoryTree(absoluteChangedPath, root, keyRegistrations, pathRegistrations);
+                registerDirectoryTree(
+                        absoluteChangedPath,
+                        root,
+                        keyRegistrations,
+                        pathRegistrations,
+                        new LinkedHashMap<>()
+                );
             }
             if (containsHiddenPathSegment(root.path(), absoluteChangedPath)) {
                 continue;
@@ -376,13 +386,14 @@ public class DirectoryWatchService implements DisposableBean {
             Path rootDir,
             WatchedRoot root,
             Map<WatchKey, RegisteredDirectory> keyRegistrations,
-            Map<Path, WatchKey> pathRegistrations
+            Map<Path, WatchKey> pathRegistrations,
+            Map<Path, Integer> registeredDirCounts
     ) {
         try (var stream = Files.walk(rootDir)) {
             stream.filter(Files::isDirectory)
                     .filter(path -> !containsHiddenPathSegment(root.path(), path))
                     .sorted(Comparator.naturalOrder())
-                    .forEach(path -> registerDirectory(path, root, keyRegistrations, pathRegistrations));
+                    .forEach(path -> registerDirectory(path, root, keyRegistrations, pathRegistrations, registeredDirCounts));
         } catch (IOException ex) {
             log.warn("Cannot register recursive watch on {}", rootDir, ex);
         }
@@ -392,7 +403,8 @@ public class DirectoryWatchService implements DisposableBean {
             Path dir,
             WatchedRoot root,
             Map<WatchKey, RegisteredDirectory> keyRegistrations,
-            Map<Path, WatchKey> pathRegistrations
+            Map<Path, WatchKey> pathRegistrations,
+            Map<Path, Integer> registeredDirCounts
     ) {
         if (dir == null || !Files.isDirectory(dir)) {
             return;
@@ -410,7 +422,8 @@ public class DirectoryWatchService implements DisposableBean {
             );
             pathRegistrations.put(normalizedDir, key);
             keyRegistrations.put(key, new RegisteredDirectory(normalizedDir, root));
-            log.info("Watching directory{}: {}", root.recursive() ? " recursively" : "", normalizedDir);
+            registeredDirCounts.merge(root.path(), 1, Integer::sum);
+            log.debug("Watching directory{}: {}", root.recursive() ? " recursively" : "", normalizedDir);
         } catch (IOException ex) {
             log.warn("Cannot register watch on {}", normalizedDir, ex);
         }
@@ -450,20 +463,15 @@ public class DirectoryWatchService implements DisposableBean {
         }
 
         String topLevel = relative.getName(1).toString().trim();
-        if ("memory".equals(topLevel) || "experiences".equals(topLevel)) {
-            return;
-        }
-        if ("tools".equals(topLevel) || "skills".equals(topLevel)) {
-            agentRegistry.refreshAgentsByIds(Set.of(agentId), "agents-directory");
+        if ("memory".equals(topLevel)
+                || "experiences".equals(topLevel)
+                || "tools".equals(topLevel)
+                || "skills".equals(topLevel)) {
             return;
         }
 
         String fileName = normalizedChangedPath.getFileName() == null ? "" : normalizedChangedPath.getFileName().toString();
-        if (isAgentDefinitionFile(fileName) || isAgentPromptMarkdown(fileName)) {
-            agentRegistry.refreshAgentsByIds(Set.of(agentId), "agents-directory");
-            return;
-        }
-        if (fileName.toLowerCase().endsWith(".md")) {
+        if (relative.getNameCount() == 2 && (isAgentDefinitionFile(fileName) || isAgentPromptMarkdown(fileName))) {
             agentRegistry.refreshAgentsByIds(Set.of(agentId), "agents-directory");
         }
     }
@@ -510,6 +518,26 @@ public class DirectoryWatchService implements DisposableBean {
 
     private Path normalizePath(Path path) {
         return path == null ? null : path.toAbsolutePath().normalize();
+    }
+
+    private void logWatchedRootSummary(Map<Path, Integer> registeredDirCounts, List<WatchedRoot> skippedRoots) {
+        if (registeredDirCounts != null && !registeredDirCounts.isEmpty()) {
+            String summary = watchedRoots.values().stream()
+                    .filter(root -> registeredDirCounts.containsKey(root.path()))
+                    .map(root -> root.kind() + "=" + root.path() + " (dirs=" + registeredDirCounts.getOrDefault(root.path(), 0) + ")")
+                    .toList()
+                    .toString();
+            log.info("Directory watch roots active: {}", summary);
+        } else {
+            log.info("Directory watch roots active: []");
+        }
+        if (skippedRoots != null && !skippedRoots.isEmpty()) {
+            String skipped = skippedRoots.stream()
+                    .map(root -> root.kind() + "=" + root.path())
+                    .toList()
+                    .toString();
+            log.info("Directory watch roots skipped: {}", skipped);
+        }
     }
 
     Set<Path> watchedRootPathsForTesting() {

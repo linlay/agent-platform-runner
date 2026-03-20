@@ -507,10 +507,13 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 | `/agents` | `{agentsDir}` | `{agentsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.agents.external-dir` |
 | `/models` | `{modelsDir}` | `{modelsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.models.external-dir` |
 | `/viewports` | `{viewportsDir}` | `{viewportsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.viewports.external-dir` |
+| `/viewport-servers` | `{viewportServersDir}` | `{viewportServersDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.viewport-servers.registry.external-dir` |
 | `/teams` | `{teamsDir}` | `{teamsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.teams.external-dir` |
 | `/schedules` | `{schedulesDir}` | `{schedulesDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.schedule.external-dir` |
 | `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.mcp-servers.registry.external-dir` |
 | `/providers` | `{providersDir}` | `{providersDir}` | `extraMounts` 按需；敏感目录 | 显式 `mode` | `agent.providers.external-dir` |
+| `/chats` | `{chatDataDir}` | `{chatDataDir}` | `extraMounts` 按需 | 显式 `mode` | `memory.chats.dir` |
+| `/OWNER.md` | `{agentsDir}/../OWNER.md` | `{agentsDir}/../OWNER.md` | `extraMounts` 按需；单文件 | 显式 `mode` | `agent.agents.external-dir` 的父目录 |
 
 ### 挂载原则
 
@@ -518,6 +521,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - agent 就近原则：当前 agent 若采用目录化布局，默认挂载其自身目录到 `/agent`；扁平 YAML agent 不强制创建该挂载。
 - 默认安全模式：`/skills` 与 `/agent` 默认只读；`/workspace`、`/root`、`/pan` 默认读写。
 - 按需显式原则：`/models`、`/tools`、`/agents`、`/viewports`、`/teams`、`/schedules`、`/mcp-servers`、`/providers` 仅能通过 `sandboxConfig.extraMounts` 显式恢复。
+- 按需显式原则：`/models`、`/tools`、`/agents`、`/viewports`、`/teams`、`/schedules`、`/mcp-servers`、`/providers`、`/chats`、`/OWNER.md` 仅能通过 `sandboxConfig.extraMounts` 显式恢复。
 - 模式显式原则：所有按需平台挂载和自定义挂载都必须显式声明 `mode: ro|rw`。
 - 基础挂载覆盖原则：若只想修改 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 的模式，可在 `extraMounts` 中只写 `destination + mode` 覆盖默认模式，不新增第二个挂载。
 - 最小暴露原则：agent 只应声明完成任务所必需的额外挂载，避免把无关目录带入沙箱。
@@ -551,16 +555,20 @@ sandboxConfig:
 | `tools` | `/tools` |
 | `agents` | `/agents` |
 | `viewports` | `/viewports` |
+| `viewport-servers` | `/viewport-servers` |
 | `teams` | `/teams` |
 | `schedules` | `/schedules` |
 | `mcp-servers` | `/mcp-servers` |
 | `providers` | `/providers` |
+| `chats` | `/chats` |
+| `owner.md` | `/OWNER.md` |
 
 约束：
 
 - `platform` 未知时仅 warn 并跳过。
 - `platform` 挂载必须显式声明 `mode: ro|rw`。
 - custom mount 必须提供 `source + destination + mode`。
+- `platform: owner.md` 绑定的是单文件 `OWNER.md`；其他 `platform` 绑定目录。
 - 默认基础挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 可通过 `destination + mode` 覆盖默认模式。
 - custom mount 的 `destination` 必须是绝对路径，且不能与已有挂载冲突。
 - custom mount 的 `source` 必须是已存在目录。

@@ -18,6 +18,7 @@ import com.linlay.agentplatform.config.PanProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
+import com.linlay.agentplatform.config.ViewportServerProperties;
 import com.linlay.agentplatform.config.RootProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.ChatMessage;
@@ -353,6 +354,7 @@ class ContainerHubSandboxServiceTest {
                 new AgentProperties(),
                 new ModelProperties(),
                 new ViewportProperties(),
+                new ViewportServerProperties(),
                 new TeamProperties(),
                 new ScheduleProperties(),
                 new McpProperties(),

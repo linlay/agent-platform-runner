@@ -9,6 +9,7 @@ import com.linlay.agentplatform.config.PanProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
+import com.linlay.agentplatform.config.ViewportServerProperties;
 import com.linlay.agentplatform.config.RootProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
@@ -177,6 +178,9 @@ class ContainerHubMountResolverTest {
         Path modelsDir = Files.createDirectories(tempDir.resolve("models"));
         Path toolsDir = Files.createDirectories(tempDir.resolve("tools"));
         Path viewportsDir = Files.createDirectories(tempDir.resolve("viewports"));
+        Path viewportServersDir = Files.createDirectories(tempDir.resolve("viewport-servers"));
+        Path ownerFile = tempDir.resolve("OWNER.md");
+        Files.writeString(ownerFile, "owner");
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
@@ -194,17 +198,23 @@ class ContainerHubMountResolverTest {
                 List.of(
                         new AgentDefinition.ExtraMount("models", null, null, MountAccessMode.RO),
                         new AgentDefinition.ExtraMount("tools", null, null, MountAccessMode.RW),
-                        new AgentDefinition.ExtraMount("viewports", null, null, MountAccessMode.RO)
+                        new AgentDefinition.ExtraMount("viewports", null, null, MountAccessMode.RO),
+                        new AgentDefinition.ExtraMount("viewport-servers", null, null, MountAccessMode.RW),
+                        new AgentDefinition.ExtraMount("chats", null, null, MountAccessMode.RO),
+                        new AgentDefinition.ExtraMount("owner.md", null, null, MountAccessMode.RO)
                 )
         );
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .contains("/models", "/tools", "/viewports");
+                .contains("/models", "/tools", "/viewports", "/viewport-servers", "/chats", "/OWNER.md");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(
                         modelsDir.toAbsolutePath().normalize().toString(),
                         toolsDir.toAbsolutePath().normalize().toString(),
-                        viewportsDir.toAbsolutePath().normalize().toString()
+                        viewportsDir.toAbsolutePath().normalize().toString(),
+                        viewportServersDir.toAbsolutePath().normalize().toString(),
+                        dataDir.toAbsolutePath().normalize().toString(),
+                        ownerFile.toAbsolutePath().normalize().toString()
                 );
         assertThat(mounts).filteredOn(mount -> "/models".equals(mount.containerPath()))
                 .singleElement()
@@ -214,6 +224,10 @@ class ContainerHubMountResolverTest {
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(false);
+        assertThat(mounts).filteredOn(mount -> "/OWNER.md".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(true);
     }
 
     @Test
@@ -373,6 +387,34 @@ class ContainerHubMountResolverTest {
     }
 
     @Test
+    void shouldFailWhenOwnerPlatformMountSourceDoesNotExist() throws Exception {
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
+        Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
+        Path panDir = Files.createDirectories(tempDir.resolve("pan"));
+        Path dataDir = Files.createDirectories(tempDir.resolve("data"));
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(dataDir),
+                skillProperties(skillsDir),
+                rootProperties(rootDir),
+                panProperties(panDir),
+                providerProperties(tempDir.resolve("providers"))
+        );
+
+        assertThatThrownBy(() -> resolver.resolve(
+                SandboxLevel.RUN,
+                "chat",
+                "flat-agent",
+                List.of(new AgentDefinition.ExtraMount("owner.md", null, null, MountAccessMode.RO))
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("extra-mount:owner.md")
+                .hasMessageContaining("source does not exist")
+                .hasMessageContaining("containerPath=/OWNER.md");
+    }
+
+    @Test
     void shouldFailWhenCustomMountMissingSourceForNonDefaultDestination() throws Exception {
         Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
@@ -515,6 +557,9 @@ class ContainerHubMountResolverTest {
         ViewportProperties viewportProperties = new ViewportProperties();
         viewportProperties.setExternalDir(tempDir.resolve("viewports").toString());
 
+        ViewportServerProperties viewportServerProperties = new ViewportServerProperties();
+        viewportServerProperties.getRegistry().setExternalDir(tempDir.resolve("viewport-servers").toString());
+
         TeamProperties teamProperties = new TeamProperties();
         teamProperties.setExternalDir(tempDir.resolve("teams").toString());
 
@@ -533,6 +578,7 @@ class ContainerHubMountResolverTest {
                 agentProperties,
                 modelProperties,
                 viewportProperties,
+                viewportServerProperties,
                 teamProperties,
                 scheduleProperties,
                 mcpProperties,
