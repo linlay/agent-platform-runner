@@ -72,18 +72,14 @@ public class TeamRegistryService {
                 return;
             }
 
-            try (Stream<Path> stream = Files.list(dir)) {
-                YamlCatalogSupport.selectYamlFiles(stream.filter(Files::isRegularFile).toList(), "team", log)
-                        .forEach(path -> tryLoad(path).ifPresent(team -> {
-                            if (loaded.containsKey(team.id())) {
-                                log.warn("Duplicate team id '{}' found in {}, keep the first one", team.id(), path);
-                                return;
-                            }
-                            loaded.put(team.id(), team);
-                        }));
-            } catch (IOException ex) {
-                log.warn("Cannot list team files from {}", dir, ex);
-            }
+            YamlCatalogSupport.selectYamlFiles(YamlCatalogSupport.listRegularFiles(dir, log), "team", log)
+                    .forEach(path -> tryLoad(path).ifPresent(team -> {
+                        if (loaded.containsKey(team.id())) {
+                            log.warn("Duplicate team id '{}' found in {}, keep the first one", team.id(), path);
+                            return;
+                        }
+                        loaded.put(team.id(), team);
+                    }));
 
             byId = Map.copyOf(loaded);
             log.debug("Refreshed team registry, size={}", loaded.size());

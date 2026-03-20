@@ -69,9 +69,9 @@ public class ProviderRegistryService {
             }
 
             Map<String, ProviderConfig> loaded = new LinkedHashMap<>();
-            try (Stream<Path> stream = Files.list(dir)) {
+            try {
                 for (Path path : YamlCatalogSupport.selectYamlFiles(
-                        stream.filter(Files::isRegularFile).toList(),
+                        YamlCatalogSupport.listRegularFiles(dir, log),
                         "provider",
                         log
                 )) {
@@ -86,9 +86,6 @@ public class ProviderRegistryService {
                         );
                     }
                 }
-            } catch (IOException ex) {
-                log.warn("Cannot list provider files from {}", dir, ex);
-                return CatalogDiff.between(before, before);
             } catch (RuntimeException ex) {
                 if (before.isEmpty()) {
                     throw ex;

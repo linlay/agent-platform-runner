@@ -181,6 +181,53 @@ class DirectoryWatchServiceTest {
         }
     }
 
+    @Test
+    void shouldTriggerCallbackOnNestedFileChange() throws Exception {
+        Path watchedDir = tempDir.resolve("watched-recursive");
+        Path nestedDir = watchedDir.resolve("agents/demo");
+        Files.createDirectories(nestedDir);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        Map<Path, Runnable> dirs = new LinkedHashMap<>();
+        dirs.put(watchedDir, latch::countDown);
+
+        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        try {
+            Files.writeString(nestedDir.resolve("AGENTS.md"), "prompt");
+            boolean triggered = latch.await(10, TimeUnit.SECONDS);
+            assertThat(triggered).isTrue();
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldTriggerCallbackForFilesInsideSubdirectoryCreatedAfterStartup() throws Exception {
+        Path watchedDir = tempDir.resolve("watched-new-subdir");
+        Files.createDirectories(watchedDir);
+
+        AtomicInteger counter = new AtomicInteger();
+        Map<Path, Runnable> dirs = new LinkedHashMap<>();
+        dirs.put(watchedDir, counter::incrementAndGet);
+
+        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        try {
+            Path nestedDir = watchedDir.resolve("nested/child");
+            Files.createDirectories(nestedDir);
+            boolean createdTriggered = waitForCountAtLeast(counter, 1, 10_000);
+            assertThat(createdTriggered).isTrue();
+
+            int snapshot = counter.get();
+            TimeUnit.MILLISECONDS.sleep(650);
+            Files.writeString(nestedDir.resolve("tool.yml"), "name: demo\n");
+
+            boolean fileTriggered = waitForCountAtLeast(counter, snapshot + 1, 10_000);
+            assertThat(fileTriggered).isTrue();
+        } finally {
+            service.destroy();
+        }
+    }
+
     private boolean waitForCountAtLeast(AtomicInteger counter, int expected, long timeoutMs) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
         while (System.nanoTime() < deadline) {

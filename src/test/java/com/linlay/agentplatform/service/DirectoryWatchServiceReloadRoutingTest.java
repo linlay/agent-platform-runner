@@ -20,10 +20,8 @@ import com.linlay.agentplatform.tool.ToolFileRegistryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -64,7 +62,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportSyncService.class)
         );
         try {
-            callbackFor(service, tempDir.resolve("tools")).run();
+            trigger(service, tempDir.resolve("tools"), tempDir.resolve("tools").resolve("nested/custom.yml"));
 
             verify(toolFileRegistryService).refreshTools();
             verify(agentRegistry).findAgentIdsByTools(changedTools);
@@ -100,7 +98,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportSyncService.class)
         );
         try {
-            callbackFor(service, tempDir.resolve("models")).run();
+            trigger(service, tempDir.resolve("models"), tempDir.resolve("models").resolve("folder/model.yml"));
 
             verify(modelRegistryService).refreshModels();
             verify(agentRegistry).findAgentIdsByModels(changedModels);
@@ -145,7 +143,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportSyncService.class)
         );
         try {
-            callbackFor(service, tempDir.resolve("providers")).run();
+            trigger(service, tempDir.resolve("providers"), tempDir.resolve("providers").resolve("folder/provider.yml"));
 
             verify(providerRegistryService).refreshProviders();
             verify(modelRegistryService).findModelKeysByProviders(changedProviders);
@@ -183,7 +181,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportSyncService.class)
         );
         try {
-            callbackFor(service, tempDir.resolve("mcp-servers")).run();
+            trigger(service, tempDir.resolve("mcp-servers"), tempDir.resolve("mcp-servers").resolve("nested/server.yml"));
 
             verify(mcpServerRegistryService).refreshServers();
             verify(mcpToolSyncService).refreshTools();
@@ -215,7 +213,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportSyncService.class)
         );
         try {
-            callbackFor(service, tempDir.resolve("skills")).run();
+            trigger(service, tempDir.resolve("skills"), tempDir.resolve("skills").resolve("demo/SKILL.md"));
 
             verify(skillRegistryService).refreshSkills();
             verify(agentRegistry, never()).refreshAgentsByIds(anySet(), anyString());
@@ -243,7 +241,7 @@ class DirectoryWatchServiceReloadRoutingTest {
                 orchestrator
         );
         try {
-            callbackFor(service, tempDir.resolve("schedules")).run();
+            trigger(service, tempDir.resolve("schedules"), tempDir.resolve("schedules").resolve("folder/demo.yml"));
             verify(orchestrator).refreshAndReconcile();
         } finally {
             service.destroy();
@@ -270,12 +268,140 @@ class DirectoryWatchServiceReloadRoutingTest {
                 viewportSyncService
         );
         try {
-            callbackFor(service, tempDir.resolve("viewport-servers")).run();
+            trigger(service, tempDir.resolve("viewport-servers"), tempDir.resolve("viewport-servers").resolve("nested/server.yml"));
 
             verify(viewportServerRegistryService).refreshServers();
             verify(viewportSyncService).refreshViewports();
             verify(agentRegistry, never()).refreshAgentsByIds(anySet(), anyString());
             verify(agentRegistry, never()).refreshAgents();
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldRefreshOnlyAffectedAgentWhenAgentPromptChanged() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        DirectoryWatchService service = createService(
+                agentRegistry,
+                mock(ViewportRegistryService.class),
+                mock(ToolFileRegistryService.class),
+                mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
+                mock(SkillRegistryService.class),
+                mock(TeamRegistryService.class),
+                mock(McpServerRegistryService.class),
+                mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
+        );
+        try {
+            trigger(service, tempDir.resolve("agents"), tempDir.resolve("agents/demoAgent/AGENTS.md"));
+
+            verify(agentRegistry).refreshAgentsByIds(Set.of("demoAgent"), "agents-directory");
+            verify(agentRegistry, never()).refreshAgents();
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldRefreshOnlyAffectedAgentWhenAgentLocalToolChanged() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        DirectoryWatchService service = createService(
+                agentRegistry,
+                mock(ViewportRegistryService.class),
+                mock(ToolFileRegistryService.class),
+                mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
+                mock(SkillRegistryService.class),
+                mock(TeamRegistryService.class),
+                mock(McpServerRegistryService.class),
+                mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
+        );
+        try {
+            trigger(service, tempDir.resolve("agents"), tempDir.resolve("agents/demoAgent/tools/custom_tool.yml"));
+
+            verify(agentRegistry).refreshAgentsByIds(Set.of("demoAgent"), "agents-directory");
+            verify(agentRegistry, never()).refreshAgents();
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldRefreshOnlyAffectedAgentWhenAgentLocalSkillChanged() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        DirectoryWatchService service = createService(
+                agentRegistry,
+                mock(ViewportRegistryService.class),
+                mock(ToolFileRegistryService.class),
+                mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
+                mock(SkillRegistryService.class),
+                mock(TeamRegistryService.class),
+                mock(McpServerRegistryService.class),
+                mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
+        );
+        try {
+            trigger(service, tempDir.resolve("agents"), tempDir.resolve("agents/demoAgent/skills/custom_skill/SKILL.md"));
+
+            verify(agentRegistry).refreshAgentsByIds(Set.of("demoAgent"), "agents-directory");
+            verify(agentRegistry, never()).refreshAgents();
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldIgnoreAgentMemoryChanges() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        DirectoryWatchService service = createService(
+                agentRegistry,
+                mock(ViewportRegistryService.class),
+                mock(ToolFileRegistryService.class),
+                mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
+                mock(SkillRegistryService.class),
+                mock(TeamRegistryService.class),
+                mock(McpServerRegistryService.class),
+                mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
+        );
+        try {
+            trigger(service, tempDir.resolve("agents"), tempDir.resolve("agents/demoAgent/memory/2026-03/2026-03-19.md"));
+
+            verify(agentRegistry, never()).refreshAgentsByIds(anySet(), anyString());
+            verify(agentRegistry, never()).refreshAgents();
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldRefreshViewportRegistryWhenLocalViewportsChanged() {
+        ViewportRegistryService viewportRegistryService = mock(ViewportRegistryService.class);
+        DirectoryWatchService service = createService(
+                mock(AgentRegistry.class),
+                viewportRegistryService,
+                mock(ToolFileRegistryService.class),
+                mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
+                mock(SkillRegistryService.class),
+                mock(TeamRegistryService.class),
+                mock(McpServerRegistryService.class),
+                mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
+        );
+        try {
+            trigger(service, tempDir.resolve("viewports"), tempDir.resolve("viewports/cards/weather_card.html"));
+            verify(viewportRegistryService).refreshViewports();
         } finally {
             service.destroy();
         }
@@ -380,14 +506,8 @@ class DirectoryWatchServiceReloadRoutingTest {
         );
     }
 
-    private Runnable callbackFor(DirectoryWatchService service, Path watchedPath) throws Exception {
-        Field field = DirectoryWatchService.class.getDeclaredField("watchedDirs");
-        field.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        Map<Path, Runnable> watched = (Map<Path, Runnable>) field.get(service);
-        Path key = watchedPath.toAbsolutePath().normalize();
-        Runnable callback = watched.get(key);
-        assertThat(callback).isNotNull();
-        return callback;
+    private void trigger(DirectoryWatchService service, Path watchedRoot, Path changedPath) {
+        assertThat(service.watchedRootPathsForTesting()).contains(watchedRoot.toAbsolutePath().normalize());
+        service.triggerForTesting(watchedRoot, changedPath);
     }
 }

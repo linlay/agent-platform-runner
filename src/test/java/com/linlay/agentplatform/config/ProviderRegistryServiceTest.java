@@ -48,6 +48,22 @@ class ProviderRegistryServiceTest {
                 .hasMessageContaining("use 'defaultModel' instead");
     }
 
+    @Test
+    void shouldLoadProviderFromNestedDirectory() throws Exception {
+        Path providersDir = tempDir.resolve("providers");
+        Files.createDirectories(providersDir.resolve("group-a"));
+        Files.writeString(providersDir.resolve("group-a/bailian.yml"), """
+                key: bailian
+                baseUrl: https://dashscope.aliyuncs.com/compatible-mode
+                apiKey: dummy
+                defaultModel: qwen3.5-plus
+                """);
+
+        ProviderRegistryService service = new ProviderRegistryService(providerProperties(providersDir));
+
+        assertThat(service.find("bailian")).isPresent();
+    }
+
     private ProviderProperties providerProperties(Path providersDir) {
         ProviderProperties properties = new ProviderProperties();
         properties.setExternalDir(providersDir.toString());

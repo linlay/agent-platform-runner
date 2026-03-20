@@ -105,4 +105,23 @@ class McpServerRegistryServiceTest {
         assertThat(secondVersion).isGreaterThan(firstVersion);
         assertThat(thirdVersion).isGreaterThan(secondVersion);
     }
+
+    @Test
+    void shouldLoadServerFromNestedRegistryDirectory() throws Exception {
+        Path registryDir = tempDir.resolve("mcp-servers");
+        Files.createDirectories(registryDir.resolve("nested"));
+        Files.writeString(registryDir.resolve("nested/mock.yml"), """
+                serverKey: mock
+                baseUrl: http://nested-host:18080
+                endpointPath: /mcp
+                """);
+
+        McpProperties properties = new McpProperties();
+        properties.getRegistry().setExternalDir(registryDir.toString());
+
+        McpServerRegistryService service = new McpServerRegistryService(new ObjectMapper(), properties);
+        service.refreshServers();
+
+        assertThat(service.find("mock")).isPresent();
+    }
 }

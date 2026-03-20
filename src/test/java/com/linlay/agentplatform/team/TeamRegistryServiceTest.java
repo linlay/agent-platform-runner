@@ -45,4 +45,20 @@ class TeamRegistryServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Legacy JSON team files are no longer supported");
     }
+
+    @Test
+    void shouldLoadTeamFromNestedDirectory() throws Exception {
+        Path nestedDir = tempDir.resolve("groups");
+        Files.createDirectories(nestedDir);
+        Files.writeString(nestedDir.resolve("a1b2c3d4e5f6.yml"), """
+                name: Default Team
+                defaultAgentKey: demoModeReact
+                """);
+
+        TeamProperties properties = new TeamProperties();
+        properties.setExternalDir(tempDir.toString());
+        TeamRegistryService service = new TeamRegistryService(new ObjectMapper(), properties);
+
+        assertThat(service.find("a1b2c3d4e5f6")).isPresent();
+    }
 }

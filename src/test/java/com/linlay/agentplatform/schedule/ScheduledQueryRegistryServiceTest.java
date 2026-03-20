@@ -253,6 +253,24 @@ class ScheduledQueryRegistryServiceTest {
     }
 
     @Test
+    void shouldLoadScheduleFromNestedDirectory() throws Exception {
+        Path nestedDir = tempDir.resolve("nested");
+        Files.createDirectories(nestedDir);
+        Files.writeString(nestedDir.resolve("daily.yml"), """
+                name: 每日摘要
+                description: 每天早上 9 点执行
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                query:
+                  message: ping
+                """);
+
+        ScheduledQueryRegistryService service = newService(mock(TeamRegistryService.class));
+
+        assertThat(service.find("daily")).isPresent();
+    }
+
+    @Test
     void shouldRejectInvalidHeaderDisclosure() throws Exception {
         Files.writeString(tempDir.resolve("blank-prefix.yml"), """
 

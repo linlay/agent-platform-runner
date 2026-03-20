@@ -112,7 +112,7 @@ public class ToolFileRegistryService {
         if (dir == null || !Files.isDirectory(dir)) {
             return Map.of();
         }
-        for (Path file : YamlCatalogSupport.selectYamlFiles(sortedFiles(dir), "tool", log)) {
+        for (Path file : YamlCatalogSupport.selectYamlFiles(YamlCatalogSupport.listRegularFiles(dir, log), "tool", log)) {
             parseRawTool(file.toString(), safeReadString(file), loaded, conflicts);
         }
         return loaded.isEmpty() ? Map.of() : Map.copyOf(loaded);
@@ -263,18 +263,6 @@ public class ToolFileRegistryService {
             conflicts.add(normalizedName);
             log.warn("Duplicate tool name '{}' found in {} and {}, both skipped", name, old.sourceFile(), source);
         }
-    }
-
-    private List<Path> sortedFiles(Path dir) {
-        List<Path> files = new ArrayList<>();
-        try (Stream<Path> stream = Files.list(dir)) {
-            stream.filter(Files::isRegularFile)
-                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
-                    .forEach(files::add);
-        } catch (IOException ex) {
-            log.warn("Cannot list tool files from {}", dir, ex);
-        }
-        return files;
     }
 
     private Map<String, Object> parseInputSchema(JsonNode node) {

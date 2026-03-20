@@ -55,4 +55,19 @@ class ViewportRegistryServiceTest {
         assertThat(service.find("bad")).isEmpty();
     }
 
+    @Test
+    void shouldLoadViewportsFromNestedDirectories() throws Exception {
+        Files.createDirectories(tempDir.resolve("cards/weather"));
+        Files.writeString(tempDir.resolve("cards/weather/weather_card.html"), "<div>nested</div>");
+
+        ViewportProperties properties = new ViewportProperties();
+        properties.setExternalDir(tempDir.toString());
+        ViewportRegistryService service = new ViewportRegistryService(
+                new ObjectMapper(),
+                properties
+        );
+
+        assertThat(service.find("weather_card")).isPresent();
+    }
+
 }

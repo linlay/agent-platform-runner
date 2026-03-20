@@ -196,6 +196,26 @@ class ModelRegistryServiceTest {
     }
 
     @Test
+    void shouldDiscoverModelsFromNestedDirectories() throws Exception {
+        Path modelsDir = tempDir.resolve("models");
+        Files.createDirectories(modelsDir.resolve("group-a"));
+        Files.writeString(modelsDir.resolve("group-a/nested.yml"), """
+                key: nested-model
+                provider: bailian
+                protocol: OPENAI
+                modelId: nested-id
+                """);
+
+        ModelRegistryService service = new ModelRegistryService(
+                new ObjectMapper(),
+                modelProperties(modelsDir),
+                providerRegistry(Map.of("bailian", "https://example.com"))
+        );
+
+        assertThat(service.find("nested-model")).isPresent();
+    }
+
+    @Test
     void shouldFailFastOnLegacyJsonModelFile() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);

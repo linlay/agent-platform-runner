@@ -34,7 +34,7 @@ final class RemoteServerConfigSupport {
             return List.of();
         }
         List<ServerSpec> loaded = new ArrayList<>();
-        for (Path file : YamlCatalogSupport.selectYamlFiles(sortedFiles(dir, log), "remote server", log)) {
+        for (Path file : YamlCatalogSupport.selectYamlFiles(YamlCatalogSupport.listRegularFiles(dir, log), "remote server", log)) {
             loaded.addAll(parseServerFile(file, objectMapper, log));
         }
         return List.copyOf(loaded);
@@ -121,17 +121,6 @@ final class RemoteServerConfigSupport {
             }
         }
         return null;
-    }
-
-    private static List<Path> sortedFiles(Path dir, Logger log) {
-        try (Stream<Path> stream = Files.list(dir)) {
-            return stream.filter(Files::isRegularFile)
-                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
-                    .toList();
-        } catch (IOException ex) {
-            log.warn("Cannot list remote server config files from {}", dir, ex);
-            return List.of();
-        }
     }
 
     private static ServerSpec toServerSpec(JsonNode node, ObjectMapper objectMapper) {

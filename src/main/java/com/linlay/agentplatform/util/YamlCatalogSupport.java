@@ -3,6 +3,8 @@ package com.linlay.agentplatform.util;
 import org.slf4j.Logger;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -10,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public final class YamlCatalogSupport {
 
@@ -63,6 +66,23 @@ public final class YamlCatalogSupport {
         }
         selected.sort(priorityComparator);
         return List.copyOf(selected);
+    }
+
+    public static List<Path> listRegularFiles(Path dir, Logger log) {
+        if (dir == null || !Files.isDirectory(dir)) {
+            return List.of();
+        }
+        try (Stream<Path> stream = Files.walk(dir)) {
+            return stream.filter(Files::isRegularFile)
+                    .filter(path -> !containsHiddenPathSegment(dir, path))
+                    .sorted(Comparator.comparing(path -> relativeSortKey(dir, path)))
+                    .toList();
+        } catch (IOException ex) {
+            if (log != null) {
+                log.warn("Cannot list files from {}", dir, ex);
+            }
+            return List.of();
+        }
     }
 
     public static boolean isYamlFile(Path path) {
@@ -140,6 +160,36 @@ public final class YamlCatalogSupport {
             return false;
         }
         return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(extension);
+    }
+
+    private static boolean containsHiddenPathSegment(Path root, Path path) {
+        if (root == null || path == null) {
+            return false;
+        }
+        Path normalizedRoot = root.toAbsolutePath().normalize();
+        Path normalizedPath = path.toAbsolutePath().normalize();
+        if (!normalizedPath.startsWith(normalizedRoot)) {
+            return false;
+        }
+        Path relative = normalizedRoot.relativize(normalizedPath);
+        for (Path segment : relative) {
+            if (segment != null) {
+                String text = segment.toString();
+                if (StringUtils.hasText(text) && text.startsWith(".")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static String relativeSortKey(Path root, Path path) {
+        Path normalizedRoot = root.toAbsolutePath().normalize();
+        Path normalizedPath = path.toAbsolutePath().normalize();
+        if (!normalizedPath.startsWith(normalizedRoot)) {
+            return normalizedPath.toString();
+        }
+        return normalizedRoot.relativize(normalizedPath).toString().replace('\\', '/');
     }
 
     private static int formatPriority(Path file) {

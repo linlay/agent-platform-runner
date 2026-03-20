@@ -3,6 +3,7 @@ package com.linlay.agentplatform.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.model.ViewportType;
+import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -98,19 +99,13 @@ public class ViewportRegistryService {
         if (legacyViewportDir == null || !java.nio.file.Files.isDirectory(legacyViewportDir)) {
             return List.of();
         }
-        try (var stream = java.nio.file.Files.list(legacyViewportDir)) {
-            return stream.filter(java.nio.file.Files::isRegularFile)
-                    .filter(path -> {
-                        String fileName = path.getFileName().toString();
-                        return resolveSuffix(fileName) != null;
-                    })
-                    .sorted()
-                    .map(path -> (Resource) new org.springframework.core.io.FileSystemResource(path))
-                    .toList();
-        } catch (IOException ex) {
-            log.warn("Cannot list viewport files from {}", legacyViewportDir, ex);
-            return List.of();
-        }
+        return YamlCatalogSupport.listRegularFiles(legacyViewportDir, log).stream()
+                .filter(path -> {
+                    String fileName = path.getFileName().toString();
+                    return resolveSuffix(fileName) != null;
+                })
+                .map(path -> (Resource) new org.springframework.core.io.FileSystemResource(path))
+                .toList();
     }
 
     private List<Resource> classpathResources() {

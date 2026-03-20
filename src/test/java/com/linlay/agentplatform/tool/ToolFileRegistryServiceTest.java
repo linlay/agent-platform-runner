@@ -240,6 +240,17 @@ class ToolFileRegistryServiceTest {
         assertThat(diff.changedKeys()).contains("b_tool");
     }
 
+    @Test
+    void shouldLoadToolsFromNestedDirectories() throws Exception {
+        Path toolsDir = tempDir.resolve("tools");
+        Files.createDirectories(toolsDir.resolve("nested/forms"));
+        Files.writeString(toolsDir.resolve("nested/forms/confirm_dialog.yml"), frontendToolYaml("confirm_dialog", "确认弹窗", "confirm", "html", "confirm_dialog"));
+
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+
+        assertThat(service.find("confirm_dialog")).isPresent();
+    }
+
     private ToolProperties properties(Path toolsDir) {
         ToolProperties properties = new ToolProperties();
         properties.setExternalDir(toolsDir.toString());

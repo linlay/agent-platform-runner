@@ -87,4 +87,23 @@ class ViewportServerRegistryServiceTest {
         assertThat(secondVersion).isGreaterThan(firstVersion);
         assertThat(thirdVersion).isGreaterThan(secondVersion);
     }
+
+    @Test
+    void shouldLoadViewportServerFromNestedRegistryDirectory() throws Exception {
+        Path registryDir = tempDir.resolve("viewport-servers");
+        Files.createDirectories(registryDir.resolve("nested"));
+        Files.writeString(registryDir.resolve("nested/mock.yml"), """
+                serverKey: viewport-mock
+                baseUrl: http://nested-host:11969
+                endpointPath: /mcp
+                """);
+
+        ViewportServerProperties properties = new ViewportServerProperties();
+        properties.getRegistry().setExternalDir(registryDir.toString());
+
+        ViewportServerRegistryService service = new ViewportServerRegistryService(new ObjectMapper(), properties);
+        service.refreshServers();
+
+        assertThat(service.find("viewport-mock")).isPresent();
+    }
 }

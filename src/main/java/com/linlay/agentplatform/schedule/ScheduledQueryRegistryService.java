@@ -7,6 +7,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.team.TeamDescriptor;
 import com.linlay.agentplatform.team.TeamRegistryService;
+import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.DependsOn;
@@ -98,24 +99,19 @@ public class ScheduledQueryRegistryService {
             }
 
             Map<String, ScheduledQueryDescriptor> loaded = new LinkedHashMap<>();
-            try (Stream<Path> stream = Files.list(dir)) {
-                stream.filter(path -> Files.isRegularFile(path)
-                        && path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(SUPPORTED_SUFFIX))
-                        .sorted(Comparator.comparing(path -> path.getFileName().toString()))
-                        .forEach(path -> tryLoad(path).ifPresent(descriptor -> {
-                            ScheduledQueryDescriptor existing = loaded.putIfAbsent(descriptor.id(), descriptor);
-                            if (existing != null) {
-                                log.warn(
-                                        "Duplicate schedule id '{}' found in {} and {}, keep the first one",
-                                        descriptor.id(),
-                                        existing.sourceFile(),
-                                        descriptor.sourceFile()
-                                );
-                            }
-                        }));
-            } catch (IOException ex) {
-                log.warn("Cannot list schedule files from {}", dir, ex);
-            }
+            YamlCatalogSupport.listRegularFiles(dir, log).stream()
+                    .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(SUPPORTED_SUFFIX))
+                    .forEach(path -> tryLoad(path).ifPresent(descriptor -> {
+                        ScheduledQueryDescriptor existing = loaded.putIfAbsent(descriptor.id(), descriptor);
+                        if (existing != null) {
+                            log.warn(
+                                    "Duplicate schedule id '{}' found in {} and {}, keep the first one",
+                                    descriptor.id(),
+                                    existing.sourceFile(),
+                                    descriptor.sourceFile()
+                            );
+                        }
+                    }));
             byId = Map.copyOf(loaded);
             log.debug("Refreshed schedule registry, size={}", loaded.size());
         }

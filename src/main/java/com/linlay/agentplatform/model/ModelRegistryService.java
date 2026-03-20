@@ -97,18 +97,14 @@ public class ModelRegistryService {
                 return CatalogDiff.between(before, byKey);
             }
 
-            try (Stream<Path> stream = Files.list(dir)) {
-                YamlCatalogSupport.selectYamlFiles(stream.filter(Files::isRegularFile).toList(), "model", log)
-                        .forEach(path -> tryLoad(path).ifPresent(model -> {
-                            if (loaded.containsKey(model.key())) {
-                                log.warn("Duplicate model key '{}' found in {}, keep the first one", model.key(), path);
-                                return;
-                            }
-                            loaded.put(model.key(), model);
-                        }));
-            } catch (IOException ex) {
-                log.warn("Cannot list model files from {}", dir, ex);
-            }
+            YamlCatalogSupport.selectYamlFiles(YamlCatalogSupport.listRegularFiles(dir, log), "model", log)
+                    .forEach(path -> tryLoad(path).ifPresent(model -> {
+                        if (loaded.containsKey(model.key())) {
+                            log.warn("Duplicate model key '{}' found in {}, keep the first one", model.key(), path);
+                            return;
+                        }
+                        loaded.put(model.key(), model);
+                    }));
 
             byKey = Map.copyOf(loaded);
             CatalogDiff diff = CatalogDiff.between(before, byKey);
