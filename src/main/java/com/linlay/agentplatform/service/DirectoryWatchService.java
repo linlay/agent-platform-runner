@@ -49,6 +49,7 @@ public class DirectoryWatchService implements DisposableBean {
     private static final long DEBOUNCE_MS = 500;
 
     private final Map<Path, WatchedRoot> watchedRoots;
+    private final Set<Path> registeredDirectories = java.util.Collections.synchronizedSet(new LinkedHashSet<>());
 
     private volatile WatchService watchService;
     private volatile Thread watchThread;
@@ -151,10 +152,8 @@ public class DirectoryWatchService implements DisposableBean {
             ScheduleProperties scheduleProperties
     ) {
         Map<Path, WatchedRoot> roots = new LinkedHashMap<>();
-        registerRoot(roots, RootKind.AGENTS, agentProperties.getExternalDir(), true,
+        registerRoot(roots, RootKind.AGENTS, agentProperties.getExternalDir(), false,
                 changedPath -> routeAgentChange(agentProperties.getExternalDir(), changedPath, agentRegistry));
-        registerRoot(roots, RootKind.SKILLS_MARKET, skillProperties.getExternalDir(), true,
-                changedPath -> skillRegistryService.refreshSkills());
         registerRoot(roots, RootKind.TEAMS, teamProperties.getExternalDir(), true,
                 changedPath -> teamRegistryService.refreshTeams());
         registerRoot(roots, RootKind.MODELS, modelProperties.getExternalDir(), true,
@@ -199,17 +198,6 @@ public class DirectoryWatchService implements DisposableBean {
                 });
         registerRoot(roots, RootKind.SCHEDULES, scheduleProperties.getExternalDir(), true,
                 changedPath -> scheduledQueryOrchestrator.refreshAndReconcile());
-        registerRoot(roots, RootKind.TOOLS, toolProperties.getExternalDir(), true,
-                changedPath -> {
-                    CatalogDiff diff = toolFileRegistryService.refreshTools();
-                    if (diff.isEmpty()) {
-                        return;
-                    }
-                    Set<String> affectedAgents = agentRegistry.findAgentIdsByTools(diff.changedKeys());
-                    agentRegistry.refreshAgentsByIds(affectedAgents, "tools-directory");
-                });
-        registerRoot(roots, RootKind.VIEWPORTS, viewportProperties.getExternalDir(), true,
-                changedPath -> viewportRegistryService.refreshViewports());
         return Map.copyOf(roots);
     }
 
@@ -264,7 +252,9 @@ public class DirectoryWatchService implements DisposableBean {
                 skippedRoots.add(root);
                 continue;
             }
-            if (root.recursive()) {
+            if (root.kind() == RootKind.AGENTS) {
+                registerAgentDirectories(root, keyRegistrations, pathRegistrations, registeredDirCounts);
+            } else if (root.recursive()) {
                 registerDirectoryTree(root.path(), root, keyRegistrations, pathRegistrations, registeredDirCounts);
             } else {
                 registerDirectory(root.path(), root, keyRegistrations, pathRegistrations, registeredDirCounts);
@@ -326,6 +316,7 @@ public class DirectoryWatchService implements DisposableBean {
                 RegisteredDirectory removed = keyRegistrations.remove(key);
                 if (removed != null) {
                     pathRegistrations.remove(removed.dir());
+                    registeredDirectories.remove(removed.dir());
                     lastTrigger.remove(removed.root().path());
                 }
                 if (keyRegistrations.isEmpty()) {
@@ -360,17 +351,26 @@ public class DirectoryWatchService implements DisposableBean {
                 continue;
             }
             Path absoluteChangedPath = registration.dir().resolve(relativePath).toAbsolutePath().normalize();
-            if (root.recursive()
-                    && kind == StandardWatchEventKinds.ENTRY_CREATE
+            if (kind == StandardWatchEventKinds.ENTRY_CREATE
                     && Files.isDirectory(absoluteChangedPath)
                     && !containsHiddenPathSegment(root.path(), absoluteChangedPath)) {
-                registerDirectoryTree(
-                        absoluteChangedPath,
-                        root,
-                        keyRegistrations,
-                        pathRegistrations,
-                        new LinkedHashMap<>()
-                );
+                if (root.kind() == RootKind.AGENTS) {
+                    registerAgentDirectoryIfNeeded(
+                            root,
+                            absoluteChangedPath,
+                            keyRegistrations,
+                            pathRegistrations,
+                            new LinkedHashMap<>()
+                    );
+                } else if (root.recursive()) {
+                    registerDirectoryTree(
+                            absoluteChangedPath,
+                            root,
+                            keyRegistrations,
+                            pathRegistrations,
+                            new LinkedHashMap<>()
+                    );
+                }
             }
             if (containsHiddenPathSegment(root.path(), absoluteChangedPath)) {
                 continue;
@@ -380,6 +380,40 @@ public class DirectoryWatchService implements DisposableBean {
             }
         }
         return changedPath;
+    }
+
+    private void registerAgentDirectories(
+            WatchedRoot root,
+            Map<WatchKey, RegisteredDirectory> keyRegistrations,
+            Map<Path, WatchKey> pathRegistrations,
+            Map<Path, Integer> registeredDirCounts
+    ) {
+        registerDirectory(root.path(), root, keyRegistrations, pathRegistrations, registeredDirCounts);
+        try (var stream = Files.list(root.path())) {
+            stream.filter(Files::isDirectory)
+                    .filter(path -> !containsHiddenPathSegment(root.path(), path))
+                    .sorted(Comparator.naturalOrder())
+                    .forEach(path -> registerDirectory(path, root, keyRegistrations, pathRegistrations, registeredDirCounts));
+        } catch (IOException ex) {
+            log.warn("Cannot register agent watch directories on {}", root.path(), ex);
+        }
+    }
+
+    private void registerAgentDirectoryIfNeeded(
+            WatchedRoot root,
+            Path candidateDir,
+            Map<WatchKey, RegisteredDirectory> keyRegistrations,
+            Map<Path, WatchKey> pathRegistrations,
+            Map<Path, Integer> registeredDirCounts
+    ) {
+        if (root == null || candidateDir == null || !Files.isDirectory(candidateDir)) {
+            return;
+        }
+        Path relative = root.path().relativize(candidateDir.toAbsolutePath().normalize());
+        if (relative.getNameCount() != 1) {
+            return;
+        }
+        registerDirectory(candidateDir, root, keyRegistrations, pathRegistrations, registeredDirCounts);
     }
 
     private void registerDirectoryTree(
@@ -422,6 +456,7 @@ public class DirectoryWatchService implements DisposableBean {
             );
             pathRegistrations.put(normalizedDir, key);
             keyRegistrations.put(key, new RegisteredDirectory(normalizedDir, root));
+            registeredDirectories.add(normalizedDir);
             registeredDirCounts.merge(root.path(), 1, Integer::sum);
             log.debug("Watching directory{}: {}", root.recursive() ? " recursively" : "", normalizedDir);
         } catch (IOException ex) {
@@ -567,6 +602,12 @@ public class DirectoryWatchService implements DisposableBean {
 
     Set<Path> watchedRootPathsForTesting() {
         return watchedRoots.keySet();
+    }
+
+    Set<Path> registeredDirectoriesForTesting() {
+        synchronized (registeredDirectories) {
+            return Set.copyOf(registeredDirectories);
+        }
     }
 
     void triggerForTesting(Path watchedRootPath, Path changedPath) {

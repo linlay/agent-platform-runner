@@ -12,13 +12,13 @@ modelConfig:
     effort: MEDIUM
 toolConfig:
   backends:
-  - container_hub_bash
+    - container_hub_bash
   frontends: []
   actions: []
 skillConfig:
   skills:
-  - docx
-  - pptx
+    - docx
+    - pptx
 sandboxConfig:
   environmentId: daily-office
   level: run
@@ -37,4 +37,4 @@ sandboxConfig:
   #     mode: rw
 mode: REACT
 react:
-  maxSteps: 10
+  maxSteps: 30

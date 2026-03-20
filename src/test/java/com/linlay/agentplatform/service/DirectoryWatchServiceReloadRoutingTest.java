@@ -27,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anySet;
@@ -43,20 +44,11 @@ class DirectoryWatchServiceReloadRoutingTest {
     Path tempDir;
 
     @Test
-    void shouldRefreshOnlyAffectedAgentsWhenToolsChanged() throws Exception {
-        AgentRegistry agentRegistry = mock(AgentRegistry.class);
-        ToolFileRegistryService toolFileRegistryService = mock(ToolFileRegistryService.class);
-
-        Set<String> changedTools = Set.of("tool.alpha");
-        Set<String> affectedAgents = Set.of("agent.alpha");
-        when(toolFileRegistryService.refreshTools())
-                .thenReturn(new CatalogDiff(changedTools, Set.of(), Set.of()));
-        when(agentRegistry.findAgentIdsByTools(changedTools)).thenReturn(affectedAgents);
-
+    void shouldNotExposeRemovedWatchRoots() {
         DirectoryWatchService service = createService(
-                agentRegistry,
+                mock(AgentRegistry.class),
                 mock(ViewportRegistryService.class),
-                toolFileRegistryService,
+                mock(ToolFileRegistryService.class),
                 mock(ModelRegistryService.class),
                 mock(ProviderRegistryService.class),
                 mock(SkillRegistryService.class),
@@ -67,12 +59,11 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportSyncService.class)
         );
         try {
-            trigger(service, tempDir.resolve("tools"), tempDir.resolve("tools").resolve("nested/custom.yml"));
-
-            verify(toolFileRegistryService).refreshTools();
-            verify(agentRegistry).findAgentIdsByTools(changedTools);
-            verify(agentRegistry).refreshAgentsByIds(affectedAgents, "tools-directory");
-            verify(agentRegistry, never()).refreshAgents();
+            assertThat(service.watchedRootPathsForTesting()).doesNotContain(
+                    tempDir.resolve("skills").toAbsolutePath().normalize(),
+                    tempDir.resolve("tools").toAbsolutePath().normalize(),
+                    tempDir.resolve("viewports").toAbsolutePath().normalize()
+            );
         } finally {
             service.destroy();
         }
@@ -199,18 +190,20 @@ class DirectoryWatchServiceReloadRoutingTest {
     }
 
     @Test
-    void shouldNotReloadAgentsWhenSkillsChanged() throws Exception {
-        AgentRegistry agentRegistry = mock(AgentRegistry.class);
-        SkillRegistryService skillRegistryService = mock(SkillRegistryService.class);
-        when(skillRegistryService.refreshSkills()).thenReturn(new CatalogDiff(Set.of("skill.alpha"), Set.of(), Set.of()));
+    void shouldRegisterOnlyAgentsRootAndFirstLevelAgentDirectories() throws Exception {
+        Files.createDirectories(tempDir.resolve("agents/demoAgent"));
+        Files.createDirectories(tempDir.resolve("agents/secondAgent"));
+        Files.createDirectories(tempDir.resolve("agents/demoAgent/memory/2026-03"));
+        Files.createDirectories(tempDir.resolve("agents/demoAgent/skills/custom_skill"));
+        Files.createDirectories(tempDir.resolve("agents/demoAgent/tools"));
 
         DirectoryWatchService service = createService(
-                agentRegistry,
+                mock(AgentRegistry.class),
                 mock(ViewportRegistryService.class),
                 mock(ToolFileRegistryService.class),
                 mock(ModelRegistryService.class),
                 mock(ProviderRegistryService.class),
-                skillRegistryService,
+                mock(SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mock(McpServerRegistryService.class),
                 mock(McpToolSyncService.class),
@@ -218,11 +211,16 @@ class DirectoryWatchServiceReloadRoutingTest {
                 mock(ViewportSyncService.class)
         );
         try {
-            trigger(service, tempDir.resolve("skills"), tempDir.resolve("skills").resolve("demo/SKILL.md"));
-
-            verify(skillRegistryService).refreshSkills();
-            verify(agentRegistry, never()).refreshAgentsByIds(anySet(), anyString());
-            verify(agentRegistry, never()).refreshAgents();
+            assertThat(service.registeredDirectoriesForTesting()).contains(
+                    tempDir.resolve("agents").toAbsolutePath().normalize(),
+                    tempDir.resolve("agents/demoAgent").toAbsolutePath().normalize(),
+                    tempDir.resolve("agents/secondAgent").toAbsolutePath().normalize()
+            ).doesNotContain(
+                    tempDir.resolve("agents/demoAgent/memory").toAbsolutePath().normalize(),
+                    tempDir.resolve("agents/demoAgent/memory/2026-03").toAbsolutePath().normalize(),
+                    tempDir.resolve("agents/demoAgent/skills").toAbsolutePath().normalize(),
+                    tempDir.resolve("agents/demoAgent/tools").toAbsolutePath().normalize()
+            );
         } finally {
             service.destroy();
         }
@@ -305,18 +303,18 @@ class DirectoryWatchServiceReloadRoutingTest {
             String logs = output.getOut() + output.getErr();
             assertContainsInOrder(
                     logs,
-                    "Directory watch root active: AGENTS=" + tempDir.resolve("agents").toAbsolutePath().normalize() + " (dirs=1)",
+                    "Directory watch root active: AGENTS=" + tempDir.resolve("agents").toAbsolutePath().normalize() + " (dirs=3)",
                     "Directory watch root active: MODELS=" + tempDir.resolve("models").toAbsolutePath().normalize() + " (dirs=1)",
                     "Directory watch root active: PROVIDERS=" + tempDir.resolve("providers").toAbsolutePath().normalize() + " (dirs=1)",
                     "Directory watch root active: MCP_SERVERS=" + tempDir.resolve("mcp-servers").toAbsolutePath().normalize() + " (dirs=1)",
                     "Directory watch root active: VIEWPORT_SERVERS=" + tempDir.resolve("viewport-servers").toAbsolutePath().normalize() + " (dirs=1)",
                     "Directory watch root active: TEAMS=" + tempDir.resolve("teams").toAbsolutePath().normalize() + " (dirs=1)",
-                    "Directory watch root active: SCHEDULES=" + tempDir.resolve("schedules").toAbsolutePath().normalize() + " (dirs=1)",
-                    "Directory watch root active: SKILLS_MARKET=" + tempDir.resolve("skills").toAbsolutePath().normalize() + " (dirs=1)",
-                    "Directory watch root active: TOOLS=" + tempDir.resolve("tools").toAbsolutePath().normalize() + " (dirs=1)",
-                    "Directory watch root active: VIEWPORTS=" + tempDir.resolve("viewports").toAbsolutePath().normalize() + " (dirs=1)"
+                    "Directory watch root active: SCHEDULES=" + tempDir.resolve("schedules").toAbsolutePath().normalize() + " (dirs=1)"
             );
             assertThat(logs).doesNotContain("Directory watch roots active: [");
+            assertThat(logs).doesNotContain("Directory watch root active: SKILLS_MARKET=");
+            assertThat(logs).doesNotContain("Directory watch root active: TOOLS=");
+            assertThat(logs).doesNotContain("Directory watch root active: VIEWPORTS=");
         } finally {
             service.destroy();
         }
@@ -348,9 +346,66 @@ class DirectoryWatchServiceReloadRoutingTest {
                     + tempDir.resolve("mcp-servers").toAbsolutePath().normalize() + " (reason=missing)");
             assertThat(logs).contains("Directory watch root skipped: VIEWPORT_SERVERS="
                     + tempDir.resolve("viewport-servers").toAbsolutePath().normalize() + " (reason=missing)");
-            assertThat(logs).contains("Directory watch root skipped: SKILLS_MARKET="
-                    + tempDir.resolve("skills").toAbsolutePath().normalize() + " (reason=missing)");
             assertThat(logs).doesNotContain("Directory watch roots skipped: [");
+            assertThat(logs).doesNotContain("Directory watch root skipped: SKILLS_MARKET=");
+            assertThat(logs).doesNotContain("Directory watch root skipped: TOOLS=");
+            assertThat(logs).doesNotContain("Directory watch root skipped: VIEWPORTS=");
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldRegisterWatcherWhenNewAgentDirectoryIsCreated() throws Exception {
+        Files.createDirectories(tempDir.resolve("agents/demoAgent"));
+
+        DirectoryWatchService service = createService(
+                mock(AgentRegistry.class),
+                mock(ViewportRegistryService.class),
+                mock(ToolFileRegistryService.class),
+                mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
+                mock(SkillRegistryService.class),
+                mock(TeamRegistryService.class),
+                mock(McpServerRegistryService.class),
+                mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
+        );
+        try {
+            Path newAgentDir = tempDir.resolve("agents/newAgent");
+            Files.createDirectories(newAgentDir);
+
+            assertThat(waitForRegisteredDirectory(service, newAgentDir, 5_000)).isTrue();
+        } finally {
+            service.destroy();
+        }
+    }
+
+    @Test
+    void shouldNotRegisterWatcherForNestedAgentDataDirectories() throws Exception {
+        Files.createDirectories(tempDir.resolve("agents/demoAgent"));
+
+        DirectoryWatchService service = createService(
+                mock(AgentRegistry.class),
+                mock(ViewportRegistryService.class),
+                mock(ToolFileRegistryService.class),
+                mock(ModelRegistryService.class),
+                mock(ProviderRegistryService.class),
+                mock(SkillRegistryService.class),
+                mock(TeamRegistryService.class),
+                mock(McpServerRegistryService.class),
+                mock(McpToolSyncService.class),
+                mock(ViewportServerRegistryService.class),
+                mock(ViewportSyncService.class)
+        );
+        try {
+            Path memoryDir = tempDir.resolve("agents/demoAgent/memory");
+            Path monthDir = memoryDir.resolve("2026-03");
+            Files.createDirectories(monthDir);
+
+            assertThat(remainsUnregistered(service, memoryDir, 1_000)).isTrue();
+            assertThat(remainsUnregistered(service, monthDir, 1_000)).isTrue();
         } finally {
             service.destroy();
         }
@@ -581,36 +636,18 @@ class DirectoryWatchServiceReloadRoutingTest {
         );
         try {
             assertThat(service.watchedRootPathsForTesting()).contains(
+                    tempDir.resolve("agents").toAbsolutePath().normalize(),
+                    tempDir.resolve("teams").toAbsolutePath().normalize(),
+                    tempDir.resolve("schedules").toAbsolutePath().normalize(),
                     tempDir.resolve("models").toAbsolutePath().normalize(),
                     tempDir.resolve("providers").toAbsolutePath().normalize(),
                     tempDir.resolve("mcp-servers").toAbsolutePath().normalize(),
-                    tempDir.resolve("viewport-servers").toAbsolutePath().normalize(),
-                    tempDir.resolve("skills").toAbsolutePath().normalize()
+                    tempDir.resolve("viewport-servers").toAbsolutePath().normalize()
+            ).doesNotContain(
+                    tempDir.resolve("skills").toAbsolutePath().normalize(),
+                    tempDir.resolve("tools").toAbsolutePath().normalize(),
+                    tempDir.resolve("viewports").toAbsolutePath().normalize()
             );
-        } finally {
-            service.destroy();
-        }
-    }
-
-    @Test
-    void shouldRefreshViewportRegistryWhenLocalViewportsChanged() {
-        ViewportRegistryService viewportRegistryService = mock(ViewportRegistryService.class);
-        DirectoryWatchService service = createService(
-                mock(AgentRegistry.class),
-                viewportRegistryService,
-                mock(ToolFileRegistryService.class),
-                mock(ModelRegistryService.class),
-                mock(ProviderRegistryService.class),
-                mock(SkillRegistryService.class),
-                mock(TeamRegistryService.class),
-                mock(McpServerRegistryService.class),
-                mock(McpToolSyncService.class),
-                mock(ViewportServerRegistryService.class),
-                mock(ViewportSyncService.class)
-        );
-        try {
-            trigger(service, tempDir.resolve("viewports"), tempDir.resolve("viewports/cards/weather_card.html"));
-            verify(viewportRegistryService).refreshViewports();
         } finally {
             service.destroy();
         }
@@ -722,6 +759,8 @@ class DirectoryWatchServiceReloadRoutingTest {
 
     private void createRuntimeRootDirectories() throws Exception {
         Files.createDirectories(tempDir.resolve("agents"));
+        Files.createDirectories(tempDir.resolve("agents/demoAgent"));
+        Files.createDirectories(tempDir.resolve("agents/secondAgent"));
         Files.createDirectories(tempDir.resolve("models"));
         Files.createDirectories(tempDir.resolve("providers"));
         Files.createDirectories(tempDir.resolve("mcp-servers"));
@@ -731,6 +770,30 @@ class DirectoryWatchServiceReloadRoutingTest {
         Files.createDirectories(tempDir.resolve("skills"));
         Files.createDirectories(tempDir.resolve("tools"));
         Files.createDirectories(tempDir.resolve("viewports"));
+    }
+
+    private boolean waitForRegisteredDirectory(DirectoryWatchService service, Path path, long timeoutMs) throws InterruptedException {
+        Path normalized = path.toAbsolutePath().normalize();
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        while (System.nanoTime() < deadline) {
+            if (service.registeredDirectoriesForTesting().contains(normalized)) {
+                return true;
+            }
+            TimeUnit.MILLISECONDS.sleep(20);
+        }
+        return service.registeredDirectoriesForTesting().contains(normalized);
+    }
+
+    private boolean remainsUnregistered(DirectoryWatchService service, Path path, long timeoutMs) throws InterruptedException {
+        Path normalized = path.toAbsolutePath().normalize();
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        while (System.nanoTime() < deadline) {
+            if (service.registeredDirectoriesForTesting().contains(normalized)) {
+                return false;
+            }
+            TimeUnit.MILLISECONDS.sleep(20);
+        }
+        return !service.registeredDirectoriesForTesting().contains(normalized);
     }
 
     private void assertContainsInOrder(String text, String... fragments) {
