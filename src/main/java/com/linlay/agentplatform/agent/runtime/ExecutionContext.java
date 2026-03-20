@@ -1,7 +1,6 @@
 package com.linlay.agentplatform.agent.runtime;
 
 import com.linlay.agentplatform.agent.AgentDefinition;
-import com.linlay.agentplatform.agent.PlannedToolCall;
 import com.linlay.agentplatform.agent.SkillAppend;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.model.AgentRequest;
@@ -11,8 +10,6 @@ import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.util.IdGenerators;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -28,8 +25,6 @@ import java.util.UUID;
 public class ExecutionContext {
 
     public static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
-    private static final Logger log = LoggerFactory.getLogger(ExecutionContext.class);
-    private static final String SKILL_SCRIPT_RUN_TOOL = "_skill_run_script_";
 
     private final AgentDefinition definition;
     private final AgentRequest request;
@@ -50,8 +45,6 @@ public class ExecutionContext {
     private final List<ChatMessage> executeMessages;
     private final List<Map<String, Object>> toolRecords = new ArrayList<>();
     private final List<AgentDelta.PlanTask> planTasks = new ArrayList<>();
-    private final Set<String> pendingSkillIds = new LinkedHashSet<>();
-    private final Set<String> disclosedSkillIds = new LinkedHashSet<>();
     private String planId;
     private String activeTaskId;
     private SandboxSession sandboxSession;
@@ -213,60 +206,6 @@ public class ExecutionContext {
             sections.add(skillCatalogPrompt);
         }
         return String.join("\n\n", sections);
-    }
-
-    public void registerSkillUsageFromToolCalls(List<PlannedToolCall> toolCalls) {
-        if (toolCalls == null || toolCalls.isEmpty() || resolvedSkillsById.isEmpty()) {
-            return;
-        }
-        for (PlannedToolCall call : toolCalls) {
-            if (call == null || !SKILL_SCRIPT_RUN_TOOL.equals(normalizeToolName(call.name()))) {
-                continue;
-            }
-            String skillId = normalizeSkillId(readSkillId(call.arguments()));
-            if (!StringUtils.hasText(skillId)) {
-                continue;
-            }
-            if (!resolvedSkillsById.containsKey(skillId)) {
-                log.warn(
-                        "[agent:{}] tool _skill_run_script_ requested unknown skill and will be ignored: {}",
-                        definition.id(),
-                        skillId
-                );
-                continue;
-            }
-            if (disclosedSkillIds.contains(skillId)) {
-                continue;
-            }
-            pendingSkillIds.add(skillId);
-        }
-    }
-
-    public String consumeDeferredSkillSystemPrompt() {
-        if (pendingSkillIds.isEmpty()) {
-            return "";
-        }
-        List<String> toConsume = new ArrayList<>(pendingSkillIds);
-        pendingSkillIds.clear();
-
-        List<String> blocks = new ArrayList<>();
-        for (String skillId : toConsume) {
-            disclosedSkillIds.add(skillId);
-            SkillDescriptor descriptor = resolvedSkillsById.get(skillId);
-            if (descriptor == null) {
-                continue;
-            }
-            String promptBlock = buildSkillDisclosureBlock(descriptor);
-            if (StringUtils.hasText(promptBlock)) {
-                blocks.add(promptBlock);
-            }
-        }
-        if (blocks.isEmpty()) {
-            return "";
-        }
-        // Deferred skill disclosure is merged into system prompt in the next model turn.
-        return skillAppend.disclosureHeader() + "\n\n"
-                + String.join("\n\n---\n\n", blocks);
     }
 
     public String planId() {
@@ -460,28 +399,6 @@ public class ExecutionContext {
         return normalized.isEmpty() ? Map.of() : Map.copyOf(normalized);
     }
 
-    private String buildSkillDisclosureBlock(SkillDescriptor descriptor) {
-        String prompt = descriptor.prompt() == null ? "" : descriptor.prompt().trim();
-        if (!StringUtils.hasText(prompt)) {
-            return "";
-        }
-        StringBuilder block = new StringBuilder();
-        block.append("skillId: ").append(descriptor.id());
-        if (StringUtils.hasText(descriptor.name())) {
-            block.append("\nname: ").append(descriptor.name());
-        }
-        if (StringUtils.hasText(descriptor.description())) {
-            block.append("\ndescription: ").append(descriptor.description());
-        }
-        String label = normalizeLabel(skillAppend.instructionsLabel(), "instructions");
-        block.append("\n").append(label).append('\n').append(prompt);
-        String experiencePrompt = skillExperiencePromptById.get(normalizeSkillId(descriptor.id()));
-        if (StringUtils.hasText(experiencePrompt)) {
-            block.append("\n\n").append(experiencePrompt.trim());
-        }
-        return block.toString();
-    }
-
     private Map<String, String> normalizeSkillExperiencePrompts(Map<String, String> raw) {
         if (raw == null || raw.isEmpty()) {
             return Map.of();
@@ -534,25 +451,6 @@ public class ExecutionContext {
             normalized.putIfAbsent(key, tool);
         }
         return normalized.isEmpty() ? Map.of() : Map.copyOf(normalized);
-    }
-
-    private String normalizeLabel(String raw, String fallback) {
-        String label = StringUtils.hasText(raw) ? raw.trim() : fallback;
-        if (!label.endsWith(":")) {
-            label = label + ":";
-        }
-        return label;
-    }
-
-    private String readSkillId(Map<String, Object> args) {
-        if (args == null || args.isEmpty()) {
-            return "";
-        }
-        Object raw = args.get("skill");
-        if (raw == null) {
-            return "";
-        }
-        return raw.toString();
     }
 
     private String normalizeToolName(String raw) {

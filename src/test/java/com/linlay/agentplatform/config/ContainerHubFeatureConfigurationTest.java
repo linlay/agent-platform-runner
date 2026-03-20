@@ -57,7 +57,7 @@ class ContainerHubFeatureConfigurationTest {
             ContainerHubToolProperties.class,
             DataProperties.class,
             ChatWindowMemoryProperties.class,
-            WorkspaceProperties.class,
+            RootProperties.class,
             PanProperties.class,
             SkillProperties.class,
             ToolProperties.class,

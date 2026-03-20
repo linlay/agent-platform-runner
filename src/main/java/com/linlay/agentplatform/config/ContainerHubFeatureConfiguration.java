@@ -48,7 +48,7 @@ public class ContainerHubFeatureConfiguration {
     @Bean
     public ContainerHubMountResolver containerHubMountResolver(
             ChatWindowMemoryProperties chatWindowMemoryProperties,
-            WorkspaceProperties workspaceProperties,
+            RootProperties rootProperties,
             PanProperties panProperties,
             SkillProperties skillProperties,
             AgentProperties agentProperties,
@@ -62,7 +62,7 @@ public class ContainerHubFeatureConfiguration {
     ) {
         return new ContainerHubMountResolver(
                 chatWindowMemoryProperties,
-                workspaceProperties,
+                rootProperties,
                 panProperties,
                 skillProperties,
                 agentProperties,

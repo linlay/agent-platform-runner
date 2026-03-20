@@ -10,7 +10,7 @@ Use this skill when the task is to verify the `container_hub_bash` tool and the 
 Rules:
 
 1. All command execution must go through `container_hub_bash`.
-2. Do not use `_bash_` or `_skill_run_script_` for this validation.
+2. Do not use `_bash_`, MCP tools, or any host-side execution path for this validation.
 3. Treat `python3` as a container dependency check. If missing, report it as an environment gap.
 4. Do not claim host-side files were written unless the tool output proves it or the configured mount behavior clearly implies it.
 

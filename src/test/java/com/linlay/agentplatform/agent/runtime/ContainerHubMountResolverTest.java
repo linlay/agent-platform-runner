@@ -9,7 +9,7 @@ import com.linlay.agentplatform.config.PanProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
-import com.linlay.agentplatform.config.WorkspaceProperties;
+import com.linlay.agentplatform.config.RootProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
@@ -32,7 +32,7 @@ class ContainerHubMountResolverTest {
     @Test
     void runLevelShouldCreateChatScopedDataDirectoryAndMountItToTmp() throws Exception {
         Path dataRoot = Files.createDirectories(tempDir.resolve("data-root"));
-        WorkspaceProperties workspaceProperties = workspaceProperties(Files.createDirectories(tempDir.resolve("workspace")));
+        RootProperties rootProperties = rootProperties(Files.createDirectories(tempDir.resolve("root")));
         SkillProperties skillProperties = skillProperties(Files.createDirectories(tempDir.resolve("skills")));
         PanProperties panProperties = panProperties(Files.createDirectories(tempDir.resolve("pan")));
 
@@ -40,7 +40,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(dataRoot),
                 skillProperties,
-                workspaceProperties,
+                rootProperties,
                 panProperties,
                 providerProperties(tempDir.resolve("providers"))
         );
@@ -50,7 +50,7 @@ class ContainerHubMountResolverTest {
         Path chatDir = dataRoot.resolve("chat-123");
         assertThat(Files.isDirectory(chatDir)).isTrue();
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .contains("/tmp", "/home", "/skills", "/pan");
+                .contains("/tmp", "/root", "/skills", "/pan");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(chatDir.toAbsolutePath().normalize().toString());
     }
@@ -58,7 +58,7 @@ class ContainerHubMountResolverTest {
     @Test
     void runLevelShouldFallbackToAgentDataExternalDirWhenMountDataDirIsNotConfigured() throws Exception {
         Path dataRoot = Files.createDirectories(tempDir.resolve("fallback-data"));
-        WorkspaceProperties workspaceProperties = workspaceProperties(Files.createDirectories(tempDir.resolve("workspace")));
+        RootProperties rootProperties = rootProperties(Files.createDirectories(tempDir.resolve("root")));
         SkillProperties skillProperties = skillProperties(Files.createDirectories(tempDir.resolve("skills")));
         PanProperties panProperties = panProperties(Files.createDirectories(tempDir.resolve("pan")));
 
@@ -66,7 +66,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(dataRoot),
                 skillProperties,
-                workspaceProperties,
+                rootProperties,
                 panProperties,
                 providerProperties(tempDir.resolve("providers"))
         );
@@ -83,7 +83,7 @@ class ContainerHubMountResolverTest {
 
     @Test
     void shouldMountDefaultDirectoriesAndAgentSelfDirectory() throws Exception {
-        Path workspaceDir = Files.createDirectories(tempDir.resolve("workspace"));
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
@@ -94,7 +94,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(dataDir),
                 skillProperties(skillsDir),
-                workspaceProperties(workspaceDir),
+                rootProperties(rootDir),
                 panProperties(panDir),
                 providerProperties(tempDir.resolve("providers"))
         );
@@ -102,14 +102,14 @@ class ContainerHubMountResolverTest {
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.AGENT, "chat", "atlas", List.of());
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .containsExactly("/tmp", "/home", "/skills", "/pan", "/agent");
+                .containsExactly("/tmp", "/root", "/skills", "/pan", "/agent");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(agentDir.toAbsolutePath().normalize().toString());
     }
 
     @Test
     void shouldSkipAgentSelfDirectoryForFlatAgent() throws Exception {
-        Path workspaceDir = Files.createDirectories(tempDir.resolve("workspace"));
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
@@ -118,7 +118,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(dataDir),
                 skillProperties(skillsDir),
-                workspaceProperties(workspaceDir),
+                rootProperties(rootDir),
                 panProperties(panDir),
                 providerProperties(tempDir.resolve("providers"))
         );
@@ -126,12 +126,12 @@ class ContainerHubMountResolverTest {
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.AGENT, "chat", "flat-agent", List.of());
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .containsExactly("/tmp", "/home", "/skills", "/pan");
+                .containsExactly("/tmp", "/root", "/skills", "/pan");
     }
 
     @Test
     void shouldResolvePlatformExtraMounts() throws Exception {
-        Path workspaceDir = Files.createDirectories(tempDir.resolve("workspace"));
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
@@ -143,7 +143,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(dataDir),
                 skillProperties(skillsDir),
-                workspaceProperties(workspaceDir),
+                rootProperties(rootDir),
                 panProperties(panDir),
                 providerProperties(tempDir.resolve("providers"))
         );
@@ -171,7 +171,7 @@ class ContainerHubMountResolverTest {
 
     @Test
     void shouldAddCustomExtraMount() throws Exception {
-        Path workspaceDir = Files.createDirectories(tempDir.resolve("workspace"));
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
@@ -181,7 +181,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(dataDir),
                 skillProperties(skillsDir),
-                workspaceProperties(workspaceDir),
+                rootProperties(rootDir),
                 panProperties(panDir),
                 providerProperties(tempDir.resolve("providers"))
         );
@@ -201,7 +201,7 @@ class ContainerHubMountResolverTest {
 
     @Test
     void shouldFailWhenCustomExtraMountDestinationIsRelative() throws Exception {
-        Path workspaceDir = Files.createDirectories(tempDir.resolve("workspace"));
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
@@ -211,7 +211,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(dataDir),
                 skillProperties(skillsDir),
-                workspaceProperties(workspaceDir),
+                rootProperties(rootDir),
                 panProperties(panDir),
                 providerProperties(tempDir.resolve("providers"))
         );
@@ -228,7 +228,7 @@ class ContainerHubMountResolverTest {
 
     @Test
     void shouldFailWhenExtraMountDestinationConflicts() throws Exception {
-        Path workspaceDir = Files.createDirectories(tempDir.resolve("workspace"));
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
@@ -238,7 +238,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(dataDir),
                 skillProperties(skillsDir),
-                workspaceProperties(workspaceDir),
+                rootProperties(rootDir),
                 panProperties(panDir),
                 providerProperties(tempDir.resolve("providers"))
         );
@@ -247,16 +247,16 @@ class ContainerHubMountResolverTest {
                 SandboxLevel.RUN,
                 "chat",
                 "flat-agent",
-                List.of(new AgentDefinition.ExtraMount(null, datasetDir.toString(), "/home"))
+                List.of(new AgentDefinition.ExtraMount(null, datasetDir.toString(), "/root"))
         ))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("containerPath conflicts with existing mount")
-                .hasMessageContaining("containerPath=/home");
+                .hasMessageContaining("containerPath=/root");
     }
 
     @Test
     void shouldFailWhenProvidersPlatformMountSourceDoesNotExist() throws Exception {
-        Path workspaceDir = Files.createDirectories(tempDir.resolve("workspace"));
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
@@ -266,7 +266,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(dataDir),
                 skillProperties(skillsDir),
-                workspaceProperties(workspaceDir),
+                rootProperties(rootDir),
                 panProperties(panDir),
                 providerProperties(providersDir)
         );
@@ -285,7 +285,7 @@ class ContainerHubMountResolverTest {
 
     @Test
     void shouldSkipUnknownPlatformExtraMount() throws Exception {
-        Path workspaceDir = Files.createDirectories(tempDir.resolve("workspace"));
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
@@ -294,7 +294,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(dataDir),
                 skillProperties(skillsDir),
-                workspaceProperties(workspaceDir),
+                rootProperties(rootDir),
                 panProperties(panDir),
                 providerProperties(tempDir.resolve("providers"))
         );
@@ -307,14 +307,14 @@ class ContainerHubMountResolverTest {
         );
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .containsExactly("/tmp", "/home", "/skills", "/pan");
+                .containsExactly("/tmp", "/root", "/skills", "/pan");
     }
 
     @Test
     void runLevelShouldFailEarlyWhenChatScopedDataDirectoryCannotBeCreated() throws Exception {
         Path fileAsRoot = tempDir.resolve("not-a-directory");
         Files.writeString(fileAsRoot, "blocked");
-        Path workspaceDir = Files.createDirectories(tempDir.resolve("workspace"));
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
 
@@ -322,7 +322,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(fileAsRoot),
                 skillProperties(skillsDir),
-                workspaceProperties(workspaceDir),
+                rootProperties(rootDir),
                 panProperties(panDir),
                 providerProperties(tempDir.resolve("providers"))
         );
@@ -335,31 +335,31 @@ class ContainerHubMountResolverTest {
     }
 
     @Test
-    void shouldFailEarlyWhenWorkspaceDirDoesNotExist() throws Exception {
+    void shouldFailEarlyWhenRootDirDoesNotExist() throws Exception {
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
-        Path missingWorkspaceDir = tempDir.resolve("missing-workspace");
+        Path missingRootDir = tempDir.resolve("missing-root");
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
                 dataProperties(dataDir),
                 skillProperties(skillsDir),
-                workspaceProperties(missingWorkspaceDir),
+                rootProperties(missingRootDir),
                 panProperties(panDir),
                 providerProperties(tempDir.resolve("providers"))
         );
 
         assertThatThrownBy(() -> resolver.resolve(SandboxLevel.RUN, "chat-mount", "flat-agent", List.of()))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("container-hub mount validation failed for workspace-dir")
-                .hasMessageContaining("configured=" + missingWorkspaceDir)
-                .hasMessageContaining("containerPath=/home");
+                .hasMessageContaining("container-hub mount validation failed for root-dir")
+                .hasMessageContaining("configured=" + missingRootDir)
+                .hasMessageContaining("containerPath=/root");
     }
 
     @Test
     void shouldFailEarlyWhenPanDirDoesNotExist() throws Exception {
-        Path workspaceDir = Files.createDirectories(tempDir.resolve("workspace"));
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
         Path missingPanDir = tempDir.resolve("missing-pan");
@@ -368,7 +368,7 @@ class ContainerHubMountResolverTest {
                 new ContainerHubToolProperties(),
                 dataProperties(dataDir),
                 skillProperties(skillsDir),
-                workspaceProperties(workspaceDir),
+                rootProperties(rootDir),
                 panProperties(missingPanDir),
                 providerProperties(tempDir.resolve("providers"))
         );
@@ -384,7 +384,7 @@ class ContainerHubMountResolverTest {
             ContainerHubToolProperties properties,
             DataProperties dataProperties,
             SkillProperties skillProperties,
-            WorkspaceProperties workspaceProperties,
+            RootProperties rootProperties,
             PanProperties panProperties,
             ProviderProperties providerProperties
     ) {
@@ -411,7 +411,7 @@ class ContainerHubMountResolverTest {
 
         return new ContainerHubMountResolver(
                 dataProperties,
-                workspaceProperties,
+                rootProperties,
                 panProperties,
                 skillProperties,
                 toolProperties,
@@ -437,8 +437,8 @@ class ContainerHubMountResolverTest {
         return properties;
     }
 
-    private WorkspaceProperties workspaceProperties(Path path) {
-        WorkspaceProperties properties = new WorkspaceProperties();
+    private RootProperties rootProperties(Path path) {
+        RootProperties properties = new RootProperties();
         properties.setExternalDir(path.toString());
         return properties;
     }

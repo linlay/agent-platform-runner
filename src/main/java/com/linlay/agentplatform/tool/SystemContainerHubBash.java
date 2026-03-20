@@ -89,7 +89,7 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
     }
 
     private JsonNode failureText(String error) {
-        return textResult(-1, "", error, "/workspace");
+        return textResult(-1, "", error, "/root");
     }
 
     private boolean isErrorResponse(JsonNode response) {

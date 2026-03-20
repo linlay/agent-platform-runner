@@ -112,7 +112,7 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 | `model.api` | REST 契约：`ApiResponse`、`QueryRequest`、`SubmitRequest`、`SteerRequest`、`InterruptRequest`、`ChatDetailResponse` 等 |
 | `model.stream` | 流式领域模型：`AgentDelta`、`ToolCallDelta`、SSE payload 映射 |
 | `service` | `LlmService`、`AgentQueryService`、`ActiveRunService`、`ChatRecordStore`、`DirectoryWatchService`、MCP 同步与重连 |
-| `tool` | `BaseTool`、`ToolRegistry`、`ToolFileRegistryService`、内置 `_bash_` / `datetime` / `_skill_run_script_` / `container_hub_bash` 等 |
+| `tool` | `BaseTool`、`ToolRegistry`、`ToolFileRegistryService`、内置 `_bash_` / `datetime` / `container_hub_bash` 等 |
 | `skill` | `SkillRegistryService`、`SkillDescriptor`、`SkillProperties`、运行时 prompt 注入 |
 | `schedule` | Schedule 注册、增量 reconcile、Cron dispatch |
 | `security` | `ApiJwtAuthWebFilter`、`ChatImageTokenService`、JWT/JWKS 本地与远程校验 |
@@ -151,8 +151,8 @@ toolConfig:
   frontends: ["show_weather_card"]
   actions: ["switch_theme"]
 skillConfig:
-  skills: ["math_basic", "screenshot"]
-skills: ["math_basic", "screenshot"]
+  skills: ["docx", "screenshot"]
+skills: ["docx", "screenshot"]
 mode: ONESHOT
 toolChoice: AUTO
 budget:
@@ -355,7 +355,6 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 ### 内置工具
 
-- `_skill_run_script_`：执行 `skills/<skill>/` 目录下脚本或临时 Python 脚本。`script` 与 `pythonCode` 二选一；支持 `.py` / `.sh`；内联 Python 写入 `/tmp/agent-platform-skill-inline/`，执行后清理。
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `container_hub_bash`：在 Container Hub 沙箱环境中执行命令，受 `sandboxConfig` 与 `agent.tools.container-hub.*` 控制。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
@@ -394,16 +393,16 @@ Agent Definition 文件中引用 skills：
 
 ```yaml
 skillConfig:
-  skills: ["math_basic", "screenshot"]
+  skills: ["docx", "screenshot"]
 ```
 
 或简写：
 
 ```yaml
-skills: ["math_basic", "screenshot"]
+skills: ["docx", "screenshot"]
 ```
 
-两种写法会合并去重。运行时，技能目录摘要注入 system prompt；LLM 调用 `_skill_run_script_` 时补充完整技能说明。
+两种写法会合并去重。运行时，技能目录摘要注入 system prompt；skill 正文用于给模型提供操作手册和命令模板，不再依赖专用脚本执行工具。
 
 - 热加载：`skills/` 目录变更仅刷新 `SkillRegistryService`，不触发 agent reload；reload 后新 run 会读取新技能内容。
 - 目录化 Agent 可放置 per-agent `skills/`，作为该 agent 私有 skill 资源。
@@ -423,9 +422,8 @@ skills: ["math_basic", "screenshot"]
 | skill-id | 说明 |
 |----------|------|
 | `screenshot` | 截图流程示例（含脚本 smoke test） |
-| `math_basic` | 算术计算（add/sub/mul/div/pow/mod） |
-| `math_stats` | 统计计算（summary/count/sum/min/max/mean/median/mode/stdev） |
-| `text_utils` | 文本指标（字符/词数/行数，可选空白归一化） |
+| `docx` | Word 文档读写、内容提取、转换与结构化生成。 |
+| `pptx` | PPT / PPTX 读取、编辑、从提纲生成幻灯片。 |
 | `slack-gif-creator` | GIF 动画创建 |
 
 ## Schedules 系统
@@ -501,7 +499,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 | 容器内路径 | RUN 宿主路径 | AGENT / GLOBAL 宿主路径 | 默认策略 | 配置键（为空时 fallback） |
 |-----------|-------------|-------------------------|----------|--------------------------|
 | `/tmp` | `{chatDataDir}/{chatId}` | `{chatDataDir}` | 默认挂载 | `memory.chats.dir` |
-| `/home` | `{workspaceDir}` | `{workspaceDir}` | 默认挂载 | `agent.workspace.external-dir` |
+| `/root` | `{rootDir}` | `{rootDir}` | 默认挂载 | `agent.root.external-dir` |
 | `/skills` | `{skillsDir}` | `{skillsDir}` | 默认挂载 | `agent.skills.external-dir` |
 | `/pan` | `{panDir}` | `{panDir}` | 默认挂载 | `agent.pan.external-dir` |
 | `/agent` | `{agentsDir}/{agentKey}` | `{agentsDir}/{agentKey}` | 默认挂载；仅目录化 agent 存在时挂载 | `agent.agents.external-dir` |
@@ -516,7 +514,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 
 ### 挂载原则
 
-- 默认最小集：默认只挂载 `/tmp`、`/home`、`/skills`、`/pan`、`/agent`，不再默认暴露全量平台配置目录。
+- 默认最小集：默认只挂载 `/tmp`、`/root`、`/skills`、`/pan`、`/agent`，不再默认暴露全量平台配置目录。
 - agent 就近原则：当前 agent 若采用目录化布局，默认挂载其自身目录到 `/agent`；扁平 YAML agent 不强制创建该挂载。
 - 按需显式原则：`/models`、`/tools`、`/agents`、`/viewports`、`/teams`、`/schedules`、`/mcp-servers`、`/providers` 仅能通过 `sandboxConfig.extraMounts` 显式恢复。
 - 最小暴露原则：agent 只应声明完成任务所必需的额外挂载，避免把无关目录带入沙箱。
@@ -755,7 +753,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `AGENT_CONTAINER_HUB_DEFAULT_SANDBOX_LEVEL` | `agent.tools.container-hub.default-sandbox-level` | `run` | 全局默认沙箱级别 |
 | `AGENT_CONTAINER_HUB_AGENT_IDLE_TIMEOUT_MS` | `agent.tools.container-hub.agent-idle-timeout-ms` | `600000` | agent 级别空闲驱逐超时（ms） |
 | `AGENT_CONTAINER_HUB_DESTROY_QUEUE_DELAY_MS` | `agent.tools.container-hub.destroy-queue-delay-ms` | `5000` | run 级别异步销毁延迟（ms） |
-| `WORKSPACE_DIR` | `agent.workspace.external-dir` | `workspace` | 容器 `/home` 对应的 runner 工作区目录 |
+| `ROOT_DIR` | `agent.root.external-dir` | `root` | 容器 `/root` 对应的 runner 根目录 |
 | `PAN_DIR` | `agent.pan.external-dir` | `pan` | 容器 `/pan` 对应的 runner 目录 |
 | `SKILLS_MARKET_DIR` | `agent.skills.external-dir` | `skills-market` | 技能目录 |
 | `AGENT_SKILLS_REFRESH_INTERVAL_MS` | `agent.skills.refresh-interval-ms` | `30000` | 技能刷新间隔（ms） |

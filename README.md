@@ -279,7 +279,7 @@ VIEWPORT_SERVERS_DIR=/Users/you/runtime/runner/viewport-servers
 SKILLS_MARKET_DIR=/Users/you/runtime/runner/skills-market
 SCHEDULES_DIR=/Users/you/runtime/runner/schedules
 CHATS_DIR=/Users/you/runtime/runner/chats
-WORKSPACE_DIR=/Users/you/runtime/runner/workspace
+ROOT_DIR=/Users/you/runtime/runner/root
 PAN_DIR=/Users/you/runtime/runner/pan
 ```
 
@@ -305,7 +305,7 @@ docker compose up -d --build
 - `docker-compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（compose 会显式覆盖 `SERVER_PORT=8080`）。
-- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`AGENTS_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`TOOLS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`VIEWPORTS_DIR`、`SKILLS_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`。
+- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`AGENTS_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`TOOLS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`VIEWPORTS_DIR`、`SKILLS_MARKET_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`ROOT_DIR`、`PAN_DIR`。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
 #### 文件放置约定
@@ -491,11 +491,8 @@ planExecute:
 
 ```yaml
 skills:
-  - math_basic
-  - text_utils
-toolConfig:
-  backends:
-    - _skill_run_script_
+  - docx
+  - pptx
 ```
 
 ## Models / 工具 / 视图 / 技能目录
@@ -619,7 +616,6 @@ toolConfig:
 - `demoModePlanExecute`（`PLAN_EXECUTE`）：`星策`，角色为“规划执行示例”。
 - `demoViewport`（`REACT`）：`极光`，角色为“视图渲染示例”。
 - `demoAction`（`ONESHOT`）：`小焰`，角色为“UI动作示例”。
-- `demoMathSkill`（`ONESHOT`）：`Leo`，角色为“数学技能示例”。
 - `demoConfirmDialog`（`REACT`）：`灵犀`，角色为“确认对话示例”。
 - `demoDataViewer`（`ONESHOT`）：`天枢`，角色为“文件展示示例”。
 - `demoCreateGif`（`REACT`）：`Milo`，角色为“GIF制作示例”。
@@ -644,15 +640,11 @@ toolConfig:
 - 以下 demo skills 位于 `example/skills/`，可通过 `example/install-example-*` 安装到运行目录：
 - `docx`：Word 文档读写、内容提取、转换与结构化生成。
 - `screenshot`：截图流程示例（含脚本 smoke test）。
-- `math_basic`：算术计算（add/sub/mul/div/pow/mod）。
-- `math_stats`：统计计算（summary/count/sum/min/max/mean/median/mode/stdev）。
 - `pptx`：PPT/PPTX 读取、编辑、从提纲生成幻灯片。
-- `text_utils`：文本指标（字符/词数/行数，可选空白归一化）。
 - `slack-gif-creator`：GIF 动画创建。
 
 ### Java 内置工具
 
-- `_skill_run_script_`：执行 skills 目录下脚本或临时 Python 脚本。
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
 - `mock_city_weather`：模拟城市天气数据。
@@ -671,7 +663,7 @@ default-environment-id: shell
 
 说明：
 
-- `demoContainerHubValidator` 只使用 `container_hub_bash`，不会回退到 `_bash_` 或 `_skill_run_script_`。
+- `demoContainerHubValidator` 只使用 `container_hub_bash`，不会回退到 `_bash_` 或任何宿主机执行路径。
 - 第二阶段的 Python 验证是“容器内 Python”，不是本机 skill 脚本执行。
 - RUN 级 session 下，容器中的 `/tmp/<file>` 预期会映射到 host 侧 `CHATS_DIR/<chatId>/<file>`。
 - 若容器环境缺少 `python3`，应将其记录为环境缺口，而不是宣称验证通过。
@@ -689,7 +681,7 @@ default-environment-id: shell
 
 1. 在 runner 侧启用 `configs/container-hub.yml`（可从 `configs/container-hub.example.yml` 复制）。
 2. `agent-container-hub` 服务中存在可用的 `daily-office` environment。
-3. 建议配置 `CHATS_DIR`、`WORKSPACE_DIR`、`PAN_DIR` 等 runner 全局目录，这样 RUN 级沙箱会自动把共享目录挂到容器内 `/tmp`、`/home`、`/pan`。
+3. 建议配置 `CHATS_DIR`、`ROOT_DIR`、`PAN_DIR` 等 runner 全局目录，这样 RUN 级沙箱会自动把共享目录挂到容器内 `/tmp`、`/root`、`/pan`。
 
 最小配置示例：
 
@@ -701,9 +693,10 @@ default-environment-id: daily-office
 
 运行约定：
 
-- `dailyOfficeAssistant` 只使用 `container_hub_bash`，不会回退到 `_bash_` 或 `_skill_run_script_`。
+- `dailyOfficeAssistant` 只使用 `container_hub_bash`，不会回退到 `_bash_` 或任何宿主机执行路径。
 - Agent 会把容器内 `/tmp` 视为唯一工作目录：上传或已有 chat 资产从 `/tmp` 读取，新生成的 `.docx/.pptx` 也写回 `/tmp`。
 - RUN 级 session 下，容器中的 `/tmp/<filename>` 会映射到 host 侧 `CHATS_DIR/<chatId>/<filename>`。
+- `docx` / `pptx` skills 提供的是操作手册，不是自动执行器；agent 需要自己通过 `container_hub_bash` 在容器内访问 `/skills/docx` 与 `/skills/pptx` 并执行对应命令。
 - 产物可通过 `/api/data` 下载，推荐格式：
   - `/api/data?file=<chatId>%2F<filename>&download=true`
 - 若 agent 能从当前上下文确定具体 `chatId`，应返回完整下载链接；否则至少返回上述模板。
@@ -726,7 +719,7 @@ default-environment-id: shell
 - `meta.sourceType` 在 `/api/tools` 与 `/api/tool?toolName=container_hub_bash` 中应表现为 `local`。
 - 该工具的职责是把 runner 的 tool call 桥接为 `agent-container-hub` 的 HTTP session API，而不是提供一个 MCP transport 封装。
 - `RUN` 级 sandbox 在创建 session 前会自动准备 `CHATS_DIR/<chatId>` 目录，并把它挂载到容器内的 `/tmp`。
-- `/home` 与 `/pan` 分别来自 runner 全局目录 `WORKSPACE_DIR` 与 `PAN_DIR`；`configs/container-hub.yml` 不再单独配置挂载源目录。
+- `/root` 与 `/pan` 分别来自 runner 全局目录 `ROOT_DIR` 与 `PAN_DIR`；`configs/container-hub.yml` 不再单独配置挂载源目录。
 
 ## Bash 工具配置
 
@@ -1024,8 +1017,9 @@ curl -N -X POST "$BASE_URL/api/query" \
 
 ```bash
 curl -N -X POST "$BASE_URL/api/query" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"message":"请计算 (2+3)*4，并说明过程","agentKey":"demoMathSkill"}'
+  -d '{"message":"先检查 /skills/docx 和 pandoc/soffice 是否可用，再总结 /tmp/report.docx 的内容","agentKey":"dailyOfficeAssistant"}'
 ```
 
 ```bash

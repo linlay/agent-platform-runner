@@ -278,16 +278,17 @@ class AgentControllerTest {
                 .jsonPath("$.data[0].icon.color").exists()
                 .jsonPath("$.data[0].meta").doesNotExist()
                 .jsonPath("$.data[?(@.key=='demoModePlain')]").exists()
-                .jsonPath("$.data[?(@.key=='demoModeThinking')]").exists()
-                .jsonPath("$.data[?(@.key=='demoModePlainTooling')]").exists()
                 .jsonPath("$.data[?(@.key=='demoModeReact')]").exists()
                 .jsonPath("$.data[?(@.key=='demoModePlanExecute')]").exists()
                 .jsonPath("$.data[?(@.key=='demoViewport')]").exists()
                 .jsonPath("$.data[?(@.key=='demoAction')]").exists()
                 .jsonPath("$.data[?(@.key=='demoScheduleManager')]").exists()
-                .jsonPath("$.data[?(@.key=='demoMathSkill')]").exists()
-                .jsonPath("$.data[?(@.key=='demoConfirmDialog')]").exists()
-                .jsonPath("$.data[?(@.key=='demoDataViewer')]").exists();
+                .jsonPath("$.data[?(@.key=='demoContainerHubValidator')]").exists()
+                .jsonPath("$.data[?(@.key=='demoDatabase')]").exists()
+                .jsonPath("$.data[?(@.key=='demoMail')]").exists()
+                .jsonPath("$.data[?(@.key=='demoImageGenerator')]").exists()
+                .jsonPath("$.data[?(@.key=='dailyOfficeAssistant')]").exists()
+                .jsonPath("$.data[?(@.key=='demoConfirmDialog')]").exists();
     }
 
     @Test
@@ -362,16 +363,16 @@ class AgentControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data[0].key").exists()
                 .jsonPath("$.data[0].meta.promptTruncated").isBoolean()
-                .jsonPath("$.data[?(@.key=='math_basic')]").exists()
-                .jsonPath("$.data[?(@.key=='text_utils')]").exists();
+                .jsonPath("$.data[?(@.key=='container_hub_validation')]").exists()
+                .jsonPath("$.data[?(@.key=='docx')]").exists();
 
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/skills").queryParam("tag", "math").build())
+                .uri(uriBuilder -> uriBuilder.path("/api/skills").queryParam("tag", "container").build())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data[?(@.key=='math_basic')]").exists();
+                .jsonPath("$.data[?(@.key=='container_hub_validation')]").exists();
     }
 
     @Test
@@ -414,7 +415,7 @@ class AgentControllerTest {
     void removedSkillSingleEndpointShouldReturnNotFound() {
 
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/skill").queryParam("skillId", "math_basic").build())
+                .uri(uriBuilder -> uriBuilder.path("/api/skill").queryParam("skillId", "container_hub_validation").build())
                 .exchange()
                 .expectStatus().isNotFound();
     }
@@ -455,7 +456,7 @@ class AgentControllerTest {
                 .filter(item -> "datetime".equals(item.get("key")))
                 .findFirst()
                 .orElseThrow();
-        assertThat(datetimeTool.get("label")).isEqualTo("datetime");
+        assertThat(datetimeTool.get("label")).isEqualTo("日期时间");
 
         webTestClient.get()
                 .uri("/api/tools")

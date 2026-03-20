@@ -16,8 +16,8 @@ agent:
     external-dir: ${SKILLS_MARKET_DIR:skills-market}
     refresh-interval-ms: ${AGENT_SKILLS_REFRESH_INTERVAL_MS:30000}
     max-prompt-chars: ${AGENT_SKILLS_MAX_PROMPT_CHARS:8000}
-  workspace:
-    external-dir: ${WORKSPACE_DIR:workspace}
+  root:
+    external-dir: ${ROOT_DIR:root}
   pan:
     external-dir: ${PAN_DIR:pan}
   teams:

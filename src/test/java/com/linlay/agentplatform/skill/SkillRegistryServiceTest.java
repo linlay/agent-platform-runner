@@ -62,7 +62,7 @@ class SkillRegistryServiceTest {
     void shouldWarnAndIgnoreInvalidRootFiles(CapturedOutput output) throws Exception {
         Files.writeString(tempDir.resolve("SKILL.md"), "invalid");
         Files.writeString(tempDir.resolve("script.py"), "print('invalid')");
-        Path skillFile = tempDir.resolve("math_basic").resolve("SKILL.md");
+        Path skillFile = tempDir.resolve("sample_alpha").resolve("SKILL.md");
         Files.createDirectories(skillFile.getParent());
         Files.writeString(skillFile, """
                 ---
@@ -77,7 +77,7 @@ class SkillRegistryServiceTest {
         SkillRegistryService service = new SkillRegistryService(properties);
 
         assertThat(service.list()).hasSize(1);
-        assertThat(service.find("math_basic")).isPresent();
+        assertThat(service.find("sample_alpha")).isPresent();
         assertThat(output.getOut() + output.getErr())
                 .contains("Invalid skill layout entry")
                 .contains("skills/<skill-id>/SKILL.md");
@@ -85,9 +85,9 @@ class SkillRegistryServiceTest {
 
     @Test
     void shouldLoadMultipleSkillDirectories() throws Exception {
-        writeSkill("math_basic", "Math Basic", "basic arithmetic");
-        writeSkill("math_stats", "Math Stats", "stats operations");
-        writeSkill("text_utils", "Text Utils", "text metrics");
+        writeSkill("sample_alpha", "Sample Alpha", "alpha operations");
+        writeSkill("sample_beta", "Sample Beta", "beta operations");
+        writeSkill("sample_gamma", "Sample Gamma", "gamma operations");
 
         SkillProperties properties = new SkillProperties();
         properties.setExternalDir(tempDir.toString());
@@ -95,25 +95,25 @@ class SkillRegistryServiceTest {
 
         assertThat(service.list())
                 .extracting(SkillDescriptor::id)
-                .containsExactlyInAnyOrder("math_basic", "math_stats", "text_utils");
-        assertThat(service.find("math_basic").orElseThrow().name()).isEqualTo("Math Basic");
-        assertThat(service.find("math_stats").orElseThrow().name()).isEqualTo("Math Stats");
-        assertThat(service.find("text_utils").orElseThrow().name()).isEqualTo("Text Utils");
+                .containsExactlyInAnyOrder("sample_alpha", "sample_beta", "sample_gamma");
+        assertThat(service.find("sample_alpha").orElseThrow().name()).isEqualTo("Sample Alpha");
+        assertThat(service.find("sample_beta").orElseThrow().name()).isEqualTo("Sample Beta");
+        assertThat(service.find("sample_gamma").orElseThrow().name()).isEqualTo("Sample Gamma");
     }
 
     @Test
     void shouldReturnCatalogDiffWhenSkillsChanged() throws Exception {
-        writeSkill("math_basic", "Math Basic", "basic arithmetic");
+        writeSkill("sample_alpha", "Sample Alpha", "alpha operations");
 
         SkillProperties properties = new SkillProperties();
         properties.setExternalDir(tempDir.toString());
         SkillRegistryService service = new SkillRegistryService(properties);
 
-        writeSkill("math_stats", "Math Stats", "stats operations");
+        writeSkill("sample_beta", "Sample Beta", "beta operations");
         CatalogDiff diff = service.refreshSkills();
 
-        assertThat(diff.addedKeys()).contains("math_stats");
-        assertThat(diff.changedKeys()).contains("math_stats");
+        assertThat(diff.addedKeys()).contains("sample_beta");
+        assertThat(diff.changedKeys()).contains("sample_beta");
     }
 
     @Test

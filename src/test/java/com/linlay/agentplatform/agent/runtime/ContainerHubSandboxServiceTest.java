@@ -18,7 +18,7 @@ import com.linlay.agentplatform.config.PanProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
-import com.linlay.agentplatform.config.WorkspaceProperties;
+import com.linlay.agentplatform.config.RootProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.model.ModelProperties;
@@ -237,21 +237,21 @@ class ContainerHubSandboxServiceTest {
     }
 
     @Test
-    void openShouldFailBeforeCreateWhenConfiguredWorkspaceDirDoesNotExist() {
+    void openShouldFailBeforeCreateWhenConfiguredRootDirDoesNotExist() {
         CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
         ContainerHubToolProperties properties = containerHubProperties("run");
-        WorkspaceProperties workspaceProperties = new WorkspaceProperties();
-        workspaceProperties.setExternalDir("/path/that/does/not/exist");
+        RootProperties rootProperties = new RootProperties();
+        rootProperties.setExternalDir("/path/that/does/not/exist");
         StubContainerHubClient client = new StubContainerHubClient(events);
-        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null, workspaceProperties, null);
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null, rootProperties, null);
         ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
 
         ExecutionContext context = createContext(definitionWithLevel(SandboxLevel.RUN));
         assertThatThrownBy(() -> service.openIfNeeded(context))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("container-hub mount validation failed for workspace-dir")
+                .hasMessageContaining("container-hub mount validation failed for root-dir")
                 .hasMessageContaining("resolved=/path/that/does/not/exist")
-                .hasMessageContaining("containerPath=/home");
+                .hasMessageContaining("containerPath=/root");
         assertThat(events).isEmpty();
     }
 
@@ -295,12 +295,12 @@ class ContainerHubSandboxServiceTest {
             ContainerHubToolProperties properties,
             DataProperties dataProperties,
             SkillProperties skillProperties,
-            WorkspaceProperties workspaceProperties,
+            RootProperties rootProperties,
             PanProperties panProperties
     ) {
-        WorkspaceProperties resolvedWorkspaceProperties = workspaceProperties == null ? new WorkspaceProperties() : workspaceProperties;
-        if (workspaceProperties == null) {
-            resolvedWorkspaceProperties.setExternalDir(createTempMountDir("container-hub-workspace").toString());
+        RootProperties resolvedRootProperties = rootProperties == null ? new RootProperties() : rootProperties;
+        if (rootProperties == null) {
+            resolvedRootProperties.setExternalDir(createTempMountDir("container-hub-root").toString());
         }
 
         PanProperties resolvedPanProperties = panProperties == null ? new PanProperties() : panProperties;
@@ -315,7 +315,7 @@ class ContainerHubSandboxServiceTest {
 
         return new ContainerHubMountResolver(
                 dataProperties,
-                resolvedWorkspaceProperties,
+                resolvedRootProperties,
                 resolvedPanProperties,
                 resolvedSkillProperties,
                 new ToolProperties(),
@@ -386,7 +386,7 @@ class ContainerHubSandboxServiceTest {
             events.add("createSession");
             ObjectNode response = ExecutionContext.OBJECT_MAPPER.createObjectNode();
             response.put("session_id", payload.path("session_id").asText());
-            response.put("cwd", "/workspace");
+            response.put("cwd", "/root");
             response.put("status", "running");
             return response;
         }

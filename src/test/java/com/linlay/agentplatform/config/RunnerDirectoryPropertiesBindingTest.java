@@ -13,22 +13,22 @@ class RunnerDirectoryPropertiesBindingTest {
             .withUserConfiguration(RunnerDirectoryConfiguration.class);
 
     @Test
-    void shouldBindWorkspaceAndPanProperties() {
+    void shouldBindRootAndPanProperties() {
         contextRunner
                 .withPropertyValues(
-                        "agent.workspace.external-dir=/tmp/workspace",
+                        "agent.root.external-dir=/tmp/root",
                         "agent.pan.external-dir=/tmp/pan"
                 )
                 .run(context -> {
-                    WorkspaceProperties workspaceProperties = context.getBean(WorkspaceProperties.class);
+                    RootProperties rootProperties = context.getBean(RootProperties.class);
                     PanProperties panProperties = context.getBean(PanProperties.class);
-                    assertThat(workspaceProperties.getExternalDir()).isEqualTo("/tmp/workspace");
+                    assertThat(rootProperties.getExternalDir()).isEqualTo("/tmp/root");
                     assertThat(panProperties.getExternalDir()).isEqualTo("/tmp/pan");
                 });
     }
 
     @Configuration(proxyBeanMethods = false)
-    @EnableConfigurationProperties({WorkspaceProperties.class, PanProperties.class})
+    @EnableConfigurationProperties({RootProperties.class, PanProperties.class})
     static class RunnerDirectoryConfiguration {
     }
 }

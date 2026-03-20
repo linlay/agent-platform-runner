@@ -82,7 +82,8 @@ public final class RuntimeDirectoryEnvironmentSupport {
         vars.put("VIEWPORTS_DIR", "classpath:/viewports");
         vars.put("DATA_DIR", "CHATS_DIR");
         vars.put("AGENT_CONTAINER_HUB_MOUNTS_DATA_DIR", "CHATS_DIR");
-        vars.put("AGENT_CONTAINER_HUB_MOUNTS_USER_DIR", "WORKSPACE_DIR");
+        vars.put("WORKSPACE_DIR", "ROOT_DIR");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_USER_DIR", "ROOT_DIR");
         vars.put("AGENT_CONTAINER_HUB_MOUNTS_SKILLS_DIR", "SKILLS_MARKET_DIR");
         vars.put("AGENT_CONTAINER_HUB_MOUNTS_PAN_DIR", "PAN_DIR");
         vars.put("AGENT_CONTAINER_HUB_MOUNTS_TOOLS_DIR", "classpath:/tools");
@@ -104,7 +105,8 @@ public final class RuntimeDirectoryEnvironmentSupport {
         vars.put("agent.viewports.refresh-interval-ms", "removed");
         vars.put("agent.data.external-dir", "memory.chats.dir");
         vars.put("agent.tools.container-hub.mounts.data-dir", "memory.chats.dir");
-        vars.put("agent.tools.container-hub.mounts.user-dir", "agent.workspace.external-dir");
+        vars.put("agent.workspace.external-dir", "agent.root.external-dir");
+        vars.put("agent.tools.container-hub.mounts.user-dir", "agent.root.external-dir");
         vars.put("agent.tools.container-hub.mounts.skills-dir", "agent.skills.external-dir");
         vars.put("agent.tools.container-hub.mounts.pan-dir", "agent.pan.external-dir");
         vars.put("agent.tools.container-hub.mounts.tools-dir", "classpath tools");

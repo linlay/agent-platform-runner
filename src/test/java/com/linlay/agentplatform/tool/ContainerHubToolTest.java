@@ -53,7 +53,7 @@ class ContainerHubToolTest {
         httpClient.register("/api/sessions/run-run1/execute", request -> {
             requestBody.set(readBody(request));
             return new StubHttpResponse(request, 200, """
-                    {"session_id":"run-run1","exit_code":0,"stdout":"/workspace\\nok\\n","stderr":"","timed_out":false}
+                    {"session_id":"run-run1","exit_code":0,"stdout":"/root\\nok\\n","stderr":"","timed_out":false}
                     """);
         });
 
@@ -61,7 +61,7 @@ class ContainerHubToolTest {
         ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
         SystemContainerHubBash tool = new SystemContainerHubBash(properties, client);
         ExecutionContext context = executionContext(definition(), new AgentRequest("test", "chat1", "req1", "run1", Map.of()), List.of());
-        context.bindSandboxSession(new ExecutionContext.SandboxSession("run-run1", "shell", "/workspace"));
+        context.bindSandboxSession(new ExecutionContext.SandboxSession("run-run1", "shell", "/root"));
 
         JsonNode result = tool.invoke(Map.of("command", "pwd && echo ok"), context);
         JsonNode request = objectMapper.readTree(requestBody.get());
@@ -70,8 +70,8 @@ class ContainerHubToolTest {
         assertThat(request.path("args")).isEqualTo(objectMapper.valueToTree(List.of("-lc", "pwd && echo ok")));
         assertThat(result.asText()).contains("exitCode: 0");
         assertThat(result.asText()).contains("mode: container-hub");
-        assertThat(result.asText()).contains("\"workingDirectory\": \"/workspace\"");
-        assertThat(result.asText()).contains("/workspace");
+        assertThat(result.asText()).contains("\"workingDirectory\": \"/root\"");
+        assertThat(result.asText()).contains("/root");
         assertThat(result.asText()).contains("ok");
     }
 
@@ -86,7 +86,7 @@ class ContainerHubToolTest {
         ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
         SystemContainerHubBash tool = new SystemContainerHubBash(properties, client);
         ExecutionContext context = executionContext(definition(), new AgentRequest("test", "chat1", "req1", "run1", Map.of()), List.of());
-        context.bindSandboxSession(new ExecutionContext.SandboxSession("run-run1", "shell", "/workspace"));
+        context.bindSandboxSession(new ExecutionContext.SandboxSession("run-run1", "shell", "/root"));
 
         JsonNode result = tool.invoke(Map.of("command", "pwd"), context);
 

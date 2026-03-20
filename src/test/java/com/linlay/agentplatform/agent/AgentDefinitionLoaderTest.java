@@ -264,6 +264,12 @@ class AgentDefinitionLoaderTest {
         assertThat(mode.maxSteps()).isEqualTo(10);
         assertThat(mode.stage().primaryPrompt()).contains("container_hub_bash");
         assertThat(mode.stage().primaryPrompt()).contains("/tmp");
+        assertThat(mode.stage().primaryPrompt()).contains("/skills/docx");
+        assertThat(mode.stage().primaryPrompt()).contains("/skills/pptx");
+        assertThat(mode.stage().primaryPrompt()).contains("python3 --version");
+        assertThat(mode.stage().primaryPrompt()).contains("pandoc --version");
+        assertThat(mode.stage().primaryPrompt()).contains("soffice --version");
+        assertThat(mode.stage().primaryPrompt()).contains("cd /skills/<skill> && ...");
         assertThat(mode.stage().primaryPrompt()).contains("pptxgenjs");
         assertThat(mode.stage().primaryPrompt()).contains("/api/data?file=<chatId>%2F<filename>&download=true");
     }
@@ -711,35 +717,6 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.skills()).containsExactly("pdf", "doc", "screenshot");
-    }
-
-    @Test
-    void shouldLoadSkillMathDemoWithSystemSkillToolName() throws IOException {
-        writeYaml("demo_mode_plain_skill_math.yml", """
-                key: demoModePlainSkillMath
-                name: Demo Mode Plain Skill Math
-                role: Demo Mode Plain Skill Math
-                description: skill math demo
-                modelConfig:
-                  modelKey: bailian-qwen3-max
-                toolConfig:
-                  backends:
-                    - _skill_run_script_
-                skillConfig:
-                  skills:
-                    - math_basic
-                    - math_stats
-                    - text_utils
-                mode: ONESHOT
-                plain:
-                  systemPrompt: test prompt
-                """);
-
-        AgentDefinition definition = loadById().get("demoModePlainSkillMath");
-
-        assertThat(definition).isNotNull();
-        assertThat(definition.tools()).containsExactly("_skill_run_script_");
-        assertThat(definition.skills()).containsExactly("math_basic", "math_stats", "text_utils");
     }
 
     @Test

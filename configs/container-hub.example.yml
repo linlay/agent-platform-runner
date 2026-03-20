@@ -11,6 +11,6 @@ agent-idle-timeout-ms: 600000
 destroy-queue-delay-ms: 5000
 # 目录挂载统一来自 runner 全局目录配置：
 # - /tmp  -> CHATS_DIR
-# - /home -> WORKSPACE_DIR
+# - /root -> ROOT_DIR
 # - /skills -> SKILLS_MARKET_DIR
 # - /pan -> PAN_DIR

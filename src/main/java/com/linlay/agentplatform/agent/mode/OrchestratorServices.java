@@ -141,11 +141,10 @@ public class OrchestratorServices {
                 stageSettings.instructionsPrompt(),
                 stageSettings.systemPrompt()
         );
-        String deferredSkillPrompt = context.consumeDeferredSkillSystemPrompt();
-        String mergedSystemPrompt = mergeSystemPrompt(stageSystemPrompt, deferredSkillPrompt);
+        String mergedSystemPrompt = stageSystemPrompt;
         // System prompt merge order is strict:
         // 1) stage system prompt (agent.json stage-level prompt),
-        // 2) skill catalog/deferred disclosure blocks (system),
+        // 2) skill catalog blocks (system),
         // 3) backend tool appendix (system).
         String effectiveSystemPrompt = toolExecutionService.applyBackendPrompts(
                 mergedSystemPrompt,
@@ -196,7 +195,6 @@ public class OrchestratorServices {
             FluxSink<AgentDelta> sink
     ) {
         failIfInterrupted(context);
-        context.registerSkillUsageFromToolCalls(plannedToolCalls);
         ToolExecutionService.ToolExecutionBatch batch = toolExecutionService.executeToolCalls(
                 plannedToolCalls,
                 enabledToolsByName,

@@ -13,14 +13,13 @@ services:
       TEAMS_DIR: /opt/teams
       MODELS_DIR: /opt/models
       PROVIDERS_DIR: /opt/providers
-      TOOLS_DIR: /opt/tools
       MCP_SERVERS_DIR: /opt/mcp-servers
       VIEWPORT_SERVERS_DIR: /opt/viewport-servers
-      VIEWPORTS_DIR: /opt/viewports
-      SKILLS_DIR: /opt/skills
+      SKILLS_MARKET_DIR: /opt/skills-market
       SCHEDULES_DIR: /opt/schedules
-      DATA_DIR: /opt/data
       CHATS_DIR: /opt/chats
+      ROOT_DIR: /opt/root
+      PAN_DIR: /opt/pan
     volumes:
       - type: bind
         source: ./configs
@@ -51,14 +50,20 @@ services:
         source: ${VIEWPORTS_DIR:-./viewports}
         target: /opt/viewports
       - type: bind
-        source: ${SKILLS_DIR:-./skills}
-        target: /opt/skills
+        source: ${SKILLS_MARKET_DIR:-./skills-market}
+        target: /opt/skills-market
       - type: bind
         source: ${SCHEDULES_DIR:-./schedules}
         target: /opt/schedules
       - type: bind
         source: ${CHATS_DIR:-./chats}
         target: /opt/chats
+      - type: bind
+        source: ${ROOT_DIR:-./root}
+        target: /opt/root
+      - type: bind
+        source: ${PAN_DIR:-./pan}
+        target: /opt/pan
     env_file:
       - .env
     networks:

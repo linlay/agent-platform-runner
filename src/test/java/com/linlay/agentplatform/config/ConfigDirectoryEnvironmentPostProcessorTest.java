@@ -87,7 +87,7 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
         assertThatThrownBy(() -> withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("mounts.user-dir")
-                .hasMessageContaining("WORKSPACE_DIR");
+                .hasMessageContaining("ROOT_DIR");
     }
 
     @Test

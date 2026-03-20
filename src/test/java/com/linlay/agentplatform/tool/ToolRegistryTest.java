@@ -309,7 +309,7 @@ class ToolRegistryTest {
                 .isPresent()
                 .get()
                 .satisfies(descriptor -> {
-                    assertThat(descriptor.sourceType()).isEqualTo("local");
+                    assertThat(descriptor.sourceType()).isEqualTo("agent-local");
                     assertThat(descriptor.sourceKey()).isNull();
                     assertThat(descriptor.description()).contains("native HTTP bridge");
                 });

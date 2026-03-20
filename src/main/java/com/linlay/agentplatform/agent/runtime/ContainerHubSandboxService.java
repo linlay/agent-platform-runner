@@ -129,7 +129,7 @@ public class ContainerHubSandboxService implements DisposableBean {
         }
         String defaultCwd = readText(response, "cwd");
         if (!StringUtils.hasText(defaultCwd)) {
-            defaultCwd = "/workspace";
+            defaultCwd = "/root";
         }
         context.bindSandboxSession(new ExecutionContext.SandboxSession(returnedSessionId, environmentId, defaultCwd, level));
     }
@@ -161,7 +161,7 @@ public class ContainerHubSandboxService implements DisposableBean {
             }
             String defaultCwd = readText(response, "cwd");
             if (!StringUtils.hasText(defaultCwd)) {
-                defaultCwd = "/workspace";
+                defaultCwd = "/root";
             }
             ManagedSession session = new ManagedSession(
                     returnedSessionId, environmentId, defaultCwd,
@@ -228,7 +228,7 @@ public class ContainerHubSandboxService implements DisposableBean {
             }
             String defaultCwd = readText(response, "cwd");
             if (!StringUtils.hasText(defaultCwd)) {
-                defaultCwd = "/workspace";
+                defaultCwd = "/root";
             }
             ManagedSession session = new ManagedSession(
                     returnedSessionId, environmentId, defaultCwd,

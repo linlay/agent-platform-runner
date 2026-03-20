@@ -46,8 +46,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.nio.file.Path;
+import java.util.Optional;
 
 public class DefinitionDrivenAgent implements Agent {
 
@@ -310,10 +310,6 @@ public class DefinitionDrivenAgent implements Agent {
             } else {
                 resolved.put(name, ConfiguredToolAdapters.resolvedConfiguredTool(name, descriptor));
                 descriptors.put(name, descriptor);
-                BaseTool nativeOverride = createLocalNativeToolOverride(name);
-                if (nativeOverride != null) {
-                    localNativeTools.put(name, nativeOverride);
-                }
             }
         }
         return new ToolResolution(
@@ -386,15 +382,6 @@ public class DefinitionDrivenAgent implements Agent {
             return local;
         }
         return toolRegistry.descriptor(name).orElse(null);
-    }
-
-    private BaseTool createLocalNativeToolOverride(String name) {
-        if ("_skill_run_script_".equals(name) && definition.agentDir() != null) {
-            Path globalSkillsRoot = skillRegistryService == null ? null : skillRegistryService.skillsRoot();
-            Path localSkillsRoot = definition.agentDir().resolve("skills");
-            return new com.linlay.agentplatform.tool.SystemSkillRunScript(localSkillsRoot, globalSkillsRoot);
-        }
-        return null;
     }
 
     private SkillDescriptor resolveSkillDescriptor(String skillId) {

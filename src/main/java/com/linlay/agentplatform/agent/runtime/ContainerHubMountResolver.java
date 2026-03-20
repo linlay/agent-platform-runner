@@ -8,7 +8,7 @@ import com.linlay.agentplatform.config.PanProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
-import com.linlay.agentplatform.config.WorkspaceProperties;
+import com.linlay.agentplatform.config.RootProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
@@ -34,7 +34,7 @@ public class ContainerHubMountResolver {
     private static final Logger log = LoggerFactory.getLogger(ContainerHubMountResolver.class);
 
     private final ChatWindowMemoryProperties chatWindowMemoryProperties;
-    private final WorkspaceProperties workspaceProperties;
+    private final RootProperties rootProperties;
     private final PanProperties panProperties;
     private final SkillProperties skillProperties;
     private final AgentProperties agentProperties;
@@ -48,7 +48,7 @@ public class ContainerHubMountResolver {
 
     public ContainerHubMountResolver(
             ChatWindowMemoryProperties chatWindowMemoryProperties,
-            WorkspaceProperties workspaceProperties,
+            RootProperties rootProperties,
             PanProperties panProperties,
             SkillProperties skillProperties,
             AgentProperties agentProperties,
@@ -61,7 +61,7 @@ public class ContainerHubMountResolver {
             ProviderProperties providerProperties
     ) {
         this.chatWindowMemoryProperties = chatWindowMemoryProperties;
-        this.workspaceProperties = workspaceProperties;
+        this.rootProperties = rootProperties;
         this.panProperties = panProperties;
         this.skillProperties = skillProperties;
         this.agentProperties = agentProperties;
@@ -76,7 +76,7 @@ public class ContainerHubMountResolver {
 
     public ContainerHubMountResolver(
             DataProperties dataProperties,
-            WorkspaceProperties workspaceProperties,
+            RootProperties rootProperties,
             PanProperties panProperties,
             SkillProperties skillProperties,
             ToolProperties toolProperties,
@@ -90,7 +90,7 @@ public class ContainerHubMountResolver {
     ) {
         this(
                 toChatWindowMemoryProperties(dataProperties),
-                workspaceProperties,
+                rootProperties,
                 panProperties,
                 skillProperties,
                 agentProperties,
@@ -125,9 +125,9 @@ public class ContainerHubMountResolver {
             usedContainerPaths.add("/tmp");
         }
 
-        String workspaceDir = resolveWorkspaceDir();
-        if (StringUtils.hasText(workspaceDir)) {
-            addResolvedMount(mounts, usedContainerPaths, "workspace-dir", workspaceDir, "/home");
+        String rootDir = resolveRootDir();
+        if (StringUtils.hasText(rootDir)) {
+            addResolvedMount(mounts, usedContainerPaths, "root-dir", rootDir, "/root");
         }
 
         String skillsDir = resolveSkillsDir();
@@ -168,9 +168,9 @@ public class ContainerHubMountResolver {
         return null;
     }
 
-    private String resolveWorkspaceDir() {
-        if (workspaceProperties != null && StringUtils.hasText(workspaceProperties.getExternalDir())) {
-            return workspaceProperties.getExternalDir().trim();
+    private String resolveRootDir() {
+        if (rootProperties != null && StringUtils.hasText(rootProperties.getExternalDir())) {
+            return rootProperties.getExternalDir().trim();
         }
         return null;
     }

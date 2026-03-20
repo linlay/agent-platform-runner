@@ -34,7 +34,6 @@ class RuntimeResourceSyncServiceTest {
 
         Path modePlainAgent = agentsDir.resolve("demoModePlain.yml");
         Path weatherTool = toolsDir.resolve("datetime.yml");
-        Path skillScriptTool = toolsDir.resolve("_skill_run_script_.yml");
         Path extraAgent = agentsDir.resolve("custom_agent.yml");
         Path extraTool = toolsDir.resolve("custom.yml");
         Path builtInViewport = viewportsDir.resolve("weather_card.html");
@@ -67,13 +66,11 @@ class RuntimeResourceSyncServiceTest {
         service.syncRuntimeDirectories();
 
         String syncedTool = Files.readString(weatherTool);
-        String syncedSkillScriptTool = Files.readString(skillScriptTool);
         String syncedViewport = Files.readString(builtInViewport);
         String syncedSkill = Files.readString(containerHubSkillFile);
         String syncedSchedule = Files.readString(builtInSchedule);
 
         assertThat(syncedTool).contains("name: datetime");
-        assertThat(syncedSkillScriptTool).contains("name: _skill_run_script_");
         assertThat(syncedViewport).contains("<div>sunny</div>");
         assertThat(syncedSkill).contains("name: \"container_hub_validation\"");
         assertThat(syncedSchedule).contains("name: 内置占位计划任务")
@@ -82,9 +79,9 @@ class RuntimeResourceSyncServiceTest {
                 .contains("environment:")
                 .contains("query:");
         assertThat(skillsDir.resolve("container_hub_validation").resolve("SKILL.md")).exists();
-        assertThat(skillsDir.resolve("math_basic").resolve("SKILL.md")).doesNotExist();
-        assertThat(skillsDir.resolve("math_stats").resolve("SKILL.md")).doesNotExist();
-        assertThat(skillsDir.resolve("text_utils").resolve("SKILL.md")).doesNotExist();
+        assertThat(skillsDir.resolve("docx").resolve("SKILL.md")).doesNotExist();
+        assertThat(skillsDir.resolve("pptx").resolve("SKILL.md")).doesNotExist();
+        assertThat(skillsDir.resolve("screenshot").resolve("SKILL.md")).doesNotExist();
         assertThat(skillsDir.resolve("slack-gif-creator").resolve("SKILL.md")).doesNotExist();
         assertThat(schedulesDir.resolve("builtin_placeholder_daily.yml")).exists();
         assertThat(toolsDir.resolve("_plan_add_tasks_.yml")).exists();
@@ -140,9 +137,9 @@ class RuntimeResourceSyncServiceTest {
 
         assertThat(configuredToolsDir.resolve("datetime.yml")).exists();
         assertThat(configuredSkillsDir.resolve("container_hub_validation").resolve("SKILL.md")).exists();
-        assertThat(configuredSkillsDir.resolve("math_basic").resolve("SKILL.md")).doesNotExist();
-        assertThat(configuredSkillsDir.resolve("math_stats").resolve("SKILL.md")).doesNotExist();
-        assertThat(configuredSkillsDir.resolve("text_utils").resolve("SKILL.md")).doesNotExist();
+        assertThat(configuredSkillsDir.resolve("docx").resolve("SKILL.md")).doesNotExist();
+        assertThat(configuredSkillsDir.resolve("pptx").resolve("SKILL.md")).doesNotExist();
+        assertThat(configuredSkillsDir.resolve("screenshot").resolve("SKILL.md")).doesNotExist();
         assertThat(configuredSkillsDir.resolve("slack-gif-creator").resolve("SKILL.md")).doesNotExist();
         assertThat(configuredSchedulesDir.resolve("builtin_placeholder_daily.yml")).exists();
         assertThat(configuredViewportsDir.resolve("weather_card.html")).exists();
@@ -176,28 +173,4 @@ class RuntimeResourceSyncServiceTest {
         assertThat(legacyBash).exists();
     }
 
-    @Test
-    void shouldKeepLegacySkillScriptAliasWhenCanonicalToolExists() throws Exception {
-        Path toolsDir = tempDir.resolve("tools");
-        Files.createDirectories(toolsDir);
-
-        Path legacySkillScript = toolsDir.resolve("skill_script_run.yml");
-        Files.writeString(legacySkillScript, """
-                type: function
-                name: skill_script_run
-                description: legacy alias
-                """);
-
-        RuntimeResourceSyncService service = new RuntimeResourceSyncService(
-                new PathMatchingResourcePatternResolver(),
-                toolsDir,
-                tempDir.resolve("skills")
-        );
-        service.syncRuntimeDirectories();
-
-        Path canonicalSkillScript = toolsDir.resolve("_skill_run_script_.yml");
-        assertThat(canonicalSkillScript).exists();
-        assertThat(Files.readString(canonicalSkillScript)).contains("name: _skill_run_script_");
-        assertThat(legacySkillScript).exists();
-    }
 }
