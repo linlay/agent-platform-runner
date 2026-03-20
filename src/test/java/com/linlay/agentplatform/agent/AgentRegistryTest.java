@@ -267,7 +267,7 @@ class AgentRegistryTest {
                 new ObjectMapper(),
                 properties,
                 TestModelRegistryServices.standardRegistry(),
-                new AgentSkillSyncService(skillsMarketDir.toString())
+                AgentSkillSyncService.forTesting(skillsMarketDir.toString())
         );
         LlmService llmService = new StubLlmService() {
         };

@@ -3,8 +3,14 @@ package com.linlay.agentplatform.agent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import com.linlay.agentplatform.skill.SkillProperties;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,8 +21,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ExtendWith(OutputCaptureExtension.class)
 class AgentSkillSyncServiceTest {
 
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withUserConfiguration(AgentSkillSyncServiceContextConfiguration.class);
+
     @TempDir
     Path tempDir;
+
+    @Test
+    void shouldCreateBeanFromSpringContext() {
+        contextRunner
+                .withPropertyValues("agent.skills.external-dir=/tmp/skills-market")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(AgentSkillSyncService.class);
+                    assertThat(context.getBean(SkillProperties.class).getExternalDir()).isEqualTo("/tmp/skills-market");
+                });
+    }
 
     @Test
     void shouldCopyOnlyDeclaredSkillsAndOverwriteExistingLocalCopy() throws Exception {
@@ -28,7 +48,7 @@ class AgentSkillSyncServiceTest {
         writeSkill(agentDir.resolve("skills"), "alpha", "local alpha");
         writeSkill(agentDir.resolve("skills"), "manual_extra", "manual extra");
 
-        AgentSkillSyncService service = new AgentSkillSyncService(skillsMarketDir.toString());
+        AgentSkillSyncService service = AgentSkillSyncService.forTesting(skillsMarketDir.toString());
         service.reconcileDeclaredSkills(agentDir, List.of("alpha"));
 
         assertThat(Files.readString(agentDir.resolve("skills/alpha/SKILL.md"))).contains("market alpha");
@@ -53,7 +73,7 @@ class AgentSkillSyncServiceTest {
                 List.of("alpha", "stale")
         );
 
-        AgentSkillSyncService service = new AgentSkillSyncService(skillsMarketDir.toString());
+        AgentSkillSyncService service = AgentSkillSyncService.forTesting(skillsMarketDir.toString());
         service.reconcileDeclaredSkills(agentDir, List.of("alpha"));
 
         assertThat(agentDir.resolve("skills/stale")).doesNotExist();
@@ -74,7 +94,7 @@ class AgentSkillSyncServiceTest {
                 List.of("alpha")
         );
 
-        AgentSkillSyncService service = new AgentSkillSyncService(skillsMarketDir.toString());
+        AgentSkillSyncService service = AgentSkillSyncService.forTesting(skillsMarketDir.toString());
         service.reconcileDeclaredSkills(agentDir, List.of());
 
         assertThat(agentDir.resolve("skills/alpha")).doesNotExist();
@@ -87,7 +107,7 @@ class AgentSkillSyncServiceTest {
         Path agentDir = tempDir.resolve("agents").resolve("demo");
         writeSkill(agentDir.resolve("skills"), "missing_skill", "local fallback");
 
-        AgentSkillSyncService service = new AgentSkillSyncService(tempDir.resolve("skills-market").toString());
+        AgentSkillSyncService service = AgentSkillSyncService.forTesting(tempDir.resolve("skills-market").toString());
         service.reconcileDeclaredSkills(agentDir, List.of("missing_skill"));
 
         assertThat(Files.readString(agentDir.resolve("skills/missing_skill/SKILL.md"))).contains("local fallback");
@@ -107,5 +127,20 @@ class AgentSkillSyncServiceTest {
 
                 %s
                 """.formatted(skillId, body));
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @EnableConfigurationProperties(SkillProperties.class)
+    static class AgentSkillSyncServiceContextConfiguration {
+
+        @Bean(name = "runtimeResourceSyncService")
+        Object runtimeResourceSyncService() {
+            return new Object();
+        }
+
+        @Bean
+        AgentSkillSyncService agentSkillSyncService(SkillProperties skillProperties) {
+            return new AgentSkillSyncService(skillProperties);
+        }
     }
 }

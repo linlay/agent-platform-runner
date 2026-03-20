@@ -4,6 +4,7 @@ import com.linlay.agentplatform.skill.SkillProperties;
 import jakarta.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -31,11 +32,16 @@ public class AgentSkillSyncService {
 
     private final Path skillsMarketDir;
 
+    @Autowired
     public AgentSkillSyncService(SkillProperties skillProperties) {
         this(skillProperties == null ? null : skillProperties.getExternalDir());
     }
 
-    AgentSkillSyncService(String skillsMarketDir) {
+    static AgentSkillSyncService forTesting(String skillsMarketDir) {
+        return new AgentSkillSyncService(skillsMarketDir);
+    }
+
+    private AgentSkillSyncService(String skillsMarketDir) {
         this.skillsMarketDir = normalizePath(skillsMarketDir);
     }
 
