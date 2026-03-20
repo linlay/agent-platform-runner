@@ -6,6 +6,7 @@ import com.linlay.agentplatform.agent.mode.OneshotMode;
 import com.linlay.agentplatform.agent.mode.PlanExecuteMode;
 import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.agent.runtime.MountAccessMode;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.testsupport.TestModelRegistryServices;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
@@ -209,9 +210,15 @@ class AgentDefinitionLoaderTest {
                   level: agent
                   extraMounts:
                     - platform: models
+                      mode: ro
                     - source: /tmp/datasets
                       destination: /datasets
+                      mode: rw
+                    - destination: /skills
+                      mode: rw
                     - source: /tmp/ignored
+                    - platform: tools
+                      mode: invalid
                 mode: ONESHOT
                 plain:
                   systemPrompt: use sandbox
@@ -221,8 +228,9 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.sandboxConfig().extraMounts()).containsExactly(
-                new AgentDefinition.ExtraMount("models", null, null),
-                new AgentDefinition.ExtraMount(null, "/tmp/datasets", "/datasets")
+                new AgentDefinition.ExtraMount("models", null, null, MountAccessMode.RO),
+                new AgentDefinition.ExtraMount(null, "/tmp/datasets", "/datasets", MountAccessMode.RW),
+                new AgentDefinition.ExtraMount(null, null, "/skills", MountAccessMode.RW)
         );
     }
 

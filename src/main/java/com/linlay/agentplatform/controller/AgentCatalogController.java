@@ -312,11 +312,25 @@ public class AgentCatalogController {
             Map<String, Object> sandbox = new java.util.LinkedHashMap<>();
             sandbox.put("environmentId", definition.sandboxConfig().environmentId());
             sandbox.put("level", definition.sandboxConfig().level() == null ? null : definition.sandboxConfig().level().name());
+            if (definition.sandboxConfig().extraMounts() != null && !definition.sandboxConfig().extraMounts().isEmpty()) {
+                sandbox.put("extraMounts", definition.sandboxConfig().extraMounts().stream()
+                        .map(this::toSandboxExtraMountMeta)
+                        .toList());
+            }
             meta.put("sandbox", sandbox);
         }
         if (definition.perAgentSkills() != null && !definition.perAgentSkills().isEmpty()) {
             meta.put("perAgentSkills", definition.perAgentSkills());
         }
         return meta.isEmpty() ? Map.of() : meta;
+    }
+
+    private Map<String, Object> toSandboxExtraMountMeta(AgentDefinition.ExtraMount extraMount) {
+        Map<String, Object> meta = new java.util.LinkedHashMap<>();
+        meta.put("platform", extraMount.platform());
+        meta.put("source", extraMount.source());
+        meta.put("destination", extraMount.destination());
+        meta.put("mode", extraMount.mode() == null ? null : extraMount.mode().yamlValue());
+        return meta;
     }
 }

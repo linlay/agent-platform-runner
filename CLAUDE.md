@@ -496,27 +496,30 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 
 默认仅挂载 5 个真实容器路径，其余平台目录需通过 `sandboxConfig.extraMounts` 显式声明。
 
-| 容器内路径 | RUN 宿主路径 | AGENT / GLOBAL 宿主路径 | 默认策略 | 配置键（为空时 fallback） |
-|-----------|-------------|-------------------------|----------|--------------------------|
-| `/tmp` | `{chatDataDir}/{chatId}` | `{chatDataDir}` | 默认挂载 | `memory.chats.dir` |
-| `/root` | `{rootDir}` | `{rootDir}` | 默认挂载 | `agent.root.external-dir` |
-| `/skills` | `{skillsDir}` | `{skillsDir}` | 默认挂载 | `agent.skills.external-dir` |
-| `/pan` | `{panDir}` | `{panDir}` | 默认挂载 | `agent.pan.external-dir` |
-| `/agent` | `{agentsDir}/{agentKey}` | `{agentsDir}/{agentKey}` | 默认挂载；仅目录化 agent 存在时挂载 | `agent.agents.external-dir` |
-| `/tools` | `{toolsDir}` | `{toolsDir}` | `extraMounts` 按需 | `agent.tools.external-dir` |
-| `/agents` | `{agentsDir}` | `{agentsDir}` | `extraMounts` 按需 | `agent.agents.external-dir` |
-| `/models` | `{modelsDir}` | `{modelsDir}` | `extraMounts` 按需 | `agent.models.external-dir` |
-| `/viewports` | `{viewportsDir}` | `{viewportsDir}` | `extraMounts` 按需 | `agent.viewports.external-dir` |
-| `/teams` | `{teamsDir}` | `{teamsDir}` | `extraMounts` 按需 | `agent.teams.external-dir` |
-| `/schedules` | `{schedulesDir}` | `{schedulesDir}` | `extraMounts` 按需 | `agent.schedule.external-dir` |
-| `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `extraMounts` 按需 | `agent.mcp-servers.registry.external-dir` |
-| `/providers` | `{providersDir}` | `{providersDir}` | `extraMounts` 按需；敏感目录 | `agent.providers.external-dir` |
+| 容器内路径 | RUN 宿主路径 | AGENT / GLOBAL 宿主路径 | 默认策略 | 默认模式 | 配置键（为空时 fallback） |
+|-----------|-------------|-------------------------|----------|----------|--------------------------|
+| `/workspace` | `{chatDataDir}/{chatId}` | `{chatDataDir}` | 默认挂载 | `rw` | `memory.chats.dir` |
+| `/root` | `{rootDir}` | `{rootDir}` | 默认挂载 | `rw` | `agent.root.external-dir` |
+| `/skills` | `{skillsDir}` | `{skillsDir}` | 默认挂载 | `ro` | `agent.skills.external-dir` |
+| `/pan` | `{panDir}` | `{panDir}` | 默认挂载 | `rw` | `agent.pan.external-dir` |
+| `/agent` | `{agentsDir}/{agentKey}` | `{agentsDir}/{agentKey}` | 默认挂载；仅目录化 agent 存在时挂载 | `ro` | `agent.agents.external-dir` |
+| `/tools` | `{toolsDir}` | `{toolsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.tools.external-dir` |
+| `/agents` | `{agentsDir}` | `{agentsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.agents.external-dir` |
+| `/models` | `{modelsDir}` | `{modelsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.models.external-dir` |
+| `/viewports` | `{viewportsDir}` | `{viewportsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.viewports.external-dir` |
+| `/teams` | `{teamsDir}` | `{teamsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.teams.external-dir` |
+| `/schedules` | `{schedulesDir}` | `{schedulesDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.schedule.external-dir` |
+| `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.mcp-servers.registry.external-dir` |
+| `/providers` | `{providersDir}` | `{providersDir}` | `extraMounts` 按需；敏感目录 | 显式 `mode` | `agent.providers.external-dir` |
 
 ### 挂载原则
 
-- 默认最小集：默认只挂载 `/tmp`、`/root`、`/skills`、`/pan`、`/agent`，不再默认暴露全量平台配置目录。
+- 默认最小集：默认只挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent`，不再默认暴露全量平台配置目录。
 - agent 就近原则：当前 agent 若采用目录化布局，默认挂载其自身目录到 `/agent`；扁平 YAML agent 不强制创建该挂载。
+- 默认安全模式：`/skills` 与 `/agent` 默认只读；`/workspace`、`/root`、`/pan` 默认读写。
 - 按需显式原则：`/models`、`/tools`、`/agents`、`/viewports`、`/teams`、`/schedules`、`/mcp-servers`、`/providers` 仅能通过 `sandboxConfig.extraMounts` 显式恢复。
+- 模式显式原则：所有按需平台挂载和自定义挂载都必须显式声明 `mode: ro|rw`。
+- 基础挂载覆盖原则：若只想修改 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 的模式，可在 `extraMounts` 中只写 `destination + mode` 覆盖默认模式，不新增第二个挂载。
 - 最小暴露原则：agent 只应声明完成任务所必需的额外挂载，避免把无关目录带入沙箱。
 - 安全优先原则：custom mount 必须满足“源目录存在、目标路径为绝对路径、目标路径不冲突”；不满足时直接 fail-fast。
 - 敏感目录显式授权：`providers` 属于敏感挂载，即使在 `extraMounts` 中声明，也必须先有全局 `agent.providers.external-dir` 目录。
@@ -530,9 +533,14 @@ sandboxConfig:
   level: agent        # run / agent / global；为空时使用全局 default-sandbox-level
   extraMounts:
     - platform: models
+      mode: ro
     - platform: tools
+      mode: rw
     - source: /abs/host/path
       destination: /datasets
+      mode: ro
+    - destination: /skills
+      mode: rw
 ```
 
 ### extraMounts 平台简写
@@ -551,6 +559,9 @@ sandboxConfig:
 约束：
 
 - `platform` 未知时仅 warn 并跳过。
+- `platform` 挂载必须显式声明 `mode: ro|rw`。
+- custom mount 必须提供 `source + destination + mode`。
+- 默认基础挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 可通过 `destination + mode` 覆盖默认模式。
 - custom mount 的 `destination` 必须是绝对路径，且不能与已有挂载冲突。
 - custom mount 的 `source` 必须是已存在目录。
 - `platform: providers` 只有在 `mounts.providers-dir` 已显式配置时才可用。

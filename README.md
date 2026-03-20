@@ -666,6 +666,8 @@ default-environment-id: shell
 - `demoContainerHubValidator` 只使用 `container_hub_bash`，不会回退到 `_bash_` 或任何宿主机执行路径。
 - 第二阶段的 Python 验证是“容器内 Python”，不是本机 skill 脚本执行。
 - RUN 级 session 下，容器中的 `/workspace/<file>` 预期会映射到 host 侧 `CHATS_DIR/<chatId>/<file>`。
+- 基础挂载默认存在：`/workspace`、`/root`、`/skills`、`/pan`、`/agent`。
+- 默认模式为：`/workspace=rw`、`/root=rw`、`/skills=ro`、`/pan=rw`、`/agent=ro`。
 - 若容器环境缺少 `python3`，应将其记录为环境缺口，而不是宣称验证通过。
 
 ## Daily Office Agent
@@ -720,6 +722,39 @@ default-environment-id: shell
 - 该工具的职责是把 runner 的 tool call 桥接为 `agent-container-hub` 的 HTTP session API，而不是提供一个 MCP transport 封装。
 - `RUN` 级 sandbox 在创建 session 前会自动准备 `CHATS_DIR/<chatId>` 目录，并把它挂载到容器内的 `/workspace`。
 - `/root` 与 `/pan` 分别来自 runner 全局目录 `ROOT_DIR` 与 `PAN_DIR`；`configs/container-hub.yml` 不再单独配置挂载源目录。
+
+挂载模式规则：
+
+- 基础挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 默认自动存在，不需要在 `agent.yml` 中声明。
+- 默认模式为：`/workspace=rw`、`/root=rw`、`/skills=ro`、`/pan=rw`、`/agent=ro`。
+- 若需要修改基础挂载模式，继续使用 `sandboxConfig.extraMounts`，仅声明 `destination + mode` 即可覆盖默认模式。
+- 所有可选平台挂载和自定义挂载都必须显式声明 `mode: ro|rw`。
+
+`sandboxConfig.extraMounts` 示例：
+
+```yaml
+sandboxConfig:
+  environmentId: daily-office
+  level: run
+  extraMounts:
+    - platform: tools
+      mode: ro
+    - platform: models
+      mode: rw
+    - source: /abs/host/path
+      destination: /datasets
+      mode: ro
+    - destination: /skills
+      mode: rw
+    - destination: /agent
+      mode: rw
+```
+
+说明：
+
+- `platform: tools/models/...` 表示恢复按需平台目录挂载，同时必须写 `mode`。
+- `source + destination + mode` 表示新增一个自定义宿主目录挂载。
+- `destination: /skills` 或 `destination: /agent` 这类写法表示覆盖默认基础挂载模式，不新增第二个挂载。
 
 ## Bash 工具配置
 

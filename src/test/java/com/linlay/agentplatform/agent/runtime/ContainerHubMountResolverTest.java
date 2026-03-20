@@ -53,6 +53,14 @@ class ContainerHubMountResolverTest {
                 .contains("/workspace", "/root", "/skills", "/pan");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(chatDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).filteredOn(mount -> "/workspace".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(false);
+        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(true);
     }
 
     @Test
@@ -107,6 +115,10 @@ class ContainerHubMountResolverTest {
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(dataDir.toAbsolutePath().normalize().toString())
                 .contains(agentDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).filteredOn(mount -> "/agent".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(true);
     }
 
     @Test
@@ -180,9 +192,9 @@ class ContainerHubMountResolverTest {
                 "chat",
                 "flat-agent",
                 List.of(
-                        new AgentDefinition.ExtraMount("models", null, null),
-                        new AgentDefinition.ExtraMount("tools", null, null),
-                        new AgentDefinition.ExtraMount("viewports", null, null)
+                        new AgentDefinition.ExtraMount("models", null, null, MountAccessMode.RO),
+                        new AgentDefinition.ExtraMount("tools", null, null, MountAccessMode.RW),
+                        new AgentDefinition.ExtraMount("viewports", null, null, MountAccessMode.RO)
                 )
         );
 
@@ -194,6 +206,14 @@ class ContainerHubMountResolverTest {
                         toolsDir.toAbsolutePath().normalize().toString(),
                         viewportsDir.toAbsolutePath().normalize().toString()
                 );
+        assertThat(mounts).filteredOn(mount -> "/models".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(true);
+        assertThat(mounts).filteredOn(mount -> "/tools".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(false);
     }
 
     @Test
@@ -217,13 +237,17 @@ class ContainerHubMountResolverTest {
                 SandboxLevel.RUN,
                 "chat",
                 "flat-agent",
-                List.of(new AgentDefinition.ExtraMount(null, datasetDir.toString(), "/datasets"))
+                List.of(new AgentDefinition.ExtraMount(null, datasetDir.toString(), "/datasets", MountAccessMode.RO))
         );
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
                 .contains("/datasets");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(datasetDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).filteredOn(mount -> "/datasets".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(true);
     }
 
     @Test
@@ -247,10 +271,48 @@ class ContainerHubMountResolverTest {
                 SandboxLevel.RUN,
                 "chat",
                 "flat-agent",
-                List.of(new AgentDefinition.ExtraMount(null, datasetDir.toString(), "datasets"))
+                List.of(new AgentDefinition.ExtraMount(null, datasetDir.toString(), "datasets", MountAccessMode.RO))
         ))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("destination must be an absolute path");
+    }
+
+    @Test
+    void shouldOverrideDefaultMountModesWithoutAddingDuplicates() throws Exception {
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
+        Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
+        Path panDir = Files.createDirectories(tempDir.resolve("pan"));
+        Path dataDir = Files.createDirectories(tempDir.resolve("data"));
+        Path agentsDir = Files.createDirectories(tempDir.resolve("agents"));
+        Files.createDirectories(agentsDir.resolve("atlas"));
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(dataDir),
+                skillProperties(skillsDir),
+                rootProperties(rootDir),
+                panProperties(panDir),
+                providerProperties(tempDir.resolve("providers"))
+        );
+
+        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(
+                SandboxLevel.RUN,
+                "chat",
+                "atlas",
+                List.of(
+                        new AgentDefinition.ExtraMount(null, null, "/skills", MountAccessMode.RW),
+                        new AgentDefinition.ExtraMount(null, null, "/agent", MountAccessMode.RW)
+                )
+        );
+
+        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath())).singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(false);
+        assertThat(mounts).filteredOn(mount -> "/agent".equals(mount.containerPath())).singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(false);
+        assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
+                .doesNotHaveDuplicates();
     }
 
     @Test
@@ -274,11 +336,11 @@ class ContainerHubMountResolverTest {
                 SandboxLevel.RUN,
                 "chat",
                 "flat-agent",
-                List.of(new AgentDefinition.ExtraMount(null, datasetDir.toString(), "/root"))
+                List.of(new AgentDefinition.ExtraMount(null, datasetDir.toString(), "/root", MountAccessMode.RW))
         ))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("containerPath conflicts with existing mount")
-                .hasMessageContaining("containerPath=/root");
+                .hasMessageContaining("overriding a default mount")
+                .hasMessageContaining("destination=/root");
     }
 
     @Test
@@ -302,12 +364,38 @@ class ContainerHubMountResolverTest {
                 SandboxLevel.RUN,
                 "chat",
                 "flat-agent",
-                List.of(new AgentDefinition.ExtraMount("providers", null, null))
+                List.of(new AgentDefinition.ExtraMount("providers", null, null, MountAccessMode.RO))
         ))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("extra-mount:providers")
                 .hasMessageContaining("source does not exist")
                 .hasMessageContaining("configured=" + providersDir);
+    }
+
+    @Test
+    void shouldFailWhenCustomMountMissingSourceForNonDefaultDestination() throws Exception {
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
+        Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
+        Path panDir = Files.createDirectories(tempDir.resolve("pan"));
+        Path dataDir = Files.createDirectories(tempDir.resolve("data"));
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(dataDir),
+                skillProperties(skillsDir),
+                rootProperties(rootDir),
+                panProperties(panDir),
+                providerProperties(tempDir.resolve("providers"))
+        );
+
+        assertThatThrownBy(() -> resolver.resolve(
+                SandboxLevel.RUN,
+                "chat",
+                "flat-agent",
+                List.of(new AgentDefinition.ExtraMount(null, null, "/datasets", MountAccessMode.RO))
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("custom mount requires source + destination + mode");
     }
 
     @Test
@@ -330,7 +418,7 @@ class ContainerHubMountResolverTest {
                 SandboxLevel.RUN,
                 "chat",
                 "flat-agent",
-                List.of(new AgentDefinition.ExtraMount("unknown", null, null))
+                List.of(new AgentDefinition.ExtraMount("unknown", null, null, MountAccessMode.RO))
         );
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)

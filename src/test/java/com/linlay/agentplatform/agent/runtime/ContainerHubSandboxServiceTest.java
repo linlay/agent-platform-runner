@@ -120,8 +120,12 @@ class ContainerHubSandboxServiceTest {
         assertThat(mounts).isNotEmpty();
         assertThat(mounts.get(0).path("source").asText()).isNotBlank();
         assertThat(mounts.get(0).path("destination").asText()).isEqualTo("/workspace");
+        assertThat(mounts.get(0).path("read_only").asBoolean()).isFalse();
         assertThat(mounts.get(0).has("host_path")).isFalse();
         assertThat(mounts.get(0).has("container_path")).isFalse();
+        assertThat(findMount(mounts, "/root").path("read_only").asBoolean()).isFalse();
+        assertThat(findMount(mounts, "/pan").path("read_only").asBoolean()).isFalse();
+        assertThat(findMount(mounts, "/skills").path("read_only").asBoolean()).isTrue();
         assertThat(context.sandboxSession().defaultCwd()).isEqualTo("/workspace");
 
         service.closeQuietly(context);
@@ -261,6 +265,27 @@ class ContainerHubSandboxServiceTest {
         assertThat(events).isEmpty();
     }
 
+    @Test
+    void runLevelShouldSerializeOverriddenDefaultMountModes() {
+        CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
+        ContainerHubToolProperties properties = containerHubProperties("run");
+        RecordingStubContainerHubClient client = new RecordingStubContainerHubClient(events);
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null);
+        ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
+
+        AgentDefinition definition = definitionWithLevel(
+                SandboxLevel.RUN,
+                "sandbox-agent",
+                List.of(new AgentDefinition.ExtraMount(null, null, "/skills", MountAccessMode.RW))
+        );
+
+        ExecutionContext context = createContext(definition);
+        service.openIfNeeded(context);
+
+        JsonNode mounts = client.lastCreatePayload.path("mounts");
+        assertThat(findMount(mounts, "/skills").path("read_only").asBoolean()).isFalse();
+    }
+
     private ContainerHubToolProperties containerHubProperties(String defaultLevel) {
         ContainerHubToolProperties properties = new ContainerHubToolProperties();
         properties.setEnabled(true);
@@ -340,6 +365,14 @@ class ContainerHubSandboxServiceTest {
     }
 
     private AgentDefinition definitionWithLevel(SandboxLevel level, String agentKey) {
+        return definitionWithLevel(level, agentKey, List.of());
+    }
+
+    private AgentDefinition definitionWithLevel(
+            SandboxLevel level,
+            String agentKey,
+            List<AgentDefinition.ExtraMount> extraMounts
+    ) {
         return new AgentDefinition(
                 agentKey,
                 agentKey,
@@ -355,9 +388,18 @@ class ContainerHubSandboxServiceTest {
                 new OneshotMode(new StageSettings("sys", null, null, List.of("container_hub_bash"), false, ComputePolicy.MEDIUM), null, null),
                 List.of("container_hub_bash"),
                 List.of(),
-                new AgentDefinition.SandboxConfig("shell", level),
+                new AgentDefinition.SandboxConfig("shell", level, extraMounts),
                 List.of()
         );
+    }
+
+    private JsonNode findMount(JsonNode mounts, String destination) {
+        for (JsonNode mount : mounts) {
+            if (destination.equals(mount.path("destination").asText())) {
+                return mount;
+            }
+        }
+        throw new IllegalStateException("missing mount for destination " + destination);
     }
 
     private ExecutionContext createContext(AgentDefinition definition) {

@@ -8,6 +8,7 @@ import com.linlay.agentplatform.agent.config.AgentToolConfig;
 import com.linlay.agentplatform.agent.mode.AgentMode;
 import com.linlay.agentplatform.agent.mode.AgentModeFactory;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.agent.runtime.MountAccessMode;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.util.StringHelpers;
@@ -31,12 +32,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 @Component
 public class AgentDefinitionLoader {
 
     private static final Logger log = LoggerFactory.getLogger(AgentDefinitionLoader.class);
+    private static final Set<String> DEFAULT_SANDBOX_MOUNT_DESTINATIONS = Set.of(
+            "/workspace",
+            "/root",
+            "/skills",
+            "/pan",
+            "/agent"
+    );
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final AgentProperties properties;
@@ -619,18 +628,43 @@ public class AgentDefinitionLoader {
             }
             String platform = normalize(extraMount.getPlatform(), "");
             String source = normalize(extraMount.getSource(), "");
-            String destination = normalize(extraMount.getDestination(), "");
+            String destination = normalizeSandboxDestination(extraMount.getDestination());
+            MountAccessMode mode = MountAccessMode.parse(extraMount.getMode());
             if (StringUtils.hasText(platform)) {
-                resolved.add(new AgentDefinition.ExtraMount(platform, null, null));
+                if (mode == null) {
+                    log.warn("Skip invalid sandboxConfig.extraMounts platform item without valid mode (platform={}, mode={})",
+                            platform, extraMount.getMode());
+                    continue;
+                }
+                resolved.add(new AgentDefinition.ExtraMount(platform, null, null, mode));
                 continue;
             }
             if (StringUtils.hasText(source) && StringUtils.hasText(destination)) {
-                resolved.add(new AgentDefinition.ExtraMount(null, source, destination));
+                if (mode == null) {
+                    log.warn("Skip invalid sandboxConfig.extraMounts custom mount without valid mode (source={}, destination={}, mode={})",
+                            source, destination, extraMount.getMode());
+                    continue;
+                }
+                resolved.add(new AgentDefinition.ExtraMount(null, source, destination, mode));
                 continue;
             }
-            log.warn("Skip invalid sandboxConfig.extraMounts item without platform or source/destination pair");
+            if (StringUtils.hasText(destination) && mode != null && DEFAULT_SANDBOX_MOUNT_DESTINATIONS.contains(destination)) {
+                resolved.add(new AgentDefinition.ExtraMount(null, null, destination, mode));
+                continue;
+            }
+            log.warn("Skip invalid sandboxConfig.extraMounts item without supported platform/custom/override shape "
+                    + "(platform={}, source={}, destination={}, mode={})",
+                    platform, source, destination, extraMount.getMode());
         }
         return List.copyOf(resolved);
+    }
+
+    private String normalizeSandboxDestination(String destination) {
+        String normalized = normalize(destination, "");
+        if (!StringUtils.hasText(normalized)) {
+            return normalized;
+        }
+        return Path.of(normalized).normalize().toString();
     }
 
     private ModelDefinition resolveModelByKey(String rawModelKey) {

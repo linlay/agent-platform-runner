@@ -22,6 +22,19 @@ skillConfig:
 sandboxConfig:
   environmentId: daily-office
   level: run
+  # Optional extraMounts examples:
+  # extraMounts:
+  #   - platform: tools
+  #     mode: ro
+  #   - platform: models
+  #     mode: rw
+  #   - source: /abs/host/path
+  #     destination: /datasets
+  #     mode: ro
+  #   - destination: /skills
+  #     mode: rw
+  #   - destination: /agent
+  #     mode: rw
 mode: REACT
 react:
   maxSteps: 10

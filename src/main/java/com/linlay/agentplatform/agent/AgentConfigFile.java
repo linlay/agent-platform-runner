@@ -219,6 +219,7 @@ public class AgentConfigFile {
         private String platform;
         private String source;
         private String destination;
+        private String mode;
 
         public String getPlatform() {
             return platform;
@@ -242,6 +243,14 @@ public class AgentConfigFile {
 
         public void setDestination(String destination) {
             this.destination = destination;
+        }
+
+        public String getMode() {
+            return mode;
+        }
+
+        public void setMode(String mode) {
+            this.mode = mode;
         }
     }
 

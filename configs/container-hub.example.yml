@@ -10,7 +10,9 @@ agent-idle-timeout-ms: 600000
 # run 级别会话异步销毁延迟（ms）
 destroy-queue-delay-ms: 5000
 # 目录挂载统一来自 runner 全局目录配置：
-# - /tmp  -> CHATS_DIR
-# - /root -> ROOT_DIR
-# - /skills -> SKILLS_MARKET_DIR
-# - /pan -> PAN_DIR
+# - /workspace -> CHATS_DIR        (default: rw)
+# - /root      -> ROOT_DIR         (default: rw)
+# - /skills    -> SKILLS_MARKET_DIR (default: ro)
+# - /pan       -> PAN_DIR          (default: rw)
+# - /agent     -> AGENTS_DIR/<agentKey> when directory agent exists (default: ro)
+# 可选平台挂载和自定义挂载需要在 agent.yml 的 sandboxConfig.extraMounts 中显式声明 mode: ro|rw

@@ -2,6 +2,7 @@ package com.linlay.agentplatform.agent;
 
 import com.linlay.agentplatform.agent.mode.AgentMode;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.agent.runtime.MountAccessMode;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.model.ModelProtocol;
@@ -230,12 +231,17 @@ public record AgentDefinition(
     public record ExtraMount(
             String platform,
             String source,
-            String destination
+            String destination,
+            MountAccessMode mode
     ) {
         public ExtraMount {
             platform = normalizeValue(platform);
             source = normalizeValue(source);
             destination = normalizeValue(destination);
+        }
+
+        public ExtraMount(String platform, String source, String destination) {
+            this(platform, source, destination, null);
         }
 
         public boolean isPlatform() {

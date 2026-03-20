@@ -21,8 +21,7 @@ import org.springframework.util.StringUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -32,7 +31,18 @@ import java.util.function.Supplier;
 public class ContainerHubMountResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ContainerHubMountResolver.class);
-    private static final String WORKSPACE_PATH = "/workspace";
+    static final String WORKSPACE_PATH = "/workspace";
+    static final String ROOT_PATH = "/root";
+    static final String SKILLS_PATH = "/skills";
+    static final String PAN_PATH = "/pan";
+    static final String AGENT_PATH = "/agent";
+    private static final Set<String> DEFAULT_OVERRIDEABLE_PATHS = Set.of(
+            WORKSPACE_PATH,
+            ROOT_PATH,
+            SKILLS_PATH,
+            PAN_PATH,
+            AGENT_PATH
+    );
 
     private final ChatWindowMemoryProperties chatWindowMemoryProperties;
     private final RootProperties rootProperties;
@@ -111,8 +121,7 @@ public class ContainerHubMountResolver {
             String agentKey,
             List<AgentDefinition.ExtraMount> extraMounts
     ) {
-        List<MountSpec> mounts = new ArrayList<>();
-        Set<String> usedContainerPaths = new LinkedHashSet<>();
+        Map<String, MountSpec> mountsByContainerPath = new LinkedHashMap<>();
 
         String dataDir = resolveDataDir();
         if (StringUtils.hasText(dataDir)) {
@@ -125,28 +134,27 @@ public class ContainerHubMountResolver {
                     prepareSharedDataMountDirectory(hostPath, chatId);
                 }
             }
-            mounts.add(new MountSpec("data-dir", normalizeRawPath(dataDir), hostPath, WORKSPACE_PATH));
-            usedContainerPaths.add(WORKSPACE_PATH);
+            addMount(mountsByContainerPath, new MountSpec("data-dir", normalizeRawPath(dataDir), hostPath, WORKSPACE_PATH, false));
         }
 
         String rootDir = resolveRootDir();
         if (StringUtils.hasText(rootDir)) {
-            addResolvedMount(mounts, usedContainerPaths, "root-dir", rootDir, "/root");
+            addResolvedMount(mountsByContainerPath, "root-dir", rootDir, ROOT_PATH, false);
         }
 
         String skillsDir = resolveSkillsDir();
         if (StringUtils.hasText(skillsDir)) {
-            addResolvedMount(mounts, usedContainerPaths, "skills-dir", skillsDir, "/skills");
+            addResolvedMount(mountsByContainerPath, "skills-dir", skillsDir, SKILLS_PATH, true);
         }
 
         String panDir = resolvePanDir();
         if (StringUtils.hasText(panDir)) {
-            addResolvedMount(mounts, usedContainerPaths, "pan-dir", panDir, "/pan");
+            addResolvedMount(mountsByContainerPath, "pan-dir", panDir, PAN_PATH, false);
         }
 
         String agentSelfDir = resolveAgentSelfDir(agentKey);
         if (StringUtils.hasText(agentSelfDir)) {
-            addResolvedMount(mounts, usedContainerPaths, "agent-self", agentSelfDir, "/agent");
+            addResolvedMount(mountsByContainerPath, "agent-self", agentSelfDir, AGENT_PATH, true);
         }
 
         if (extraMounts != null) {
@@ -154,15 +162,20 @@ public class ContainerHubMountResolver {
                 if (extraMount == null) {
                     continue;
                 }
+                String destination = normalizeContainerPath(extraMount.destination());
+                if (isDefaultMountOverride(extraMount, destination)) {
+                    applyDefaultMountOverride(mountsByContainerPath, destination, extraMount.mode());
+                    continue;
+                }
                 if (extraMount.isPlatform()) {
-                    resolvePlatformMount(mounts, usedContainerPaths, extraMount.platform());
+                    resolvePlatformMount(mountsByContainerPath, extraMount.platform(), extraMount.mode());
                 } else {
-                    resolveCustomMount(mounts, usedContainerPaths, extraMount);
+                    resolveCustomMount(mountsByContainerPath, extraMount, destination);
                 }
             }
         }
 
-        return List.copyOf(mounts);
+        return List.copyOf(mountsByContainerPath.values());
     }
 
     private String resolveDataDir() {
@@ -247,15 +260,21 @@ public class ContainerHubMountResolver {
     }
 
     private void resolvePlatformMount(
-            List<MountSpec> mounts,
-            Set<String> usedContainerPaths,
-            String rawPlatform
+            Map<String, MountSpec> mountsByContainerPath,
+            String rawPlatform,
+            MountAccessMode mode
     ) {
         String platform = normalizePlatform(rawPlatform);
         PlatformMountDef platformMountDef = platformMountDefs().get(platform);
         if (platformMountDef == null) {
             log.warn("Skip unknown sandboxConfig.extraMounts platform '{}'", rawPlatform);
             return;
+        }
+        if (mode == null) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for extra-mount:%s: mode is required"
+                            .formatted(platform)
+            );
         }
         String source = platformMountDef.sourceSupplier().get();
         if (!StringUtils.hasText(source)) {
@@ -264,21 +283,36 @@ public class ContainerHubMountResolver {
                             .formatted(platform, platformMountDef.containerPath())
             );
         }
-        addResolvedMount(mounts, usedContainerPaths, "extra-mount:" + platform, source, platformMountDef.containerPath());
+        addResolvedMount(mountsByContainerPath, "extra-mount:" + platform, source, platformMountDef.containerPath(), mode.readOnly());
     }
 
     private void resolveCustomMount(
-            List<MountSpec> mounts,
-            Set<String> usedContainerPaths,
-            AgentDefinition.ExtraMount extraMount
+            Map<String, MountSpec> mountsByContainerPath,
+            AgentDefinition.ExtraMount extraMount,
+            String normalizedDestination
     ) {
-        if (!StringUtils.hasText(extraMount.destination()) || !extraMount.destination().startsWith("/")) {
+        if (extraMount.mode() == null) {
+            throw new IllegalStateException("container-hub mount validation failed for extra-mount: mode is required");
+        }
+        if (StringUtils.hasText(normalizedDestination) && DEFAULT_OVERRIDEABLE_PATHS.contains(normalizedDestination)) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for extra-mount: overriding a default mount "
+                            + "must omit source/platform and only declare destination + mode "
+                            + "(destination=" + normalizedDestination + ")"
+            );
+        }
+        if (!StringUtils.hasText(extraMount.source()) || !StringUtils.hasText(normalizedDestination)) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for extra-mount: custom mount requires source + destination + mode"
+            );
+        }
+        if (!normalizedDestination.startsWith("/")) {
             throw new IllegalStateException(
                     "container-hub mount validation failed for extra-mount: destination must be an absolute path"
                             + " (destination=" + extraMount.destination() + ")"
             );
         }
-        addResolvedMount(mounts, usedContainerPaths, "extra-mount", extraMount.source(), extraMount.destination());
+        addResolvedMount(mountsByContainerPath, "extra-mount", extraMount.source(), normalizedDestination, extraMount.mode().readOnly());
     }
 
     private Map<String, PlatformMountDef> platformMountDefs() {
@@ -299,16 +333,54 @@ public class ContainerHubMountResolver {
     }
 
     private void addResolvedMount(
-            List<MountSpec> mounts,
-            Set<String> usedContainerPaths,
+            Map<String, MountSpec> mountsByContainerPath,
             String mountName,
             String rawPath,
-            String containerPath
+            String containerPath,
+            boolean readOnly
     ) {
-        validateContainerPathConflict(usedContainerPaths, mountName, containerPath);
+        validateContainerPathConflict(mountsByContainerPath.keySet(), mountName, containerPath);
         String hostPath = requireExistingDirectory(mountName, rawPath, toAbsolute(rawPath), containerPath);
-        mounts.add(new MountSpec(mountName, normalizeRawPath(rawPath), hostPath, containerPath));
-        usedContainerPaths.add(containerPath);
+        addMount(mountsByContainerPath, new MountSpec(mountName, normalizeRawPath(rawPath), hostPath, containerPath, readOnly));
+    }
+
+    private void addMount(Map<String, MountSpec> mountsByContainerPath, MountSpec mount) {
+        mountsByContainerPath.put(mount.containerPath(), mount);
+    }
+
+    private void applyDefaultMountOverride(
+            Map<String, MountSpec> mountsByContainerPath,
+            String destination,
+            MountAccessMode mode
+    ) {
+        if (mode == null) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for default-mount-override: mode is required "
+                            + "(destination=" + destination + ")"
+            );
+        }
+        MountSpec existing = mountsByContainerPath.get(destination);
+        if (existing == null) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for default-mount-override: default mount is not available "
+                            + "(destination=" + destination + ")"
+            );
+        }
+        addMount(mountsByContainerPath, new MountSpec(
+                existing.mountName(),
+                existing.rawPath(),
+                existing.hostPath(),
+                existing.containerPath(),
+                mode.readOnly()
+        ));
+    }
+
+    private boolean isDefaultMountOverride(AgentDefinition.ExtraMount extraMount, String destination) {
+        return extraMount != null
+                && !extraMount.isPlatform()
+                && !StringUtils.hasText(extraMount.source())
+                && StringUtils.hasText(destination)
+                && DEFAULT_OVERRIDEABLE_PATHS.contains(destination);
     }
 
     private void validateContainerPathConflict(Set<String> usedContainerPaths, String mountName, String containerPath) {
@@ -372,6 +444,13 @@ public class ContainerHubMountResolver {
         return rawPath == null ? "" : rawPath.trim();
     }
 
+    private String normalizeContainerPath(String path) {
+        if (!StringUtils.hasText(path)) {
+            return null;
+        }
+        return Path.of(path.trim()).normalize().toString();
+    }
+
     private static ChatWindowMemoryProperties toChatWindowMemoryProperties(DataProperties dataProperties) {
         ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
         if (dataProperties != null && StringUtils.hasText(dataProperties.getExternalDir())) {
@@ -383,6 +462,6 @@ public class ContainerHubMountResolver {
     private record PlatformMountDef(Supplier<String> sourceSupplier, String containerPath) {
     }
 
-    public record MountSpec(String mountName, String rawPath, String hostPath, String containerPath) {
+    public record MountSpec(String mountName, String rawPath, String hostPath, String containerPath, boolean readOnly) {
     }
 }
