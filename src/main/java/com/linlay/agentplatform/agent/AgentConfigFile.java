@@ -27,7 +27,6 @@ public class AgentConfigFile {
     private SandboxConfig sandboxConfig;
     private SkillConfig skillConfig;
     private ContextConfig contextConfig;
-    private List<String> skills;
     private List<AgentControl> controls;
     private AgentRuntimeMode mode;
 
@@ -118,14 +117,6 @@ public class AgentConfigFile {
 
     public void setContextConfig(ContextConfig contextConfig) {
         this.contextConfig = contextConfig;
-    }
-
-    public List<String> getSkills() {
-        return skills;
-    }
-
-    public void setSkills(List<String> skills) {
-        this.skills = skills;
     }
 
     public List<AgentControl> getControls() {

@@ -192,8 +192,9 @@ class AgentRegistryTest {
                         description: sync agent
                         modelConfig:
                           modelKey: bailian-qwen3-max
-                        skills:
-                          - alpha
+                        skillConfig:
+                          skills:
+                            - alpha
                         mode: ONESHOT
                         """,
                 "sync prompt"
@@ -222,8 +223,9 @@ class AgentRegistryTest {
                         description: sync agent
                         modelConfig:
                           modelKey: bailian-qwen3-max
-                        skills:
-                          - alpha
+                        skillConfig:
+                          skills:
+                            - alpha
                         mode: ONESHOT
                         """,
                 "sync prompt"
@@ -242,8 +244,9 @@ class AgentRegistryTest {
                         description: sync agent
                         modelConfig:
                           modelKey: bailian-qwen3-max
-                        skills:
-                          - beta
+                        skillConfig:
+                          skills:
+                            - beta
                         mode: ONESHOT
                         """,
                 "sync prompt"

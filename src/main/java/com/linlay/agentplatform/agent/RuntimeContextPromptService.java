@@ -75,11 +75,10 @@ public class RuntimeContextPromptService {
         List<String> sections = new ArrayList<>();
         for (String tag : definition.contextTags()) {
             switch (tag) {
-                case RuntimeContextTags.SYSTEM_ENVIRONMENT -> appendIfPresent(sections, buildSystemEnvironmentSection(runtimeContext));
-                case RuntimeContextTags.WORKSPACE_CONTEXT -> appendIfPresent(sections, buildWorkspaceContextSection(runtimeContext.workspacePaths()));
-                case RuntimeContextTags.SESSION_CONTEXT -> appendIfPresent(sections, buildSessionContextSection(request, runtimeContext));
-                case RuntimeContextTags.OWNER_PROFILE -> appendIfPresent(sections, buildOwnerProfileSection(runtimeContext.workspacePaths()));
-                case RuntimeContextTags.AUTH_IDENTITY -> appendIfPresent(sections, buildAuthIdentitySection(runtimeContext.authPrincipal()));
+                case RuntimeContextTags.SYSTEM -> appendIfPresent(sections, buildSystemEnvironmentSection(runtimeContext));
+                case RuntimeContextTags.CONTEXT -> appendIfPresent(sections, buildContextSection(request, runtimeContext));
+                case RuntimeContextTags.OWNER -> appendIfPresent(sections, buildOwnerProfileSection(runtimeContext.workspacePaths()));
+                case RuntimeContextTags.AUTH -> appendIfPresent(sections, buildAuthIdentitySection(runtimeContext.authPrincipal()));
                 default -> {
                 }
             }
@@ -132,43 +131,41 @@ public class RuntimeContextPromptService {
         return String.join("\n", lines);
     }
 
-    private String buildWorkspaceContextSection(RuntimeRequestContext.WorkspacePaths workspacePaths) {
-        if (workspacePaths == null) {
-            return "";
+    private String buildContextSection(AgentRequest request, RuntimeRequestContext runtimeContext) {
+        List<String> lines = new ArrayList<>();
+        lines.add("Runtime Context: Context");
+        if (runtimeContext != null) {
+            RuntimeRequestContext.WorkspacePaths workspacePaths = runtimeContext.workspacePaths();
+            if (workspacePaths != null) {
+                appendKeyValue(lines, "runtime_home", workspacePaths.runtimeHome());
+                appendKeyValue(lines, "root_dir", workspacePaths.rootDir());
+                appendKeyValue(lines, "agents_dir", workspacePaths.agentsDir());
+                appendKeyValue(lines, "chats_dir", workspacePaths.chatsDir());
+                appendKeyValue(lines, "data_dir", workspacePaths.dataDir());
+                appendKeyValue(lines, "skills_market_dir", workspacePaths.skillsDir());
+                appendKeyValue(lines, "schedules_dir", workspacePaths.schedulesDir());
+                appendKeyValue(lines, "owner_file", workspacePaths.ownerFile());
+                appendKeyValue(lines, "chat_attachments_dir", workspacePaths.chatAttachmentsDir());
+            }
         }
-        List<String> lines = new ArrayList<>();
-        lines.add("Runtime Context: Workspace");
-        appendKeyValue(lines, "runtime_home", workspacePaths.runtimeHome());
-        appendKeyValue(lines, "root_dir", workspacePaths.rootDir());
-        appendKeyValue(lines, "agents_dir", workspacePaths.agentsDir());
-        appendKeyValue(lines, "chats_dir", workspacePaths.chatsDir());
-        appendKeyValue(lines, "data_dir", workspacePaths.dataDir());
-        appendKeyValue(lines, "skills_market_dir", workspacePaths.skillsDir());
-        appendKeyValue(lines, "schedules_dir", workspacePaths.schedulesDir());
-        appendKeyValue(lines, "owner_file", workspacePaths.ownerFile());
-        appendKeyValue(lines, "chat_attachments_dir", workspacePaths.chatAttachmentsDir());
-        return String.join("\n", lines);
-    }
-
-    private String buildSessionContextSection(AgentRequest request, RuntimeRequestContext runtimeContext) {
-        List<String> lines = new ArrayList<>();
-        lines.add("Runtime Context: Session");
         appendKeyValue(lines, "chatId", request.chatId());
         appendKeyValue(lines, "requestId", request.requestId());
         appendKeyValue(lines, "runId", request.runId());
-        appendKeyValue(lines, "agentKey", runtimeContext.agentKey());
-        appendKeyValue(lines, "teamId", runtimeContext.teamId());
-        appendKeyValue(lines, "role", runtimeContext.role());
-        appendKeyValue(lines, "chatName", runtimeContext.chatName());
-        if (runtimeContext.scene() != null) {
-            String scene = summarizeScene(runtimeContext.scene());
-            if (StringUtils.hasText(scene)) {
-                lines.add("scene: " + scene);
+        if (runtimeContext != null) {
+            appendKeyValue(lines, "agentKey", runtimeContext.agentKey());
+            appendKeyValue(lines, "teamId", runtimeContext.teamId());
+            appendKeyValue(lines, "role", runtimeContext.role());
+            appendKeyValue(lines, "chatName", runtimeContext.chatName());
+            if (runtimeContext.scene() != null) {
+                String scene = summarizeScene(runtimeContext.scene());
+                if (StringUtils.hasText(scene)) {
+                    lines.add("scene: " + scene);
+                }
             }
-        }
-        String referenceSummary = summarizeReferences(runtimeContext.references());
-        if (StringUtils.hasText(referenceSummary)) {
-            lines.add("references: " + referenceSummary);
+            String referenceSummary = summarizeReferences(runtimeContext.references());
+            if (StringUtils.hasText(referenceSummary)) {
+                lines.add("references: " + referenceSummary);
+            }
         }
         return String.join("\n", lines);
     }

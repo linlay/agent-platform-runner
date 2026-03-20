@@ -523,15 +523,10 @@ public class AgentDefinitionLoader {
     }
 
     private List<String> collectSkillNames(AgentConfigFile config) {
-        if (config == null) {
+        if (config == null || config.getSkillConfig() == null) {
             return List.of();
         }
-        List<String> merged = new ArrayList<>();
-        merged.addAll(normalizeNames(config.getSkills()));
-        if (config.getSkillConfig() != null) {
-            merged.addAll(normalizeNames(config.getSkillConfig().getSkills()));
-        }
-        return merged.stream().distinct().toList();
+        return normalizeNames(config.getSkillConfig().getSkills()).stream().distinct().toList();
     }
 
     private List<AgentControl> collectControls(AgentConfigFile config) {

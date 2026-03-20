@@ -86,18 +86,24 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 
 ### 核心技术能力
 
+#### 六项核心技术
+
 1. **H2A 双队列流式管道** — steer / interrupt / render buffering 一体化控制，既支持近实时输出，也支持有界缓冲与可取消的人机协作。
-2. **三种 Agent 执行模式** — `OneshotMode`、`ReactMode`、`PlanExecuteMode` 三种模式由 `sealed` 层级统一抽象。
-3. **定义驱动 + 依赖感知热重载** — Agent / Model / Tool / Skill / Provider / Team / Schedule / MCP Server / Viewport 由外部 YAML 驱动，并按依赖精准刷新受影响 agent。
-4. **Backend / Frontend / Action 多类型工具系统** — 同一 Function Calling 协议下走不同执行路径，支撑后端调用、前端渲染和即时动作。
-5. **Container Hub 三级沙箱生命周期** — `RUN / AGENT / GLOBAL` 三级复用与销毁策略，配合引用计数、空闲驱逐和 12 个挂载点。
+2. **定义驱动 + 依赖感知热重载** — Agent / Model / Tool / Skill / Provider / Team / Schedule / MCP Server / Viewport 由外部 YAML 驱动，并按依赖精准刷新受影响 agent。
+3. **System Prompt 多层合并管线** — `SOUL.md → Runtime Context → AGENTS.md / AGENTS.<stage>.md → memory → YAML prompt → skills/tool appendix` 的分层提示词体系，支持通过 `contextConfig.tags` 按需注入运行时上下文。
+4. **Container Hub 三级沙箱生命周期** — `RUN / AGENT / GLOBAL` 三级复用与销毁策略，配合引用计数、空闲驱逐和平台目录挂载策略。
+5. **SSE 事件契约** — 围绕 Event Model v2 的统一事件字段、业务语义和历史回放约束。
 6. **Chat Memory V3.1** — JSONL 增量落盘、按 run 滑动窗口、`_msgId` 关联多消息拆分、真实 `_usage` 透传、reasoning 不回放。
-7. **System Prompt 多层合并管线** — `SOUL.md → AGENTS.md → stage prompt → memory → YAML prompt → skills/tool appendix` 的分层提示词体系。
-8. **MCP Server 集成与可用性管理** — 目录式注册、协议版本管理、可用性 gate、自动重连、依赖传播刷新。
-9. **JWT + Chat Image Token 双层鉴权** — `/api/*` 走 JWT，`/api/data` 支持 HMAC-SHA256 签名的 chat image token 与密钥轮换。
-10. **Budget / Compute Policy 资源限制** — `RunSpec + Budget + ComputePolicy` 在 run / model / tool 三层限制调用量与超时。
-11. **Bash 工具安全模型** — 白名单命令、路径白名单、按命令分级路径校验、shell 特性开关、git 参数特化解析。
-12. **Schedule / Cron 定时编排** — YAML 定义 + Spring `CronTrigger` + 增量 reconcile，每次触发都走标准 `QueryRequest` 链路。
+
+#### 七项重要技术
+
+7. **三种 Agent 执行模式** — `OneshotMode`、`ReactMode`、`PlanExecuteMode` 三种模式由 `sealed` 层级统一抽象。
+8. **Backend / Frontend / Action 多类型工具系统** — 同一 Function Calling 协议下走不同执行路径，支撑后端调用、前端渲染和即时动作。
+9. **MCP Server 集成与可用性管理** — 目录式注册、协议版本管理、可用性 gate、自动重连、依赖传播刷新。
+10. **JWT + Chat Image Token 双层鉴权** — `/api/*` 走 JWT，`/api/data` 支持 HMAC-SHA256 签名的 chat image token 与密钥轮换。
+11. **Budget / Compute Policy 资源限制** — `RunSpec + Budget + ComputePolicy` 在 run / model / tool 三层限制调用量与超时。
+12. **Bash 工具安全模型** — 白名单命令、路径白名单、按命令分级路径校验、shell 特性开关、git 参数特化解析。
+13. **Schedule / Cron 定时编排** — YAML 定义 + Spring `CronTrigger` + 增量 reconcile，每次触发都走标准 `QueryRequest` 链路。
 
 ### 核心模块
 
@@ -152,7 +158,8 @@ toolConfig:
   actions: ["switch_theme"]
 skillConfig:
   skills: ["docx", "screenshot"]
-skills: ["docx", "screenshot"]
+contextConfig:
+  tags: ["system", "context", "owner", "auth"]
 mode: ONESHOT
 toolChoice: AUTO
 budget:
@@ -263,7 +270,23 @@ plain:
 
 **skillConfig 配置：**
 
-- 支持两种写法（会合并去重）：`skillConfig.skills` 或顶层 `skills`。
+- 使用 `skillConfig.skills` 声明 skills。
+
+**contextConfig 配置：**
+
+```yaml
+contextConfig:
+  tags:
+    - system
+    - context
+    - owner
+    - auth
+```
+
+- `system`：注入 OS、Java 版本、时区、locale、当前日期时间等系统环境信息。
+- `context`：注入运行目录与当前会话上下文，包括 `runtime_home`、`root_dir`、`agents_dir`、`chats_dir`、`data_dir`、`chatId`、`requestId`、`runId`、`agentKey`、`teamId`、`role`、`chatName`、`scene`、`references`。
+- `owner`：注入 `OWNER.md` 中的 frontmatter 与正文摘要（正文最大 4000 字符）。
+- `auth`：注入 JWT 主体信息，包括 `subject`、`deviceId`、`scope`、`issuedAt`、`expiresAt`。
 
 **文件格式与优先级：**
 
@@ -272,7 +295,7 @@ plain:
 - 同 basename 冲突时优先 `.yml`，并忽略对应 `.yaml`。
 - 前 4 行固定为 `key`、`name`、`role`、`description`，且必须从第 1 行开始、禁止前置空行 / 注释、必须是单行 inline value。
 - 目录化 Agent 可附带可选文件：`SOUL.md`、`AGENTS.md`、`AGENTS.plain.md`、`AGENTS.react.md`、`AGENTS.plan.md`、`AGENTS.execute.md`、`AGENTS.summary.md`、`memory/memory.md`。
-- 运行时 system prompt 合并顺序：`SOUL.md` → `AGENTS.md` → stage 专属 `AGENTS.<stage>.md` → `memory/memory.md` → YAML stage `systemPrompt` → skills appendix → tool appendix。
+- 运行时 system prompt 合并顺序：`SOUL.md` → Runtime Context（按 `contextConfig.tags` 注入）→ `AGENTS.md` / stage 专属 `AGENTS.<stage>.md` → `memory/memory.md` → YAML stage `systemPrompt` → skills appendix → tool appendix。
 
 **多行 Prompt 写法：**
 
@@ -396,13 +419,7 @@ skillConfig:
   skills: ["docx", "screenshot"]
 ```
 
-或简写：
-
-```yaml
-skills: ["docx", "screenshot"]
-```
-
-两种写法会合并去重。运行时，技能目录摘要注入 system prompt；skill 正文用于给模型提供操作手册和命令模板，不再依赖专用脚本执行工具。
+运行时，技能目录摘要注入 system prompt；skill 正文用于给模型提供操作手册和命令模板，不再依赖专用脚本执行工具。
 
 - 热加载：`skills/` 目录变更仅刷新 `SkillRegistryService`，不触发 agent reload；reload 后新 run 会读取新技能内容。
 - 目录化 Agent 可放置 per-agent `skills/`，作为该 agent 私有 skill 资源。
@@ -515,67 +532,10 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 | `/chats` | `{chatDataDir}` | `{chatDataDir}` | `extraMounts` 按需 | 显式 `mode` | `memory.chats.dir` |
 | `/OWNER.md` | `{agentsDir}/../OWNER.md` | `{agentsDir}/../OWNER.md` | `extraMounts` 按需；单文件 | 显式 `mode` | `agent.agents.external-dir` 的父目录 |
 
-### 挂载原则
-
-- 默认最小集：默认只挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent`，不再默认暴露全量平台配置目录。
-- agent 就近原则：当前 agent 若采用目录化布局，默认挂载其自身目录到 `/agent`；扁平 YAML agent 不强制创建该挂载。
-- 默认安全模式：`/skills` 与 `/agent` 默认只读；`/workspace`、`/root`、`/pan` 默认读写。
-- 按需显式原则：`/models`、`/tools`、`/agents`、`/viewports`、`/teams`、`/schedules`、`/mcp-servers`、`/providers`、`/chats`、`/OWNER.md` 仅能通过 `sandboxConfig.extraMounts` 显式恢复。
-- 模式显式原则：所有按需平台挂载和自定义挂载都必须显式声明 `mode: ro|rw`。
-- 基础挂载覆盖原则：若只想修改 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 的模式，可在 `extraMounts` 中只写 `destination + mode` 覆盖默认模式，不新增第二个挂载。
-- 最小暴露原则：agent 只应声明完成任务所必需的额外挂载，避免把无关目录带入沙箱。
-- 安全优先原则：custom mount 必须满足“源目录存在、目标路径为绝对路径、目标路径不冲突”；不满足时直接 fail-fast。
-- 敏感目录显式授权：`providers` 属于敏感挂载，即使在 `extraMounts` 中声明，也必须先有全局 `agent.providers.external-dir` 目录。
-- 未知简写宽容处理：未知 `platform` 不阻断 agent 加载，只记录 warn 并跳过该条目。
-
 ### Agent Definition 中的 sandboxConfig
 
-```yaml
-sandboxConfig:
-  environmentId: shell
-  level: agent        # run / agent / global；为空时使用全局 default-sandbox-level
-  extraMounts:
-    - platform: models
-      mode: ro
-    - platform: tools
-      mode: rw
-    - platform: chats
-      mode: ro
-    - platform: owner.md
-      mode: rw
-    - source: /abs/host/path
-      destination: /datasets
-      mode: ro
-    - destination: /skills
-      mode: rw
-```
-
-### extraMounts 平台简写
-
-| `platform` | 容器路径 |
-|-----------|----------|
-| `models` | `/models` |
-| `tools` | `/tools` |
-| `agents` | `/agents` |
-| `viewports` | `/viewports` |
-| `viewport-servers` | `/viewport-servers` |
-| `teams` | `/teams` |
-| `schedules` | `/schedules` |
-| `mcp-servers` | `/mcp-servers` |
-| `providers` | `/providers` |
-| `chats` | `/chats` |
-| `owner.md` | `/OWNER.md` |
-
-约束：
-
-- `platform` 未知时仅 warn 并跳过。
-- `platform` 挂载必须显式声明 `mode: ro|rw`。
-- custom mount 必须提供 `source + destination + mode`。
-- `platform: owner.md` 绑定的是单文件 `OWNER.md`；其他 `platform` 绑定目录。
-- 默认基础挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 可通过 `destination + mode` 覆盖默认模式。
-- custom mount 的 `destination` 必须是绝对路径，且不能与已有挂载冲突。
-- custom mount 的 `source` 必须是已存在目录。
-- `platform: providers` 只有在 `mounts.providers-dir` 已显式配置时才可用。
+通过 `sandboxConfig` 配置沙箱参数（`environmentId`、`level`、`extraMounts`）。
+完整配置示例、平台简写表、挂载原则和约束规则详见 [docs/sandbox-config-reference.md](./docs/sandbox-config-reference.md)。
 
 ### 并发与销毁策略
 
@@ -648,7 +608,9 @@ sandboxConfig:
 - `/api/query` 在流式输出结束时追加传输层终止帧 `data:[DONE]`；该 sentinel 不属于 Event Model v2 业务事件，也不写入 chat 历史事件。
 - `RenderQueue` 只影响传输 flush 行为，不改变上述业务事件类型与字段契约。
 
-## Chat Memory V3（JSONL）
+## Chat Memory V3.1（JSONL）
+
+以下为 V3 格式基础 + V3.1 增量改进的完整规范。
 
 - 存储文件：`chats/{chatId}.json`，JSONL 格式，**一行一个 step**，逐步增量写入。
 - 行类型通过 `_type` 字段区分：
@@ -667,29 +629,26 @@ sandboxConfig:
 - memory 回放约束：`reasoning_content` **不回传**给下一轮模型上下文。
 - 滑动窗口：`k=20` 单位仍然是 **run**；`trimToWindow` 按 `runId` 分组，保留最近 `k` 个 run 的所有行。
 
-## Chat Memory V3.1 变更
+### V3.1 增量改进
 
-基于 V3 格式的增量改进，向后兼容旧 V3 数据。
-
-
-### _msgId
+#### _msgId
 
 - 新增 `_msgId`（格式 `m_xxxxxxxx`，8 位 hex）标识同一 LLM 响应拆分的多条 assistant 消息。
 - 同一模型回复中的 reasoning、content、tool_calls 消息共享相同 `_msgId`。
 - tool result 到来后，下一个 reasoning / content delta 会重新生成 `_msgId`。
 
-### tool_calls 拆分规则
+#### tool_calls 拆分规则
 
 - 每条 `role=assistant` 的 `tool_calls` 数组只含 **1 个**工具调用。
 - 并行多工具调用拆分为多条 assistant 消息，通过共享 `_msgId` 关联。
 
-### _toolId / _actionId 位置
+#### _toolId / _actionId 位置
 
 - `_toolId` 和 `_actionId` 写入 `StoredMessage` 外层（与 `_reasoningId`、`_contentId` 同级）。
 - `StoredToolCall` 内层的 `_toolId` / `_actionId` 仅用于反序列化旧 V3 数据，新数据不再写入。
 - 读取时先查外层，再 fallback 内层（兼容旧数据）。
 
-### _toolId 生成规则
+#### _toolId 生成规则
 
 | 工具类型 | 生成规则 |
 |----------|---------|
@@ -697,7 +656,7 @@ sandboxConfig:
 | frontend（`type=frontend`） | `t_` + 8 位 hex（系统生成） |
 | action（`type=action`） | `a_` + 8 位 hex（系统生成） |
 
-### ID 前缀简化
+#### ID 前缀简化
 
 | ID 类型 | 旧前缀 | 新前缀 |
 |---------|--------|--------|
@@ -709,7 +668,7 @@ sandboxConfig:
 
 SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_r_{seq}` / `{runId}_c_{seq}`。
 
-### _usage 真实填充
+#### _usage 真实填充
 
 - 通过 `stream_options.include_usage=true` 请求 LLM provider 返回真实 usage 数据。
 - `LlmDelta` record 新增 `Map<String, Object> usage` 字段，SSE parser 解析最后一个 chunk 的 usage。

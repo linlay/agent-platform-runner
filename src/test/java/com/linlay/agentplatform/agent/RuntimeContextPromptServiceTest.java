@@ -72,19 +72,17 @@ class RuntimeContextPromptServiceTest {
             );
 
             String prompt = service.buildPrompt(definition(
-                    RuntimeContextTags.SYSTEM_ENVIRONMENT,
-                    RuntimeContextTags.WORKSPACE_CONTEXT,
-                    RuntimeContextTags.SESSION_CONTEXT,
-                    RuntimeContextTags.OWNER_PROFILE,
-                    RuntimeContextTags.AUTH_IDENTITY
+                    RuntimeContextTags.SYSTEM,
+                    RuntimeContextTags.CONTEXT,
+                    RuntimeContextTags.OWNER,
+                    RuntimeContextTags.AUTH
             ), request);
 
             assertThat(prompt).contains("Runtime Context: System Environment");
-            assertThat(prompt).contains("Runtime Context: Workspace");
+            assertThat(prompt).contains("Runtime Context: Context");
             assertThat(prompt).contains("data_dir: " + runtimeHome.resolve("data").toAbsolutePath().normalize());
             assertThat(prompt).contains("skills_market_dir: " + runtimeHome.resolve("skills-market").toAbsolutePath().normalize());
             assertThat(prompt).contains("chat_attachments_dir: " + runtimeHome.resolve("data").resolve("chat-1").toAbsolutePath().normalize());
-            assertThat(prompt).contains("Runtime Context: Session");
             assertThat(prompt).contains("chatId: chat-1");
             assertThat(prompt).contains("chatName: Demo Chat");
             assertThat(prompt).contains("references: 1 item(s): notes.md (file)");
@@ -117,7 +115,7 @@ class RuntimeContextPromptServiceTest {
                     new RuntimeRequestContext("demo-agent", null, "user", null, null, List.of(), null, workspacePaths)
             );
 
-            String missingOwnerPrompt = service.buildPrompt(definition(RuntimeContextTags.OWNER_PROFILE), request);
+            String missingOwnerPrompt = service.buildPrompt(definition(RuntimeContextTags.OWNER), request);
             assertThat(missingOwnerPrompt).isEmpty();
 
             Files.writeString(runtimeHome.resolve("OWNER.md"), """
@@ -128,7 +126,7 @@ class RuntimeContextPromptServiceTest {
                     %s
                     """.formatted("x".repeat(4_200)));
 
-            String prompt = service.buildPrompt(definition(RuntimeContextTags.OWNER_PROFILE), request);
+            String prompt = service.buildPrompt(definition(RuntimeContextTags.OWNER), request);
             assertThat(prompt).contains("Runtime Context: Owner Profile");
             assertThat(prompt).contains("name: Linlay");
             assertThat(prompt).contains("[TRUNCATED: OWNER.md exceeds max chars=4000]");

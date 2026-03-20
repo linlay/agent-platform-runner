@@ -9,18 +9,16 @@ import java.util.Set;
 
 public final class RuntimeContextTags {
 
-    public static final String SYSTEM_ENVIRONMENT = "system_environment";
-    public static final String WORKSPACE_CONTEXT = "workspace_context";
-    public static final String SESSION_CONTEXT = "session_context";
-    public static final String OWNER_PROFILE = "owner_profile";
-    public static final String AUTH_IDENTITY = "auth_identity";
+    public static final String SYSTEM = "system";
+    public static final String CONTEXT = "context";
+    public static final String OWNER = "owner";
+    public static final String AUTH = "auth";
 
     private static final Set<String> SUPPORTED = Set.of(
-            SYSTEM_ENVIRONMENT,
-            WORKSPACE_CONTEXT,
-            SESSION_CONTEXT,
-            OWNER_PROFILE,
-            AUTH_IDENTITY
+            SYSTEM,
+            CONTEXT,
+            OWNER,
+            AUTH
     );
 
     private RuntimeContextTags() {

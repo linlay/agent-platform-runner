@@ -123,10 +123,10 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 contextConfig:
                   tags:
-                    - system_environment
-                    - owner_profile
+                    - system
+                    - owner
                     - unsupported_tag
-                    - session_context
+                    - context
                 mode: ONESHOT
                 plain:
                   systemPrompt: test
@@ -136,10 +136,37 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.contextTags()).containsExactly(
-                RuntimeContextTags.SYSTEM_ENVIRONMENT,
-                RuntimeContextTags.OWNER_PROFILE,
-                RuntimeContextTags.SESSION_CONTEXT
+                RuntimeContextTags.SYSTEM,
+                RuntimeContextTags.OWNER,
+                RuntimeContextTags.CONTEXT
         );
+    }
+
+    @Test
+    void shouldIgnoreLegacyContextTags() throws IOException {
+        writeYaml("legacy_context_agent.yml", """
+                key: legacy_context_agent
+                name: Legacy Context Agent
+                role: Legacy Context Agent
+                description: legacy context agent
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                contextConfig:
+                  tags:
+                    - system_environment
+                    - workspace_context
+                    - session_context
+                    - owner_profile
+                    - auth_identity
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test
+                """);
+
+        AgentDefinition definition = loadById().get("legacy_context_agent");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.contextTags()).isEmpty();
     }
 
     @Test
@@ -728,33 +755,6 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.skills()).containsExactly("screenshot", "doc");
-    }
-
-    @Test
-    void shouldMergeSkillsAliasAndSkillConfig() throws IOException {
-        writeYaml("skills_alias.yml", """
-                key: skills_alias
-                name: Skills Alias
-                role: Skills Alias
-                description: skills alias
-                modelConfig:
-                  modelKey: bailian-qwen3-max
-                skills:
-                  - pdf
-                  - doc
-                skillConfig:
-                  skills:
-                    - screenshot
-                    - PDF
-                mode: ONESHOT
-                plain:
-                  systemPrompt: test prompt
-                """);
-
-        AgentDefinition definition = loadById().get("skills_alias");
-
-        assertThat(definition).isNotNull();
-        assertThat(definition.skills()).containsExactly("pdf", "doc", "screenshot");
     }
 
     @Test

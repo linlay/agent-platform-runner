@@ -861,7 +861,7 @@ class DefinitionDrivenAgentTest {
                 List.of(),
                 "soul prompt",
                 "shared prompt",
-                List.of(RuntimeContextTags.SESSION_CONTEXT, RuntimeContextTags.OWNER_PROFILE, RuntimeContextTags.AUTH_IDENTITY),
+                List.of(RuntimeContextTags.CONTEXT, RuntimeContextTags.OWNER, RuntimeContextTags.AUTH),
                 List.of(),
                 agentDir
         );
@@ -922,21 +922,21 @@ class DefinitionDrivenAgentTest {
 
             String systemPrompt = captured.get().systemPrompt();
             assertThat(systemPrompt).contains("soul prompt");
-            assertThat(systemPrompt).contains("Runtime Context: Session");
+            assertThat(systemPrompt).contains("Runtime Context: Context");
             assertThat(systemPrompt).contains("Runtime Context: Owner Profile");
             assertThat(systemPrompt).contains("Runtime Context: Auth Identity");
             assertThat(systemPrompt).contains("plain markdown");
             assertThat(systemPrompt).contains("Memory:\nmemory note");
             assertThat(systemPrompt).contains("yaml prompt");
-            assertThat(systemPrompt.indexOf("soul prompt")).isLessThan(systemPrompt.indexOf("Runtime Context: Session"));
-            assertThat(systemPrompt.indexOf("Runtime Context: Session")).isLessThan(systemPrompt.indexOf("plain markdown"));
+            assertThat(systemPrompt.indexOf("soul prompt")).isLessThan(systemPrompt.indexOf("Runtime Context: Context"));
+            assertThat(systemPrompt.indexOf("Runtime Context: Context")).isLessThan(systemPrompt.indexOf("plain markdown"));
             assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("Memory:\nmemory note"));
             assertThat(systemPrompt.indexOf("Memory:\nmemory note")).isLessThan(systemPrompt.indexOf("yaml prompt"));
 
             ChatMemoryTypes.SystemSnapshot snapshot = chatWindowMemoryStore.loadLatestSystemSnapshot(chatId);
             assertThat(snapshot).isNotNull();
             assertThat(snapshot.messages).hasSize(1);
-            assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Session");
+            assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Context");
             assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Owner Profile");
         } finally {
             restoreUserDir(originalUserDir);
