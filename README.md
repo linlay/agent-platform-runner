@@ -741,6 +741,10 @@ sandboxConfig:
       mode: ro
     - platform: models
       mode: rw
+    - platform: chats
+      mode: ro
+    - platform: owner.md
+      mode: rw
     - source: /abs/host/path
       destination: /datasets
       mode: ro

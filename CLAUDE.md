@@ -520,7 +520,6 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - 默认最小集：默认只挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent`，不再默认暴露全量平台配置目录。
 - agent 就近原则：当前 agent 若采用目录化布局，默认挂载其自身目录到 `/agent`；扁平 YAML agent 不强制创建该挂载。
 - 默认安全模式：`/skills` 与 `/agent` 默认只读；`/workspace`、`/root`、`/pan` 默认读写。
-- 按需显式原则：`/models`、`/tools`、`/agents`、`/viewports`、`/teams`、`/schedules`、`/mcp-servers`、`/providers` 仅能通过 `sandboxConfig.extraMounts` 显式恢复。
 - 按需显式原则：`/models`、`/tools`、`/agents`、`/viewports`、`/teams`、`/schedules`、`/mcp-servers`、`/providers`、`/chats`、`/OWNER.md` 仅能通过 `sandboxConfig.extraMounts` 显式恢复。
 - 模式显式原则：所有按需平台挂载和自定义挂载都必须显式声明 `mode: ro|rw`。
 - 基础挂载覆盖原则：若只想修改 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 的模式，可在 `extraMounts` 中只写 `destination + mode` 覆盖默认模式，不新增第二个挂载。
@@ -539,6 +538,10 @@ sandboxConfig:
     - platform: models
       mode: ro
     - platform: tools
+      mode: rw
+    - platform: chats
+      mode: ro
+    - platform: owner.md
       mode: rw
     - source: /abs/host/path
       destination: /datasets

@@ -358,18 +358,18 @@ public class ContainerHubMountResolver {
     }
 
     private Map<String, PlatformMountDef> platformMountDefs() {
-        return Map.of(
-                "models", new PlatformMountDef(this::resolveModelsDir, "/models", MountSourceType.DIRECTORY),
-                "tools", new PlatformMountDef(this::resolveToolsDir, "/tools", MountSourceType.DIRECTORY),
-                "agents", new PlatformMountDef(this::resolveAgentsDir, "/agents", MountSourceType.DIRECTORY),
-                "viewports", new PlatformMountDef(this::resolveViewportsDir, "/viewports", MountSourceType.DIRECTORY),
-                "viewport-servers", new PlatformMountDef(this::resolveViewportServersDir, "/viewport-servers", MountSourceType.DIRECTORY),
-                "teams", new PlatformMountDef(this::resolveTeamsDir, "/teams", MountSourceType.DIRECTORY),
-                "schedules", new PlatformMountDef(this::resolveSchedulesDir, "/schedules", MountSourceType.DIRECTORY),
-                "mcp-servers", new PlatformMountDef(this::resolveMcpServersDir, "/mcp-servers", MountSourceType.DIRECTORY),
-                "providers", new PlatformMountDef(this::resolveProvidersDir, "/providers", MountSourceType.DIRECTORY),
-                "chats", new PlatformMountDef(this::resolveChatsDir, "/chats", MountSourceType.DIRECTORY),
-                "owner.md", new PlatformMountDef(this::resolveOwnerFilePath, "/OWNER.md", MountSourceType.FILE)
+        return Map.ofEntries(
+                Map.entry("models", new PlatformMountDef(this::resolveModelsDir, "/models", MountSourceType.DIRECTORY)),
+                Map.entry("tools", new PlatformMountDef(this::resolveToolsDir, "/tools", MountSourceType.DIRECTORY)),
+                Map.entry("agents", new PlatformMountDef(this::resolveAgentsDir, "/agents", MountSourceType.DIRECTORY)),
+                Map.entry("viewports", new PlatformMountDef(this::resolveViewportsDir, "/viewports", MountSourceType.DIRECTORY)),
+                Map.entry("viewport-servers", new PlatformMountDef(this::resolveViewportServersDir, "/viewport-servers", MountSourceType.DIRECTORY)),
+                Map.entry("teams", new PlatformMountDef(this::resolveTeamsDir, "/teams", MountSourceType.DIRECTORY)),
+                Map.entry("schedules", new PlatformMountDef(this::resolveSchedulesDir, "/schedules", MountSourceType.DIRECTORY)),
+                Map.entry("mcp-servers", new PlatformMountDef(this::resolveMcpServersDir, "/mcp-servers", MountSourceType.DIRECTORY)),
+                Map.entry("providers", new PlatformMountDef(this::resolveProvidersDir, "/providers", MountSourceType.DIRECTORY)),
+                Map.entry("chats", new PlatformMountDef(this::resolveChatsDir, "/chats", MountSourceType.DIRECTORY)),
+                Map.entry("owner.md", new PlatformMountDef(this::resolveOwnerFilePath, "/OWNER.md", MountSourceType.FILE))
         );
     }
 
