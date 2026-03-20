@@ -29,6 +29,7 @@ import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -168,6 +169,26 @@ class ContainerHubSandboxServiceTest {
     }
 
     @Test
+    void agentLevelShouldMountAgentLocalSkillsDirectory() throws Exception {
+        CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
+        ContainerHubToolProperties properties = containerHubProperties("run");
+        RecordingStubContainerHubClient client = new RecordingStubContainerHubClient(events);
+        AgentProperties agentProperties = new AgentProperties();
+        Path agentsRoot = createTempMountDir("container-hub-agents");
+        agentProperties.setExternalDir(agentsRoot.toString());
+        Path agentSkillsDir = Files.createDirectories(agentsRoot.resolve("sandbox-agent").resolve("skills"));
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null, null, null, agentProperties);
+        ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
+
+        ExecutionContext context = createContext(definitionWithLevel(SandboxLevel.AGENT));
+        service.openIfNeeded(context);
+
+        JsonNode mounts = client.lastCreatePayload.path("mounts");
+        assertThat(findMount(mounts, "/skills").path("source").asText())
+                .isEqualTo(agentSkillsDir.toAbsolutePath().normalize().toString());
+    }
+
+    @Test
     void globalLevelShouldCreateSingletonSession() {
         CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
         ContainerHubToolProperties properties = containerHubProperties("run");
@@ -197,6 +218,29 @@ class ContainerHubSandboxServiceTest {
         // closeQuietly should be no-op for global
         service.closeQuietly(ctx1);
         service.closeQuietly(ctx2);
+    }
+
+    @Test
+    void globalLevelShouldMountSkillsMarketDirectory() throws Exception {
+        CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
+        ContainerHubToolProperties properties = containerHubProperties("run");
+        RecordingStubContainerHubClient client = new RecordingStubContainerHubClient(events);
+        Path skillsMarketDir = createTempMountDir("container-hub-skills-market");
+        SkillProperties skillProperties = new SkillProperties();
+        skillProperties.setExternalDir(skillsMarketDir.toString());
+        AgentProperties agentProperties = new AgentProperties();
+        Path agentsRoot = createTempMountDir("container-hub-agents");
+        agentProperties.setExternalDir(agentsRoot.toString());
+        Files.createDirectories(agentsRoot.resolve("agent-a").resolve("skills"));
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, skillProperties, null, null, agentProperties);
+        ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
+
+        ExecutionContext context = createContext(definitionWithLevel(SandboxLevel.GLOBAL, "agent-a"));
+        service.openIfNeeded(context);
+
+        JsonNode mounts = client.lastCreatePayload.path("mounts");
+        assertThat(findMount(mounts, "/skills").path("source").asText())
+                .isEqualTo(skillsMarketDir.toAbsolutePath().normalize().toString());
     }
 
     @Test
@@ -330,6 +374,17 @@ class ContainerHubSandboxServiceTest {
             RootProperties rootProperties,
             PanProperties panProperties
     ) {
+        return containerHubMountResolver(properties, dataProperties, skillProperties, rootProperties, panProperties, null);
+    }
+
+    private ContainerHubMountResolver containerHubMountResolver(
+            ContainerHubToolProperties properties,
+            DataProperties dataProperties,
+            SkillProperties skillProperties,
+            RootProperties rootProperties,
+            PanProperties panProperties,
+            AgentProperties agentProperties
+    ) {
         RootProperties resolvedRootProperties = rootProperties == null ? new RootProperties() : rootProperties;
         if (rootProperties == null) {
             resolvedRootProperties.setExternalDir(createTempMountDir("container-hub-root").toString());
@@ -345,13 +400,18 @@ class ContainerHubSandboxServiceTest {
             resolvedSkillProperties.setExternalDir(createTempMountDir("container-hub-skills").toString());
         }
 
+        AgentProperties resolvedAgentProperties = agentProperties == null ? new AgentProperties() : agentProperties;
+        if (agentProperties == null) {
+            resolvedAgentProperties.setExternalDir(createTempMountDir("container-hub-agents").toString());
+        }
+
         return new ContainerHubMountResolver(
                 dataProperties,
                 resolvedRootProperties,
                 resolvedPanProperties,
                 resolvedSkillProperties,
                 new ToolProperties(),
-                new AgentProperties(),
+                resolvedAgentProperties,
                 new ModelProperties(),
                 new ViewportProperties(),
                 new ViewportServerProperties(),

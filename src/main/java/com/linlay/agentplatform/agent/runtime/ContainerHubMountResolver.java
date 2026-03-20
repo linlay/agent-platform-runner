@@ -154,7 +154,7 @@ public class ContainerHubMountResolver {
             addResolvedMount(mountsByContainerPath, "root-dir", rootDir, ROOT_PATH, false);
         }
 
-        String skillsDir = resolveSkillsDir();
+        String skillsDir = resolveSkillsDir(level, agentKey);
         if (StringUtils.hasText(skillsDir)) {
             addResolvedMount(mountsByContainerPath, "skills-dir", skillsDir, SKILLS_PATH, true);
         }
@@ -204,11 +204,22 @@ public class ContainerHubMountResolver {
         return null;
     }
 
-    private String resolveSkillsDir() {
+    private String resolveGlobalSkillsDir() {
         if (skillProperties != null && StringUtils.hasText(skillProperties.getExternalDir())) {
             return skillProperties.getExternalDir().trim();
         }
         return null;
+    }
+
+    private String resolveSkillsDir(SandboxLevel level, String agentKey) {
+        if (level == SandboxLevel.GLOBAL) {
+            return resolveGlobalSkillsDir();
+        }
+        String localSkillsDir = resolveAgentSkillsDir(agentKey);
+        if (StringUtils.hasText(localSkillsDir)) {
+            return localSkillsDir;
+        }
+        return resolveGlobalSkillsDir();
     }
 
     private String resolvePanDir() {
@@ -272,6 +283,24 @@ public class ContainerHubMountResolver {
         }
         Path agentDir = Path.of(agentsDir, agentKey).toAbsolutePath().normalize();
         return Files.isDirectory(agentDir) ? agentDir.toString() : null;
+    }
+
+    private String resolveAgentSkillsDir(String agentKey) {
+        String agentSelfDir = resolveAgentSelfDir(agentKey);
+        if (!StringUtils.hasText(agentSelfDir)) {
+            return null;
+        }
+        Path localSkillsDir = Path.of(agentSelfDir, "skills").toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(localSkillsDir);
+            return localSkillsDir.toString();
+        } catch (IOException ex) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for skills-dir: unable to prepare agent-local skills directory"
+                            + " (resolved=" + localSkillsDir + ", containerPath=" + SKILLS_PATH + ")",
+                    ex
+            );
+        }
     }
 
     private String resolveOwnerFilePath() {

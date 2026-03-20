@@ -98,6 +98,7 @@ class ContainerHubMountResolverTest {
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
         Path agentsDir = Files.createDirectories(tempDir.resolve("agents"));
         Path agentDir = Files.createDirectories(agentsDir.resolve("atlas"));
+        Path agentSkillsDir = agentDir.resolve("skills");
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
@@ -115,11 +116,45 @@ class ContainerHubMountResolverTest {
                 .containsExactly("/workspace", "/root", "/skills", "/pan", "/agent");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(dataDir.toAbsolutePath().normalize().toString())
+                .contains(agentSkillsDir.toAbsolutePath().normalize().toString())
                 .contains(agentDir.toAbsolutePath().normalize().toString());
+        assertThat(Files.isDirectory(agentSkillsDir)).isTrue();
+        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(agentSkillsDir.toAbsolutePath().normalize().toString());
         assertThat(mounts).filteredOn(mount -> "/agent".equals(mount.containerPath()))
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(true);
+    }
+
+    @Test
+    void runLevelShouldMountAgentLocalSkillsWhenDirectoryAgentExists() throws Exception {
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
+        Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
+        Path panDir = Files.createDirectories(tempDir.resolve("pan"));
+        Path dataDir = Files.createDirectories(tempDir.resolve("data"));
+        Path agentsDir = Files.createDirectories(tempDir.resolve("agents"));
+        Path agentDir = Files.createDirectories(agentsDir.resolve("atlas"));
+        Path agentSkillsDir = agentDir.resolve("skills");
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(dataDir),
+                skillProperties(skillsDir),
+                rootProperties(rootDir),
+                panProperties(panDir),
+                providerProperties(tempDir.resolve("providers"))
+        );
+
+        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.RUN, "chat", "atlas", List.of());
+
+        assertThat(Files.isDirectory(agentSkillsDir)).isTrue();
+        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(agentSkillsDir.toAbsolutePath().normalize().toString());
     }
 
     @Test
@@ -128,6 +163,8 @@ class ContainerHubMountResolverTest {
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
+        Path agentsDir = Files.createDirectories(tempDir.resolve("agents"));
+        Files.createDirectories(agentsDir.resolve("chat-global-agent").resolve("skills"));
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
@@ -145,6 +182,10 @@ class ContainerHubMountResolverTest {
                 .containsExactly("/workspace", "/root", "/skills", "/pan");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(dataDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(skillsDir.toAbsolutePath().normalize().toString());
     }
 
     @Test

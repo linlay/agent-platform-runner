@@ -175,11 +175,100 @@ class AgentRegistryTest {
         assertThat(betaAfter).isSameAs(betaBefore);
     }
 
+    @Test
+    void shouldSyncDeclaredMarketSkillsDuringStartupRefresh() throws Exception {
+        Path agentsDir = tempDir.resolve("agents");
+        Path skillsMarketDir = tempDir.resolve("skills-market");
+        Files.createDirectories(agentsDir);
+        writeMarketSkill(skillsMarketDir, "alpha", "market alpha");
+
+        writeDirectoryAgent(
+                agentsDir,
+                "sync_agent",
+                """
+                        key: sync_agent
+                        name: Sync Agent
+                        role: Sync Agent
+                        description: sync agent
+                        modelConfig:
+                          modelKey: bailian-qwen3-max
+                        skills:
+                          - alpha
+                        mode: ONESHOT
+                        """,
+                "sync prompt"
+        );
+
+        createRegistry(agentsDir, skillsMarketDir);
+
+        assertThat(Files.readString(agentsDir.resolve("sync_agent/skills/alpha/SKILL.md"))).contains("market alpha");
+    }
+
+    @Test
+    void shouldReconcileDeclaredSkillsWhenRefreshingSelectedAgents() throws Exception {
+        Path agentsDir = tempDir.resolve("agents");
+        Path skillsMarketDir = tempDir.resolve("skills-market");
+        Files.createDirectories(agentsDir);
+        writeMarketSkill(skillsMarketDir, "alpha", "market alpha");
+        writeMarketSkill(skillsMarketDir, "beta", "market beta");
+
+        writeDirectoryAgent(
+                agentsDir,
+                "sync_agent",
+                """
+                        key: sync_agent
+                        name: Sync Agent
+                        role: Sync Agent
+                        description: sync agent
+                        modelConfig:
+                          modelKey: bailian-qwen3-max
+                        skills:
+                          - alpha
+                        mode: ONESHOT
+                        """,
+                "sync prompt"
+        );
+
+        AgentRegistry registry = createRegistry(agentsDir, skillsMarketDir);
+        assertThat(agentsDir.resolve("sync_agent/skills/alpha/SKILL.md")).exists();
+
+        writeDirectoryAgent(
+                agentsDir,
+                "sync_agent",
+                """
+                        key: sync_agent
+                        name: Sync Agent
+                        role: Sync Agent
+                        description: sync agent
+                        modelConfig:
+                          modelKey: bailian-qwen3-max
+                        skills:
+                          - beta
+                        mode: ONESHOT
+                        """,
+                "sync prompt"
+        );
+
+        registry.refreshAgentsByIds(Set.of("sync_agent"), "test-selective");
+
+        assertThat(agentsDir.resolve("sync_agent/skills/alpha")).doesNotExist();
+        assertThat(Files.readString(agentsDir.resolve("sync_agent/skills/beta/SKILL.md"))).contains("market beta");
+    }
+
     private AgentRegistry createRegistry(Path agentsDir) {
+        return createRegistry(agentsDir, tempDir.resolve("skills-market"));
+    }
+
+    private AgentRegistry createRegistry(Path agentsDir, Path skillsMarketDir) {
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(agentsDir.toString());
 
-        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, TestModelRegistryServices.standardRegistry());
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(
+                new ObjectMapper(),
+                properties,
+                TestModelRegistryServices.standardRegistry(),
+                new AgentSkillSyncService(skillsMarketDir.toString())
+        );
         LlmService llmService = new StubLlmService() {
         };
         ToolRegistry toolRegistry = new ToolRegistry(List.of(TestSystemBashFactory.defaultBash()));
@@ -205,6 +294,19 @@ class AgentRegistryTest {
                 mock(ActiveRunService.class),
                 beanFactory.getBeanProvider(com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService.class)
         );
+    }
+
+    private void writeMarketSkill(Path skillsMarketDir, String skillId, String body) throws IOException {
+        Path skillDir = skillsMarketDir.resolve(skillId);
+        Files.createDirectories(skillDir);
+        Files.writeString(skillDir.resolve("SKILL.md"), """
+                ---
+                name: "%s"
+                description: "demo"
+                ---
+
+                %s
+                """.formatted(skillId, body));
     }
 
     private void writeOneshotAgent(Path agentsDir, String key, String name, String description, String backendTool, String prompt) throws IOException {

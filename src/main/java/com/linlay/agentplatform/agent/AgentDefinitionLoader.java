@@ -50,17 +50,28 @@ public class AgentDefinitionLoader {
     private final ObjectMapper yamlMapper;
     private final AgentProperties properties;
     private final ModelRegistryService modelRegistryService;
+    private final AgentSkillSyncService agentSkillSyncService;
 
     @Autowired
     public AgentDefinitionLoader(
             ObjectMapper objectMapper,
             AgentProperties properties,
-            ModelRegistryService modelRegistryService
+            ModelRegistryService modelRegistryService,
+            AgentSkillSyncService agentSkillSyncService
     ) {
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.properties = properties;
         this.modelRegistryService = modelRegistryService;
+        this.agentSkillSyncService = agentSkillSyncService;
+    }
+
+    AgentDefinitionLoader(
+            ObjectMapper objectMapper,
+            AgentProperties properties,
+            ModelRegistryService modelRegistryService
+    ) {
+        this(objectMapper, properties, modelRegistryService, null);
     }
 
     public List<AgentDefinition> loadAll() {
@@ -174,9 +185,6 @@ public class AgentDefinitionLoader {
                 log.warn("Skip agent without modelConfig (top-level or stage-level) in {}", file);
                 return Optional.empty();
             }
-            AgentPromptFiles promptFiles = loadPromptFiles(agentDir, config, mode);
-            List<String> perAgentSkills = scanPerAgentSkillIds(agentDir == null ? null : agentDir.resolve("skills"));
-
             ModelDefinition primaryModel = resolvePrimaryModel(config).orElse(null);
             if (primaryModel == null) {
                 log.warn("Skip agent without resolvable modelKey in {}", file);
@@ -197,6 +205,9 @@ public class AgentDefinitionLoader {
             List<AgentControl> controls = collectControls(config);
             List<String> modelKeys = collectModelKeys(config);
             AgentDefinition.SandboxConfig sandboxConfig = toSandboxConfig(config.getSandboxConfig());
+            syncDeclaredSkills(agentDir, skills);
+            AgentPromptFiles promptFiles = loadPromptFiles(agentDir, config, mode);
+            List<String> perAgentSkills = scanPerAgentSkillIds(agentDir == null ? null : agentDir.resolve("skills"));
 
             AgentMode agentMode = AgentModeFactory.create(mode, config, file, promptFiles, this::resolveModelByKey);
             RunSpec runSpec = agentMode.defaultRunSpec(config);
@@ -320,6 +331,13 @@ public class AgentDefinitionLoader {
             log.warn("Failed to scan per-agent skills from {}", skillsDir, ex);
             return List.of();
         }
+    }
+
+    private void syncDeclaredSkills(Path agentDir, List<String> declaredSkills) {
+        if (agentDir == null || agentSkillSyncService == null) {
+            return;
+        }
+        agentSkillSyncService.reconcileDeclaredSkills(agentDir, declaredSkills);
     }
 
     private boolean isScaffoldSkill(Path skillFile) {
