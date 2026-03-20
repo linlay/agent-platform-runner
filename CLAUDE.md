@@ -500,19 +500,19 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 
 | 容器内路径 | RUN 宿主路径 | AGENT / GLOBAL 宿主路径 | 默认策略 | 配置键（为空时 fallback） |
 |-----------|-------------|-------------------------|----------|--------------------------|
-| `/tmp` | `{dataDir}/{chatId}` | `{dataDir}` | 默认挂载 | `mounts.data-dir` → `agent.data.external-dir` |
-| `/home` | `{userDir}` | `{userDir}` | 默认挂载 | `mounts.user-dir`（默认 `./user`） |
-| `/skills` | `{skillsDir}` | `{skillsDir}` | 默认挂载 | `mounts.skills-dir` → `agent.skills.external-dir` |
-| `/pan` | `{panDir}` | `{panDir}` | 默认挂载 | `mounts.pan-dir`（默认 `./pan`） |
-| `/agent` | `{agentsDir}/{agentKey}` | `{agentsDir}/{agentKey}` | 默认挂载；仅目录化 agent 存在时挂载 | `mounts.agents-dir` → `agent.agents.external-dir` |
-| `/tools` | `{toolsDir}` | `{toolsDir}` | `extraMounts` 按需 | `mounts.tools-dir` → `agent.tools.external-dir` |
-| `/agents` | `{agentsDir}` | `{agentsDir}` | `extraMounts` 按需 | `mounts.agents-dir` → `agent.agents.external-dir` |
-| `/models` | `{modelsDir}` | `{modelsDir}` | `extraMounts` 按需 | `mounts.models-dir` → `agent.models.external-dir` |
-| `/viewports` | `{viewportsDir}` | `{viewportsDir}` | `extraMounts` 按需 | `mounts.viewports-dir` → `agent.viewports.external-dir` |
-| `/teams` | `{teamsDir}` | `{teamsDir}` | `extraMounts` 按需 | `mounts.teams-dir` → `agent.teams.external-dir` |
-| `/schedules` | `{schedulesDir}` | `{schedulesDir}` | `extraMounts` 按需 | `mounts.schedules-dir` → `agent.schedule.external-dir` |
-| `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `extraMounts` 按需 | `mounts.mcp-servers-dir` → `agent.mcp-servers.registry.external-dir` |
-| `/providers` | `{providersDir}` | `{providersDir}` | `extraMounts` 按需；敏感目录，无 fallback | `mounts.providers-dir` |
+| `/tmp` | `{chatDataDir}/{chatId}` | `{chatDataDir}` | 默认挂载 | `memory.chats.dir` |
+| `/home` | `{workspaceDir}` | `{workspaceDir}` | 默认挂载 | `agent.workspace.external-dir` |
+| `/skills` | `{skillsDir}` | `{skillsDir}` | 默认挂载 | `agent.skills.external-dir` |
+| `/pan` | `{panDir}` | `{panDir}` | 默认挂载 | `agent.pan.external-dir` |
+| `/agent` | `{agentsDir}/{agentKey}` | `{agentsDir}/{agentKey}` | 默认挂载；仅目录化 agent 存在时挂载 | `agent.agents.external-dir` |
+| `/tools` | `{toolsDir}` | `{toolsDir}` | `extraMounts` 按需 | `agent.tools.external-dir` |
+| `/agents` | `{agentsDir}` | `{agentsDir}` | `extraMounts` 按需 | `agent.agents.external-dir` |
+| `/models` | `{modelsDir}` | `{modelsDir}` | `extraMounts` 按需 | `agent.models.external-dir` |
+| `/viewports` | `{viewportsDir}` | `{viewportsDir}` | `extraMounts` 按需 | `agent.viewports.external-dir` |
+| `/teams` | `{teamsDir}` | `{teamsDir}` | `extraMounts` 按需 | `agent.teams.external-dir` |
+| `/schedules` | `{schedulesDir}` | `{schedulesDir}` | `extraMounts` 按需 | `agent.schedule.external-dir` |
+| `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `extraMounts` 按需 | `agent.mcp-servers.registry.external-dir` |
+| `/providers` | `{providersDir}` | `{providersDir}` | `extraMounts` 按需；敏感目录 | `agent.providers.external-dir` |
 
 ### 挂载原则
 
@@ -521,7 +521,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - 按需显式原则：`/models`、`/tools`、`/agents`、`/viewports`、`/teams`、`/schedules`、`/mcp-servers`、`/providers` 仅能通过 `sandboxConfig.extraMounts` 显式恢复。
 - 最小暴露原则：agent 只应声明完成任务所必需的额外挂载，避免把无关目录带入沙箱。
 - 安全优先原则：custom mount 必须满足“源目录存在、目标路径为绝对路径、目标路径不冲突”；不满足时直接 fail-fast。
-- 敏感目录显式授权：`providers` 属于敏感挂载，即使在 `extraMounts` 中声明，也必须先有全局 `mounts.providers-dir` 配置。
+- 敏感目录显式授权：`providers` 属于敏感挂载，即使在 `extraMounts` 中声明，也必须先有全局 `agent.providers.external-dir` 目录。
 - 未知简写宽容处理：未知 `platform` 不阻断 agent 加载，只记录 warn 并跳过该条目。
 
 ### Agent Definition 中的 sandboxConfig
@@ -755,19 +755,9 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `AGENT_CONTAINER_HUB_DEFAULT_SANDBOX_LEVEL` | `agent.tools.container-hub.default-sandbox-level` | `run` | 全局默认沙箱级别 |
 | `AGENT_CONTAINER_HUB_AGENT_IDLE_TIMEOUT_MS` | `agent.tools.container-hub.agent-idle-timeout-ms` | `600000` | agent 级别空闲驱逐超时（ms） |
 | `AGENT_CONTAINER_HUB_DESTROY_QUEUE_DELAY_MS` | `agent.tools.container-hub.destroy-queue-delay-ms` | `5000` | run 级别异步销毁延迟（ms） |
-| `AGENT_CONTAINER_HUB_MOUNTS_DATA_DIR` | `agent.tools.container-hub.mounts.data-dir` | （空，fallback `agent.data.external-dir`） | 挂载数据目录 |
-| `AGENT_CONTAINER_HUB_MOUNTS_USER_DIR` | `agent.tools.container-hub.mounts.user-dir` | `./user` | 挂载用户目录 |
-| `AGENT_CONTAINER_HUB_MOUNTS_SKILLS_DIR` | `agent.tools.container-hub.mounts.skills-dir` | （空，fallback `agent.skills.external-dir`） | 挂载技能目录 |
-| `AGENT_CONTAINER_HUB_MOUNTS_PAN_DIR` | `agent.tools.container-hub.mounts.pan-dir` | `./pan` | 挂载 pan 目录 |
-| `AGENT_CONTAINER_HUB_MOUNTS_TOOLS_DIR` | `agent.tools.container-hub.mounts.tools-dir` | （空，fallback `agent.tools.external-dir`） | 挂载 tools 目录 |
-| `AGENT_CONTAINER_HUB_MOUNTS_AGENTS_DIR` | `agent.tools.container-hub.mounts.agents-dir` | （空，fallback `agent.agents.external-dir`） | 挂载 agents 目录 |
-| `AGENT_CONTAINER_HUB_MOUNTS_MODELS_DIR` | `agent.tools.container-hub.mounts.models-dir` | （空，fallback `agent.models.external-dir`） | 挂载 models 目录 |
-| `AGENT_CONTAINER_HUB_MOUNTS_VIEWPORTS_DIR` | `agent.tools.container-hub.mounts.viewports-dir` | （空，fallback `agent.viewports.external-dir`） | 挂载 viewports 目录 |
-| `AGENT_CONTAINER_HUB_MOUNTS_TEAMS_DIR` | `agent.tools.container-hub.mounts.teams-dir` | （空，fallback `agent.teams.external-dir`） | 挂载 teams 目录 |
-| `AGENT_CONTAINER_HUB_MOUNTS_SCHEDULES_DIR` | `agent.tools.container-hub.mounts.schedules-dir` | （空，fallback `agent.schedule.external-dir`） | 挂载 schedules 目录 |
-| `AGENT_CONTAINER_HUB_MOUNTS_MCP_SERVERS_DIR` | `agent.tools.container-hub.mounts.mcp-servers-dir` | （空，fallback `agent.mcp-servers.registry.external-dir`） | 挂载 mcp-servers 目录 |
-| `AGENT_CONTAINER_HUB_MOUNTS_PROVIDERS_DIR` | `agent.tools.container-hub.mounts.providers-dir` | （空，默认关闭） | 显式启用 providers 敏感目录挂载 |
-| `SKILLS_DIR` | `agent.skills.external-dir` | `skills` | 技能目录 |
+| `WORKSPACE_DIR` | `agent.workspace.external-dir` | `workspace` | 容器 `/home` 对应的 runner 工作区目录 |
+| `PAN_DIR` | `agent.pan.external-dir` | `pan` | 容器 `/pan` 对应的 runner 目录 |
+| `SKILLS_MARKET_DIR` | `agent.skills.external-dir` | `skills-market` | 技能目录 |
 | `AGENT_SKILLS_REFRESH_INTERVAL_MS` | `agent.skills.refresh-interval-ms` | `30000` | 技能刷新间隔（ms） |
 | `AGENT_SKILLS_MAX_PROMPT_CHARS` | `agent.skills.max-prompt-chars` | `8000` | 技能 prompt 最大字符数 |
 | `SCHEDULES_DIR` | `agent.schedule.external-dir` | `schedules` | 计划任务目录 |

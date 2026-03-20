@@ -128,6 +128,12 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
         if (key == null || key.isBlank()) {
             throw new IllegalStateException("Config file contains a blank key: " + file);
         }
+        if ("container-hub".equals(baseName(file)) && key.startsWith("mounts.")) {
+            throw new IllegalStateException("Config file must not use deprecated key '" + key + "': " + file
+                    + ". Move shared mount directories to runner-level config"
+                    + " (WORKSPACE_DIR, PAN_DIR, AGENTS_DIR, MODELS_DIR, TEAMS_DIR, SCHEDULES_DIR, MCP_SERVERS_DIR,"
+                    + " PROVIDERS_DIR, SKILLS_MARKET_DIR, CHATS_DIR).");
+        }
         if (key.startsWith("agent.")) {
             throw new IllegalStateException("Config file must use flat keys only: " + file + " contains deprecated key '" + key + "'");
         }

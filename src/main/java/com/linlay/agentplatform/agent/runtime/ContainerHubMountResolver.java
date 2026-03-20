@@ -2,12 +2,13 @@ package com.linlay.agentplatform.agent.runtime;
 
 import com.linlay.agentplatform.agent.AgentDefinition;
 import com.linlay.agentplatform.agent.AgentProperties;
-import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.PanProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
+import com.linlay.agentplatform.config.WorkspaceProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
@@ -32,8 +33,9 @@ public class ContainerHubMountResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ContainerHubMountResolver.class);
 
-    private final ContainerHubToolProperties containerHubProperties;
     private final ChatWindowMemoryProperties chatWindowMemoryProperties;
+    private final WorkspaceProperties workspaceProperties;
+    private final PanProperties panProperties;
     private final SkillProperties skillProperties;
     private final AgentProperties agentProperties;
     private final ToolProperties toolProperties;
@@ -45,8 +47,9 @@ public class ContainerHubMountResolver {
     private final ProviderProperties providerProperties;
 
     public ContainerHubMountResolver(
-            ContainerHubToolProperties containerHubProperties,
             ChatWindowMemoryProperties chatWindowMemoryProperties,
+            WorkspaceProperties workspaceProperties,
+            PanProperties panProperties,
             SkillProperties skillProperties,
             AgentProperties agentProperties,
             ToolProperties toolProperties,
@@ -57,8 +60,9 @@ public class ContainerHubMountResolver {
             McpProperties mcpProperties,
             ProviderProperties providerProperties
     ) {
-        this.containerHubProperties = containerHubProperties;
         this.chatWindowMemoryProperties = chatWindowMemoryProperties;
+        this.workspaceProperties = workspaceProperties;
+        this.panProperties = panProperties;
         this.skillProperties = skillProperties;
         this.agentProperties = agentProperties;
         this.toolProperties = toolProperties;
@@ -71,8 +75,9 @@ public class ContainerHubMountResolver {
     }
 
     public ContainerHubMountResolver(
-            ContainerHubToolProperties containerHubProperties,
             DataProperties dataProperties,
+            WorkspaceProperties workspaceProperties,
+            PanProperties panProperties,
             SkillProperties skillProperties,
             ToolProperties toolProperties,
             AgentProperties agentProperties,
@@ -84,8 +89,9 @@ public class ContainerHubMountResolver {
             ProviderProperties providerProperties
     ) {
         this(
-                containerHubProperties,
                 toChatWindowMemoryProperties(dataProperties),
+                workspaceProperties,
+                panProperties,
                 skillProperties,
                 agentProperties,
                 toolProperties,
@@ -106,9 +112,8 @@ public class ContainerHubMountResolver {
     ) {
         List<MountSpec> mounts = new ArrayList<>();
         Set<String> usedContainerPaths = new LinkedHashSet<>();
-        ContainerHubToolProperties.MountConfig mountConfig = containerHubProperties.getMounts();
 
-        String dataDir = resolveDataDir(mountConfig);
+        String dataDir = resolveDataDir();
         if (StringUtils.hasText(dataDir)) {
             String hostPath;
             if (level == SandboxLevel.RUN && StringUtils.hasText(chatId)) {
@@ -120,22 +125,22 @@ public class ContainerHubMountResolver {
             usedContainerPaths.add("/tmp");
         }
 
-        String userDir = mountConfig == null ? "./user" : mountConfig.getUserDir();
-        if (StringUtils.hasText(userDir)) {
-            addResolvedMount(mounts, usedContainerPaths, "user-dir", userDir, "/home");
+        String workspaceDir = resolveWorkspaceDir();
+        if (StringUtils.hasText(workspaceDir)) {
+            addResolvedMount(mounts, usedContainerPaths, "workspace-dir", workspaceDir, "/home");
         }
 
-        String skillsDir = resolveSkillsDir(mountConfig);
+        String skillsDir = resolveSkillsDir();
         if (StringUtils.hasText(skillsDir)) {
             addResolvedMount(mounts, usedContainerPaths, "skills-dir", skillsDir, "/skills");
         }
 
-        String panDir = mountConfig == null ? "./pan" : mountConfig.getPanDir();
+        String panDir = resolvePanDir();
         if (StringUtils.hasText(panDir)) {
             addResolvedMount(mounts, usedContainerPaths, "pan-dir", panDir, "/pan");
         }
 
-        String agentSelfDir = resolveAgentSelfDir(mountConfig, agentKey);
+        String agentSelfDir = resolveAgentSelfDir(agentKey);
         if (StringUtils.hasText(agentSelfDir)) {
             addResolvedMount(mounts, usedContainerPaths, "agent-self", agentSelfDir, "/agent");
         }
@@ -146,7 +151,7 @@ public class ContainerHubMountResolver {
                     continue;
                 }
                 if (extraMount.isPlatform()) {
-                    resolvePlatformMount(mounts, usedContainerPaths, extraMount.platform(), mountConfig);
+                    resolvePlatformMount(mounts, usedContainerPaths, extraMount.platform());
                 } else {
                     resolveCustomMount(mounts, usedContainerPaths, extraMount);
                 }
@@ -156,69 +161,73 @@ public class ContainerHubMountResolver {
         return List.copyOf(mounts);
     }
 
-    private String resolveDataDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        if (mountConfig != null && StringUtils.hasText(mountConfig.getDataDir())) {
-            return mountConfig.getDataDir().trim();
-        }
+    private String resolveDataDir() {
         if (chatWindowMemoryProperties != null && StringUtils.hasText(chatWindowMemoryProperties.getDir())) {
             return chatWindowMemoryProperties.getDir().trim();
         }
         return null;
     }
 
-    private String resolveSkillsDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        if (mountConfig != null && StringUtils.hasText(mountConfig.getSkillsDir())) {
-            return mountConfig.getSkillsDir().trim();
+    private String resolveWorkspaceDir() {
+        if (workspaceProperties != null && StringUtils.hasText(workspaceProperties.getExternalDir())) {
+            return workspaceProperties.getExternalDir().trim();
         }
+        return null;
+    }
+
+    private String resolveSkillsDir() {
         if (skillProperties != null && StringUtils.hasText(skillProperties.getExternalDir())) {
             return skillProperties.getExternalDir().trim();
         }
         return null;
     }
 
-    private String resolveToolsDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        return resolveDirectory(mountConfig == null ? null : mountConfig.getToolsDir(), toolProperties == null ? null : toolProperties.getExternalDir());
-    }
-
-    private String resolveAgentsDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        return resolveDirectory(mountConfig == null ? null : mountConfig.getAgentsDir(), agentProperties == null ? null : agentProperties.getExternalDir());
-    }
-
-    private String resolveModelsDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        return resolveDirectory(mountConfig == null ? null : mountConfig.getModelsDir(), modelProperties == null ? null : modelProperties.getExternalDir());
-    }
-
-    private String resolveViewportsDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        return resolveDirectory(mountConfig == null ? null : mountConfig.getViewportsDir(), viewportProperties == null ? null : viewportProperties.getExternalDir());
-    }
-
-    private String resolveTeamsDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        return resolveDirectory(mountConfig == null ? null : mountConfig.getTeamsDir(), teamProperties == null ? null : teamProperties.getExternalDir());
-    }
-
-    private String resolveSchedulesDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        return resolveDirectory(mountConfig == null ? null : mountConfig.getSchedulesDir(), scheduleProperties == null ? null : scheduleProperties.getExternalDir());
-    }
-
-    private String resolveMcpServersDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        return resolveDirectory(
-                mountConfig == null ? null : mountConfig.getMcpServersDir(),
-                mcpProperties == null || mcpProperties.getRegistry() == null ? null : mcpProperties.getRegistry().getExternalDir()
-        );
-    }
-
-    private String resolveProvidersDir(ContainerHubToolProperties.MountConfig mountConfig) {
-        if (mountConfig == null || !StringUtils.hasText(mountConfig.getProvidersDir())) {
-            return null;
+    private String resolvePanDir() {
+        if (panProperties != null && StringUtils.hasText(panProperties.getExternalDir())) {
+            return panProperties.getExternalDir().trim();
         }
-        return mountConfig.getProvidersDir().trim();
+        return null;
     }
 
-    private String resolveAgentSelfDir(ContainerHubToolProperties.MountConfig mountConfig, String agentKey) {
+    private String resolveToolsDir() {
+        return resolveDirectory(toolProperties == null ? null : toolProperties.getExternalDir());
+    }
+
+    private String resolveAgentsDir() {
+        return resolveDirectory(agentProperties == null ? null : agentProperties.getExternalDir());
+    }
+
+    private String resolveModelsDir() {
+        return resolveDirectory(modelProperties == null ? null : modelProperties.getExternalDir());
+    }
+
+    private String resolveViewportsDir() {
+        return resolveDirectory(viewportProperties == null ? null : viewportProperties.getExternalDir());
+    }
+
+    private String resolveTeamsDir() {
+        return resolveDirectory(teamProperties == null ? null : teamProperties.getExternalDir());
+    }
+
+    private String resolveSchedulesDir() {
+        return resolveDirectory(scheduleProperties == null ? null : scheduleProperties.getExternalDir());
+    }
+
+    private String resolveMcpServersDir() {
+        return resolveDirectory(mcpProperties == null || mcpProperties.getRegistry() == null
+                ? null
+                : mcpProperties.getRegistry().getExternalDir());
+    }
+
+    private String resolveProvidersDir() {
+        return resolveDirectory(providerProperties == null ? null : providerProperties.getExternalDir());
+    }
+
+    private String resolveAgentSelfDir(String agentKey) {
         if (!StringUtils.hasText(agentKey)) {
             return null;
         }
-        String agentsDir = resolveAgentsDir(mountConfig);
+        String agentsDir = resolveAgentsDir();
         if (!StringUtils.hasText(agentsDir)) {
             return null;
         }
@@ -226,12 +235,9 @@ public class ContainerHubMountResolver {
         return Files.isDirectory(agentDir) ? agentDir.toString() : null;
     }
 
-    private String resolveDirectory(String configuredPath, String fallbackPath) {
-        if (StringUtils.hasText(configuredPath)) {
-            return configuredPath.trim();
-        }
-        if (StringUtils.hasText(fallbackPath)) {
-            return fallbackPath.trim();
+    private String resolveDirectory(String path) {
+        if (StringUtils.hasText(path)) {
+            return path.trim();
         }
         return null;
     }
@@ -239,11 +245,10 @@ public class ContainerHubMountResolver {
     private void resolvePlatformMount(
             List<MountSpec> mounts,
             Set<String> usedContainerPaths,
-            String rawPlatform,
-            ContainerHubToolProperties.MountConfig mountConfig
+            String rawPlatform
     ) {
         String platform = normalizePlatform(rawPlatform);
-        PlatformMountDef platformMountDef = platformMountDefs(mountConfig).get(platform);
+        PlatformMountDef platformMountDef = platformMountDefs().get(platform);
         if (platformMountDef == null) {
             log.warn("Skip unknown sandboxConfig.extraMounts platform '{}'", rawPlatform);
             return;
@@ -272,16 +277,16 @@ public class ContainerHubMountResolver {
         addResolvedMount(mounts, usedContainerPaths, "extra-mount", extraMount.source(), extraMount.destination());
     }
 
-    private Map<String, PlatformMountDef> platformMountDefs(ContainerHubToolProperties.MountConfig mountConfig) {
+    private Map<String, PlatformMountDef> platformMountDefs() {
         return Map.of(
-                "models", new PlatformMountDef(() -> resolveModelsDir(mountConfig), "/models"),
-                "tools", new PlatformMountDef(() -> resolveToolsDir(mountConfig), "/tools"),
-                "agents", new PlatformMountDef(() -> resolveAgentsDir(mountConfig), "/agents"),
-                "viewports", new PlatformMountDef(() -> resolveViewportsDir(mountConfig), "/viewports"),
-                "teams", new PlatformMountDef(() -> resolveTeamsDir(mountConfig), "/teams"),
-                "schedules", new PlatformMountDef(() -> resolveSchedulesDir(mountConfig), "/schedules"),
-                "mcp-servers", new PlatformMountDef(() -> resolveMcpServersDir(mountConfig), "/mcp-servers"),
-                "providers", new PlatformMountDef(() -> resolveProvidersDir(mountConfig), "/providers")
+                "models", new PlatformMountDef(this::resolveModelsDir, "/models"),
+                "tools", new PlatformMountDef(this::resolveToolsDir, "/tools"),
+                "agents", new PlatformMountDef(this::resolveAgentsDir, "/agents"),
+                "viewports", new PlatformMountDef(this::resolveViewportsDir, "/viewports"),
+                "teams", new PlatformMountDef(this::resolveTeamsDir, "/teams"),
+                "schedules", new PlatformMountDef(this::resolveSchedulesDir, "/schedules"),
+                "mcp-servers", new PlatformMountDef(this::resolveMcpServersDir, "/mcp-servers"),
+                "providers", new PlatformMountDef(this::resolveProvidersDir, "/providers")
         );
     }
 

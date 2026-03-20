@@ -81,6 +81,18 @@ public final class RuntimeDirectoryEnvironmentSupport {
         vars.put("TOOLS_DIR", "classpath:/tools");
         vars.put("VIEWPORTS_DIR", "classpath:/viewports");
         vars.put("DATA_DIR", "CHATS_DIR");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_DATA_DIR", "CHATS_DIR");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_USER_DIR", "WORKSPACE_DIR");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_SKILLS_DIR", "SKILLS_MARKET_DIR");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_PAN_DIR", "PAN_DIR");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_TOOLS_DIR", "classpath:/tools");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_AGENTS_DIR", "AGENTS_DIR");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_MODELS_DIR", "MODELS_DIR");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_VIEWPORTS_DIR", "classpath:/viewports");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_TEAMS_DIR", "TEAMS_DIR");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_SCHEDULES_DIR", "SCHEDULES_DIR");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_MCP_SERVERS_DIR", "MCP_SERVERS_DIR");
+        vars.put("AGENT_CONTAINER_HUB_MOUNTS_PROVIDERS_DIR", "PROVIDERS_DIR");
         return Map.copyOf(vars);
     }
 
@@ -91,6 +103,18 @@ public final class RuntimeDirectoryEnvironmentSupport {
         vars.put("agent.viewports.external-dir", "classpath viewports");
         vars.put("agent.viewports.refresh-interval-ms", "removed");
         vars.put("agent.data.external-dir", "memory.chats.dir");
+        vars.put("agent.tools.container-hub.mounts.data-dir", "memory.chats.dir");
+        vars.put("agent.tools.container-hub.mounts.user-dir", "agent.workspace.external-dir");
+        vars.put("agent.tools.container-hub.mounts.skills-dir", "agent.skills.external-dir");
+        vars.put("agent.tools.container-hub.mounts.pan-dir", "agent.pan.external-dir");
+        vars.put("agent.tools.container-hub.mounts.tools-dir", "classpath tools");
+        vars.put("agent.tools.container-hub.mounts.agents-dir", "agent.agents.external-dir");
+        vars.put("agent.tools.container-hub.mounts.models-dir", "agent.models.external-dir");
+        vars.put("agent.tools.container-hub.mounts.viewports-dir", "classpath viewports");
+        vars.put("agent.tools.container-hub.mounts.teams-dir", "agent.teams.external-dir");
+        vars.put("agent.tools.container-hub.mounts.schedules-dir", "agent.schedule.external-dir");
+        vars.put("agent.tools.container-hub.mounts.mcp-servers-dir", "agent.mcp-servers.registry.external-dir");
+        vars.put("agent.tools.container-hub.mounts.providers-dir", "agent.providers.external-dir");
         return Map.copyOf(vars);
     }
 }

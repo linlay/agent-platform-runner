@@ -14,9 +14,11 @@ import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.PanProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
+import com.linlay.agentplatform.config.WorkspaceProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.model.ModelProperties;
@@ -235,18 +237,19 @@ class ContainerHubSandboxServiceTest {
     }
 
     @Test
-    void openShouldFailBeforeCreateWhenConfiguredUserDirDoesNotExist() {
+    void openShouldFailBeforeCreateWhenConfiguredWorkspaceDirDoesNotExist() {
         CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
         ContainerHubToolProperties properties = containerHubProperties("run");
-        properties.getMounts().setUserDir("/path/that/does/not/exist");
+        WorkspaceProperties workspaceProperties = new WorkspaceProperties();
+        workspaceProperties.setExternalDir("/path/that/does/not/exist");
         StubContainerHubClient client = new StubContainerHubClient(events);
-        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null);
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(properties, null, null, workspaceProperties, null);
         ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
 
         ExecutionContext context = createContext(definitionWithLevel(SandboxLevel.RUN));
         assertThatThrownBy(() -> service.openIfNeeded(context))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("container-hub mount validation failed for user-dir")
+                .hasMessageContaining("container-hub mount validation failed for workspace-dir")
                 .hasMessageContaining("resolved=/path/that/does/not/exist")
                 .hasMessageContaining("containerPath=/home");
         assertThat(events).isEmpty();
@@ -263,9 +266,6 @@ class ContainerHubSandboxServiceTest {
         }
         properties.setDestroyQueueDelayMs(10);
         properties.setAgentIdleTimeoutMs(100);
-        properties.getMounts().setUserDir(createTempMountDir("container-hub-user").toString());
-        properties.getMounts().setSkillsDir(createTempMountDir("container-hub-skills").toString());
-        properties.getMounts().setPanDir(createTempMountDir("container-hub-pan").toString());
         return properties;
     }
 
@@ -288,10 +288,36 @@ class ContainerHubSandboxServiceTest {
             DataProperties dataProperties,
             SkillProperties skillProperties
     ) {
+        return containerHubMountResolver(properties, dataProperties, skillProperties, null, null);
+    }
+
+    private ContainerHubMountResolver containerHubMountResolver(
+            ContainerHubToolProperties properties,
+            DataProperties dataProperties,
+            SkillProperties skillProperties,
+            WorkspaceProperties workspaceProperties,
+            PanProperties panProperties
+    ) {
+        WorkspaceProperties resolvedWorkspaceProperties = workspaceProperties == null ? new WorkspaceProperties() : workspaceProperties;
+        if (workspaceProperties == null) {
+            resolvedWorkspaceProperties.setExternalDir(createTempMountDir("container-hub-workspace").toString());
+        }
+
+        PanProperties resolvedPanProperties = panProperties == null ? new PanProperties() : panProperties;
+        if (panProperties == null) {
+            resolvedPanProperties.setExternalDir(createTempMountDir("container-hub-pan").toString());
+        }
+
+        SkillProperties resolvedSkillProperties = skillProperties == null ? new SkillProperties() : skillProperties;
+        if (skillProperties == null) {
+            resolvedSkillProperties.setExternalDir(createTempMountDir("container-hub-skills").toString());
+        }
+
         return new ContainerHubMountResolver(
-                properties,
                 dataProperties,
-                skillProperties,
+                resolvedWorkspaceProperties,
+                resolvedPanProperties,
+                resolvedSkillProperties,
                 new ToolProperties(),
                 new AgentProperties(),
                 new ModelProperties(),

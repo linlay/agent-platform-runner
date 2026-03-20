@@ -20,9 +20,11 @@ import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.PanProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
+import com.linlay.agentplatform.config.WorkspaceProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
@@ -2960,9 +2962,6 @@ class DefinitionDrivenAgentTest {
         properties.setDefaultEnvironmentId(environmentId);
         properties.setRequestTimeoutMs(1000);
         properties.setDestroyQueueDelayMs(0);
-        properties.getMounts().setUserDir(createTempMountDir("definition-agent-user").toString());
-        properties.getMounts().setSkillsDir(createTempMountDir("definition-agent-skills").toString());
-        properties.getMounts().setPanDir(createTempMountDir("definition-agent-pan").toString());
         return properties;
     }
 
@@ -2971,10 +2970,22 @@ class DefinitionDrivenAgentTest {
             com.linlay.agentplatform.config.DataProperties dataProperties,
             SkillProperties skillProperties
     ) {
+        WorkspaceProperties workspaceProperties = new WorkspaceProperties();
+        workspaceProperties.setExternalDir(createTempMountDir("definition-agent-workspace").toString());
+
+        PanProperties panProperties = new PanProperties();
+        panProperties.setExternalDir(createTempMountDir("definition-agent-pan").toString());
+
+        SkillProperties resolvedSkillProperties = skillProperties == null ? new SkillProperties() : skillProperties;
+        if (skillProperties == null) {
+            resolvedSkillProperties.setExternalDir(createTempMountDir("definition-agent-skills").toString());
+        }
+
         return new ContainerHubMountResolver(
-                properties,
                 dataProperties,
-                skillProperties,
+                workspaceProperties,
+                panProperties,
+                resolvedSkillProperties,
                 new ToolProperties(),
                 new AgentProperties(),
                 new ModelProperties(),

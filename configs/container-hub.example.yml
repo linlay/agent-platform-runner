@@ -9,10 +9,8 @@ default-sandbox-level: run
 agent-idle-timeout-ms: 600000
 # run 级别会话异步销毁延迟（ms）
 destroy-queue-delay-ms: 5000
-# 挂载目录配置（为空时 fallback 到对应全局配置）
-# 非空 mount source 必须是宿主机上已存在的目录；本地环境建议直接写绝对路径。
-# 若使用相对路径，解析基线是服务运行目录，而不是本 YAML 文件所在目录。
-mounts.data-dir:
-mounts.user-dir: ./user
-mounts.skills-dir:
-mounts.pan-dir: ./pan
+# 目录挂载统一来自 runner 全局目录配置：
+# - /tmp  -> CHATS_DIR
+# - /home -> WORKSPACE_DIR
+# - /skills -> SKILLS_MARKET_DIR
+# - /pan -> PAN_DIR

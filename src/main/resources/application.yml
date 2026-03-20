@@ -16,6 +16,10 @@ agent:
     external-dir: ${SKILLS_MARKET_DIR:skills-market}
     refresh-interval-ms: ${AGENT_SKILLS_REFRESH_INTERVAL_MS:30000}
     max-prompt-chars: ${AGENT_SKILLS_MAX_PROMPT_CHARS:8000}
+  workspace:
+    external-dir: ${WORKSPACE_DIR:workspace}
+  pan:
+    external-dir: ${PAN_DIR:pan}
   teams:
     external-dir: ${TEAMS_DIR:teams}
     refresh-interval-ms: ${AGENT_TEAMS_REFRESH_INTERVAL_MS:30000}
@@ -65,17 +69,6 @@ agent:
       default-sandbox-level: ${AGENT_CONTAINER_HUB_DEFAULT_SANDBOX_LEVEL:run}
       agent-idle-timeout-ms: ${AGENT_CONTAINER_HUB_AGENT_IDLE_TIMEOUT_MS:600000}
       destroy-queue-delay-ms: ${AGENT_CONTAINER_HUB_DESTROY_QUEUE_DELAY_MS:5000}
-      mounts:
-        data-dir: ${AGENT_CONTAINER_HUB_MOUNTS_DATA_DIR:}
-        user-dir: ${AGENT_CONTAINER_HUB_MOUNTS_USER_DIR:./user}
-        skills-dir: ${AGENT_CONTAINER_HUB_MOUNTS_SKILLS_DIR:}
-        pan-dir: ${AGENT_CONTAINER_HUB_MOUNTS_PAN_DIR:./pan}
-        agents-dir: ${AGENT_CONTAINER_HUB_MOUNTS_AGENTS_DIR:}
-        models-dir: ${AGENT_CONTAINER_HUB_MOUNTS_MODELS_DIR:}
-        teams-dir: ${AGENT_CONTAINER_HUB_MOUNTS_TEAMS_DIR:}
-        schedules-dir: ${AGENT_CONTAINER_HUB_MOUNTS_SCHEDULES_DIR:}
-        mcp-servers-dir: ${AGENT_CONTAINER_HUB_MOUNTS_MCP_SERVERS_DIR:}
-        providers-dir: ${AGENT_CONTAINER_HUB_MOUNTS_PROVIDERS_DIR:}
   h2a:
     render:
       flush-interval-ms: ${AGENT_H2A_RENDER_FLUSH_INTERVAL_MS:0}
