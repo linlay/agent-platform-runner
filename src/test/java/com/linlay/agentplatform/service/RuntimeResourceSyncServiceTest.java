@@ -20,7 +20,7 @@ class RuntimeResourceSyncServiceTest {
     Path tempDir;
 
     @Test
-    void shouldOverwriteBuiltInResourcesAndKeepExtraFiles() throws Exception {
+    void shouldSyncOnlySystemResourcesAndKeepExtraFiles() throws Exception {
         Path agentsDir = tempDir.resolve("agents");
         Path toolsDir = tempDir.resolve("tools");
         Path skillsDir = tempDir.resolve("skills");
@@ -66,12 +66,10 @@ class RuntimeResourceSyncServiceTest {
         service.syncRuntimeDirectories();
 
         String syncedTool = Files.readString(weatherTool);
-        String syncedViewport = Files.readString(builtInViewport);
         String syncedSkill = Files.readString(containerHubSkillFile);
         String syncedSchedule = Files.readString(builtInSchedule);
 
         assertThat(syncedTool).contains("name: datetime");
-        assertThat(syncedViewport).contains("<div>sunny</div>");
         assertThat(syncedSkill).contains("name: \"container_hub_validation\"");
         assertThat(syncedSchedule).contains("name: 内置占位计划任务")
                 .contains("description: 预留内置计划任务同步链路的占位任务，默认禁用")
@@ -86,11 +84,12 @@ class RuntimeResourceSyncServiceTest {
         assertThat(schedulesDir.resolve("builtin_placeholder_daily.yml")).exists();
         assertThat(toolsDir.resolve("_plan_add_tasks_.yml")).exists();
         assertThat(toolsDir.resolve("_plan_update_task_.yml")).exists();
-        assertThat(toolsDir.resolve("launch_fireworks.yml")).exists();
-        assertThat(toolsDir.resolve("show_modal.yml")).exists();
-        assertThat(toolsDir.resolve("switch_theme.yml")).exists();
-        assertThat(viewportsDir.resolve("weather_card.html")).exists();
-        assertThat(viewportsDir.resolve("flight_form.qlc")).exists();
+        assertThat(toolsDir.resolve("launch_fireworks.yml")).doesNotExist();
+        assertThat(toolsDir.resolve("show_modal.yml")).doesNotExist();
+        assertThat(toolsDir.resolve("switch_theme.yml")).doesNotExist();
+        assertThat(toolsDir.resolve("_skill_run_script_.yml")).doesNotExist();
+        assertThat(Files.readString(builtInViewport)).isEqualTo("old-viewport-content");
+        assertThat(viewportsDir.resolve("flight_form.qlc")).doesNotExist();
         assertThat(Files.readString(modePlainAgent)).isEqualTo("old-agent-content");
         assertThat(agentsDir.resolve("demoAction.yml")).doesNotExist();
         assertThat(Files.readString(extraAgent)).isEqualTo("custom agent content");
@@ -142,8 +141,7 @@ class RuntimeResourceSyncServiceTest {
         assertThat(configuredSkillsDir.resolve("screenshot").resolve("SKILL.md")).doesNotExist();
         assertThat(configuredSkillsDir.resolve("slack-gif-creator").resolve("SKILL.md")).doesNotExist();
         assertThat(configuredSchedulesDir.resolve("builtin_placeholder_daily.yml")).exists();
-        assertThat(configuredViewportsDir.resolve("weather_card.html")).exists();
-        assertThat(configuredViewportsDir.resolve("flight_form.qlc")).exists();
+        assertThat(configuredViewportsDir).doesNotExist();
         assertThat(legacyUserDir.resolve("tools")).doesNotExist();
         assertThat(legacyUserDir.resolve("skills")).doesNotExist();
         assertThat(legacyUserDir.resolve("schedules")).doesNotExist();

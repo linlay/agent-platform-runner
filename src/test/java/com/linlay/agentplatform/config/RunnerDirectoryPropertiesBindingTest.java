@@ -1,5 +1,11 @@
 package com.linlay.agentplatform.config;
 
+import com.linlay.agentplatform.agent.AgentProperties;
+import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.model.ModelProperties;
+import com.linlay.agentplatform.schedule.ScheduleProperties;
+import com.linlay.agentplatform.skill.SkillProperties;
+import com.linlay.agentplatform.team.TeamProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -27,8 +33,41 @@ class RunnerDirectoryPropertiesBindingTest {
                 });
     }
 
+    @Test
+    void shouldDefaultDirectoriesToRuntimeLayout() {
+        contextRunner.run(context -> {
+            assertThat(context.getBean(AgentProperties.class).getExternalDir()).isEqualTo("runtime/agents");
+            assertThat(context.getBean(TeamProperties.class).getExternalDir()).isEqualTo("runtime/teams");
+            assertThat(context.getBean(ModelProperties.class).getExternalDir()).isEqualTo("runtime/models");
+            assertThat(context.getBean(ProviderProperties.class).getExternalDir()).isEqualTo("runtime/providers");
+            assertThat(context.getBean(ToolProperties.class).getExternalDir()).isEqualTo("runtime/tools");
+            assertThat(context.getBean(SkillProperties.class).getExternalDir()).isEqualTo("runtime/skills-market");
+            assertThat(context.getBean(ScheduleProperties.class).getExternalDir()).isEqualTo("runtime/schedules");
+            assertThat(context.getBean(ViewportProperties.class).getExternalDir()).isEqualTo("runtime/viewports");
+            assertThat(context.getBean(McpProperties.class).getRegistry().getExternalDir()).isEqualTo("runtime/mcp-servers");
+            assertThat(context.getBean(ViewportServerProperties.class).getRegistry().getExternalDir()).isEqualTo("runtime/viewport-servers");
+            assertThat(context.getBean(RootProperties.class).getExternalDir()).isEqualTo("runtime/root");
+            assertThat(context.getBean(PanProperties.class).getExternalDir()).isEqualTo("runtime/pan");
+            assertThat(context.getBean(ChatWindowMemoryProperties.class).getDir()).isEqualTo("runtime/chats");
+        });
+    }
+
     @Configuration(proxyBeanMethods = false)
-    @EnableConfigurationProperties({RootProperties.class, PanProperties.class})
+    @EnableConfigurationProperties({
+            AgentProperties.class,
+            TeamProperties.class,
+            ModelProperties.class,
+            ProviderProperties.class,
+            ToolProperties.class,
+            SkillProperties.class,
+            ScheduleProperties.class,
+            ViewportProperties.class,
+            McpProperties.class,
+            ViewportServerProperties.class,
+            RootProperties.class,
+            PanProperties.class,
+            ChatWindowMemoryProperties.class
+    })
     static class RunnerDirectoryConfiguration {
     }
 }

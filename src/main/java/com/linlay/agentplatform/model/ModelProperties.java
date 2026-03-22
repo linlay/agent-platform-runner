@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "agent.models")
 public class ModelProperties {
 
-    private String externalDir = "models";
+    private String externalDir = "runtime/models";
     private long refreshIntervalMs = 30_000L;
 
     public String getExternalDir() {

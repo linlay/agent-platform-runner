@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "agent.root")
 public class RootProperties {
 
-    private String externalDir = "root";
+    private String externalDir = "runtime/root";
 
     public String getExternalDir() {
         return externalDir;

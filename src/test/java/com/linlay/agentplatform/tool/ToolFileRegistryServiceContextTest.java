@@ -7,7 +7,6 @@ import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +17,8 @@ import com.linlay.agentplatform.config.ToolProperties;
 
 class ToolFileRegistryServiceContextTest {
 
+    private static Path configuredToolsDir;
+
     @TempDir
     Path tempDir;
 
@@ -25,10 +26,10 @@ class ToolFileRegistryServiceContextTest {
     void shouldCreateToolFileRegistryServiceBeanWithInjectedToolProperties() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
+        configuredToolsDir = toolsDir;
 
         new ApplicationContextRunner()
                 .withUserConfiguration(ToolFileRegistryServiceContextConfiguration.class)
-                .withPropertyValues("agent.tools.external-dir=" + toolsDir)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(ToolProperties.class);
@@ -40,9 +41,15 @@ class ToolFileRegistryServiceContextTest {
     }
 
     @Configuration(proxyBeanMethods = false)
-    @EnableConfigurationProperties(ToolProperties.class)
     @Import(ToolFileRegistryService.class)
     static class ToolFileRegistryServiceContextConfiguration {
+
+        @Bean
+        ToolProperties toolProperties() {
+            ToolProperties properties = new ToolProperties();
+            properties.setExternalDir(configuredToolsDir.toString());
+            return properties;
+        }
 
         @Bean
         ObjectMapper objectMapper() {

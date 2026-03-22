@@ -21,7 +21,7 @@
 
 1. 版本层：用 `VERSION` 统一管理发布版本号。
 2. 构建层：按目标架构构建 release 镜像。
-3. 组装层：把镜像 tar、compose 文件、启动脚本、配置模板和 starter 运行目录组装成离线目录。
+3. 组装层：把镜像 tar、compose 文件、启动脚本、配置模板和空的运行目录骨架组装成离线目录。
 4. 交付层：把离线目录压成最终 bundle，输出到固定产物目录。
 
 当前项目中，上面四层分别落在这些位置：
@@ -86,7 +86,7 @@ ARCH=amd64 make release
 - 宿主机构建产物：`target/*.jar`
 - 配置模板：`configs/*.example.yml`
 - 配置模板：`configs/**/*.example.*`
-- starter 运行目录：`example/agents`、`example/teams`、`example/models`、`example/providers`、`example/tools`、`example/mcp-servers`、`example/viewport-servers`、`example/viewports`、`example/schedules`
+- runtime 目录骨架：`runtime/agents`、`runtime/teams`、`runtime/models`、`runtime/providers`、`runtime/tools`、`runtime/mcp-servers`、`runtime/viewport-servers`、`runtime/viewports`、`runtime/skills-market`、`runtime/schedules`、`runtime/chats`、`runtime/root`、`runtime/pan`
 
 脚本会强校验版本格式：
 
@@ -182,7 +182,7 @@ RELEASE_BASE_IMAGE=<candidate-image> ARCH=arm64 make release
 - `root`
 - `pan`
 
-若 `example/` 下存在 starter 内容，脚本会复制到对应的 `runtime/` 子目录中，方便部署端开箱即用。
+脚本只会创建空的 `runtime/` 子目录骨架，不再从仓库内复制任何 starter / example 内容。
 
 同时脚本会把 bundle 内 `.env.example` 的 `RUNNER_VERSION` 替换成当前构建版本，保证部署端复制后默认镜像标签和 bundle 内镜像一致。
 
@@ -254,8 +254,8 @@ agent-platform-runner/
 部署启动后，还会在本地生成或补充：
 
 - `.env`：由使用者从 `.env.example` 复制并填入真实配置
-- `configs/*.yml` / `configs/*.pem`：由使用者从 example 模板复制出的真实配置
-- `runtime/*`：业务目录和运行数据目录
+- `configs/*.yml` / `configs/*.pem`：由使用者从发布包内的 `*.example.*` 模板复制出的真实配置
+- `runtime/*`：空目录骨架；业务目录和运行数据由部署端外部提供或自行填充
 
 ## 5. 部署端如何消费这些包
 

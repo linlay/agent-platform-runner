@@ -26,43 +26,43 @@ services:
         target: /opt/configs
         read_only: true
       - type: bind
-        source: ${AGENTS_DIR:-./agents}
+        source: ${AGENTS_DIR:-./runtime/agents}
         target: /opt/agents
       - type: bind
-        source: ${TEAMS_DIR:-./teams}
+        source: ${TEAMS_DIR:-./runtime/teams}
         target: /opt/teams
       - type: bind
-        source: ${MODELS_DIR:-./models}
+        source: ${MODELS_DIR:-./runtime/models}
         target: /opt/models
       - type: bind
-        source: ${PROVIDERS_DIR:-./providers}
+        source: ${PROVIDERS_DIR:-./runtime/providers}
         target: /opt/providers
       - type: bind
-        source: ${TOOLS_DIR:-./tools}
+        source: ${TOOLS_DIR:-./runtime/tools}
         target: /opt/tools
       - type: bind
-        source: ${MCP_SERVERS_DIR:-./mcp-servers}
+        source: ${MCP_SERVERS_DIR:-./runtime/mcp-servers}
         target: /opt/mcp-servers
       - type: bind
-        source: ${VIEWPORT_SERVERS_DIR:-./viewport-servers}
+        source: ${VIEWPORT_SERVERS_DIR:-./runtime/viewport-servers}
         target: /opt/viewport-servers
       - type: bind
-        source: ${VIEWPORTS_DIR:-./viewports}
+        source: ${VIEWPORTS_DIR:-./runtime/viewports}
         target: /opt/viewports
       - type: bind
-        source: ${SKILLS_MARKET_DIR:-./skills-market}
+        source: ${SKILLS_MARKET_DIR:-./runtime/skills-market}
         target: /opt/skills-market
       - type: bind
-        source: ${SCHEDULES_DIR:-./schedules}
+        source: ${SCHEDULES_DIR:-./runtime/schedules}
         target: /opt/schedules
       - type: bind
-        source: ${CHATS_DIR:-./chats}
+        source: ${CHATS_DIR:-./runtime/chats}
         target: /opt/chats
       - type: bind
-        source: ${ROOT_DIR:-./root}
+        source: ${ROOT_DIR:-./runtime/root}
         target: /opt/root
       - type: bind
-        source: ${PAN_DIR:-./pan}
+        source: ${PAN_DIR:-./runtime/pan}
         target: /opt/pan
     env_file:
       - .env

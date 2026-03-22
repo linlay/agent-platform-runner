@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "agent.schedule")
 public class ScheduleProperties {
 
-    private String externalDir = "schedules";
+    private String externalDir = "runtime/schedules";
     private boolean enabled = true;
     private String defaultZoneId;
     private int poolSize = 4;

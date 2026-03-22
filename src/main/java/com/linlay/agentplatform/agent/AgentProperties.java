@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "agent.agents")
 public class AgentProperties {
 
-    private String externalDir = "agents";
+    private String externalDir = "runtime/agents";
     private long refreshIntervalMs = 10_000L;
 
     public String getExternalDir() {

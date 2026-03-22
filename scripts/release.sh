@@ -120,24 +120,6 @@ while IFS= read -r file; do
   cp "$file" "$BUNDLE_ROOT/configs/$rel"
 done < <(find "$REPO_ROOT/configs" -type f \( -name '*.example.yml' -o -name '*.example.yaml' -o -name '*.example.pem' \) | sort)
 
-copy_example_dir() {
-  local source_dir="$1"
-  local target_dir="$2"
-  if [[ -d "$source_dir" ]]; then
-    cp -R "$source_dir"/. "$target_dir"/
-  fi
-}
-
-copy_example_dir "$REPO_ROOT/example/agents" "$BUNDLE_ROOT/runtime/agents"
-copy_example_dir "$REPO_ROOT/example/teams" "$BUNDLE_ROOT/runtime/teams"
-copy_example_dir "$REPO_ROOT/example/models" "$BUNDLE_ROOT/runtime/models"
-copy_example_dir "$REPO_ROOT/example/providers" "$BUNDLE_ROOT/runtime/providers"
-copy_example_dir "$REPO_ROOT/example/tools" "$BUNDLE_ROOT/runtime/tools"
-copy_example_dir "$REPO_ROOT/example/mcp-servers" "$BUNDLE_ROOT/runtime/mcp-servers"
-copy_example_dir "$REPO_ROOT/example/viewport-servers" "$BUNDLE_ROOT/runtime/viewport-servers"
-copy_example_dir "$REPO_ROOT/example/viewports" "$BUNDLE_ROOT/runtime/viewports"
-copy_example_dir "$REPO_ROOT/example/schedules" "$BUNDLE_ROOT/runtime/schedules"
-
 sed -i.bak "s/^RUNNER_VERSION=.*/RUNNER_VERSION=$VERSION/" "$BUNDLE_ROOT/.env.example"
 rm -f "$BUNDLE_ROOT/.env.example.bak"
 

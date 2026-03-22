@@ -15,10 +15,8 @@ services:
       TEAMS_DIR: /opt/runtime/teams
       MODELS_DIR: /opt/runtime/models
       PROVIDERS_DIR: /opt/runtime/providers
-      TOOLS_DIR: /opt/runtime/tools
       MCP_SERVERS_DIR: /opt/runtime/mcp-servers
       VIEWPORT_SERVERS_DIR: /opt/runtime/viewport-servers
-      VIEWPORTS_DIR: /opt/runtime/viewports
       SKILLS_MARKET_DIR: /opt/runtime/skills-market
       SCHEDULES_DIR: /opt/runtime/schedules
       CHATS_DIR: /opt/runtime/chats
@@ -42,17 +40,11 @@ services:
         source: ${PROVIDERS_DIR:-./runtime/providers}
         target: /opt/runtime/providers
       - type: bind
-        source: ${TOOLS_DIR:-./runtime/tools}
-        target: /opt/runtime/tools
-      - type: bind
         source: ${MCP_SERVERS_DIR:-./runtime/mcp-servers}
         target: /opt/runtime/mcp-servers
       - type: bind
         source: ${VIEWPORT_SERVERS_DIR:-./runtime/viewport-servers}
         target: /opt/runtime/viewport-servers
-      - type: bind
-        source: ${VIEWPORTS_DIR:-./runtime/viewports}
-        target: /opt/runtime/viewports
       - type: bind
         source: ${SKILLS_MARKET_DIR:-./runtime/skills-market}
         target: /opt/runtime/skills-market

@@ -20,6 +20,7 @@ import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.service.SseFlushWriter;
 import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
+import com.linlay.agentplatform.testsupport.TestCatalogFixtures;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolFileRegistryService;
 import com.linlay.agentplatform.tool.ToolKind;
@@ -81,9 +82,6 @@ import static org.mockito.Mockito.when;
                 "agent.auth.enabled=false",
                 "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-test-chats-${random.uuid}",
                 "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-test-chats-db-${random.uuid}/chats.db",
-                "agent.agents.external-dir=${user.dir}/example/agents",
-                "agent.models.external-dir=${user.dir}/example/models",
-                "agent.skills.external-dir=${user.dir}/example/skills",
                 "agent.mcp-servers.enabled=true",
                 "agent.teams.external-dir=${java.io.tmpdir}/agent-platform-runner-test-teams-${random.uuid}"
         }
@@ -122,6 +120,9 @@ class AgentControllerTest {
     @DynamicPropertySource
     static void registerDynamicProperties(DynamicPropertyRegistry registry) {
         registry.add("agent.providers.external-dir", () -> TEST_PROVIDERS_DIR.toString());
+        registry.add("agent.agents.external-dir", () -> TestCatalogFixtures.agentsDir().toString());
+        registry.add("agent.models.external-dir", () -> TestCatalogFixtures.modelsDir().toString());
+        registry.add("agent.skills.external-dir", () -> TestCatalogFixtures.skillsDir().toString());
     }
 
     @BeforeEach
@@ -601,7 +602,10 @@ class AgentControllerTest {
                 streamRequest,
                 new AgentRequest("trigger run error", chatId, requestId, runId, Map.of())
         );
-        when(queryService.prepare(org.mockito.ArgumentMatchers.any())).thenReturn(session);
+        when(queryService.prepare(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(session);
         when(queryService.stream(org.mockito.ArgumentMatchers.any())).thenReturn(Flux.just(
                 ServerSentEvent.<String>builder()
                         .event("message")

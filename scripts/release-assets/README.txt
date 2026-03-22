@@ -15,4 +15,4 @@ agent-platform-runner release bundle
 Bundle contents:
 - `images/agent-platform-runner.tar`: offline Docker image
 - `configs/`: safe-to-distribute config templates only
-- `runtime/`: starter runtime directories populated from `example/`
+- `runtime/`: empty runtime directory skeleton to be populated externally

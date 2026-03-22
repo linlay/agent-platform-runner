@@ -2,14 +2,10 @@ package com.linlay.agentplatform.service;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.Comparator;
 import java.util.Locale;
-import java.util.function.Predicate;
-import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -122,8 +118,6 @@ public class RuntimeResourceSyncService {
         syncClasspathResourceDirectory("tools", toolsDir);
         syncClasspathResourceDirectory("skills", skillsDir);
         syncResourceDirectory("schedules", schedulesDir);
-        syncProjectDirectory("example/tools", toolsDir, false, path -> isYamlFile(path.getFileName().toString()));
-        syncProjectDirectory("example/viewports", viewportsDir, true, path -> isViewportFile(path.getFileName().toString()));
     }
 
     private void syncClasspathResourceDirectory(String resourceDir, Path targetDir) {
@@ -184,60 +178,6 @@ public class RuntimeResourceSyncService {
         }
     }
 
-    private void syncProjectDirectory(
-            String projectRelativeDir,
-            Path targetDir,
-            boolean overwriteExisting,
-            Predicate<Path> filter
-    ) {
-        if (targetDir == null || projectRelativeDir == null || projectRelativeDir.isBlank()) {
-            return;
-        }
-        Path sourceDir = resolveProjectPath(projectRelativeDir);
-        if (sourceDir == null || !Files.isDirectory(sourceDir)) {
-            return;
-        }
-        try {
-            Files.createDirectories(targetDir);
-        } catch (IOException ex) {
-            log.warn("Cannot create runtime directory {}", targetDir, ex);
-            return;
-        }
-
-        try (Stream<Path> stream = Files.walk(sourceDir)) {
-            stream.filter(Files::isRegularFile)
-                    .sorted(Comparator.naturalOrder())
-                    .filter(path -> filter == null || filter.test(path))
-                    .forEach(path -> copyProjectFile(sourceDir, path, targetDir, overwriteExisting));
-        } catch (IOException ex) {
-            log.warn("Cannot scan project directory {}", sourceDir, ex);
-        }
-    }
-
-    private void copyProjectFile(Path sourceRoot, Path sourceFile, Path targetDir, boolean overwriteExisting) {
-        if (sourceRoot == null || sourceFile == null || targetDir == null) {
-            return;
-        }
-        Path relativePath = sourceRoot.relativize(sourceFile);
-        Path target = targetDir.resolve(relativePath).normalize();
-        if (!target.startsWith(targetDir)) {
-            log.warn("Skip suspicious project resource path {} -> {}", relativePath, target);
-            return;
-        }
-        try {
-            if (target.getParent() != null) {
-                Files.createDirectories(target.getParent());
-            }
-            if (!overwriteExisting && Files.exists(target)) {
-                return;
-            }
-            Files.copy(sourceFile, target, StandardCopyOption.REPLACE_EXISTING);
-            log.debug("Synced project resource {} -> {}", sourceFile, target);
-        } catch (IOException ex) {
-            log.warn("Failed to sync project resource {} -> {}", sourceFile, target, ex);
-        }
-    }
-
     private String resolveRelativePath(String resourceDir, Resource resource) {
         try {
             String raw = resource.getURL().toString().replace('\\', '/');
@@ -253,37 +193,6 @@ public class RuntimeResourceSyncService {
         }
     }
 
-    private Path resolveProjectPath(String projectRelativeDir) {
-        Path projectRoot = resolveProjectRoot();
-        if (projectRoot == null) {
-            return null;
-        }
-        return projectRoot.resolve(projectRelativeDir).normalize();
-    }
-
-    private Path resolveProjectRoot() {
-        try {
-            Path location = Path.of(RuntimeResourceSyncService.class.getProtectionDomain().getCodeSource().getLocation().toURI())
-                    .toAbsolutePath()
-                    .normalize();
-            if (Files.isDirectory(location) && "classes".equals(location.getFileName().toString())) {
-                Path targetDir = location.getParent();
-                if (targetDir != null && "target".equals(targetDir.getFileName().toString())) {
-                    return targetDir.getParent();
-                }
-            }
-            if (Files.isRegularFile(location)) {
-                Path parent = location.getParent();
-                if (parent != null) {
-                    return parent;
-                }
-            }
-        } catch (URISyntaxException | NullPointerException ex) {
-            log.debug("Cannot resolve project root from code source", ex);
-        }
-        return null;
-    }
-
     private static Path normalizeDir(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
@@ -293,16 +202,6 @@ public class RuntimeResourceSyncService {
 
     private static Path normalizeDir(Path path) {
         return path == null ? null : path.toAbsolutePath().normalize();
-    }
-
-    private boolean isYamlFile(String fileName) {
-        String lower = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
-        return lower.endsWith(".yml") || lower.endsWith(".yaml");
-    }
-
-    private boolean isViewportFile(String fileName) {
-        String lower = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
-        return lower.endsWith(".html") || lower.endsWith(".qlc");
     }
 
 }

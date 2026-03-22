@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "agent.tools")
 public class ToolProperties {
 
-    private String externalDir = "tools";
+    private String externalDir = "runtime/tools";
     private long refreshIntervalMs = 30_000L;
 
     public String getExternalDir() {

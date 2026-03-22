@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "memory.chats")
 public class ChatWindowMemoryProperties {
 
-    private String dir = "./chats";
+    private String dir = "runtime/chats";
     private int k = 20;
     private String charset = "UTF-8";
     private java.util.List<String> actionTools = java.util.List.of();

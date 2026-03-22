@@ -44,8 +44,6 @@ import static org.assertj.core.api.Assertions.assertThat;
         "agent.auth.issuer=https://auth.example.local",
         "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-auth-test-chats-${random.uuid}",
         "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-auth-test-chats-db-${random.uuid}/chats.db",
-        "agent.viewports.external-dir=${java.io.tmpdir}/agent-platform-runner-auth-test-viewports-${random.uuid}",
-        "agent.tools.external-dir=${java.io.tmpdir}/agent-platform-runner-auth-test-tools-${random.uuid}",
         "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-auth-test-skills-${random.uuid}"
     }
 )

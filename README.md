@@ -55,10 +55,10 @@
   "msg": "success",
   "data": [
     {
-      "key": "demoConfirmDialog",
-      "name": "灵犀",
-      "description": "内置示例：REACT 模式 + 确认对话框（human-in-the-loop）",
-      "role": "确认对话示例",
+      "key": "ops_assistant",
+      "name": "Ops Assistant",
+      "description": "负责日常运维查询与执行建议",
+      "role": "运维助手",
       "meta": {
         "model": "qwen3-max",
         "mode": "REACT",
@@ -96,7 +96,7 @@
     {
       "chatId": "d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656",
       "chatName": "元素碳的简介，100",
-      "agentKey": "demoModePlain",
+      "agentKey": "ops_assistant",
       "teamId": null,
       "createdAt": 1770866044047,
       "updatedAt": 1770866412459,
@@ -119,7 +119,7 @@
     {
       "chatId": "d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656",
       "chatName": "元素碳的简介，100",
-      "agentKey": "demoModePlain",
+      "agentKey": "ops_assistant",
       "teamId": null,
       "createdAt": 1770866044047,
       "updatedAt": 1770867412459,
@@ -132,7 +132,7 @@
 }
 ```
 
-`GET /api/chats?agentKey=demoModePlain&lastRunId=mtoewf3u` 示例：
+`GET /api/chats?agentKey=ops_assistant&lastRunId=mtoewf3u` 示例：
 
 ```json
 {
@@ -142,7 +142,7 @@
     {
       "chatId": "d0e5b9ab-af21-4e3b-8e1a-a977dc6d5656",
       "chatName": "元素碳的简介，100",
-      "agentKey": "demoModePlain",
+      "agentKey": "ops_assistant",
       "teamId": null,
       "createdAt": 1770866044047,
       "updatedAt": 1770867412459,
@@ -220,24 +220,22 @@
 │   ├── *.example.yml
 │   └── auth/
 ├── docker-compose.yml
-├── example/
+├── runtime/
 │   ├── agents/
 │   ├── teams/
 │   ├── models/
+│   ├── providers/
+│   ├── tools/
 │   ├── mcp-servers/
 │   ├── viewport-servers/
 │   ├── viewports/
-│   ├── tools/
-│   ├── skills/
+│   ├── skills-market/
 │   ├── schedules/
-│   ├── providers/
-│   ├── install-example-mac.sh
-│   ├── install-example-linux.sh
-│   └── install-example-windows.ps1
+│   ├── chats/
+│   ├── root/
+│   └── pan/
 ├── src/
-├── providers/
 ├── data/
-├── schedules/
 ├── nginx.conf
 ├── pom.xml
 ├── settings.xml
@@ -292,7 +290,7 @@ docker compose up -d --build
 
 - `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
-- `providers/` 负责 provider YAML 注册中心；默认目录可由 `PROVIDERS_DIR` / `agent.providers.external-dir` 覆盖，示例模板建议从 `example/providers/example.yml` 复制并重命名。
+- `runtime/` 下的各业务目录负责承载外部提供的 agents、teams、models、providers、tools、viewports、skills 与 schedules。
 - `docker-compose.yml` 会把 `.env` 中的 `*_DIR` 变量用于宿主机 bind mount，同时在容器内把同名变量固定为 `/opt/...` 路径；因此同一份 `.env` 可以同时服务 `make run` 和 `docker compose`。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
@@ -321,7 +319,7 @@ ARCH=arm64 make release
 - 最终 bundle 输出到 `dist/release/`
 - 单次构建只产出一个目标架构 bundle
 - release 会先在宿主机执行 `mvn -DskipTests clean package`，再构建只包含运行时的镜像
-- release bundle 内置 `images/agent-platform-runner.tar`、`compose.release.yml`、启动脚本、配置模板和 `runtime/` starter 目录
+- release bundle 内置 `images/agent-platform-runner.tar`、`compose.release.yml`、启动脚本、配置模板和空的 `runtime/` 目录骨架
 - release bundle 继续依赖外部 Docker 网络 `zenmind-network`
 - release 默认依赖宿主机 Maven 配置、宿主机网络与宿主机代理；源码仓库里的 `docker compose up -d --build` 仍然可能走容器内构建
 - release 基础镜像默认是 `eclipse-temurin:21-jre-jammy`
@@ -605,29 +603,32 @@ contextConfig:
 > Viewport 系统设计见 [CLAUDE.md #Viewport 系统](./CLAUDE.md#viewport-系统)。
 
 - 运行目录默认值：
-  - agents: `agents/`
-  - models: `models/`
-  - viewport-servers: `viewport-servers/`
-  - viewports: `viewports/`
-  - tools: `tools/`
-  - skills: `skills/`
-- schedules: `schedules/`
-- 启动时同步内置 `src/main/resources/tools|skills|schedules` 到外部目录：
+  - agents: `runtime/agents/`
+  - teams: `runtime/teams/`
+  - models: `runtime/models/`
+  - providers: `runtime/providers/`
+  - tools: `runtime/tools/`
+  - mcp-servers: `runtime/mcp-servers/`
+  - viewport-servers: `runtime/viewport-servers/`
+  - viewports: `runtime/viewports/`
+  - skills-market: `runtime/skills-market/`
+  - schedules: `runtime/schedules/`
+  - chats: `runtime/chats/`
+  - root: `runtime/root/`
+  - pan: `runtime/pan/`
+- 启动时仅同步系统内置 `src/main/resources/tools|skills|schedules` 到外部目录：
   - `TOOLS_DIR`
-  - `SKILLS_DIR`
+  - `SKILLS_MARKET_DIR`
   - `SCHEDULES_DIR`
-- 其中 `skills` 当前仅同步内置验证 skill `container_hub_validation`；数学、文本处理、办公文档和 GIF 等 demo skills 请通过 `example/install-example-*` 从 `example/skills/` 初始化。
-- `agents|teams|models|mcp-servers|viewport-servers|viewports|providers` 不再内置同步；可通过 `example/install-example-*` 初始化到外层目录。
-- `example/agents/` 现已直接提供目录化 Agent 示例，可按目录整体复制到外层运行目录。
-- 示例安装为覆盖写入同名文件，但不会清空目标目录，不会删除额外文件。
+- runner 不再附带任何 demo/example 业务资源；除系统内置 tool、skill、schedule 外，其余 agents、teams、models、providers、mcp-servers、viewport-servers、viewports、tools、schedules 均由外部目录提供。
 - 目录监听热重载策略：
-  - `agents/` 变更：全量刷新 agent 定义。
-  - `tools/` 变更：刷新 tool registry，并按依赖精准刷新受影响 agent。
-  - `mcp-servers/` 变更：刷新 mcp server 与 mcp tool registry，并按依赖精准刷新受影响 agent。
-  - `viewport-servers/` 变更：刷新 viewport server 与远端 viewport registry，不触发 agent reload。
-  - `models/` 变更：刷新 model registry，并按 `modelKey` 依赖精准刷新受影响 agent。
-  - `skills/` 变更：仅刷新 skill registry，不触发 agent reload。
-  - `schedules/` 变更：刷新计划任务 registry，并增量重编排 cron 触发器。
+  - `runtime/agents/` 变更：全量刷新 agent 定义。
+  - `runtime/tools/` 变更：刷新 tool registry，并按依赖精准刷新受影响 agent。
+  - `runtime/mcp-servers/` 变更：刷新 mcp server 与 mcp tool registry，并按依赖精准刷新受影响 agent。
+  - `runtime/viewport-servers/` 变更：刷新 viewport server 与远端 viewport registry，不触发 agent reload。
+  - `runtime/models/` 变更：刷新 model registry，并按 `modelKey` 依赖精准刷新受影响 agent。
+  - `runtime/skills-market/` 变更：仅刷新 skill registry，不触发 agent reload。
+  - `runtime/schedules/` 变更：刷新计划任务 registry，并增量重编排 cron 触发器。
 - 运行中一致性：当前进行中的 run 保持旧快照；reload 后仅新 run 使用新配置。
 - `viewports` 支持后缀：`.html`、`.qlc`，默认每 30 秒刷新内存快照。
 - `tools`:
@@ -652,12 +653,10 @@ contextConfig:
   - `query` 必须是对象；支持 `requestId`、`chatId`、`role`、`message`、`references`、`params`、`scene`、`hidden`，其中 `message` 必填
   - `query.stream` 不支持；`query.agentKey` / `query.teamId` 不支持，仍使用顶层字段
   - 不再支持旧扁平格式：顶层字符串 `query`、顶层 `params`、仅配置 `teamId`
-  - 内置示例包含 `demo_daily_summary.yml`（每日摘要）和 `demo_viewport_weather_minutely.yml`（每分钟随机城市天气）
 - `models`:
   - 目录结构：`models/<model-key>.yml`
   - 关键字段：`key/provider/protocol/modelId/pricing`
   - `protocol` 固定值：`OPENAI`、`ANTHROPIC`（当前 `ANTHROPIC` 仅预留，未实现时会在模型加载阶段拒绝）
-- `show_weather_card` 当前仅作为 viewport（`viewports/show_weather_card.html`），不是可调用 tool。
 - `mcp-servers`:
   - 目录结构：`mcp-servers/<server-key>.yml`
   - 关键字段：`name`、`transport`、`url/baseUrl`、可选 `headers`
@@ -669,18 +668,9 @@ contextConfig:
   - 用于远端 viewport 注册与拉取，与本地 `viewports/` 并存；本地文件和远端注册表互不替代
   - 环境变量：`VIEWPORT_SERVERS_DIR`
 
-### 示例资源初始化
-
-- 示例资源位于 `example/`。
-- 一键安装脚本：
-  - macOS：`./example/install-example-mac.sh`
-  - Linux：`./example/install-example-linux.sh`
-  - Windows PowerShell：`.\\example\\install-example-windows.ps1`
-- 脚本会覆盖复制：`agents/teams/models/mcp-servers/viewport-servers/viewports/tools/skills/schedules`。
-
 ### /api/viewport 约定
 
-- `GET /api/viewport?viewportKey=show_weather_card`
+- `GET /api/viewport?viewportKey=<viewport-key>`
 - 返回：
   - `html` 文件：`data = {"html":"<...>"}`
   - `qlc` 文件：`data` 直接是文件内 JSON 对象
@@ -710,102 +700,21 @@ contextConfig:
 
 ## 内置能力
 
-### 内置智能体
+### 系统内置资源
 
-- `demoModePlain`（`ONESHOT`）：`Jarvis`，角色为“单次直答示例”。
-- `demoModeThinking`（`ONESHOT`）：`Iris`，角色为“深度推理示例”。
-- `demoModePlainTooling`（`ONESHOT`）：`Nova`，角色为“单轮工具示例”。
-- `demoModeReact`（`REACT`）：`Luna`，角色为“REACT示例”。
-- `demoModePlanExecute`（`PLAN_EXECUTE`）：`星策`，角色为“规划执行示例”。
-- `demoViewport`（`REACT`）：`极光`，角色为“视图渲染示例”。
-- `demoAction`（`ONESHOT`）：`小焰`，角色为“UI动作示例”。
-- `demoConfirmDialog`（`REACT`）：`灵犀`，角色为“确认对话示例”。
-- `demoDataViewer`（`ONESHOT`）：`天枢`，角色为“文件展示示例”。
-- `demoCreateGif`（`REACT`）：`Milo`，角色为“GIF制作示例”。
-- `demoDatabase`（`REACT`）：`数枢`，角色为“数据库助手示例”。
-
-中文命名备选池（文档附录）：`清岚`、`星河`、`云舟`、`小岚`、`小满`、`景行`。
-
-### tools/ 目录内的前端与 Action 定义
-
-- `switch_theme(theme)`：主题切换，`theme` 仅支持 `light/dark`。
-- `launch_fireworks(durationMs?)`：播放烟花特效，`durationMs` 可选（毫秒）。
-- `show_modal(title, content, closeText?)`：弹出模态框，`title/content` 必填，`closeText` 可选。
-- `confirm_dialog(question, options?, allowFreeText?)`：前端确认对话框，等待 `/api/submit`。
-- `terminal_command_review(...)`：终端命令审查面板，等待 `/api/submit`。
+- `tools/`：仅保留系统内置工具定义，例如 `_bash_`、`datetime`、`container_hub_bash`、plan tools、`confirm_dialog`。
+- `skills/`：当前仅内置 `container_hub_validation`。
+- `schedules/`：当前仅保留占位用的内置 schedule，用于验证同步链路与调度加载。
+- runner 不再分发任何内置 demo viewport、UI action tool 或示例 agent。
 
 ### 内置 Skills
 
 - `container_hub_validation`：Container Hub RUN 沙箱验证清单，要求先做 Bash smoke，再用容器内 Python 写文件。
 
-### 示例 Skills
-
-- 以下 demo skills 位于 `example/skills/`，可通过 `example/install-example-*` 安装到运行目录：
-- `docx`：Word 文档读写、内容提取、转换与结构化生成。
-- `screenshot`：截图流程示例（含脚本 smoke test）。
-- `pptx`：PPT/PPTX 读取、编辑、从提纲生成幻灯片。
-- `slack-gif-creator`：GIF 动画创建。
-
 ### Java 内置工具
 
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
-- `mock_city_weather`：模拟城市天气数据。
-
-## Container Hub 验证 Agent
-
-仓库提供了示例 agent `demoContainerHubValidator`（目录：`example/agents/demoContainerHubValidator/`），用于验证 `container_hub_bash` 的 RUN 级沙箱能力。该 agent 会先执行 Bash smoke test，再在同一个 run sandbox 中通过 `python3` 写入 `/workspace/validation_report.txt`。
-
-启用前请先配置 `configs/container-hub.yml`（可从 `configs/container-hub.example.yml` 复制）：
-
-```yaml
-enabled: true
-base-url: http://127.0.0.1:8080
-default-environment-id: shell
-```
-
-说明：
-
-- `demoContainerHubValidator` 只使用 `container_hub_bash`，不会回退到 `_bash_` 或任何宿主机执行路径。
-- 第二阶段的 Python 验证是“容器内 Python”，不是本机 skill 脚本执行。
-- RUN 级 session 下，容器中的 `/workspace/<file>` 预期会映射到 host 侧 `CHATS_DIR/<chatId>/<file>`。
-- 基础挂载默认存在：`/workspace`、`/root`、`/skills`、`/pan`、`/agent`。
-- 默认模式为：`/workspace=rw`、`/root=rw`、`/skills=ro`、`/pan=rw`、`/agent=ro`。
-- 若容器环境缺少 `python3`，应将其记录为环境缺口，而不是宣称验证通过。
-
-## Daily Office Agent
-
-仓库提供了通用办公 agent 示例 `dailyOfficeAssistant`（目录：`example/agents/dailyOfficeAssistant/`），默认对接 `agent-container-hub` 中的 `daily-office` 环境，用于：
-
-- 读取、总结和内容级重写 Word 文档（输出新的 `.docx`）
-- 根据提纲、摘要或 Word 提炼结果生成 `.pptx`
-
-该 agent 依赖 `example/skills/` 中的 `docx` 与 `pptx` skills；请先通过 `example/install-example-*` 同步示例资产，再在运行目录启用。
-
-启用前提：
-
-1. 在 runner 侧启用 `configs/container-hub.yml`（可从 `configs/container-hub.example.yml` 复制）。
-2. `agent-container-hub` 服务中存在可用的 `daily-office` environment。
-3. 建议配置 `CHATS_DIR`、`ROOT_DIR`、`PAN_DIR` 等 runner 全局目录，这样 RUN 级沙箱会自动把共享目录挂到容器内 `/workspace`、`/root`、`/pan`。
-
-最小配置示例：
-
-```yaml
-enabled: true
-base-url: http://127.0.0.1:8080
-default-environment-id: daily-office
-```
-
-运行约定：
-
-- `dailyOfficeAssistant` 只使用 `container_hub_bash`，不会回退到 `_bash_` 或任何宿主机执行路径。
-- Agent 会把容器内 `/workspace` 视为唯一工作目录：上传或已有 chat 资产从 `/workspace` 读取，新生成的 `.docx/.pptx` 也写回 `/workspace`。
-- RUN 级 session 下，容器中的 `/workspace/<filename>` 会映射到 host 侧 `CHATS_DIR/<chatId>/<filename>`。
-- `docx` / `pptx` skills 提供的是操作手册，不是自动执行器；agent 需要自己通过 `container_hub_bash` 在容器内访问 `/skills/docx` 与 `/skills/pptx` 并执行对应命令。
-- 产物可通过 `/api/data` 下载，推荐格式：
-  - `/api/data?file=<chatId>%2F<filename>&download=true`
-- 若 agent 能从当前上下文确定具体 `chatId`，应返回完整下载链接；否则至少返回上述模板。
-- Word“改写”按内容级重写处理，不承诺保留复杂版式、批注、修订痕迹、页眉页脚等高保真格式。
 
 ## Container Hub 工具说明
 

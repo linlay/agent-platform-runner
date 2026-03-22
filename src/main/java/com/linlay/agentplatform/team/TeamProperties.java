@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "agent.teams")
 public class TeamProperties {
 
-    private String externalDir = "teams";
+    private String externalDir = "runtime/teams";
     private long refreshIntervalMs = 30_000L;
 
     public String getExternalDir() {

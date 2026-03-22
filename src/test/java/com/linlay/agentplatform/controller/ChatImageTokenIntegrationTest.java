@@ -8,6 +8,7 @@ import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.testsupport.StubLlmService;
+import com.linlay.agentplatform.testsupport.TestCatalogFixtures;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -41,6 +42,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -73,13 +75,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.chat-image-token.secret=chat-image-token-secret-for-tests",
                 "agent.chat-image-token.ttl-seconds=86400",
                 "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-${random.uuid}",
-                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-db-${random.uuid}/chats.db",
-                "agent.agents.external-dir=${user.dir}/example/agents",
-                "agent.models.external-dir=${user.dir}/example/models",
-                "agent.viewports.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-viewports-${random.uuid}",
-                "agent.tools.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-tools-${random.uuid}",
-                "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-skills-${random.uuid}",
-                "agent.data.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-data-${random.uuid}"
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-db-${random.uuid}/chats.db"
         }
 )
 @AutoConfigureWebTestClient
@@ -88,6 +84,8 @@ class ChatImageTokenIntegrationTest {
 
     private static final String CHAT_IMAGE_SECRET = "chat-image-token-secret-for-tests";
     private static final String ISSUER = "https://auth.example.local";
+    private static final Path TEST_DATA_DIR = prepareDataDir();
+    private static final Path TEST_PROVIDERS_DIR = prepareProvidersDir();
 
     private static RSAKey rsaKey;
     private static Path jwksFile;
@@ -125,6 +123,15 @@ class ChatImageTokenIntegrationTest {
                 }
             };
         }
+
+        @Bean
+        @Primary
+        DataProperties dataProperties() {
+            DataProperties properties = new DataProperties();
+            properties.setExternalDir(TEST_DATA_DIR.toString());
+            return properties;
+        }
+
     }
 
     @BeforeAll
@@ -147,6 +154,45 @@ class ChatImageTokenIntegrationTest {
         registry.add("agent.auth.local-public-key-file", () -> "");
         registry.add("agent.auth.jwks-uri", () -> jwksFile.toUri().toString());
         registry.add("agent.auth.jwks-cache-seconds", () -> 60);
+        registry.add("agent.agents.external-dir", () -> TestCatalogFixtures.agentsDir().toString());
+        registry.add("agent.models.external-dir", () -> TestCatalogFixtures.modelsDir().toString());
+        registry.add("agent.providers.external-dir", () -> TEST_PROVIDERS_DIR.toString());
+        registry.add("agent.skills.external-dir", () -> TestCatalogFixtures.skillsDir().toString());
+    }
+
+    private static Path prepareProvidersDir() {
+        try {
+            Path dir = Files.createTempDirectory("agent-platform-runner-chat-image-token-providers-");
+            Files.writeString(dir.resolve("bailian.yml"), """
+                    key: bailian
+                    baseUrl: https://example.com/v1
+                    apiKey: test-bailian-key
+                    defaultModel: test-bailian-model
+                    """);
+            Files.writeString(dir.resolve("babelark.yml"), """
+                    key: babelark
+                    baseUrl: https://example.com/v1
+                    apiKey: test-babelark-key
+                    defaultModel: test-babelark-model
+                    """);
+            Files.writeString(dir.resolve("siliconflow.yml"), """
+                    key: siliconflow
+                    baseUrl: https://example.com/v1
+                    apiKey: test-siliconflow-key
+                    defaultModel: test-siliconflow-model
+                    """);
+            return dir;
+        } catch (java.io.IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    private static Path prepareDataDir() {
+        try {
+            return Files.createTempDirectory("agent-platform-runner-chat-image-token-data-");
+        } catch (java.io.IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     @BeforeEach
@@ -233,9 +279,7 @@ class ChatImageTokenIntegrationTest {
         String chatId = UUID.randomUUID().toString();
         String userId = "user-chat-asset-ok";
         chatRecordStore.ensureChat(chatId, "demoModePlain", "Demo Agent", "hello");
-        Path assetDir = Path.of(dataProperties.getExternalDir()).resolve(chatId);
-        Files.createDirectories(assetDir);
-        Files.write(assetDir.resolve("cover.png"), createMinimalPng());
+        writeChatScopedAsset(chatId, "cover.png");
 
         String authToken = issueAuthToken(userId);
         String chatImageToken = fetchChatImageToken(chatId, authToken);
@@ -461,9 +505,19 @@ class ChatImageTokenIntegrationTest {
     }
 
     private void writeImageFile(String filename) throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         Files.createDirectories(dataDir);
         Files.write(dataDir.resolve(filename), createMinimalPng());
+    }
+
+    private void writeChatScopedAsset(String chatId, String filename) throws Exception {
+        Path chatMemoryDir = Path.of(chatWindowMemoryProperties.getDir()).resolve(chatId);
+        Files.createDirectories(chatMemoryDir);
+        Files.write(chatMemoryDir.resolve(filename), createMinimalPng());
+
+        Path chatDataDir = Path.of(dataProperties.getExternalDir()).resolve(chatId);
+        Files.createDirectories(chatDataDir);
+        Files.write(chatDataDir.resolve(filename), createMinimalPng());
     }
 
     private byte[] createMinimalPng() {
