@@ -14,6 +14,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 
 public class ContainerHubClient {
 
@@ -51,6 +52,32 @@ public class ContainerHubClient {
         return post("/api/sessions/" + sessionId.trim() + "/stop", objectMapper.createObjectNode(), "container_hub_stop_session");
     }
 
+    public EnvironmentAgentPromptResult getEnvironmentAgentPrompt(String environmentName) {
+        String normalizedEnvironmentName = environmentName == null ? "" : environmentName.trim();
+        if (!StringUtils.hasText(normalizedEnvironmentName)) {
+            return EnvironmentAgentPromptResult.failure("", "environment name is required");
+        }
+        String path = "/api/environments/" + normalizedEnvironmentName + "/agent-prompt";
+        JsonNode response = get(path, "container_hub_get_environment_agent_prompt");
+        if (response == null || !response.isObject()) {
+            return EnvironmentAgentPromptResult.failure(normalizedEnvironmentName, "invalid agent prompt response");
+        }
+        if (response.path("ok").asBoolean(true) == false) {
+            return EnvironmentAgentPromptResult.failure(normalizedEnvironmentName, extractError(response.path("body"), response.path("error").asText("")));
+        }
+        boolean hasPrompt = response.path("has_prompt").asBoolean(false);
+        String prompt = response.path("prompt").asText("");
+        String responseEnvironmentName = response.path("environment_name").asText(normalizedEnvironmentName);
+        Instant updatedAt = parseInstant(response.path("updated_at").asText(null));
+        return new EnvironmentAgentPromptResult(
+                responseEnvironmentName,
+                hasPrompt,
+                StringUtils.hasText(prompt) ? prompt.trim() : "",
+                updatedAt,
+                null
+        );
+    }
+
     private JsonNode post(String path, ObjectNode payload, String operation) {
         String requestBody;
         try {
@@ -63,6 +90,31 @@ public class ContainerHubClient {
                 .timeout(Duration.ofMillis(Math.max(1, properties.getRequestTimeoutMs())))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8));
+        if (StringUtils.hasText(properties.getAuthToken())) {
+            builder.header("Authorization", "Bearer " + properties.getAuthToken().trim());
+        }
+
+        try {
+            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            JsonNode body = parseBody(response.body());
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                return body;
+            }
+            return errorResult(operation, path, response.statusCode(), extractError(body, response.body()), body, response.body());
+        } catch (HttpTimeoutException ex) {
+            return transportError(operation, path, "Request timed out after " + properties.getRequestTimeoutMs() + "ms");
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return transportError(operation, path, "Request interrupted");
+        } catch (IOException ex) {
+            return transportError(operation, path, safeMessage(ex));
+        }
+    }
+
+    private JsonNode get(String path, String operation) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(buildUri(path))
+                .timeout(Duration.ofMillis(Math.max(1, properties.getRequestTimeoutMs())))
+                .GET();
         if (StringUtils.hasText(properties.getAuthToken())) {
             builder.header("Authorization", "Bearer " + properties.getAuthToken().trim());
         }
@@ -145,5 +197,33 @@ public class ContainerHubClient {
     private String safeMessage(Exception ex) {
         String message = ex.getMessage();
         return StringUtils.hasText(message) ? message : ex.getClass().getSimpleName();
+    }
+
+    private Instant parseInstant(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        try {
+            return Instant.parse(raw.trim());
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    public record EnvironmentAgentPromptResult(
+            String environmentName,
+            boolean hasPrompt,
+            String prompt,
+            Instant updatedAt,
+            String error
+    ) {
+
+        public static EnvironmentAgentPromptResult failure(String environmentName, String error) {
+            return new EnvironmentAgentPromptResult(environmentName, false, "", null, StringUtils.hasText(error) ? error.trim() : "unknown error");
+        }
+
+        public boolean ok() {
+            return !StringUtils.hasText(error);
+        }
     }
 }

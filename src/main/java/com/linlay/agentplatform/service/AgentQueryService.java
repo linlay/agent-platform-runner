@@ -6,7 +6,11 @@ import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.service.RenderQueue;
 import com.linlay.agentplatform.stream.service.StreamEventAssembler;
 import com.linlay.agentplatform.stream.service.StreamSseStreamer;
+import com.linlay.agentplatform.agent.AgentDefinition;
 import com.linlay.agentplatform.agent.RuntimeContextPromptService;
+import com.linlay.agentplatform.agent.RuntimeContextTags;
+import com.linlay.agentplatform.agent.runtime.SandboxLevel;
+import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,11 +26,13 @@ import com.linlay.agentplatform.model.RuntimeRequestContext;
 import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.team.TeamDescriptor;
 import com.linlay.agentplatform.team.TeamRegistryService;
+import com.linlay.agentplatform.tool.ContainerHubClient;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
@@ -71,6 +77,8 @@ public class AgentQueryService {
     private final ActiveRunService activeRunService;
     private final RenderQueue renderQueue;
     private final RuntimeContextPromptService runtimeContextPromptService;
+    private final ContainerHubClient containerHubClient;
+    private final ContainerHubToolProperties containerHubToolProperties;
     private final SseEventNormalizer sseEventNormalizer;
 
     @Autowired
@@ -87,7 +95,9 @@ public class AgentQueryService {
             ChatAssetCatalogService chatAssetCatalogService,
             ActiveRunService activeRunService,
             RenderQueue renderQueue,
-            RuntimeContextPromptService runtimeContextPromptService
+            RuntimeContextPromptService runtimeContextPromptService,
+            @Nullable ContainerHubClient containerHubClient,
+            ContainerHubToolProperties containerHubToolProperties
     ) {
         this.agentRegistry = agentRegistry;
         this.streamSseStreamer = streamSseStreamer;
@@ -102,6 +112,8 @@ public class AgentQueryService {
         this.activeRunService = activeRunService;
         this.renderQueue = renderQueue;
         this.runtimeContextPromptService = runtimeContextPromptService;
+        this.containerHubClient = containerHubClient;
+        this.containerHubToolProperties = containerHubToolProperties == null ? new ContainerHubToolProperties() : containerHubToolProperties;
         this.sseEventNormalizer = new SseEventNormalizer(objectMapper, toolRegistry, viewportRegistryService, frontendToolProperties);
     }
 
@@ -173,9 +185,11 @@ public class AgentQueryService {
                         effectiveAgentKey,
                         effectiveTeamId,
                         chatName,
+                        runId,
                         request.scene(),
                         mergedReferences,
-                        principal
+                        principal,
+                        agent
                 )
         );
         return new QuerySession(agent, streamRequest, agentRequest);
@@ -208,7 +222,9 @@ public class AgentQueryService {
                 chatAssetCatalogService,
                 activeRunService,
                 renderQueue,
-                new RuntimeContextPromptService()
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
         );
     }
 
@@ -465,13 +481,22 @@ public class AgentQueryService {
             String effectiveAgentKey,
             String teamId,
             String chatName,
+            String runId,
             QueryRequest.Scene scene,
             List<QueryRequest.Reference> references,
-            JwksJwtVerifier.JwtPrincipal principal
+            JwksJwtVerifier.JwtPrincipal principal,
+            Agent agent
     ) {
+        AgentDefinition definition = definitionOf(agent);
         RuntimeRequestContext.WorkspacePaths workspacePaths = runtimeContextPromptService == null
                 ? null
                 : runtimeContextPromptService.resolveWorkspacePaths(chatId);
+        RuntimeRequestContext.SandboxContext sandboxContext = requiresContextTag(definition, RuntimeContextTags.SANDBOX)
+                ? buildSandboxContext(definition, chatId, runId, effectiveAgentKey, teamId, chatName)
+                : null;
+        List<RuntimeRequestContext.AgentDigest> agentDigests = requiresContextTag(definition, RuntimeContextTags.ALL_AGENTS)
+                ? buildAllAgentDigests()
+                : List.of();
         return new RuntimeRequestContext(
                 effectiveAgentKey,
                 teamId,
@@ -480,8 +505,208 @@ public class AgentQueryService {
                 scene,
                 references,
                 principal,
-                workspacePaths
+                workspacePaths,
+                sandboxContext,
+                agentDigests
         );
+    }
+
+    private RuntimeRequestContext.SandboxContext buildSandboxContext(
+            AgentDefinition definition,
+            String chatId,
+            String runId,
+            String agentKey,
+            String teamId,
+            String chatName
+    ) {
+        String configuredEnvironmentId = definition != null && definition.sandboxConfig() != null
+                ? normalizeNullable(definition.sandboxConfig().environmentId())
+                : null;
+        String defaultEnvironmentId = normalizeNullable(containerHubToolProperties == null ? null : containerHubToolProperties.getDefaultEnvironmentId());
+        String effectiveEnvironmentId = StringUtils.hasText(configuredEnvironmentId) ? configuredEnvironmentId : defaultEnvironmentId;
+        String level = resolveSandboxLevel(definition);
+        boolean usesContainerHubTool = definition != null
+                && definition.tools() != null
+                && definition.tools().stream().anyMatch("container_hub_bash"::equals);
+        List<String> extraMounts = summarizeExtraMounts(definition);
+        ContainerHubClient.EnvironmentAgentPromptResult promptResult = fetchSandboxPrompt(
+                effectiveEnvironmentId,
+                runId,
+                agentKey,
+                chatId,
+                teamId,
+                chatName
+        );
+        return new RuntimeRequestContext.SandboxContext(
+                effectiveEnvironmentId,
+                configuredEnvironmentId,
+                defaultEnvironmentId,
+                level,
+                containerHubToolProperties != null && containerHubToolProperties.isEnabled(),
+                usesContainerHubTool,
+                extraMounts,
+                promptResult.prompt()
+        );
+    }
+
+    private ContainerHubClient.EnvironmentAgentPromptResult fetchSandboxPrompt(
+            String environmentId,
+            String runId,
+            String agentKey,
+            String chatId,
+            String teamId,
+            String chatName
+    ) {
+        if (!StringUtils.hasText(environmentId)) {
+            log.warn(
+                    "Sandbox agent prompt resolution failed: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
+                    agentKey,
+                    chatId,
+                    runId,
+                    teamId,
+                    normalizeNullable(chatName),
+                    environmentId,
+                    "missing_environment_id"
+            );
+            throw new IllegalStateException("sandbox context requires a non-blank environmentId");
+        }
+        if (containerHubClient == null) {
+            log.warn(
+                    "Sandbox agent prompt fetch failed: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
+                    agentKey,
+                    chatId,
+                    runId,
+                    teamId,
+                    normalizeNullable(chatName),
+                    environmentId,
+                    "container_hub_client_unavailable"
+            );
+            throw new IllegalStateException("sandbox context requires container-hub client availability");
+        }
+        ContainerHubClient.EnvironmentAgentPromptResult result = containerHubClient.getEnvironmentAgentPrompt(environmentId);
+        if (!result.ok()) {
+            log.warn(
+                    "Sandbox agent prompt fetch failed: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
+                    agentKey,
+                    chatId,
+                    runId,
+                    teamId,
+                    normalizeNullable(chatName),
+                    environmentId,
+                    normalizeNullable(result.error())
+            );
+            throw new IllegalStateException("sandbox context failed to load environment prompt for '" + environmentId + "': " + result.error());
+        }
+        if (!result.hasPrompt()) {
+            log.warn(
+                    "Sandbox agent prompt missing: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
+                    agentKey,
+                    chatId,
+                    runId,
+                    teamId,
+                    normalizeNullable(chatName),
+                    environmentId,
+                    "has_prompt_false"
+            );
+            throw new IllegalStateException("sandbox context requires a non-empty environment prompt for '" + environmentId + "'");
+        }
+        if (!StringUtils.hasText(result.prompt())) {
+            log.warn(
+                    "Sandbox agent prompt blank: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
+                    agentKey,
+                    chatId,
+                    runId,
+                    teamId,
+                    normalizeNullable(chatName),
+                    environmentId,
+                    "blank_prompt"
+            );
+            throw new IllegalStateException("sandbox context requires a non-blank environment prompt for '" + environmentId + "'");
+        }
+        return result;
+    }
+
+    private List<RuntimeRequestContext.AgentDigest> buildAllAgentDigests() {
+        if (agentRegistry == null) {
+            return List.of();
+        }
+        return agentRegistry.list().stream()
+                .sorted(java.util.Comparator.comparing(Agent::id))
+                .map(this::toAgentDigest)
+                .toList();
+    }
+
+    private RuntimeRequestContext.AgentDigest toAgentDigest(Agent agent) {
+        AgentDefinition definition = definitionOf(agent);
+        List<String> tools = definition != null ? definition.tools() : (agent == null ? List.of() : agent.tools());
+        List<String> skills = definition != null ? definition.skills() : (agent == null ? List.of() : agent.skills());
+        RuntimeRequestContext.SandboxDigest sandbox = null;
+        if (definition != null && definition.sandboxConfig() != null
+                && (StringUtils.hasText(definition.sandboxConfig().environmentId()) || definition.sandboxConfig().level() != null)) {
+            sandbox = new RuntimeRequestContext.SandboxDigest(
+                    normalizeNullable(definition.sandboxConfig().environmentId()),
+                    definition.sandboxConfig().level() == null ? null : definition.sandboxConfig().level().name()
+            );
+        }
+        return new RuntimeRequestContext.AgentDigest(
+                agent == null ? null : agent.id(),
+                agent == null ? null : agent.name(),
+                agent == null ? null : agent.role(),
+                agent == null ? null : agent.description(),
+                agent == null || agent.mode() == null ? null : agent.mode().name(),
+                definition == null ? null : normalizeNullable(definition.modelKey()),
+                tools,
+                skills,
+                sandbox
+        );
+    }
+
+    private AgentDefinition definitionOf(Agent agent) {
+        if (agent == null) {
+            return null;
+        }
+        Optional<AgentDefinition> definition = agent.definition();
+        return definition == null ? null : definition.orElse(null);
+    }
+
+    private boolean requiresContextTag(AgentDefinition definition, String tag) {
+        return definition != null
+                && definition.contextTags() != null
+                && definition.contextTags().stream().anyMatch(tag::equals);
+    }
+
+    private String resolveSandboxLevel(AgentDefinition definition) {
+        if (definition != null && definition.sandboxConfig() != null && definition.sandboxConfig().level() != null) {
+            return definition.sandboxConfig().level().name();
+        }
+        String configured = normalizeNullable(containerHubToolProperties == null ? null : containerHubToolProperties.getDefaultSandboxLevel());
+        if (!StringUtils.hasText(configured)) {
+            return SandboxLevel.RUN.name();
+        }
+        return configured.toUpperCase(Locale.ROOT);
+    }
+
+    private List<String> summarizeExtraMounts(AgentDefinition definition) {
+        if (definition == null || definition.sandboxConfig() == null || definition.sandboxConfig().extraMounts() == null) {
+            return List.of();
+        }
+        return definition.sandboxConfig().extraMounts().stream()
+                .filter(mount -> mount != null)
+                .map(mount -> {
+                    String mode = mount.mode() == null ? "unspecified" : mount.mode().name().toLowerCase(Locale.ROOT);
+                    if (StringUtils.hasText(mount.platform())) {
+                        return "platform:" + mount.platform() + " (" + mode + ")";
+                    }
+                    if (StringUtils.hasText(mount.source()) && StringUtils.hasText(mount.destination())) {
+                        return mount.source() + " -> " + mount.destination() + " (" + mode + ")";
+                    }
+                    if (StringUtils.hasText(mount.destination())) {
+                        return "destination:" + mount.destination() + " (" + mode + ")";
+                    }
+                    return null;
+                })
+                .filter(StringUtils::hasText)
+                .toList();
     }
 
     private List<QueryRequest.Reference> mergeReferences(String chatId, List<QueryRequest.Reference> references) {

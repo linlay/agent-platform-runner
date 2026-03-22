@@ -2,10 +2,21 @@ package com.linlay.agentplatform.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.agent.AgentDefinition;
+import com.linlay.agentplatform.agent.RuntimeContextPromptService;
 import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.agent.Agent;
 import com.linlay.agentplatform.agent.AgentRegistry;
+import com.linlay.agentplatform.agent.RuntimeContextTags;
+import com.linlay.agentplatform.agent.mode.OneshotMode;
+import com.linlay.agentplatform.agent.mode.StageSettings;
+import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.agent.runtime.policy.Budget;
+import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
+import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
+import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
+import com.linlay.agentplatform.config.ContainerHubToolProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
@@ -14,10 +25,14 @@ import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.model.ViewportType;
 import com.linlay.agentplatform.team.TeamRegistryService;
+import com.linlay.agentplatform.tool.ContainerHubClient;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.test.util.ReflectionTestUtils;
 import reactor.core.publisher.Flux;
@@ -39,6 +54,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(OutputCaptureExtension.class)
 class AgentQueryServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -133,7 +149,10 @@ class AgentQueryServiceTest {
                 new LoggingAgentProperties(),
                 null,
                 null,
-                null
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
         );
         ServerSentEvent<String> event = ServerSentEvent.builder("""
                 {"type":"tool.start","toolName":"confirm_dialog","toolId":"call_1","runId":"run_1","toolLabel":"确认框","toolDescription":"confirm"}
@@ -175,7 +194,10 @@ class AgentQueryServiceTest {
                 new LoggingAgentProperties(),
                 null,
                 null,
-                null
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
         );
         ServerSentEvent<String> event = ServerSentEvent.builder("""
                 {"type":"tool.snapshot","toolName":"confirm_dialog","toolId":"call_2","runId":"run_2","toolLabel":"确认框","toolDescription":"confirm"}
@@ -220,7 +242,10 @@ class AgentQueryServiceTest {
                 new LoggingAgentProperties(),
                 null,
                 null,
-                null
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
         );
 
         QueryRequest request = new QueryRequest("req-1", chatId, "request-agent", null, "user", "hello", null, null, null, true);
@@ -258,7 +283,10 @@ class AgentQueryServiceTest {
                 new LoggingAgentProperties(),
                 null,
                 null,
-                null
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
         );
 
         QueryRequest request = new QueryRequest("req-1", chatId, "demo-agent", null, "user", "hello", null, null, null, true, true);
@@ -295,7 +323,10 @@ class AgentQueryServiceTest {
                 new LoggingAgentProperties(),
                 null,
                 null,
-                null
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
         );
 
         QueryRequest request = new QueryRequest(
@@ -329,6 +360,151 @@ class AgentQueryServiceTest {
         assertThat(runtimeContext.authPrincipal()).isEqualTo(principal);
         assertThat(runtimeContext.workspacePaths()).isNotNull();
         assertThat(runtimeContext.workspacePaths().chatAttachmentsDir()).contains(chatId);
+        assertThat(runtimeContext.sandboxContext()).isNull();
+        assertThat(runtimeContext.agentDigests()).isEmpty();
+    }
+
+    @Test
+    void prepareShouldAttachSandboxAndAllAgentsRuntimeContext() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        Agent agent = mock(Agent.class);
+        Agent otherAgent = mock(Agent.class);
+        AgentDefinition definition = agentDefinition(
+                "demo-agent",
+                List.of(RuntimeContextTags.SANDBOX, RuntimeContextTags.ALL_AGENTS),
+                List.of("container_hub_bash"),
+                List.of("docx"),
+                "daily-office"
+        );
+        AgentDefinition otherDefinition = agentDefinition(
+                "writer",
+                List.of(),
+                List.of(),
+                List.of("docx"),
+                null
+        );
+        when(agent.id()).thenReturn("demo-agent");
+        when(agent.name()).thenReturn("Demo Agent");
+        when(agent.role()).thenReturn("Demo Role");
+        when(agent.description()).thenReturn("Demo Description");
+        when(agent.mode()).thenReturn(AgentRuntimeMode.ONESHOT);
+        when(agent.tools()).thenReturn(List.of("container_hub_bash"));
+        when(agent.skills()).thenReturn(List.of("docx"));
+        when(agent.definition()).thenReturn(Optional.of(definition));
+        when(otherAgent.id()).thenReturn("writer");
+        when(otherAgent.name()).thenReturn("Writer");
+        when(otherAgent.role()).thenReturn("Writer Role");
+        when(otherAgent.description()).thenReturn("Writer Description");
+        when(otherAgent.mode()).thenReturn(AgentRuntimeMode.ONESHOT);
+        when(otherAgent.tools()).thenReturn(List.of());
+        when(otherAgent.skills()).thenReturn(List.of("docx"));
+        when(otherAgent.definition()).thenReturn(Optional.of(otherDefinition));
+        when(agentRegistry.get("demo-agent")).thenReturn(agent);
+        when(agentRegistry.list()).thenReturn(List.of(otherAgent, agent));
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        String chatId = UUID.randomUUID().toString();
+        when(chatRecordStore.findBoundAgentKey(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.findBoundTeamId(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.ensureChat(chatId, "demo-agent", "Demo Agent", null, "hello"))
+                .thenReturn(new ChatRecordStore.ChatSummary(chatId, "Chat Alpha", "demo-agent", null, 1L, 2L, "", "", 1, 2L, false));
+
+        ContainerHubClient containerHubClient = mock(ContainerHubClient.class);
+        when(containerHubClient.getEnvironmentAgentPrompt("daily-office")).thenReturn(
+                new ContainerHubClient.EnvironmentAgentPromptResult(
+                        "daily-office",
+                        true,
+                        "You are running inside the `daily-office` environment.",
+                        Instant.parse("2026-03-22T10:15:30Z"),
+                        null
+                )
+        );
+        ContainerHubToolProperties properties = new ContainerHubToolProperties();
+        properties.setDefaultEnvironmentId("shell");
+
+        AgentQueryService service = new AgentQueryService(
+                agentRegistry,
+                mock(com.linlay.agentplatform.stream.service.StreamSseStreamer.class),
+                objectMapper,
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                mock(ViewportRegistryService.class),
+                new FrontendToolProperties(),
+                mock(TeamRegistryService.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                containerHubClient,
+                properties
+        );
+
+        QueryRequest request = new QueryRequest("req-1", chatId, "demo-agent", null, "user", "hello", null, null, null, true);
+        AgentQueryService.QuerySession session = service.prepare(request);
+
+        RuntimeRequestContext runtimeContext = session.agentRequest().runtimeContext();
+        assertThat(runtimeContext.sandboxContext()).isNotNull();
+        assertThat(runtimeContext.sandboxContext().environmentId()).isEqualTo("daily-office");
+        assertThat(runtimeContext.sandboxContext().environmentPrompt()).contains("daily-office");
+        assertThat(runtimeContext.agentDigests()).hasSize(2);
+        assertThat(runtimeContext.agentDigests()).extracting(RuntimeRequestContext.AgentDigest::key)
+                .containsExactly("demo-agent", "writer");
+    }
+
+    @Test
+    void prepareShouldFailWhenSandboxPromptMissingAndLogReason(CapturedOutput output) {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        Agent agent = mock(Agent.class);
+        AgentDefinition definition = agentDefinition(
+                "demo-agent",
+                List.of(RuntimeContextTags.SANDBOX),
+                List.of("container_hub_bash"),
+                List.of(),
+                "daily-office"
+        );
+        when(agent.id()).thenReturn("demo-agent");
+        when(agent.name()).thenReturn("Demo Agent");
+        when(agent.definition()).thenReturn(Optional.of(definition));
+        when(agentRegistry.get("demo-agent")).thenReturn(agent);
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        String chatId = UUID.randomUUID().toString();
+        when(chatRecordStore.findBoundAgentKey(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.findBoundTeamId(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.ensureChat(chatId, "demo-agent", "Demo Agent", null, "hello"))
+                .thenReturn(new ChatRecordStore.ChatSummary(chatId, "Chat Alpha", "demo-agent", null, 1L, 2L, "", "", 1, 2L, false));
+
+        ContainerHubClient containerHubClient = mock(ContainerHubClient.class);
+        when(containerHubClient.getEnvironmentAgentPrompt("daily-office")).thenReturn(
+                ContainerHubClient.EnvironmentAgentPromptResult.failure("daily-office", "hub unavailable")
+        );
+
+        AgentQueryService service = new AgentQueryService(
+                agentRegistry,
+                mock(com.linlay.agentplatform.stream.service.StreamSseStreamer.class),
+                objectMapper,
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                mock(ViewportRegistryService.class),
+                new FrontendToolProperties(),
+                mock(TeamRegistryService.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                containerHubClient,
+                new ContainerHubToolProperties()
+        );
+
+        QueryRequest request = new QueryRequest("req-1", chatId, "demo-agent", null, "user", "hello", null, null, null, true);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.prepare(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("sandbox context failed to load environment prompt");
+        assertThat(output.getAll()).contains("Sandbox agent prompt fetch failed");
+        assertThat(output.getAll()).contains("environmentId=daily-office");
     }
 
     @Test
@@ -372,7 +548,10 @@ class AgentQueryServiceTest {
                 new com.linlay.agentplatform.config.LoggingAgentProperties(),
                 chatAssetCatalogService,
                 null,
-                null
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
         );
 
         QueryRequest request = new QueryRequest("req-1", chatId, "demo-agent", null, "user", "hello", List.of(), null, null, true);
@@ -407,7 +586,10 @@ class AgentQueryServiceTest {
                 new LoggingAgentProperties(),
                 null,
                 null,
-                null
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
         );
 
         AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
@@ -452,7 +634,10 @@ class AgentQueryServiceTest {
                 new LoggingAgentProperties(),
                 null,
                 null,
-                null
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
         );
 
         String chatId = UUID.randomUUID().toString();
@@ -491,7 +676,10 @@ class AgentQueryServiceTest {
                 new com.linlay.agentplatform.config.LoggingAgentProperties(),
                 null,
                 activeRunService,
-                null
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
         );
 
         String chatId = UUID.randomUUID().toString();
@@ -591,6 +779,42 @@ class AgentQueryServiceTest {
                 new LoggingAgentProperties(),
                 null,
                 null,
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
+        );
+    }
+
+    private AgentDefinition agentDefinition(
+            String key,
+            List<String> contextTags,
+            List<String> tools,
+            List<String> skills,
+            String environmentId
+    ) {
+        return new AgentDefinition(
+                key,
+                key,
+                null,
+                key + " description",
+                key + " role",
+                "model-key",
+                "provider",
+                "model-id",
+                null,
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ToolChoice.NONE, Budget.DEFAULT),
+                new OneshotMode(new StageSettings("prompt", null, null, tools, false, ComputePolicy.MEDIUM), null, null),
+                tools,
+                skills,
+                List.of(),
+                new AgentDefinition.SandboxConfig(environmentId),
+                List.of(),
+                null,
+                null,
+                contextTags,
+                List.of(),
                 null
         );
     }

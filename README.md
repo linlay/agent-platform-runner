@@ -490,6 +490,23 @@ skillConfig:
     - pptx
 ```
 
+### Runtime Context 配置示例
+
+```yaml
+contextConfig:
+  tags:
+    - system
+    - context
+    - owner
+    - auth
+    - sandbox
+    - all-agents
+```
+
+- `sandbox`：从 `agent-container-hub` 的 `GET /api/environments/{name}/agent-prompt` 读取 environment prompt，并与本地 `sandboxConfig` 摘要一起注入 system prompt。
+- `sandbox` 是强依赖：若 environment prompt 缺失、为空或请求失败，本次请求会直接失败，并输出错误日志。
+- `all-agents`：注入全部已注册 agent 的 YAML 风格头部摘要，便于指挥官 agent 预先了解子 agent 能力边界。
+
 ## Models / 工具 / 视图 / 技能目录
 
 > 工具系统设计规范（继承规则、提交协议、action 行为）见 [CLAUDE.md #Tool 系统](./CLAUDE.md#tool-系统)。

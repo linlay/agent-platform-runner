@@ -67,7 +67,41 @@ class RuntimeContextPromptServiceTest {
                             new QueryRequest.Scene("https://example.com", "Example"),
                             List.of(new QueryRequest.Reference("ref-1", "file", "notes.md", "text/markdown", 42L, null, null, null)),
                             new JwksJwtVerifier.JwtPrincipal("user-1", "device-1", "chat:write", Instant.parse("2026-03-20T10:15:30Z"), Instant.parse("2026-03-21T10:15:30Z")),
-                            workspacePaths
+                            workspacePaths,
+                            new RuntimeRequestContext.SandboxContext(
+                                    "daily-office",
+                                    "daily-office",
+                                    "shell",
+                                    "RUN",
+                                    true,
+                                    true,
+                                    List.of("platform:tools (ro)", "destination:/skills (rw)"),
+                                    "You are running inside the `daily-office` environment."
+                            ),
+                            List.of(
+                                    new RuntimeRequestContext.AgentDigest(
+                                            "commander",
+                                            "Commander",
+                                            "指挥官",
+                                            "负责协同多个 agent",
+                                            "REACT",
+                                            "bailian-qwen3-max",
+                                            List.of("delegate_task"),
+                                            List.of("triage"),
+                                            new RuntimeRequestContext.SandboxDigest("shell", "RUN")
+                                    ),
+                                    new RuntimeRequestContext.AgentDigest(
+                                            "writer",
+                                            "Writer",
+                                            "文档助手",
+                                            "负责文档写作",
+                                            "ONESHOT",
+                                            "bailian-qwen3-max",
+                                            List.of(),
+                                            List.of("docx"),
+                                            null
+                                    )
+                            )
                     )
             );
 
@@ -75,7 +109,9 @@ class RuntimeContextPromptServiceTest {
                     RuntimeContextTags.SYSTEM,
                     RuntimeContextTags.CONTEXT,
                     RuntimeContextTags.OWNER,
-                    RuntimeContextTags.AUTH
+                    RuntimeContextTags.AUTH,
+                    RuntimeContextTags.SANDBOX,
+                    RuntimeContextTags.ALL_AGENTS
             ), request);
 
             assertThat(prompt).contains("Runtime Context: System Environment");
@@ -91,6 +127,12 @@ class RuntimeContextPromptServiceTest {
             assertThat(prompt).contains("owner_notes:");
             assertThat(prompt).contains("Runtime Context: Auth Identity");
             assertThat(prompt).contains("subject: user-1");
+            assertThat(prompt).contains("Runtime Context: Sandbox");
+            assertThat(prompt).contains("environmentId: daily-office");
+            assertThat(prompt).contains("environment_prompt:");
+            assertThat(prompt).contains("Runtime Context: All Agents");
+            assertThat(prompt).contains("key: commander");
+            assertThat(prompt).contains("sandbox:");
         } finally {
             restoreUserDir(originalUserDir);
         }
@@ -112,7 +154,7 @@ class RuntimeContextPromptServiceTest {
                     "req-2",
                     "run-2",
                     Map.of(),
-                    new RuntimeRequestContext("demo-agent", null, "user", null, null, List.of(), null, workspacePaths)
+                    new RuntimeRequestContext("demo-agent", null, "user", null, null, List.of(), null, workspacePaths, null, List.of())
             );
 
             String missingOwnerPrompt = service.buildPrompt(definition(RuntimeContextTags.OWNER), request);
@@ -133,6 +175,39 @@ class RuntimeContextPromptServiceTest {
         } finally {
             restoreUserDir(originalUserDir);
         }
+    }
+
+    @Test
+    void shouldTruncateAllAgentsSectionWhenTooLarge() {
+        RuntimeContextPromptService service = newService();
+        List<RuntimeRequestContext.AgentDigest> digests = new java.util.ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            digests.add(new RuntimeRequestContext.AgentDigest(
+                    "agent-" + i,
+                    "Agent " + i,
+                    "role",
+                    "description " + "x".repeat(80),
+                    "ONESHOT",
+                    "model-key",
+                    List.of("tool_a", "tool_b"),
+                    List.of("skill_a", "skill_b"),
+                    new RuntimeRequestContext.SandboxDigest("shell", "RUN")
+            ));
+        }
+
+        AgentRequest request = new AgentRequest(
+                "hello",
+                "chat-3",
+                "req-3",
+                "run-3",
+                Map.of(),
+                new RuntimeRequestContext("demo-agent", null, "user", null, null, List.of(), null, null, null, digests)
+        );
+
+        String prompt = service.buildPrompt(definition(RuntimeContextTags.ALL_AGENTS), request);
+
+        assertThat(prompt).contains("Runtime Context: All Agents");
+        assertThat(prompt).contains("[TRUNCATED: all-agents exceeds max chars=12000");
     }
 
     private RuntimeContextPromptService newService() {

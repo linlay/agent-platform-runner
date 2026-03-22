@@ -889,7 +889,9 @@ class DefinitionDrivenAgentTest {
                             Instant.parse("2026-03-20T10:15:30Z"),
                             Instant.parse("2026-03-21T10:15:30Z")
                     ),
-                    runtimeContextPromptService.resolveWorkspacePaths(chatId)
+                    runtimeContextPromptService.resolveWorkspacePaths(chatId),
+                    null,
+                    List.of()
             );
 
             AtomicReference<LlmCallSpec> captured = new AtomicReference<>();

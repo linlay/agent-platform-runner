@@ -124,7 +124,9 @@ class AgentDefinitionLoaderTest {
                 contextConfig:
                   tags:
                     - system
+                    - sandbox
                     - owner
+                    - all-agents
                     - unsupported_tag
                     - context
                 mode: ONESHOT
@@ -137,7 +139,9 @@ class AgentDefinitionLoaderTest {
         assertThat(definition).isNotNull();
         assertThat(definition.contextTags()).containsExactly(
                 RuntimeContextTags.SYSTEM,
+                RuntimeContextTags.SANDBOX,
                 RuntimeContextTags.OWNER,
+                RuntimeContextTags.ALL_AGENTS,
                 RuntimeContextTags.CONTEXT
         );
     }

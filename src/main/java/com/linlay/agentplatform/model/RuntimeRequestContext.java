@@ -13,11 +13,54 @@ public record RuntimeRequestContext(
         QueryRequest.Scene scene,
         List<QueryRequest.Reference> references,
         JwksJwtVerifier.JwtPrincipal authPrincipal,
-        WorkspacePaths workspacePaths
+        WorkspacePaths workspacePaths,
+        SandboxContext sandboxContext,
+        List<AgentDigest> agentDigests
 ) {
 
     public RuntimeRequestContext {
         references = references == null ? List.of() : List.copyOf(references);
+        agentDigests = agentDigests == null ? List.of() : List.copyOf(agentDigests);
+    }
+
+    public record SandboxContext(
+            String environmentId,
+            String configuredEnvironmentId,
+            String defaultEnvironmentId,
+            String level,
+            boolean containerHubEnabled,
+            boolean usesContainerHubTool,
+            List<String> extraMounts,
+            String environmentPrompt
+    ) {
+
+        public SandboxContext {
+            extraMounts = extraMounts == null ? List.of() : List.copyOf(extraMounts);
+        }
+    }
+
+    public record AgentDigest(
+            String key,
+            String name,
+            String role,
+            String description,
+            String mode,
+            String modelKey,
+            List<String> tools,
+            List<String> skills,
+            SandboxDigest sandbox
+    ) {
+
+        public AgentDigest {
+            tools = tools == null ? List.of() : List.copyOf(tools);
+            skills = skills == null ? List.of() : List.copyOf(skills);
+        }
+    }
+
+    public record SandboxDigest(
+            String environmentId,
+            String level
+    ) {
     }
 
     public record WorkspacePaths(

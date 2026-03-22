@@ -281,12 +281,17 @@ contextConfig:
     - context
     - owner
     - auth
+    - sandbox
+    - all-agents
 ```
 
 - `system`：注入 OS、Java 版本、时区、locale、当前日期时间等系统环境信息。
 - `context`：注入运行目录与当前会话上下文，包括 `runtime_home`、`root_dir`、`agents_dir`、`chats_dir`、`data_dir`、`chatId`、`requestId`、`runId`、`agentKey`、`teamId`、`role`、`chatName`、`scene`、`references`。
 - `owner`：注入 `OWNER.md` 中的 frontmatter 与正文摘要（正文最大 4000 字符）。
 - `auth`：注入 JWT 主体信息，包括 `subject`、`deviceId`、`scope`、`issuedAt`、`expiresAt`。
+- `sandbox`：注入本地 `sandboxConfig` 摘要，并从 `agent-container-hub` 的 `GET /api/environments/{name}/agent-prompt` 拉取 environment prompt 原文拼入 system prompt。
+- `sandbox` 是强依赖：如果 environment prompt 缺失、为空或请求失败，请求直接失败，并输出带 `agentKey/chatId/runId/environmentId` 的日志。
+- `all-agents`：注入全部已注册 agent 的 YAML 风格头部摘要，只保留 `key/name/role/description/mode/modelKey/tools/skills/sandbox` 等高信号字段。
 
 **文件格式与优先级：**
 

@@ -33,6 +33,7 @@ import java.util.Map;
 public class RuntimeContextPromptService {
 
     private static final int OWNER_BODY_MAX_CHARS = 4_000;
+    private static final int ALL_AGENTS_MAX_CHARS = 12_000;
     private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
@@ -79,6 +80,8 @@ public class RuntimeContextPromptService {
                 case RuntimeContextTags.CONTEXT -> appendIfPresent(sections, buildContextSection(request, runtimeContext));
                 case RuntimeContextTags.OWNER -> appendIfPresent(sections, buildOwnerProfileSection(runtimeContext.workspacePaths()));
                 case RuntimeContextTags.AUTH -> appendIfPresent(sections, buildAuthIdentitySection(runtimeContext.authPrincipal()));
+                case RuntimeContextTags.SANDBOX -> appendIfPresent(sections, buildSandboxSection(runtimeContext.sandboxContext()));
+                case RuntimeContextTags.ALL_AGENTS -> appendIfPresent(sections, buildAllAgentsSection(runtimeContext.agentDigests()));
                 default -> {
                 }
             }
@@ -222,6 +225,96 @@ public class RuntimeContextPromptService {
         return String.join("\n", lines);
     }
 
+    private String buildSandboxSection(RuntimeRequestContext.SandboxContext sandboxContext) {
+        if (sandboxContext == null) {
+            return "";
+        }
+        if (!StringUtils.hasText(sandboxContext.environmentPrompt())) {
+            return "";
+        }
+        List<String> lines = new ArrayList<>();
+        lines.add("Runtime Context: Sandbox");
+        appendKeyValue(lines, "environmentId", sandboxContext.environmentId());
+        appendKeyValue(lines, "configuredEnvironmentId", sandboxContext.configuredEnvironmentId());
+        appendKeyValue(lines, "defaultEnvironmentId", sandboxContext.defaultEnvironmentId());
+        appendKeyValue(lines, "level", sandboxContext.level());
+        lines.add("container_hub_enabled: " + sandboxContext.containerHubEnabled());
+        lines.add("uses_container_hub_bash: " + sandboxContext.usesContainerHubTool());
+        if (sandboxContext.extraMounts() != null && !sandboxContext.extraMounts().isEmpty()) {
+            lines.add("extraMounts:");
+            for (String extraMount : sandboxContext.extraMounts()) {
+                if (StringUtils.hasText(extraMount)) {
+                    lines.add("- " + extraMount.trim());
+                }
+            }
+        }
+        lines.add("environment_prompt:");
+        lines.add(sandboxContext.environmentPrompt().trim());
+        return String.join("\n", lines);
+    }
+
+    private String buildAllAgentsSection(List<RuntimeRequestContext.AgentDigest> agentDigests) {
+        if (agentDigests == null || agentDigests.isEmpty()) {
+            return "";
+        }
+        List<String> blocks = new ArrayList<>();
+        int totalChars = 0;
+        int included = 0;
+        int total = (int) agentDigests.stream()
+                .filter(agentDigest -> agentDigest != null && StringUtils.hasText(agentDigest.key()))
+                .count();
+        for (RuntimeRequestContext.AgentDigest agentDigest : agentDigests) {
+            if (agentDigest == null || !StringUtils.hasText(agentDigest.key())) {
+                continue;
+            }
+            String block = formatAgentDigest(agentDigest);
+            if (!StringUtils.hasText(block)) {
+                continue;
+            }
+            int projected = totalChars + block.length() + (blocks.isEmpty() ? 0 : 6);
+            if (projected > ALL_AGENTS_MAX_CHARS) {
+                break;
+            }
+            blocks.add(block);
+            totalChars = projected;
+            included++;
+        }
+        if (blocks.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder("Runtime Context: All Agents\n");
+        builder.append(String.join("\n---\n", blocks));
+        if (included < total) {
+            builder.append("\n[TRUNCATED: all-agents exceeds max chars=")
+                    .append(ALL_AGENTS_MAX_CHARS)
+                    .append(", included=")
+                    .append(included)
+                    .append("/")
+                    .append(total)
+                    .append("]");
+        }
+        return builder.toString();
+    }
+
+    private String formatAgentDigest(RuntimeRequestContext.AgentDigest agentDigest) {
+        List<String> lines = new ArrayList<>();
+        appendKeyValue(lines, "key", agentDigest.key());
+        appendKeyValue(lines, "name", agentDigest.name());
+        appendKeyValue(lines, "role", agentDigest.role());
+        appendKeyValue(lines, "description", agentDigest.description());
+        appendKeyValue(lines, "mode", agentDigest.mode());
+        appendKeyValue(lines, "modelKey", agentDigest.modelKey());
+        appendInlineList(lines, "tools", agentDigest.tools());
+        appendInlineList(lines, "skills", agentDigest.skills());
+        if (agentDigest.sandbox() != null
+                && (StringUtils.hasText(agentDigest.sandbox().environmentId()) || StringUtils.hasText(agentDigest.sandbox().level()))) {
+            lines.add("sandbox:");
+            appendIndentedKeyValue(lines, "environmentId", agentDigest.sandbox().environmentId());
+            appendIndentedKeyValue(lines, "level", agentDigest.sandbox().level());
+        }
+        return lines.isEmpty() ? "" : String.join("\n", lines);
+    }
+
     private OwnerProfile parseOwnerProfile(String raw) throws IOException {
         String trimmed = raw.trim();
         if (!trimmed.startsWith("---")) {
@@ -340,6 +433,26 @@ public class RuntimeContextPromptService {
         if (StringUtils.hasText(value)) {
             lines.add(key + ": " + value.trim());
         }
+    }
+
+    private void appendIndentedKeyValue(List<String> lines, String key, String value) {
+        if (StringUtils.hasText(value)) {
+            lines.add("  " + key + ": " + value.trim());
+        }
+    }
+
+    private void appendInlineList(List<String> lines, String key, List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        List<String> normalized = values.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
+        if (normalized.isEmpty()) {
+            return;
+        }
+        lines.add(key + ": [" + String.join(", ", normalized) + "]");
     }
 
     private String valueOrUnknown(String value) {
