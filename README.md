@@ -939,6 +939,8 @@ for f in *.md; do echo "$f"; done
 | 图片（`image/*`） | `inline`（浏览器直接展示） | `attachment`（强制下载） |
 | 其他文件 | `attachment`（触发下载） | `attachment` |
 
+- 下载响应里的 `filename*` 只使用文件基名，不包含 `chatId/` 或其他子目录路径。
+
 ### 在 Agent 中使用
 
 `demoDataViewer` 智能体演示了如何通过 Markdown 语法展示图片和提供附件下载：

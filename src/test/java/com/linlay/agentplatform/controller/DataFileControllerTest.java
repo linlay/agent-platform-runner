@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.controller;
 
+import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
 import com.linlay.agentplatform.testsupport.StubLlmService;
@@ -19,6 +20,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -35,11 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.providers.siliconflow.default-model=test-siliconflow-model",
                 "agent.auth.enabled=false",
                 "memory.chats.dir=${java.io.tmpdir}/springai-agent-platform-test-data-chats-${random.uuid}",
-                "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-test-data-chats-db-${random.uuid}/chats.db",
-                "agent.viewports.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-viewports-${random.uuid}",
-                "agent.tools.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-tools-${random.uuid}",
-                "agent.skills.external-dir=${java.io.tmpdir}/springai-agent-platform-test-data-skills-${random.uuid}",
-                "agent.data.external-dir=${java.io.tmpdir}/springai-agent-platform-test-datafiles-${random.uuid}"
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-test-data-chats-db-${random.uuid}/chats.db"
         }
 )
 @AutoConfigureWebTestClient
@@ -50,7 +49,7 @@ class DataFileControllerTest {
     private WebTestClient webTestClient;
 
     @Autowired
-    private com.linlay.agentplatform.config.DataProperties dataProperties;
+    private ChatWindowMemoryProperties chatWindowMemoryProperties;
 
     @TestConfiguration
     static class TestLlmServiceConfig {
@@ -78,13 +77,13 @@ class DataFileControllerTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         Files.createDirectories(dataDir);
     }
 
     @Test
     void shouldServePngImageInline() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         // Minimal 1x1 PNG
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("aaa.jpg"), png);
@@ -100,7 +99,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageFromDataPrefixedPath() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("sample_photo.jpg"), png);
 
@@ -115,7 +114,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageWithEncodedFileParam() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("encoded_photo.jpg"), png);
 
@@ -128,7 +127,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServePdfAsAttachment() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         Files.writeString(dataDir.resolve("report.pdf"), "%PDF-1.4 minimal");
 
         webTestClient.get()
@@ -173,7 +172,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageFromSubDirectoryPath() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         byte[] png = createMinimalPng();
         Files.createDirectories(dataDir.resolve("sub"));
         Files.write(dataDir.resolve("sub").resolve("a.png"), png);
@@ -182,12 +181,17 @@ class DataFileControllerTest {
                 .uri(dataApiUri("/data/sub/a.png"))
                 .exchange()
                 .expectStatus().isOk()
-                .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/png");
+                .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/png")
+                .expectHeader().value(HttpHeaders.CONTENT_DISPOSITION, value -> {
+                    assertThat(value).startsWith("inline");
+                    assertThat(value).contains("filename*=UTF-8''a.png");
+                    assertThat(value).doesNotContain("sub%2Fa.png");
+                });
     }
 
     @Test
     void shouldServeChatScopedAssetFromDataPrefixedPath() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         String chatId = "123e4567-e89b-12d3-a456-426614174999";
         byte[] png = createMinimalPng();
         Files.createDirectories(dataDir.resolve(chatId));
@@ -222,7 +226,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldForceDownloadWhenParameterIsTrue() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("sample_photo.jpg"), png);
 
@@ -239,8 +243,54 @@ class DataFileControllerTest {
     }
 
     @Test
+    void shouldUseBasenameForDownloadFromChatScopedPath() throws Exception {
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        String chatId = "123e4567-e89b-12d3-a456-426614174999";
+        Files.createDirectories(dataDir.resolve(chatId));
+        Files.writeString(dataDir.resolve(chatId).resolve("report.pdf"), "%PDF-1.4 minimal");
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/data")
+                        .queryParam("file", chatId + "/report.pdf")
+                        .queryParam("download", "true")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().value(HttpHeaders.CONTENT_DISPOSITION, value -> {
+                    assertThat(value).startsWith("attachment");
+                    assertThat(value).contains("filename*=UTF-8''report.pdf");
+                    assertThat(value).doesNotContain(chatId);
+                    assertThat(value).doesNotContain("%2Freport.pdf");
+                });
+    }
+
+    @Test
+    void shouldUseBasenameForUtf8DownloadFilename() throws Exception {
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        String chatId = "c90deaa2-553d-4f44-b250-4ced63a1f5da";
+        String filename = "美悦界一品牌管理 （上海）有限公司 _发票金额283.99元.pdf";
+        Files.createDirectories(dataDir.resolve(chatId));
+        Files.writeString(dataDir.resolve(chatId).resolve(filename), "%PDF-1.4 minimal");
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/data")
+                        .queryParam("file", chatId + "/" + filename)
+                        .queryParam("download", "true")
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().value(HttpHeaders.CONTENT_DISPOSITION, value -> {
+                    assertThat(value).startsWith("attachment");
+                    assertThat(value).contains("filename*=UTF-8''" + encodeUtf8(filename));
+                    assertThat(value).doesNotContain(encodeUtf8(chatId + "/"));
+                });
+    }
+
+    @Test
     void shouldServeCsvAsAttachment() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         Files.writeString(dataDir.resolve("data.csv"), "name,value\nfoo,1\nbar,2\n");
 
         webTestClient.get()
@@ -254,7 +304,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldReturn404ForLegacyApiPath() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("legacy_image.png"), png);
 
@@ -266,7 +316,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldReturn404ForDeprecatedDataPath() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("legacy_path_image.png"), png);
 
@@ -282,6 +332,10 @@ class DataFileControllerTest {
                 .build()
                 .encode()
                 .toUriString();
+    }
+
+    private String encodeUtf8(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private byte[] createMinimalPng() {

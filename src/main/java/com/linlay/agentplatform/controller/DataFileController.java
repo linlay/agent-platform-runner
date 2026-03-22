@@ -145,7 +145,8 @@ public class DataFileController {
         String contentType = guessContentType(filename);
         boolean isImage = contentType.startsWith("image/");
         String disposition;
-        String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
+        String downloadFilename = Path.of(filename).getFileName().toString();
+        String encodedFilename = URLEncoder.encode(downloadFilename, StandardCharsets.UTF_8).replace("+", "%20");
 
         if (download || !isImage) {
             disposition = "attachment; filename*=UTF-8''" + encodedFilename;
