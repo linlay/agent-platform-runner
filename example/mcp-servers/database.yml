@@ -1,6 +1,0 @@
-serverKey: database
-baseUrl: http://127.0.0.1:11965
-endpointPath: "/mcp"
-enabled: true
-toolPrefix: db
-readTimeoutMs: 60000
