@@ -37,8 +37,8 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.providers.siliconflow.api-key=test-siliconflow-key",
                 "agent.providers.siliconflow.default-model=test-siliconflow-model",
                 "agent.auth.enabled=false",
-                "memory.chats.dir=${java.io.tmpdir}/springai-agent-platform-test-data-chats-${random.uuid}",
-                "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-test-data-chats-db-${random.uuid}/chats.db"
+                "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-test-data-chats-${random.uuid}",
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-test-data-chats-db-${random.uuid}/chats.db"
         }
 )
 @AutoConfigureWebTestClient

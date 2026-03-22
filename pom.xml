@@ -11,10 +11,10 @@
     </parent>
 
     <groupId>com.aiagent</groupId>
-    <artifactId>springai-agent-platform</artifactId>
+    <artifactId>agent-platform-runner</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>springai-agent-platform</name>
-    <description>Spring Boot + Spring AI agent gateway demo app</description>
+    <name>agent-platform-runner</name>
+    <description>Agent platform runner service</description>
 
     <properties>
         <java.version>21</java.version>

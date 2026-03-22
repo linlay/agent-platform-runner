@@ -1,0 +1,78 @@
+name: agent-platform-runner
+
+services:
+  agent-platform:
+    container_name: agent-platform-runner
+    image: agent-platform-runner:${RUNNER_VERSION:-latest}
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${HOST_PORT:-11949}:8080"
+    environment:
+      SERVER_PORT: 8080
+      AGENTS_DIR: /opt/runtime/agents
+      TEAMS_DIR: /opt/runtime/teams
+      MODELS_DIR: /opt/runtime/models
+      PROVIDERS_DIR: /opt/runtime/providers
+      TOOLS_DIR: /opt/runtime/tools
+      MCP_SERVERS_DIR: /opt/runtime/mcp-servers
+      VIEWPORT_SERVERS_DIR: /opt/runtime/viewport-servers
+      VIEWPORTS_DIR: /opt/runtime/viewports
+      SKILLS_MARKET_DIR: /opt/runtime/skills-market
+      SCHEDULES_DIR: /opt/runtime/schedules
+      CHATS_DIR: /opt/runtime/chats
+      ROOT_DIR: /opt/runtime/root
+      PAN_DIR: /opt/runtime/pan
+    volumes:
+      - type: bind
+        source: ./configs
+        target: /opt/configs
+        read_only: true
+      - type: bind
+        source: ${AGENTS_DIR:-./runtime/agents}
+        target: /opt/runtime/agents
+      - type: bind
+        source: ${TEAMS_DIR:-./runtime/teams}
+        target: /opt/runtime/teams
+      - type: bind
+        source: ${MODELS_DIR:-./runtime/models}
+        target: /opt/runtime/models
+      - type: bind
+        source: ${PROVIDERS_DIR:-./runtime/providers}
+        target: /opt/runtime/providers
+      - type: bind
+        source: ${TOOLS_DIR:-./runtime/tools}
+        target: /opt/runtime/tools
+      - type: bind
+        source: ${MCP_SERVERS_DIR:-./runtime/mcp-servers}
+        target: /opt/runtime/mcp-servers
+      - type: bind
+        source: ${VIEWPORT_SERVERS_DIR:-./runtime/viewport-servers}
+        target: /opt/runtime/viewport-servers
+      - type: bind
+        source: ${VIEWPORTS_DIR:-./runtime/viewports}
+        target: /opt/runtime/viewports
+      - type: bind
+        source: ${SKILLS_MARKET_DIR:-./runtime/skills-market}
+        target: /opt/runtime/skills-market
+      - type: bind
+        source: ${SCHEDULES_DIR:-./runtime/schedules}
+        target: /opt/runtime/schedules
+      - type: bind
+        source: ${CHATS_DIR:-./runtime/chats}
+        target: /opt/runtime/chats
+      - type: bind
+        source: ${ROOT_DIR:-./runtime/root}
+        target: /opt/runtime/root
+      - type: bind
+        source: ${PAN_DIR:-./runtime/pan}
+        target: /opt/runtime/pan
+    networks:
+      zenmind-network:
+        aliases:
+          - agent-platform-runner
+
+networks:
+  zenmind-network:
+    external: true

@@ -689,7 +689,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | 项 | 默认值 | 说明 |
 |----|--------|------|
 | `server.port` | `8080` | HTTP 端口（环境变量 `SERVER_PORT`） |
-| `spring.application.name` | `springai-agent-platform` | 服务名 |
+| `spring.application.name` | `agent-platform-runner` | 服务名 |
 | `CONFIGS_DIR` | `./configs` 或 `/opt/configs` | 结构化配置目录；显式设置时优先生效 |
 
 ### 核心环境变量

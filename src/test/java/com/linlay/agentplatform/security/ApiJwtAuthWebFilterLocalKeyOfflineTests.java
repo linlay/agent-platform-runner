@@ -33,11 +33,11 @@ import org.springframework.test.web.reactive.server.WebTestClient;
         "agent.providers.siliconflow.default-model=test-siliconflow-model",
         "agent.auth.enabled=true",
         "agent.auth.issuer=https://auth.example.local",
-        "memory.chats.dir=${java.io.tmpdir}/springai-agent-platform-auth-local-offline-test-chats-${random.uuid}",
-        "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-auth-local-offline-test-chats-db-${random.uuid}/chats.db",
-        "agent.viewports.external-dir=${java.io.tmpdir}/springai-agent-platform-auth-local-offline-test-viewports-${random.uuid}",
-        "agent.tools.external-dir=${java.io.tmpdir}/springai-agent-platform-auth-local-offline-test-tools-${random.uuid}",
-        "agent.skills.external-dir=${java.io.tmpdir}/springai-agent-platform-auth-local-offline-test-skills-${random.uuid}"
+        "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-auth-local-offline-test-chats-${random.uuid}",
+        "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-auth-local-offline-test-chats-db-${random.uuid}/chats.db",
+        "agent.viewports.external-dir=${java.io.tmpdir}/agent-platform-runner-auth-local-offline-test-viewports-${random.uuid}",
+        "agent.tools.external-dir=${java.io.tmpdir}/agent-platform-runner-auth-local-offline-test-tools-${random.uuid}",
+        "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-auth-local-offline-test-skills-${random.uuid}"
     }
 )
 @AutoConfigureWebTestClient

@@ -79,13 +79,13 @@ import static org.mockito.Mockito.when;
                 "agent.providers.siliconflow.api-key=test-siliconflow-key",
                 "agent.providers.siliconflow.default-model=test-siliconflow-model",
                 "agent.auth.enabled=false",
-                "memory.chats.dir=${java.io.tmpdir}/springai-agent-platform-test-chats-${random.uuid}",
-                "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-test-chats-db-${random.uuid}/chats.db",
+                "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-test-chats-${random.uuid}",
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-test-chats-db-${random.uuid}/chats.db",
                 "agent.agents.external-dir=${user.dir}/example/agents",
                 "agent.models.external-dir=${user.dir}/example/models",
                 "agent.skills.external-dir=${user.dir}/example/skills",
                 "agent.mcp-servers.enabled=true",
-                "agent.teams.external-dir=${java.io.tmpdir}/springai-agent-platform-test-teams-${random.uuid}"
+                "agent.teams.external-dir=${java.io.tmpdir}/agent-platform-runner-test-teams-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient
@@ -161,7 +161,7 @@ class AgentControllerTest {
 
     private static Path prepareProvidersDir() {
         try {
-            Path dir = Files.createTempDirectory("springai-agent-platform-test-providers-");
+            Path dir = Files.createTempDirectory("agent-platform-runner-test-providers-");
             Files.writeString(dir.resolve("bailian.yml"), """
                     key: bailian
                     baseUrl: https://example.com/v1

@@ -72,14 +72,14 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.auth.issuer=https://auth.example.local",
                 "agent.chat-image-token.secret=chat-image-token-secret-for-tests",
                 "agent.chat-image-token.ttl-seconds=86400",
-                "memory.chats.dir=${java.io.tmpdir}/springai-agent-platform-chat-image-token-chats-${random.uuid}",
-                "memory.chats.index.sqlite-file=${java.io.tmpdir}/springai-agent-platform-chat-image-token-chats-db-${random.uuid}/chats.db",
+                "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-${random.uuid}",
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-db-${random.uuid}/chats.db",
                 "agent.agents.external-dir=${user.dir}/example/agents",
                 "agent.models.external-dir=${user.dir}/example/models",
-                "agent.viewports.external-dir=${java.io.tmpdir}/springai-agent-platform-chat-image-token-viewports-${random.uuid}",
-                "agent.tools.external-dir=${java.io.tmpdir}/springai-agent-platform-chat-image-token-tools-${random.uuid}",
-                "agent.skills.external-dir=${java.io.tmpdir}/springai-agent-platform-chat-image-token-skills-${random.uuid}",
-                "agent.data.external-dir=${java.io.tmpdir}/springai-agent-platform-chat-image-token-data-${random.uuid}"
+                "agent.viewports.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-viewports-${random.uuid}",
+                "agent.tools.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-tools-${random.uuid}",
+                "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-skills-${random.uuid}",
+                "agent.data.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-data-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient

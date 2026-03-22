@@ -1,0 +1,18 @@
+ARG BASE_IMAGE=eclipse-temurin:21-jre-jammy
+FROM ${BASE_IMAGE}
+
+WORKDIR /opt
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends bash \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_OPTS="-server -Xms256m -XX:MaxRAMPercentage=60" \
+    JAVA_AGENT=""
+
+ARG APP_JAR
+COPY ${APP_JAR} /opt/app.jar
+
+EXPOSE 8080
+
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS $JAVA_AGENT -jar /opt/app.jar"]

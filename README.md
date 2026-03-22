@@ -1,4 +1,4 @@
-# springai-agent-platform
+# agent-platform-runner
 
 本仓库是可独立构建和部署的 Spring AI Agent 服务，已将流式事件模块源码内置到本仓库，不依赖外置 jar。
 
@@ -302,11 +302,102 @@ docker compose up -d --build
 - compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`AGENTS_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`TOOLS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`VIEWPORTS_DIR`、`SKILLS_MARKET_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`ROOT_DIR`、`PAN_DIR`。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
+### 版本化离线 bundle（release 交付版）
+
+当前仓库同时支持“源码仓库内 docker compose 部署”和“版本化离线 bundle 交付”两种入口。离线 bundle 适合上传制品库、GitHub Release 或拷贝到部署机后直接解压运行。
+
+发布入口：
+
+```bash
+make release
+ARCH=amd64 make release
+ARCH=arm64 make release
+```
+
+约定：
+
+- 发布版本单一来源是根目录 `VERSION`，格式固定为 `vX.Y.Z`
+- 正常发布流程是先更新根目录 `VERSION`，再执行 `make release`
+- 最终 bundle 输出到 `dist/release/`
+- 单次构建只产出一个目标架构 bundle
+- release 会先在宿主机执行 `mvn -DskipTests clean package`，再构建只包含运行时的镜像
+- release bundle 内置 `images/agent-platform-runner.tar`、`compose.release.yml`、启动脚本、配置模板和 `runtime/` starter 目录
+- release bundle 继续依赖外部 Docker 网络 `zenmind-network`
+- release 默认依赖宿主机 Maven 配置、宿主机网络与宿主机代理；源码仓库里的 `docker compose up -d --build` 仍然可能走容器内构建
+- release 基础镜像默认是 `eclipse-temurin:21-jre-jammy`
+- 可通过 `RELEASE_BASE_IMAGE` 直接替换远端镜像地址
+- 更推荐先本地 `docker pull` + `docker tag`，再通过 `RELEASE_BASE_IMAGE_LOCAL` 走本地基础镜像兜底
+
+部署端标准步骤：
+
+```bash
+tar -xzf dist/release/agent-platform-runner-v0.1.0-linux-amd64.tar.gz
+cd agent-platform-runner
+cp .env.example .env
+# 按需复制 configs/*.example.* 为真实配置
+docker network create zenmind-network   # 若网络还不存在
+./start.sh
+```
+
+更多说明见 `docs/versioned-release-bundle.md`。
+
+#### 国内环境如何替换 release 基础镜像
+
+如果 `make release` 卡在拉 `eclipse-temurin:21-jre-jammy`，不要把某一个国内镜像站当成默认答案。先从候选镜像站里任选一个做 `docker pull` 验证，只有验证成功后，再进入 release 流程。
+
+当前文档给出几个候选完整镜像引用示例：
+
+```bash
+m.daocloud.io/docker.io/library/eclipse-temurin:21-jre-jammy
+docker.1ms.run/library/eclipse-temurin:21-jre-jammy
+registry.dockermirror.com/library/eclipse-temurin:21-jre-jammy
+```
+
+说明：
+
+- 以上只是候选示例，不保证任一镜像站长期可用
+- 以你当前网络下 `docker pull <candidate-image>` 能成功为准
+- 如果 `docker pull` 失败，不要继续 `docker tag`，直接切换下一个候选
+
+推荐顺序是先验证可拉，再本地兜底：
+
+```bash
+docker pull <candidate-image>
+docker tag <candidate-image> agent-platform-runner-base:jre21
+RELEASE_BASE_IMAGE_LOCAL=agent-platform-runner-base:jre21 ARCH=arm64 make release
+```
+
+这种方式更稳，因为：
+
+- `docker pull` 可以单独重试，不和 buildx 构建绑在一起
+- `docker tag` 后，release 直接使用本地镜像别名
+- 能绕开 buildx 在构建过程中向镜像站直接拉 blob 时遇到的 `503`
+- 本地基础镜像必须和目标构建架构一致；`ARCH=arm64` 时必须准备 `linux/arm64` 镜像，`ARCH=amd64` 时必须准备 `linux/amd64` 镜像
+- `docker load` 成功不代表架构正确；如果日志出现 `InvalidBaseImagePlatform ... pulled with platform "linux/amd64", expected "linux/arm64"`，说明你导入的是错误架构的基础镜像
+
+如果你验证某个候选镜像地址可拉成功，也可以直接走远端镜像替换：
+
+```bash
+RELEASE_BASE_IMAGE=<candidate-image> ARCH=arm64 make release
+```
+
+变量规则如下：
+
+- 默认值：`eclipse-temurin:21-jre-jammy`
+- 远端替换：`RELEASE_BASE_IMAGE=<完整镜像地址>`
+- 本地兜底：`RELEASE_BASE_IMAGE_LOCAL=<你本地的镜像别名>`
+- 若同时设置，优先使用 `RELEASE_BASE_IMAGE_LOCAL`
+
+这些变量只影响 release 运行时镜像，不影响宿主机的 Maven 打包，也不影响仓库根目录的 `docker compose up -d --build`。
+
 #### 文件放置约定
 
 - `Dockerfile` 与 `settings.xml` 保持在项目根目录，匹配 `docker build .` 常见上下文和当前打包脚本路径约定。
+- `scripts/release-assets/Dockerfile.release` 作为 release 专用运行时镜像定义，只接收宿主机构建出来的 jar。
 - `.env.example` 与 `docker-compose.yml` 保持在项目根目录，作为容器运行基线模板。
+- `VERSION` 保持在项目根目录，作为 release 版本单一来源。
 - `configs/` 保持在项目根目录，作为结构化配置模板目录。
+- `scripts/release-assets/` 保存 release bundle 模板资产。
 - `nginx.conf` 当前保持在项目根目录，作为反向代理示例配置；若后续出现多环境部署资产，可统一迁移到 `deploy/nginx/`。
 - `.dockerignore` 需要保留：用于缩小 Docker build context，并避免将本地敏感配置（如 `configs/*.yml` / `configs/*.pem` / `configs/**/*.pem`）带入构建上下文。
 
@@ -881,8 +972,8 @@ for f in *.md; do echo "$f"; done
 ### 运行入口
 
 - 开发环境：`make run`
-- 生产环境：`docker compose up -d --build`
-- 不再支持 `release-local/`、`release/` 或预打包脚本工作流；运维入口统一回到仓库根目录。
+- 源码仓库部署：`docker compose up -d --build`
+- 版本化离线交付：`make release`，部署端解压 bundle 后执行 `./start.sh`
 
 ### Breaking Change（配置命名迁移）
 

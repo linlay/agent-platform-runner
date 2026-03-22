@@ -8,6 +8,7 @@ RUN mvn -B -q -DskipTests dependency:go-offline
 
 COPY src ./src
 RUN mvn -B -DskipTests clean package
+RUN cp /workspace/target/*.jar /workspace/app.jar
 
 FROM eclipse-temurin:21-jre-jammy AS running
 
@@ -20,7 +21,7 @@ RUN apt-get update \
 ENV JAVA_OPTS="-server -Xms256m -XX:MaxRAMPercentage=60" \
     JAVA_AGENT=""
 
-COPY --from=building /workspace/target/springai-agent-platform-0.0.1-SNAPSHOT.jar /opt/app.jar
+COPY --from=building /workspace/app.jar /opt/app.jar
 
 EXPOSE 8080
 

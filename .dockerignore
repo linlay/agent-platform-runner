@@ -1,7 +1,8 @@
 .git
 .github
 .idea
-target
+target/*
+!target/*.jar
 *.iml
 .DS_Store
 application.yml

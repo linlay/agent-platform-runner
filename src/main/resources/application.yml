@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: springai-agent-platform
+    name: agent-platform-runner
   output:
     ansi:
       enabled: always
