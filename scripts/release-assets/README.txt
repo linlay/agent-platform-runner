@@ -9,10 +9,10 @@ agent-platform-runner release bundle
    - `configs/cors.example.yml` -> `configs/cors.yml`
    - `configs/local-public-key.example.pem` -> `configs/local-public-key.pem`
 4. Make sure the external Docker network `zenmind-network` already exists.
-5. Start with `./start.sh`.
+5. Start with `./start.sh`. It will create the effective runtime directories from `.env` automatically when they are missing.
 6. Stop with `./stop.sh`.
 
 Bundle contents:
 - `images/agent-platform-runner.tar`: offline Docker image
 - `configs/`: safe-to-distribute config templates only
-- `runtime/`: empty runtime directory skeleton for the core host-mounted directories, including default `skills-market/` and `schedules/`
+- no precreated `runtime/`: host runtime directories come from `.env`, default to `./runtime/*`, and are auto-created by `./start.sh`

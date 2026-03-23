@@ -305,8 +305,9 @@ ARCH=arm64 make release
 - 最终 bundle 输出到 `dist/release/`
 - 单次构建只产出一个目标架构 bundle
 - release 会先在宿主机执行 `mvn -DskipTests clean package`，再构建只包含运行时的镜像
-- release bundle 内置 `images/agent-platform-runner.tar`、`compose.release.yml`、启动脚本、配置模板和空的 `runtime/` 目录骨架
+- release bundle 内置 `images/agent-platform-runner.tar`、`compose.release.yml`、启动脚本、配置模板和 `.env.example`，不再预创建 `runtime/` 目录骨架
 - release bundle 继续依赖外部 Docker 网络 `zenmind-network`
+- `*_DIR` 仍默认指向 `./runtime/*`，若这些目录不存在，`./start.sh` 会按最终生效路径自动创建
 - release 默认依赖宿主机 Maven 配置、宿主机网络与宿主机代理；源码仓库里的 `docker compose up -d --build` 仍然可能走容器内构建
 - release 基础镜像默认是 `eclipse-temurin:21-jre-jammy`
 - 可通过 `RELEASE_BASE_IMAGE` 直接替换远端镜像地址

@@ -92,18 +92,7 @@ docker buildx build \
 BUNDLE_ROOT="$TMP_DIR/agent-platform-runner"
 mkdir -p \
   "$BUNDLE_ROOT/images" \
-  "$BUNDLE_ROOT/configs" \
-  "$BUNDLE_ROOT/runtime/agents" \
-  "$BUNDLE_ROOT/runtime/teams" \
-  "$BUNDLE_ROOT/runtime/models" \
-  "$BUNDLE_ROOT/runtime/providers" \
-  "$BUNDLE_ROOT/runtime/mcp-servers" \
-  "$BUNDLE_ROOT/runtime/viewport-servers" \
-  "$BUNDLE_ROOT/runtime/skills-market" \
-  "$BUNDLE_ROOT/runtime/schedules" \
-  "$BUNDLE_ROOT/runtime/chats" \
-  "$BUNDLE_ROOT/runtime/root" \
-  "$BUNDLE_ROOT/runtime/pan"
+  "$BUNDLE_ROOT/configs"
 
 cp "$RELEASE_ASSETS_DIR/compose.release.yml" "$BUNDLE_ROOT/compose.release.yml"
 cp "$RELEASE_ASSETS_DIR/start.sh" "$BUNDLE_ROOT/start.sh"

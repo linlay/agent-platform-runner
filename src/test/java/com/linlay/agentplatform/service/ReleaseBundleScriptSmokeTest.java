@@ -11,12 +11,12 @@ import org.junit.jupiter.api.Test;
 class ReleaseBundleScriptSmokeTest {
 
     @Test
-    void shouldNotCopyExampleResourcesIntoReleaseBundle() throws IOException {
+    void shouldNotPrecreateRuntimeDirectoriesInReleaseBundle() throws IOException {
         String releaseScript = Files.readString(Path.of("scripts/release.sh"));
 
-        assertThat(releaseScript).contains("\"$BUNDLE_ROOT/runtime/agents\"");
-        assertThat(releaseScript).contains("\"$BUNDLE_ROOT/runtime/skills-market\"");
-        assertThat(releaseScript).contains("\"$BUNDLE_ROOT/runtime/schedules\"");
+        assertThat(releaseScript).doesNotContain("\"$BUNDLE_ROOT/runtime/agents\"");
+        assertThat(releaseScript).doesNotContain("\"$BUNDLE_ROOT/runtime/skills-market\"");
+        assertThat(releaseScript).doesNotContain("\"$BUNDLE_ROOT/runtime/schedules\"");
         assertThat(releaseScript).doesNotContain("\"$BUNDLE_ROOT/runtime/tools\"");
         assertThat(releaseScript).doesNotContain("\"$BUNDLE_ROOT/runtime/viewports\"");
         assertThat(releaseScript).doesNotContain("copy_example_dir");
@@ -24,11 +24,21 @@ class ReleaseBundleScriptSmokeTest {
     }
 
     @Test
-    void shouldDescribeRuntimeDirectoryAsExternalSkeleton() throws IOException {
+    void shouldDescribeRuntimeDirectoriesAsStartupManaged() throws IOException {
         String bundleReadme = Files.readString(Path.of("scripts/release-assets/README.txt"));
         String bundleDoc = Files.readString(Path.of("docs/versioned-release-bundle.md"));
+        String projectReadme = Files.readString(Path.of("README.md"));
+        String startScript = Files.readString(Path.of("scripts/release-assets/start.sh"));
 
-        assertThat(bundleReadme).contains("empty runtime directory skeleton");
-        assertThat(bundleDoc).contains("不再从仓库内复制任何 starter / example 内容");
+        assertThat(bundleReadme).contains("no precreated `runtime/`");
+        assertThat(bundleDoc).contains("脚本不会在 bundle 组装阶段预创建 `runtime/` 目录");
+        assertThat(bundleDoc).contains("`./start.sh` 时，脚本会对最终生效的这些目录逐一执行 `mkdir -p`");
+        assertThat(bundleDoc).doesNotContain("空的运行目录骨架");
+        assertThat(bundleDoc).doesNotContain("runtime 目录骨架");
+        assertThat(projectReadme).contains("不再预创建 `runtime/` 目录骨架");
+        assertThat(projectReadme).contains("`./start.sh` 会按最终生效路径自动创建");
+        assertThat(startScript).contains("ensure_dir \"${AGENTS_DIR:-$SCRIPT_DIR/runtime/agents}\"");
+        assertThat(startScript).contains("ensure_dir \"${SKILLS_MARKET_DIR:-$SCRIPT_DIR/runtime/skills-market}\"");
+        assertThat(startScript).contains("ensure_dir \"${SCHEDULES_DIR:-$SCRIPT_DIR/runtime/schedules}\"");
     }
 }

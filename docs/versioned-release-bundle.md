@@ -21,7 +21,7 @@
 
 1. 版本层：用 `VERSION` 统一管理发布版本号。
 2. 构建层：按目标架构构建 release 镜像。
-3. 组装层：把镜像 tar、compose 文件、启动脚本、配置模板和空的运行目录骨架组装成离线目录。
+3. 组装层：把镜像 tar、compose 文件、启动脚本、配置模板和 `.env.example` 组装成离线目录。
 4. 交付层：把离线目录压成最终 bundle，输出到固定产物目录。
 
 当前项目中，上面四层分别落在这些位置：
@@ -86,7 +86,7 @@ ARCH=amd64 make release
 - 宿主机构建产物：`target/*.jar`
 - 配置模板：`configs/*.example.yml`
 - 配置模板：`configs/**/*.example.*`
-- runtime 目录骨架：`runtime/agents`、`runtime/teams`、`runtime/models`、`runtime/providers`、`runtime/mcp-servers`、`runtime/viewport-servers`、`runtime/skills-market`、`runtime/schedules`、`runtime/chats`、`runtime/root`、`runtime/pan`
+- 运行时目录约定：由 `.env` 中的 `*_DIR` 指向宿主机路径，默认回落到 `./runtime/agents`、`./runtime/teams`、`./runtime/models`、`./runtime/providers`、`./runtime/mcp-servers`、`./runtime/viewport-servers`、`./runtime/skills-market`、`./runtime/schedules`、`./runtime/chats`、`./runtime/root`、`./runtime/pan`
 
 脚本会强校验版本格式：
 
@@ -164,25 +164,8 @@ RELEASE_BASE_IMAGE=<candidate-image> ARCH=arm64 make release
 - `README.txt`
 - `.env.example`
 - `configs/` 下全部可安全分发的 `*.example.*` 模板
-- `runtime/` 目录
 
-其中 `runtime/` 会默认创建这些目录：
-
-- `agents`
-- `teams`
-- `models`
-- `providers`
-- `tools`
-- `mcp-servers`
-- `viewport-servers`
-- `viewports`
-- `skills-market`
-- `schedules`
-- `chats`
-- `root`
-- `pan`
-
-脚本只会创建空的 `runtime/` 子目录骨架，不再从仓库内复制任何 starter / example 内容。
+脚本不会在 bundle 组装阶段预创建 `runtime/` 目录。宿主机上的运行时目录仍由 `.env` 里的 `*_DIR` 变量决定；如果没有覆盖，则默认回落到 `./runtime/*`。部署端首次执行 `./start.sh` 时，脚本会对最终生效的这些目录逐一执行 `mkdir -p`，因此无需在解压产物里提前塞入空目录骨架。
 
 同时脚本会把 bundle 内 `.env.example` 的 `RUNNER_VERSION` 替换成当前构建版本，保证部署端复制后默认镜像标签和 bundle 内镜像一致。
 
@@ -235,27 +218,15 @@ agent-platform-runner/
   configs/
     *.example.yml
     *.example.pem
-  runtime/
-    agents/
-    teams/
-    models/
-    providers/
-    mcp-servers/
-    viewport-servers/
-    skills-market/
-    schedules/
-    chats/
-    root/
-    pan/
 ```
 
-其中 `SKILLS_MARKET_DIR` 与 `SCHEDULES_DIR` 默认为 `./runtime/...`，也可以在 `.env` 中覆盖为任意宿主机路径；启动脚本会自动创建最终生效的目录。
+其中 `SKILLS_MARKET_DIR` 与 `SCHEDULES_DIR` 默认为 `./runtime/...`，也可以在 `.env` 中覆盖为任意宿主机路径；`./start.sh` 会自动创建最终生效的目录，因此解压后不需要先看到 `runtime/` 骨架。
 
 部署启动后，还会在本地生成或补充：
 
 - `.env`：由使用者从 `.env.example` 复制并填入真实配置
 - `configs/*.yml` / `configs/*.pem`：由使用者从发布包内的 `*.example.*` 模板复制出的真实配置
-- `runtime/*`：空目录骨架；业务目录和运行数据由部署端外部提供或自行填充
+- `runtime/*` 或 `.env` 指向的其他宿主机目录：由 `./start.sh` 按需自动创建，业务目录和运行数据由部署端外部提供或自行填充
 
 ## 5. 部署端如何消费这些包
 
@@ -274,6 +245,7 @@ docker network create zenmind-network   # 仅在网络尚不存在时执行
 
 - `start.sh` 会校验 `.env`、Docker、`docker compose` 和外部网络 `zenmind-network`
 - 若本机没有 `agent-platform-runner:$RUNNER_VERSION`，脚本会自动从 `images/agent-platform-runner.tar` 执行 `docker load`
+- 若 `*_DIR` 指向的宿主机目录不存在，脚本会在 `docker compose up -d` 之前自动创建
 - release compose 继续接入 `zenmind-network`，与现有容器互联模型保持一致
 
 停止命令：
