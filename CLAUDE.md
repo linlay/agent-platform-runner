@@ -367,6 +367,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - 顶层 `toolConfig.backends/frontends/actions` 定义默认工具集合。
 - 各 stage 可通过自身 `toolConfig` 覆盖：缺失则继承顶层，显式 `null` 则清空。
 - `PLAN_EXECUTE` 强制工具（`_plan_add_tasks_` / `_plan_update_task_`）不受 `toolConfig: null` 影响。
+- 若配置了 `skillConfig.skills`，运行时会自动附带 `sandbox_bash`；该隐式工具不受 `toolConfig: null` 影响。
 
 ### 前端 tool 提交协议
 
@@ -425,6 +426,7 @@ skillConfig:
 ```
 
 运行时，技能目录摘要注入 system prompt；skill 正文用于给模型提供操作手册和命令模板，不再依赖专用脚本执行工具。
+- 配置了 `skillConfig.skills` 的 agent 会自动获得 `sandbox_bash`，无需再显式写入 `toolConfig.backends`。
 
 - 热加载：`skills/` 目录变更仅刷新 `SkillRegistryService`，不触发 agent reload；reload 后新 run 会读取新技能内容。
 - 目录化 Agent 可放置 per-agent `skills/`，作为该 agent 私有 skill 资源。

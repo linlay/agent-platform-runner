@@ -39,6 +39,7 @@ import java.util.stream.Stream;
 public class AgentDefinitionLoader {
 
     private static final Logger log = LoggerFactory.getLogger(AgentDefinitionLoader.class);
+    private static final String DEFAULT_SKILL_TOOL = "sandbox_bash";
     private static final Set<String> DEFAULT_SANDBOX_MOUNT_DESTINATIONS = Set.of(
             "/workspace",
             "/root",
@@ -497,13 +498,13 @@ public class AgentDefinitionLoader {
 
     private List<String> collectToolNames(AgentConfigFile config) {
         List<String> merged = new ArrayList<>(toolNames(config == null ? null : config.getToolConfig()));
-        if (config.getPlain() != null) {
+        if (config != null && config.getPlain() != null) {
             merged.addAll(toolNames(config.getPlain().getToolConfig()));
         }
-        if (config.getReact() != null) {
+        if (config != null && config.getReact() != null) {
             merged.addAll(toolNames(config.getReact().getToolConfig()));
         }
-        if (config.getPlanExecute() != null) {
+        if (config != null && config.getPlanExecute() != null) {
             if (config.getPlanExecute().getPlan() != null) {
                 merged.addAll(toolNames(config.getPlanExecute().getPlan().getToolConfig()));
             }
@@ -519,6 +520,7 @@ public class AgentDefinitionLoader {
             merged.add(PlanToolConstants.PLAN_ADD_TASKS_TOOL);
             merged.add(PlanToolConstants.PLAN_UPDATE_TASK_TOOL);
         }
+        addImplicitSkillTools(merged, config);
         return merged.stream().distinct().toList();
     }
 
@@ -581,6 +583,19 @@ public class AgentDefinitionLoader {
         merged.addAll(normalizeNames(toolConfig.getFrontends()));
         merged.addAll(normalizeNames(toolConfig.getActions()));
         return merged;
+    }
+
+    private void addImplicitSkillTools(List<String> tools, AgentConfigFile config) {
+        if (tools == null || !hasDeclaredSkills(config)) {
+            return;
+        }
+        tools.add(DEFAULT_SKILL_TOOL);
+    }
+
+    private boolean hasDeclaredSkills(AgentConfigFile config) {
+        return config != null
+                && config.getSkillConfig() != null
+                && normalizeNames(config.getSkillConfig().getSkills()).stream().findAny().isPresent();
     }
 
     private Optional<ModelDefinition> resolvePrimaryModel(AgentConfigFile config) {

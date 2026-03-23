@@ -754,6 +754,73 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.skills()).containsExactly("screenshot", "doc");
+        assertThat(definition.tools()).containsExactly("sandbox_bash");
+        OneshotMode mode = (OneshotMode) definition.agentMode();
+        assertThat(mode.stage().tools()).containsExactly("sandbox_bash");
+    }
+
+    @Test
+    void shouldInjectSandboxToolForDeclaredSkillsWithoutDuplicatingExplicitConfig() throws IOException {
+        writeYaml("skills_with_explicit_sandbox_tool.yml", """
+                key: skills_with_explicit_sandbox_tool
+                name: Skills With Explicit Sandbox Tool
+                role: Skills With Explicit Sandbox Tool
+                description: explicit sandbox tool + skills
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - sandbox_bash
+                skillConfig:
+                  skills:
+                    - docx
+                mode: REACT
+                react:
+                  systemPrompt: test prompt
+                """);
+
+        AgentDefinition definition = loadById().get("skills_with_explicit_sandbox_tool");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.skills()).containsExactly("docx");
+        assertThat(definition.tools()).containsExactly("sandbox_bash");
+        ReactMode mode = (ReactMode) definition.agentMode();
+        assertThat(mode.stage().tools()).containsExactly("sandbox_bash");
+    }
+
+    @Test
+    void shouldNotInjectSandboxToolForPerAgentSkillsOnly() throws IOException {
+        Path agentDir = tempDir.resolve("per_agent_skills_only");
+        Path skillsDir = agentDir.resolve("skills").resolve("local_only");
+        Files.createDirectories(skillsDir);
+        Files.writeString(agentDir.resolve("agent.yml"), """
+                key: per_agent_skills_only
+                name: Per Agent Skills Only
+                role: Per Agent Skills Only
+                description: per-agent skills only
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: local skill prompt
+                """);
+        Files.writeString(skillsDir.resolve("SKILL.md"), """
+                ---
+                name: "local_only"
+                description: "demo"
+                ---
+
+                local only skill
+                """);
+
+        AgentDefinition definition = loadById().get("per_agent_skills_only");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.skills()).isEmpty();
+        assertThat(definition.perAgentSkills()).containsExactly("local_only");
+        assertThat(definition.tools()).doesNotContain("sandbox_bash");
+        OneshotMode mode = (OneshotMode) definition.agentMode();
+        assertThat(mode.stage().tools()).doesNotContain("sandbox_bash");
     }
 
     @Test
@@ -844,6 +911,42 @@ class AgentDefinitionLoaderTest {
         assertThat(mode.summaryStage().model()).isEqualTo("qwen3-max");
         assertThat(mode.summaryStage().tools()).containsExactlyInAnyOrder("_bash_", "datetime");
         assertThat(definition.tools()).contains("_plan_add_tasks_", "_plan_update_task_");
+    }
+
+    @Test
+    void shouldInjectSandboxToolForSkillsAcrossAllStagesAndPreserveItWhenToolConfigIsNull() throws IOException {
+        writeYaml("skills_stage_injection.yml", """
+                key: skills_stage_injection
+                name: Skills Stage Injection
+                role: Skills Stage Injection
+                description: skills stage injection
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - datetime
+                skillConfig:
+                  skills:
+                    - docx
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: plan stage
+                  execute:
+                    systemPrompt: execute stage
+                    toolConfig: null
+                  summary:
+                    systemPrompt: summary stage
+                """);
+
+        AgentDefinition definition = loadById().get("skills_stage_injection");
+
+        assertThat(definition).isNotNull();
+        PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
+        assertThat(mode.planStage().tools()).containsExactlyInAnyOrder("datetime", "_plan_add_tasks_", "sandbox_bash");
+        assertThat(mode.executeStage().tools()).containsExactlyInAnyOrder("_plan_update_task_", "sandbox_bash");
+        assertThat(mode.summaryStage().tools()).containsExactlyInAnyOrder("datetime", "sandbox_bash");
+        assertThat(definition.tools()).contains("sandbox_bash", "_plan_add_tasks_", "_plan_update_task_");
     }
 
     @Test

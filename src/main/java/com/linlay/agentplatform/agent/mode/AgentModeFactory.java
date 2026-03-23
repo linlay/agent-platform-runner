@@ -22,6 +22,8 @@ import java.util.function.Function;
 
 public final class AgentModeFactory {
 
+    private static final String DEFAULT_SKILL_TOOL = "sandbox_bash";
+
     private AgentModeFactory() {
     }
 
@@ -225,14 +227,14 @@ public final class AgentModeFactory {
         List<String> resolved;
         if (stage == null || !stage.isToolConfigProvided()) {
             resolved = normalizeTools(top);
-            return mergeRequiredTools(resolved, requiredTools);
+            return addImplicitSkillTools(config, mergeRequiredTools(resolved, requiredTools));
         }
         if (stage.isToolConfigExplicitNull()) {
             resolved = List.of();
-            return mergeRequiredTools(resolved, requiredTools);
+            return addImplicitSkillTools(config, mergeRequiredTools(resolved, requiredTools));
         }
         resolved = normalizeTools(stage.getToolConfig());
-        return mergeRequiredTools(resolved, requiredTools);
+        return addImplicitSkillTools(config, mergeRequiredTools(resolved, requiredTools));
     }
 
     private static List<String> normalizeTools(AgentToolConfig toolConfig) {
@@ -253,6 +255,24 @@ public final class AgentModeFactory {
         List<String> merged = new ArrayList<>(tools == null ? List.of() : tools);
         addTools(merged, requiredTools);
         return merged.stream().distinct().toList();
+    }
+
+    private static List<String> addImplicitSkillTools(AgentConfigFile config, List<String> tools) {
+        if (!hasDeclaredSkills(config)) {
+            return tools == null ? List.of() : List.copyOf(tools);
+        }
+        List<String> merged = new ArrayList<>(tools == null ? List.of() : tools);
+        merged.add(DEFAULT_SKILL_TOOL);
+        return merged.stream().distinct().toList();
+    }
+
+    private static boolean hasDeclaredSkills(AgentConfigFile config) {
+        return config != null
+                && config.getSkillConfig() != null
+                && config.getSkillConfig().getSkills() != null
+                && config.getSkillConfig().getSkills().stream()
+                .map(StringHelpers::nullable)
+                .anyMatch(value -> value != null && !value.isBlank());
     }
 
     private static void addTools(List<String> tools, List<String> rawTools) {

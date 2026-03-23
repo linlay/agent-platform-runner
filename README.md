@@ -567,6 +567,9 @@ skillConfig:
     - pptx
 ```
 
+- 只要配置了 `skillConfig.skills`，运行时会自动把 `sandbox_bash` 合并进有效 backend tools，不需要再显式写到 `toolConfig.backends`。
+- 若某个 stage 显式写了 `toolConfig: null`，仍会保留这个由 skills 隐式带入的 `sandbox_bash`；`null` 只清空手动声明的普通工具。
+
 ### Runtime Context 配置示例
 
 ```yaml

@@ -258,6 +258,35 @@ class AgentRegistryTest {
         assertThat(Files.readString(agentsDir.resolve("sync_agent/skills/beta/SKILL.md"))).contains("market beta");
     }
 
+    @Test
+    void shouldExposeSandboxBashForAgentsWithDeclaredSkills() throws Exception {
+        Path agentsDir = tempDir.resolve("agents");
+        Files.createDirectories(agentsDir);
+
+        writeDirectoryAgent(
+                agentsDir,
+                "skill_agent",
+                """
+                        key: skill_agent
+                        name: Skill Agent
+                        role: Skill Agent
+                        description: skill agent
+                        modelConfig:
+                          modelKey: bailian-qwen3-max
+                        skillConfig:
+                          skills:
+                            - docx
+                        mode: ONESHOT
+                        """,
+                "skill prompt"
+        );
+
+        AgentRegistry registry = createRegistry(agentsDir);
+
+        assertThat(registry.get("skill_agent").tools()).contains("sandbox_bash");
+        assertThat(registry.findAgentIdsByTools(Set.of("sandbox_bash"))).containsExactly("skill_agent");
+    }
+
     private AgentRegistry createRegistry(Path agentsDir) {
         return createRegistry(agentsDir, tempDir.resolve("skills-market"));
     }

@@ -220,9 +220,6 @@ public final class TestCatalogFixtures {
                       color: sky
                     modelConfig:
                       modelKey: bailian-qwen3-max
-                    toolConfig:
-                      backends:
-                        - sandbox_bash
                     skillConfig:
                       skills:
                         - docx
