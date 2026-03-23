@@ -72,7 +72,7 @@ public record RuntimeRequestContext(
             String dataDir,
             String skillsDir,
             String schedulesDir,
-            String ownerFile,
+            String ownerDir,
             String chatAttachmentsDir
     ) {
     }

@@ -735,7 +735,7 @@ sandboxConfig:
       mode: rw
     - platform: chats
       mode: ro
-    - platform: owner.md
+    - platform: owner
       mode: rw
     - source: /abs/host/path
       destination: /datasets
@@ -749,7 +749,7 @@ sandboxConfig:
 说明：
 
 - `platform: tools/models/...` 表示恢复按需平台目录挂载，同时必须写 `mode`。
-- 现支持的额外平台简写包括：`models`、`tools`、`agents`、`viewports`、`viewport-servers`、`teams`、`schedules`、`mcp-servers`、`providers`、`chats`、`owner.md`。
+- 现支持的额外平台简写包括：`models`、`tools`、`agents`、`viewports`、`viewport-servers`、`teams`、`schedules`、`mcp-servers`、`providers`、`chats`、`owner`。
 - `source + destination + mode` 表示新增一个自定义宿主目录挂载。
 - `destination: /skills` 或 `destination: /agent` 这类写法表示覆盖默认基础挂载模式，不新增第二个挂载。
 

@@ -98,7 +98,7 @@ public class RuntimeContextPromptService {
         Path dataDir = resolveRuntimePath(runtimeHome, dataProperties.getExternalDir(), "data");
         Path skillsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.skills.external-dir"), null);
         Path schedulesDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.schedule.external-dir"), null);
-        Path ownerFile = runtimeHome.resolve("OWNER.md").toAbsolutePath().normalize();
+        Path ownerDir = runtimeHome.resolve("owner").toAbsolutePath().normalize();
         Path attachmentsDir = StringUtils.hasText(chatId)
                 ? dataDir.resolve(chatId.trim()).toAbsolutePath().normalize()
                 : dataDir.toAbsolutePath().normalize();
@@ -111,7 +111,7 @@ public class RuntimeContextPromptService {
                 dataDir.toString(),
                 pathValue(skillsDir),
                 pathValue(schedulesDir),
-                ownerFile.toString(),
+                ownerDir.toString(),
                 attachmentsDir.toString()
         );
     }
@@ -147,7 +147,7 @@ public class RuntimeContextPromptService {
                 appendKeyValue(lines, "data_dir", workspacePaths.dataDir());
                 appendKeyValue(lines, "skills_market_dir", workspacePaths.skillsDir());
                 appendKeyValue(lines, "schedules_dir", workspacePaths.schedulesDir());
-                appendKeyValue(lines, "owner_file", workspacePaths.ownerFile());
+                appendKeyValue(lines, "owner_dir", workspacePaths.ownerDir());
                 appendKeyValue(lines, "chat_attachments_dir", workspacePaths.chatAttachmentsDir());
             }
         }
@@ -174,10 +174,10 @@ public class RuntimeContextPromptService {
     }
 
     private String buildOwnerProfileSection(RuntimeRequestContext.WorkspacePaths workspacePaths) {
-        if (workspacePaths == null || !StringUtils.hasText(workspacePaths.ownerFile())) {
+        if (workspacePaths == null || !StringUtils.hasText(workspacePaths.ownerDir())) {
             return "";
         }
-        Path ownerFile = Path.of(workspacePaths.ownerFile());
+        Path ownerFile = Path.of(workspacePaths.ownerDir(), "OWNER.md");
         if (!Files.isRegularFile(ownerFile)) {
             return "";
         }
@@ -356,7 +356,7 @@ public class RuntimeContextPromptService {
             return body;
         }
         return body.substring(0, OWNER_BODY_MAX_CHARS)
-                + "\n\n[TRUNCATED: OWNER.md exceeds max chars=" + OWNER_BODY_MAX_CHARS + "]";
+                + "\n\n[TRUNCATED: owner/OWNER.md exceeds max chars=" + OWNER_BODY_MAX_CHARS + "]";
     }
 
     private Path resolveRuntimeHome() {

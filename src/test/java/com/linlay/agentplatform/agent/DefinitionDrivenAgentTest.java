@@ -795,7 +795,8 @@ class DefinitionDrivenAgentTest {
     void shouldInjectRuntimeContextBeforeStageMarkdownAndPersistIntoSystemSnapshot() throws Exception {
         Path runtimeHome = Files.createTempDirectory("runtime-home");
         Files.createDirectories(runtimeHome.resolve("configs"));
-        Files.writeString(runtimeHome.resolve("OWNER.md"), """
+        Files.createDirectories(runtimeHome.resolve("owner"));
+        Files.writeString(runtimeHome.resolve("owner").resolve("OWNER.md"), """
                 ---
                 name: Linlay
                 preferred_name: Linlay

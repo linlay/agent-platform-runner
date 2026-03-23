@@ -303,7 +303,7 @@ public class ContainerHubMountResolver {
         }
     }
 
-    private String resolveOwnerFilePath() {
+    private String resolveOwnerDirPath() {
         String agentsDir = resolveAgentsDir();
         if (!StringUtils.hasText(agentsDir)) {
             return null;
@@ -313,7 +313,7 @@ public class ContainerHubMountResolver {
         if (parent == null) {
             return null;
         }
-        return parent.resolve("OWNER.md").toString();
+        return parent.resolve("owner").toString();
     }
 
     private String resolveDirectory(String path) {
@@ -398,7 +398,7 @@ public class ContainerHubMountResolver {
                 Map.entry("mcp-servers", new PlatformMountDef(this::resolveMcpServersDir, "/mcp-servers", MountSourceType.DIRECTORY)),
                 Map.entry("providers", new PlatformMountDef(this::resolveProvidersDir, "/providers", MountSourceType.DIRECTORY)),
                 Map.entry("chats", new PlatformMountDef(this::resolveChatsDir, "/chats", MountSourceType.DIRECTORY)),
-                Map.entry("owner.md", new PlatformMountDef(this::resolveOwnerFilePath, "/OWNER.md", MountSourceType.FILE))
+                Map.entry("owner", new PlatformMountDef(this::resolveOwnerDirPath, "/owner", MountSourceType.DIRECTORY))
         );
     }
 

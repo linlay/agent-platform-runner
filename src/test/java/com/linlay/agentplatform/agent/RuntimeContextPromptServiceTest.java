@@ -35,7 +35,8 @@ class RuntimeContextPromptServiceTest {
     void shouldRenderOwnerProfileSessionAndAuthSections() throws Exception {
         Path runtimeHome = tempDir.resolve("runtime");
         Files.createDirectories(runtimeHome.resolve("configs"));
-        Files.writeString(runtimeHome.resolve("OWNER.md"), """
+        Files.createDirectories(runtimeHome.resolve("owner"));
+        Files.writeString(runtimeHome.resolve("owner").resolve("OWNER.md"), """
                 ---
                 name: Linlay
                 preferred_name: Linlay
@@ -118,6 +119,7 @@ class RuntimeContextPromptServiceTest {
             assertThat(prompt).contains("Runtime Context: Context");
             assertThat(prompt).contains("data_dir: " + runtimeHome.resolve("data").toAbsolutePath().normalize());
             assertThat(prompt).contains("skills_market_dir: " + runtimeHome.resolve("skills-market").toAbsolutePath().normalize());
+            assertThat(prompt).contains("owner_dir: " + runtimeHome.resolve("owner").toAbsolutePath().normalize());
             assertThat(prompt).contains("chat_attachments_dir: " + runtimeHome.resolve("data").resolve("chat-1").toAbsolutePath().normalize());
             assertThat(prompt).contains("chatId: chat-1");
             assertThat(prompt).contains("chatName: Demo Chat");
@@ -160,7 +162,8 @@ class RuntimeContextPromptServiceTest {
             String missingOwnerPrompt = service.buildPrompt(definition(RuntimeContextTags.OWNER), request);
             assertThat(missingOwnerPrompt).isEmpty();
 
-            Files.writeString(runtimeHome.resolve("OWNER.md"), """
+            Files.createDirectories(runtimeHome.resolve("owner"));
+            Files.writeString(runtimeHome.resolve("owner").resolve("OWNER.md"), """
                     ---
                     name: Linlay
                     ---
@@ -171,7 +174,7 @@ class RuntimeContextPromptServiceTest {
             String prompt = service.buildPrompt(definition(RuntimeContextTags.OWNER), request);
             assertThat(prompt).contains("Runtime Context: Owner Profile");
             assertThat(prompt).contains("name: Linlay");
-            assertThat(prompt).contains("[TRUNCATED: OWNER.md exceeds max chars=4000]");
+            assertThat(prompt).contains("[TRUNCATED: owner/OWNER.md exceeds max chars=4000]");
         } finally {
             restoreUserDir(originalUserDir);
         }

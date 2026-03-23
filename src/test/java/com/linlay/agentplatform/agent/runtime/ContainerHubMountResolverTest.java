@@ -220,8 +220,8 @@ class ContainerHubMountResolverTest {
         Path toolsDir = Files.createDirectories(tempDir.resolve("tools"));
         Path viewportsDir = Files.createDirectories(tempDir.resolve("viewports"));
         Path viewportServersDir = Files.createDirectories(tempDir.resolve("viewport-servers"));
-        Path ownerFile = tempDir.resolve("OWNER.md");
-        Files.writeString(ownerFile, "owner");
+        Path ownerDir = Files.createDirectories(tempDir.resolve("owner"));
+        Files.writeString(ownerDir.resolve("OWNER.md"), "owner");
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
@@ -242,12 +242,12 @@ class ContainerHubMountResolverTest {
                         new AgentDefinition.ExtraMount("viewports", null, null, MountAccessMode.RO),
                         new AgentDefinition.ExtraMount("viewport-servers", null, null, MountAccessMode.RW),
                         new AgentDefinition.ExtraMount("chats", null, null, MountAccessMode.RO),
-                        new AgentDefinition.ExtraMount("owner.md", null, null, MountAccessMode.RO)
+                        new AgentDefinition.ExtraMount("owner", null, null, MountAccessMode.RO)
                 )
         );
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .contains("/models", "/tools", "/viewports", "/viewport-servers", "/chats", "/OWNER.md");
+                .contains("/models", "/tools", "/viewports", "/viewport-servers", "/chats", "/owner");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(
                         modelsDir.toAbsolutePath().normalize().toString(),
@@ -255,7 +255,7 @@ class ContainerHubMountResolverTest {
                         viewportsDir.toAbsolutePath().normalize().toString(),
                         viewportServersDir.toAbsolutePath().normalize().toString(),
                         dataDir.toAbsolutePath().normalize().toString(),
-                        ownerFile.toAbsolutePath().normalize().toString()
+                        ownerDir.toAbsolutePath().normalize().toString()
                 );
         assertThat(mounts).filteredOn(mount -> "/models".equals(mount.containerPath()))
                 .singleElement()
@@ -265,7 +265,7 @@ class ContainerHubMountResolverTest {
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(false);
-        assertThat(mounts).filteredOn(mount -> "/OWNER.md".equals(mount.containerPath()))
+        assertThat(mounts).filteredOn(mount -> "/owner".equals(mount.containerPath()))
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(true);
@@ -447,12 +447,12 @@ class ContainerHubMountResolverTest {
                 SandboxLevel.RUN,
                 "chat",
                 "flat-agent",
-                List.of(new AgentDefinition.ExtraMount("owner.md", null, null, MountAccessMode.RO))
+                List.of(new AgentDefinition.ExtraMount("owner", null, null, MountAccessMode.RO))
         ))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("extra-mount:owner.md")
+                .hasMessageContaining("extra-mount:owner")
                 .hasMessageContaining("source does not exist")
-                .hasMessageContaining("containerPath=/OWNER.md");
+                .hasMessageContaining("containerPath=/owner");
     }
 
     @Test
