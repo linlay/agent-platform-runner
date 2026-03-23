@@ -42,6 +42,13 @@ ensure_dir() {
   mkdir -p "$path"
 }
 
+require_dir_var() {
+  local name="$1"
+  local value="${!name:-}"
+  [[ -n "$value" ]] || die "missing required $name in .env"
+  printf '%s\n' "$value"
+}
+
 load_image "$IMAGE_REF" "$IMAGE_TAR"
 
 ensure_dir "$SCRIPT_DIR/configs"
@@ -51,8 +58,8 @@ ensure_dir "${MODELS_DIR:-$SCRIPT_DIR/runtime/models}"
 ensure_dir "${PROVIDERS_DIR:-$SCRIPT_DIR/runtime/providers}"
 ensure_dir "${MCP_SERVERS_DIR:-$SCRIPT_DIR/runtime/mcp-servers}"
 ensure_dir "${VIEWPORT_SERVERS_DIR:-$SCRIPT_DIR/runtime/viewport-servers}"
-ensure_dir "${SKILLS_MARKET_DIR:-$SCRIPT_DIR/runtime/skills-market}"
-ensure_dir "${SCHEDULES_DIR:-$SCRIPT_DIR/runtime/schedules}"
+ensure_dir "$(require_dir_var SKILLS_MARKET_DIR)"
+ensure_dir "$(require_dir_var SCHEDULES_DIR)"
 ensure_dir "${CHATS_DIR:-$SCRIPT_DIR/runtime/chats}"
 ensure_dir "${ROOT_DIR:-$SCRIPT_DIR/runtime/root}"
 ensure_dir "${PAN_DIR:-$SCRIPT_DIR/runtime/pan}"

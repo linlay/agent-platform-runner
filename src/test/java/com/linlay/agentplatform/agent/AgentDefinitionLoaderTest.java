@@ -8,6 +8,7 @@ import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.MountAccessMode;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
+import com.linlay.agentplatform.testsupport.TestCatalogFixtures;
 import com.linlay.agentplatform.testsupport.TestModelRegistryServices;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.junit.jupiter.api.Test;
@@ -302,17 +303,18 @@ class AgentDefinitionLoaderTest {
         AgentDefinition definition = loadById().get("demoContainerHubValidator");
 
         assertThat(definition).isNotNull();
-        assertThat(definition.name()).isEqualTo("Atlas");
+        assertThat(definition.name()).isEqualTo("Sandbox Validator");
         assertThat(definition.tools()).containsExactly("container_hub_bash");
-        assertThat(definition.skills()).containsExactly("container_hub_validation");
-        assertThat(definition.sandboxConfig().environmentId()).isEqualTo("shell");
-        assertThat(definition.sandboxConfig().level()).isEqualTo(SandboxLevel.RUN);
+        assertThat(definition.skills()).isEmpty();
+        assertThat(definition.sandboxConfig()).isNotNull();
+        assertThat(definition.sandboxConfig().environmentId()).isNull();
+        assertThat(definition.sandboxConfig().level()).isNull();
+        assertThat(definition.sandboxConfig().extraMounts()).isEmpty();
         assertThat(definition.mode()).isEqualTo(AgentRuntimeMode.REACT);
 
         ReactMode mode = (ReactMode) definition.agentMode();
         assertThat(mode.maxSteps()).isEqualTo(6);
-        assertThat(mode.stage().primaryPrompt()).contains("先做 Bash smoke test");
-        assertThat(mode.stage().primaryPrompt()).contains("python3");
+        assertThat(mode.stage().primaryPrompt()).contains("使用 container hub 验证沙箱");
     }
 
     @Test
@@ -322,25 +324,18 @@ class AgentDefinitionLoaderTest {
         AgentDefinition definition = loadById().get("dailyOfficeAssistant");
 
         assertThat(definition).isNotNull();
-        assertThat(definition.name()).isEqualTo("文澜");
+        assertThat(definition.name()).isEqualTo("Daily Office Assistant");
         assertThat(definition.tools()).containsExactly("container_hub_bash");
         assertThat(definition.skills()).containsExactly("docx", "pptx");
-        assertThat(definition.sandboxConfig().environmentId()).isEqualTo("daily-office");
-        assertThat(definition.sandboxConfig().level()).isEqualTo(SandboxLevel.RUN);
+        assertThat(definition.sandboxConfig()).isNotNull();
+        assertThat(definition.sandboxConfig().environmentId()).isNull();
+        assertThat(definition.sandboxConfig().level()).isNull();
+        assertThat(definition.sandboxConfig().extraMounts()).isEmpty();
         assertThat(definition.mode()).isEqualTo(AgentRuntimeMode.REACT);
 
         ReactMode mode = (ReactMode) definition.agentMode();
-        assertThat(mode.maxSteps()).isEqualTo(10);
-        assertThat(mode.stage().primaryPrompt()).contains("container_hub_bash");
-        assertThat(mode.stage().primaryPrompt()).contains("/tmp");
-        assertThat(mode.stage().primaryPrompt()).contains("/skills/docx");
-        assertThat(mode.stage().primaryPrompt()).contains("/skills/pptx");
-        assertThat(mode.stage().primaryPrompt()).contains("python3 --version");
-        assertThat(mode.stage().primaryPrompt()).contains("pandoc --version");
-        assertThat(mode.stage().primaryPrompt()).contains("soffice --version");
-        assertThat(mode.stage().primaryPrompt()).contains("cd /skills/<skill> && ...");
-        assertThat(mode.stage().primaryPrompt()).contains("pptxgenjs");
-        assertThat(mode.stage().primaryPrompt()).contains("/api/data?file=<chatId>%2F<filename>&download=true");
+        assertThat(mode.maxSteps()).isEqualTo(6);
+        assertThat(mode.stage().primaryPrompt()).contains("协助办公文档处理");
     }
 
     @Test
@@ -1223,7 +1218,7 @@ class AgentDefinitionLoaderTest {
     }
 
     private void copyExampleAgentDirectory(String key) throws IOException {
-        Path sourceDir = Path.of("example", "agents", key);
+        Path sourceDir = TestCatalogFixtures.agentsDir().resolve(key);
         Path targetDir = tempDir.resolve(key);
         Files.createDirectories(targetDir);
         try (var walk = Files.walk(sourceDir)) {

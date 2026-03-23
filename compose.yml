@@ -38,22 +38,16 @@ services:
         source: ${PROVIDERS_DIR:-./runtime/providers}
         target: /opt/providers
       - type: bind
-        source: ${TOOLS_DIR:-./runtime/tools}
-        target: /opt/tools
-      - type: bind
         source: ${MCP_SERVERS_DIR:-./runtime/mcp-servers}
         target: /opt/mcp-servers
       - type: bind
         source: ${VIEWPORT_SERVERS_DIR:-./runtime/viewport-servers}
         target: /opt/viewport-servers
       - type: bind
-        source: ${VIEWPORTS_DIR:-./runtime/viewports}
-        target: /opt/viewports
-      - type: bind
-        source: ${SKILLS_MARKET_DIR:-./runtime/skills-market}
+        source: ${SKILLS_MARKET_DIR:?Set SKILLS_MARKET_DIR in .env}
         target: /opt/skills-market
       - type: bind
-        source: ${SCHEDULES_DIR:-./runtime/schedules}
+        source: ${SCHEDULES_DIR:?Set SCHEDULES_DIR in .env}
         target: /opt/schedules
       - type: bind
         source: ${CHATS_DIR:-./runtime/chats}

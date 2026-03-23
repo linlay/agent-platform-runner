@@ -96,8 +96,8 @@ public class RuntimeContextPromptService {
         Path agentsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.agents.external-dir"), "agents");
         Path chatsDir = resolveRuntimePath(runtimeHome, chatWindowMemoryProperties.getDir(), "chats");
         Path dataDir = resolveRuntimePath(runtimeHome, dataProperties.getExternalDir(), "data");
-        Path skillsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.skills.external-dir"), "skills-market");
-        Path schedulesDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.schedule.external-dir"), "schedules");
+        Path skillsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.skills.external-dir"), null);
+        Path schedulesDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.schedule.external-dir"), null);
         Path ownerFile = runtimeHome.resolve("OWNER.md").toAbsolutePath().normalize();
         Path attachmentsDir = StringUtils.hasText(chatId)
                 ? dataDir.resolve(chatId.trim()).toAbsolutePath().normalize()
@@ -109,8 +109,8 @@ public class RuntimeContextPromptService {
                 agentsDir.toString(),
                 chatsDir.toString(),
                 dataDir.toString(),
-                skillsDir.toString(),
-                schedulesDir.toString(),
+                pathValue(skillsDir),
+                pathValue(schedulesDir),
                 ownerFile.toString(),
                 attachmentsDir.toString()
         );
@@ -370,11 +370,18 @@ public class RuntimeContextPromptService {
 
     private Path resolveRuntimePath(Path runtimeHome, String configured, String fallback) {
         String raw = StringUtils.hasText(configured) ? configured.trim() : fallback;
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
         Path path = Path.of(raw);
         if (path.isAbsolute()) {
             return path.normalize();
         }
         return runtimeHome.resolve(path).toAbsolutePath().normalize();
+    }
+
+    private String pathValue(Path path) {
+        return path == null ? null : path.toString();
     }
 
     private String summarizeScene(QueryRequest.Scene scene) {

@@ -17,6 +17,7 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -142,11 +143,10 @@ class ToolRegistryTest {
                   additionalProperties: false
                 """);
 
-        ToolProperties properties = new ToolProperties();
-        properties.setExternalDir(toolsDir.toString());
         ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(
                 new ObjectMapper(),
-                properties
+                new PathMatchingResourcePatternResolver(),
+                toolsDir
         );
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
@@ -197,9 +197,11 @@ class ToolRegistryTest {
                 Set.of("pwd")
         );
 
-        ToolProperties properties = new ToolProperties();
-        properties.setExternalDir(toolsDir.toString());
-        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper(), properties);
+        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(
+                new ObjectMapper(),
+                new PathMatchingResourcePatternResolver(),
+                toolsDir
+        );
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("toolFileRegistryService", toolFileRegistryService);
@@ -241,9 +243,11 @@ class ToolRegistryTest {
                   additionalProperties: false
                 """);
 
-        ToolProperties properties = new ToolProperties();
-        properties.setExternalDir(toolsDir.toString());
-        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper(), properties);
+        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(
+                new ObjectMapper(),
+                new PathMatchingResourcePatternResolver(),
+                toolsDir
+        );
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("toolFileRegistryService", toolFileRegistryService);
@@ -283,9 +287,11 @@ class ToolRegistryTest {
                   additionalProperties: false
                 """);
 
-        ToolProperties properties = new ToolProperties();
-        properties.setExternalDir(toolsDir.toString());
-        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper(), properties);
+        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(
+                new ObjectMapper(),
+                new PathMatchingResourcePatternResolver(),
+                toolsDir
+        );
 
         ContainerHubToolProperties containerHubProperties = new ContainerHubToolProperties();
         containerHubProperties.setEnabled(true);

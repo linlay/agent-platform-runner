@@ -15,8 +15,6 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
-import com.linlay.agentplatform.config.ToolProperties;
-import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
 
@@ -28,24 +26,18 @@ public class RuntimeResourceSyncService {
     private static final Logger log = LoggerFactory.getLogger(RuntimeResourceSyncService.class);
 
     private final ResourcePatternResolver resourceResolver;
-    private final Path toolsDir;
     private final Path skillsDir;
     private final Path schedulesDir;
-    private final Path viewportsDir;
 
     @Autowired
     public RuntimeResourceSyncService(
-            ToolProperties toolProperties,
             SkillProperties skillProperties,
-            ScheduleProperties scheduleProperties,
-            ViewportProperties viewportProperties
+            ScheduleProperties scheduleProperties
     ) {
         this(
                 new PathMatchingResourcePatternResolver(),
-                normalizeDir(toolProperties == null ? null : toolProperties.getExternalDir()),
                 normalizeDir(skillProperties == null ? null : skillProperties.getExternalDir()),
-                normalizeDir(scheduleProperties == null ? null : scheduleProperties.getExternalDir()),
-                normalizeDir(viewportProperties == null ? null : viewportProperties.getExternalDir())
+                normalizeDir(scheduleProperties == null ? null : scheduleProperties.getExternalDir())
         );
     }
 
@@ -55,9 +47,7 @@ public class RuntimeResourceSyncService {
         this(
                 new PathMatchingResourcePatternResolver(),
                 null,
-                null,
-                normalizeDir(scheduleProperties == null ? null : scheduleProperties.getExternalDir()),
-                null
+                normalizeDir(scheduleProperties == null ? null : scheduleProperties.getExternalDir())
         );
     }
 
@@ -65,57 +55,21 @@ public class RuntimeResourceSyncService {
             ResourcePatternResolver resourceResolver,
             Path schedulesDir
     ) {
-        this(resourceResolver, null, null, schedulesDir, null);
+        this(resourceResolver, null, schedulesDir);
     }
 
     RuntimeResourceSyncService(
             ResourcePatternResolver resourceResolver,
-            Path toolsDir,
             Path skillsDir,
             Path schedulesDir
-    ) {
-        this(resourceResolver, toolsDir, skillsDir, schedulesDir, null);
-    }
-
-    RuntimeResourceSyncService(
-            ResourcePatternResolver resourceResolver,
-            Path toolsDir,
-            Path skillsDir,
-            Path schedulesDir,
-            Path viewportsDir
     ) {
         this.resourceResolver = resourceResolver;
-        this.toolsDir = normalizeDir(toolsDir);
         this.skillsDir = normalizeDir(skillsDir);
         this.schedulesDir = normalizeDir(schedulesDir);
-        this.viewportsDir = normalizeDir(viewportsDir);
-    }
-
-    RuntimeResourceSyncService(
-            ResourcePatternResolver resourceResolver,
-            Path toolsDir,
-            Path skillsDir
-    ) {
-        this(resourceResolver, toolsDir, skillsDir, null, null);
-    }
-
-    RuntimeResourceSyncService(
-            ToolProperties toolProperties,
-            SkillProperties skillProperties,
-            ScheduleProperties scheduleProperties
-    ) {
-        this(
-                new PathMatchingResourcePatternResolver(),
-                normalizeDir(toolProperties == null ? null : toolProperties.getExternalDir()),
-                normalizeDir(skillProperties == null ? null : skillProperties.getExternalDir()),
-                normalizeDir(scheduleProperties == null ? null : scheduleProperties.getExternalDir()),
-                null
-        );
     }
 
     @PostConstruct
     public void syncRuntimeDirectories() {
-        syncClasspathResourceDirectory("tools", toolsDir);
         syncClasspathResourceDirectory("skills", skillsDir);
         syncResourceDirectory("schedules", schedulesDir);
     }

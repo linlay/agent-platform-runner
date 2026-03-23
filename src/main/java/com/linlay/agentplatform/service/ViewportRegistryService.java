@@ -1,9 +1,9 @@
 package com.linlay.agentplatform.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.model.ViewportType;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,17 +39,9 @@ public class ViewportRegistryService {
     private final Object refreshLock = new Object();
     private volatile Map<String, ViewportEntry> byKey = Map.of();
 
+    @Autowired
     public ViewportRegistryService(ObjectMapper objectMapper) {
         this(objectMapper, new PathMatchingResourcePatternResolver(), null);
-    }
-
-    @Autowired
-    public ViewportRegistryService(ObjectMapper objectMapper, ViewportProperties properties) {
-        this(
-                objectMapper,
-                new PathMatchingResourcePatternResolver(),
-                properties == null ? null : java.nio.file.Path.of(properties.getExternalDir()).toAbsolutePath().normalize()
-        );
     }
 
     ViewportRegistryService(ObjectMapper objectMapper, ResourcePatternResolver resourcePatternResolver) {

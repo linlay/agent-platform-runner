@@ -18,6 +18,8 @@ import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.SystemPlanGetTasks;
+import com.linlay.agentplatform.tool.ToolDescriptor;
+import com.linlay.agentplatform.tool.ToolMetadataAware;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 
@@ -172,10 +174,8 @@ class ToolExecutionServiceTest {
 
     @Test
     void shouldWaitForFrontendSubmitWithoutPreExecutionToolEnd() throws Exception {
-        ConstantTool frontendTool = new ConstantTool("confirm_dialog", "IGNORED");
-        ToolRegistry toolRegistry = spy(new ToolRegistry(List.of(frontendTool)));
-        doReturn("html").when(toolRegistry).toolCallType("confirm_dialog");
-        doReturn(true).when(toolRegistry).requiresFrontendSubmit("confirm_dialog");
+        ConstantTool frontendTool = new ConstantTool("confirm_dialog", "IGNORED", frontendDescriptor("confirm_dialog"));
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(frontendTool));
 
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
         frontendToolProperties.setSubmitTimeoutMs(5_000L);
@@ -239,10 +239,8 @@ class ToolExecutionServiceTest {
 
     @Test
     void frontendTimeoutResultShouldContainStructuredTimeoutCode() throws Exception {
-        ConstantTool frontendTool = new ConstantTool("confirm_dialog", "IGNORED");
-        ToolRegistry toolRegistry = spy(new ToolRegistry(List.of(frontendTool)));
-        doReturn("html").when(toolRegistry).toolCallType("confirm_dialog");
-        doReturn(true).when(toolRegistry).requiresFrontendSubmit("confirm_dialog");
+        ConstantTool frontendTool = new ConstantTool("confirm_dialog", "IGNORED", frontendDescriptor("confirm_dialog"));
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(frontendTool));
 
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
         frontendToolProperties.setSubmitTimeoutMs(60L);
@@ -281,10 +279,8 @@ class ToolExecutionServiceTest {
 
     @Test
     void mcpViewportToolShouldExecuteWithoutWaitingForFrontendSubmit() {
-        ConstantTool backendMetadataTool = new ConstantTool("mock.weather.query", "IGNORED");
-        ToolRegistry toolRegistry = spy(new ToolRegistry(List.of(backendMetadataTool)));
-        doReturn("html").when(toolRegistry).toolCallType("mock.weather.query");
-        doReturn(false).when(toolRegistry).requiresFrontendSubmit("mock.weather.query");
+        ConstantTool backendMetadataTool = new ConstantTool("mock.weather.query", "IGNORED", mcpViewportDescriptor("mock.weather.query", "weather_card"));
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(backendMetadataTool));
 
         ToolExecutionService toolExecutionService = new ToolExecutionService(
                 toolRegistry,
@@ -578,13 +574,55 @@ class ToolExecutionServiceTest {
                 .build();
     }
 
-    private static final class ConstantTool implements BaseTool {
+    private ToolDescriptor frontendDescriptor(String name) {
+        return new ToolDescriptor(
+                name,
+                name,
+                "",
+                null,
+                null,
+                false,
+                true,
+                false,
+                "html",
+                "local",
+                null,
+                name,
+                "test://frontend"
+        );
+    }
+
+    private ToolDescriptor mcpViewportDescriptor(String name, String viewportKey) {
+        return new ToolDescriptor(
+                name,
+                name,
+                "",
+                null,
+                null,
+                false,
+                true,
+                false,
+                "html",
+                "mcp",
+                "mock",
+                viewportKey,
+                "test://mcp"
+        );
+    }
+
+    private static final class ConstantTool implements BaseTool, ToolMetadataAware {
         private final String name;
         private final String value;
+        private final ToolDescriptor descriptor;
 
         private ConstantTool(String name, String value) {
+            this(name, value, null);
+        }
+
+        private ConstantTool(String name, String value, ToolDescriptor descriptor) {
             this.name = name;
             this.value = value;
+            this.descriptor = descriptor;
         }
 
         @Override
@@ -595,6 +633,11 @@ class ToolExecutionServiceTest {
         @Override
         public com.fasterxml.jackson.databind.JsonNode invoke(Map<String, Object> args) {
             return com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.textNode(value);
+        }
+
+        @Override
+        public ToolDescriptor descriptor() {
+            return descriptor;
         }
     }
 

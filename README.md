@@ -219,21 +219,7 @@
 ├── configs/
 │   ├── *.example.yml
 │   └── auth/
-├── docker-compose.yml
-├── runtime/
-│   ├── agents/
-│   ├── teams/
-│   ├── models/
-│   ├── providers/
-│   ├── tools/
-│   ├── mcp-servers/
-│   ├── viewport-servers/
-│   ├── viewports/
-│   ├── skills-market/
-│   ├── schedules/
-│   ├── chats/
-│   ├── root/
-│   └── pan/
+├── compose.yml
 ├── src/
 ├── data/
 ├── nginx.conf
@@ -277,7 +263,7 @@ PAN_DIR=/Users/you/runtime/runner/pan
 
 ### 根目录 `.env` 与 Docker Compose（发布部署版）
 
-根目录提供了 `docker-compose.yml` + `.env.example` 作为统一入口：
+根目录提供了 `compose.yml` + `.env.example` 作为统一入口：
 
 ```bash
 cp .env.example .env
@@ -290,14 +276,14 @@ docker compose up -d --build
 
 - `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
-- `runtime/` 下的各业务目录负责承载外部提供的 agents、teams、models、providers、tools、viewports、skills 与 schedules。
-- `docker-compose.yml` 会把 `.env` 中的 `*_DIR` 变量用于宿主机 bind mount，同时在容器内把同名变量固定为 `/opt/...` 路径；因此同一份 `.env` 可以同时服务 `make run` 和 `docker compose`。
+- 运行时业务目录建议放到仓库外，通过 `.env` 的 `*_DIR` 指向宿主机路径；其中 `SKILLS_MARKET_DIR`、`SCHEDULES_DIR` 为必填。
+- `compose.yml` 会把 `.env` 中的 `*_DIR` 变量用于宿主机 bind mount，同时在容器内把同名变量固定为 `/opt/...` 路径；因此同一份 `.env` 可以同时服务 `make run` 和 `docker compose`。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
-- `docker-compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
+- `compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（compose 会显式覆盖 `SERVER_PORT=8080`）。
-- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`AGENTS_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`TOOLS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`VIEWPORTS_DIR`、`SKILLS_MARKET_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`ROOT_DIR`、`PAN_DIR`。
+- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`AGENTS_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`SKILLS_MARKET_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`ROOT_DIR`、`PAN_DIR`。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
 ### 版本化离线 bundle（release 交付版）
@@ -392,7 +378,7 @@ RELEASE_BASE_IMAGE=<candidate-image> ARCH=arm64 make release
 
 - `Dockerfile` 与 `settings.xml` 保持在项目根目录，匹配 `docker build .` 常见上下文和当前打包脚本路径约定。
 - `scripts/release-assets/Dockerfile.release` 作为 release 专用运行时镜像定义，只接收宿主机构建出来的 jar。
-- `.env.example` 与 `docker-compose.yml` 保持在项目根目录，作为容器运行基线模板。
+- `.env.example` 与 `compose.yml` 保持在项目根目录，作为容器运行基线模板。
 - `VERSION` 保持在项目根目录，作为 release 版本单一来源。
 - `configs/` 保持在项目根目录，作为结构化配置模板目录。
 - `scripts/release-assets/` 保存 release bundle 模板资产。
@@ -602,35 +588,31 @@ contextConfig:
 > Skills 系统设计见 [CLAUDE.md #Skills 系统](./CLAUDE.md#skills-系统)。
 > Viewport 系统设计见 [CLAUDE.md #Viewport 系统](./CLAUDE.md#viewport-系统)。
 
-- 运行目录默认值：
+- 运行目录约定：
   - agents: `runtime/agents/`
   - teams: `runtime/teams/`
   - models: `runtime/models/`
   - providers: `runtime/providers/`
-  - tools: `runtime/tools/`
   - mcp-servers: `runtime/mcp-servers/`
   - viewport-servers: `runtime/viewport-servers/`
-  - viewports: `runtime/viewports/`
-  - skills-market: `runtime/skills-market/`
-  - schedules: `runtime/schedules/`
+  - skills-market: 通过 `SKILLS_MARKET_DIR` 显式配置
+  - schedules: 通过 `SCHEDULES_DIR` 显式配置
   - chats: `runtime/chats/`
   - root: `runtime/root/`
   - pan: `runtime/pan/`
-- 启动时仅同步系统内置 `src/main/resources/tools|skills|schedules` 到外部目录：
-  - `TOOLS_DIR`
+- 启动时仅同步系统内置 `src/main/resources/skills|schedules` 到外部目录：
   - `SKILLS_MARKET_DIR`
   - `SCHEDULES_DIR`
-- runner 不再附带任何 demo/example 业务资源；除系统内置 tool、skill、schedule 外，其余 agents、teams、models、providers、mcp-servers、viewport-servers、viewports、tools、schedules 均由外部目录提供。
+- runner 不再附带任何 demo/example 业务资源；内置 tool 与 viewport 固定来自 `src/main/resources`，外部 skill 与 schedule 通过显式目录提供，其余 agents、teams、models、providers、mcp-servers、viewport-servers 仍由外部目录提供。
 - 目录监听热重载策略：
   - `runtime/agents/` 变更：全量刷新 agent 定义。
-  - `runtime/tools/` 变更：刷新 tool registry，并按依赖精准刷新受影响 agent。
   - `runtime/mcp-servers/` 变更：刷新 mcp server 与 mcp tool registry，并按依赖精准刷新受影响 agent。
   - `runtime/viewport-servers/` 变更：刷新 viewport server 与远端 viewport registry，不触发 agent reload。
   - `runtime/models/` 变更：刷新 model registry，并按 `modelKey` 依赖精准刷新受影响 agent。
-  - `runtime/skills-market/` 变更：仅刷新 skill registry，不触发 agent reload。
-  - `runtime/schedules/` 变更：刷新计划任务 registry，并增量重编排 cron 触发器。
+  - `SKILLS_MARKET_DIR` 指向目录变更：仅刷新 skill registry，不触发 agent reload。
+  - `SCHEDULES_DIR` 指向目录变更：刷新计划任务 registry，并增量重编排 cron 触发器。
 - 运行中一致性：当前进行中的 run 保持旧快照；reload 后仅新 run 使用新配置。
-- `viewports` 支持后缀：`.html`、`.qlc`，默认每 30 秒刷新内存快照。
+- 内置 `viewports` 支持后缀：`.html`、`.qlc`，默认每 30 秒刷新内存快照。
 - `tools`:
   - 仅支持单文件单工具 YAML；前 4 行必须依次为 `name`、`label`、`description`、`type`
   - 普通后端工具：默认 `type: function`
@@ -841,12 +823,10 @@ for f in *.md; do echo "$f"; done
 | `TEAMS_DIR` | `teams` | Team 定义目录 |
 | `MODELS_DIR` | `models` | Model 定义目录 |
 | `PROVIDERS_DIR` | `providers` | Provider 定义目录 |
-| `TOOLS_DIR` | `tools` | Tool 定义目录 |
 | `MCP_SERVERS_DIR` | `mcp-servers` | MCP server 注册目录 |
 | `VIEWPORT_SERVERS_DIR` | `viewport-servers` | Viewport server 注册目录 |
-| `VIEWPORTS_DIR` | `viewports` | Viewport 目录 |
-| `SKILLS_DIR` | `skills` | Skill 目录 |
-| `SCHEDULES_DIR` | `schedules` | Schedule 目录 |
+| `SKILLS_MARKET_DIR` | 必填 | Skill market 目录 |
+| `SCHEDULES_DIR` | 必填 | Schedule 目录 |
 | `DATA_DIR` | `data` | 静态文件目录 |
 | `CHATS_DIR` | `./chats` | 聊天记忆目录 |
 | `AGENT_SCHEDULE_ENABLED` | `true` | 计划任务总开关 |
@@ -903,9 +883,9 @@ for f in *.md; do echo "$f"; done
   - `AGENT_TEAMS_EXTERNAL_DIR` -> `TEAMS_DIR`
   - `AGENT_MODELS_EXTERNAL_DIR` -> `MODELS_DIR`
   - `AGENT_PROVIDERS_EXTERNAL_DIR` -> `PROVIDERS_DIR`
-  - `AGENT_TOOLS_EXTERNAL_DIR` -> `TOOLS_DIR`
-  - `AGENT_SKILLS_EXTERNAL_DIR` -> `SKILLS_DIR`
-  - `AGENT_VIEWPORTS_EXTERNAL_DIR` -> `VIEWPORTS_DIR`
+  - `AGENT_TOOLS_EXTERNAL_DIR` -> 内置 classpath tools（不再支持外部目录）
+  - `AGENT_SKILLS_EXTERNAL_DIR` -> `SKILLS_MARKET_DIR`
+  - `AGENT_VIEWPORTS_EXTERNAL_DIR` -> 内置 classpath viewports（不再支持外部目录）
   - `AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR` -> `MCP_SERVERS_DIR`
   - `AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR` -> `VIEWPORT_SERVERS_DIR`
   - `AGENT_SCHEDULE_EXTERNAL_DIR` -> `SCHEDULES_DIR`

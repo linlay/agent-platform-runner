@@ -15,7 +15,10 @@ class ReleaseBundleScriptSmokeTest {
         String releaseScript = Files.readString(Path.of("scripts/release.sh"));
 
         assertThat(releaseScript).contains("\"$BUNDLE_ROOT/runtime/agents\"");
-        assertThat(releaseScript).contains("\"$BUNDLE_ROOT/runtime/viewports\"");
+        assertThat(releaseScript).doesNotContain("\"$BUNDLE_ROOT/runtime/tools\"");
+        assertThat(releaseScript).doesNotContain("\"$BUNDLE_ROOT/runtime/viewports\"");
+        assertThat(releaseScript).doesNotContain("\"$BUNDLE_ROOT/runtime/skills-market\"");
+        assertThat(releaseScript).doesNotContain("\"$BUNDLE_ROOT/runtime/schedules\"");
         assertThat(releaseScript).doesNotContain("copy_example_dir");
         assertThat(releaseScript).doesNotContain("example/");
     }

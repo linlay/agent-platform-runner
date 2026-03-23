@@ -39,7 +39,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
         "agent.auth.issuer=https://auth.example.local",
         "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-auth-local-fallback-test-chats-${random.uuid}",
         "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-auth-local-fallback-test-chats-db-${random.uuid}/chats.db",
-        "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-auth-local-fallback-test-skills-${random.uuid}"
+        "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-auth-local-fallback-test-skills-${random.uuid}",
+        "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-auth-local-fallback-test-schedules-${random.uuid}"
     }
 )
 @AutoConfigureWebTestClient

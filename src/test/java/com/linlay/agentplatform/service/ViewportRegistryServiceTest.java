@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.model.ViewportType;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -22,11 +22,10 @@ class ViewportRegistryServiceTest {
         Files.writeString(tempDir.resolve("weather_card.html"), "<div>ok</div>");
         Files.writeString(tempDir.resolve("flight_form.qlc"), "{\"schema\":{\"type\":\"object\"},\"packages\":[\"pkg-a\"]}");
 
-        ViewportProperties properties = new ViewportProperties();
-        properties.setExternalDir(tempDir.toString());
         ViewportRegistryService service = new ViewportRegistryService(
                 new ObjectMapper(),
-                properties
+                new PathMatchingResourcePatternResolver(),
+                tempDir
         );
 
         Optional<ViewportRegistryService.ViewportEntry> html = service.find("weather_card");
@@ -45,11 +44,10 @@ class ViewportRegistryServiceTest {
     void shouldSkipInvalidJsonViewport() throws Exception {
         Files.writeString(tempDir.resolve("bad.qlc"), "{invalid-json");
 
-        ViewportProperties properties = new ViewportProperties();
-        properties.setExternalDir(tempDir.toString());
         ViewportRegistryService service = new ViewportRegistryService(
                 new ObjectMapper(),
-                properties
+                new PathMatchingResourcePatternResolver(),
+                tempDir
         );
 
         assertThat(service.find("bad")).isEmpty();
@@ -60,11 +58,10 @@ class ViewportRegistryServiceTest {
         Files.createDirectories(tempDir.resolve("cards/weather"));
         Files.writeString(tempDir.resolve("cards/weather/weather_card.html"), "<div>nested</div>");
 
-        ViewportProperties properties = new ViewportProperties();
-        properties.setExternalDir(tempDir.toString());
         ViewportRegistryService service = new ViewportRegistryService(
                 new ObjectMapper(),
-                properties
+                new PathMatchingResourcePatternResolver(),
+                tempDir
         );
 
         assertThat(service.find("weather_card")).isPresent();

@@ -8,9 +8,9 @@ import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.service.CatalogDiff;
 
 class ToolFileRegistryServiceTest {
@@ -27,7 +27,7 @@ class ToolFileRegistryServiceTest {
         Files.writeString(toolsDir.resolve("confirm_dialog.yml"), frontendToolYaml("confirm_dialog", "确认弹窗", "confirm", "html", "confirm_dialog"));
         Files.writeString(toolsDir.resolve("switch_theme.yml"), actionToolYaml("switch_theme", "切换主题", "switch"));
 
-        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+        ToolFileRegistryService service = service(toolsDir);
 
         ToolDescriptor backend = service.find("bash").orElseThrow();
         ToolDescriptor frontend = service.find("confirm_dialog").orElseThrow();
@@ -89,7 +89,7 @@ class ToolFileRegistryServiceTest {
                   type: object
                 """);
 
-        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+        ToolFileRegistryService service = service(toolsDir);
 
         assertThat(service.find("missing_schema")).isEmpty();
         assertThat(service.find("blank_label")).isEmpty();
@@ -111,7 +111,7 @@ class ToolFileRegistryServiceTest {
                   type: object
                 """);
 
-        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+        ToolFileRegistryService service = service(toolsDir);
 
         ToolDescriptor descriptor = service.find("weather.query").orElseThrow();
         assertThat(descriptor.name()).isEqualTo("Weather.Query");
@@ -125,7 +125,7 @@ class ToolFileRegistryServiceTest {
         Files.createDirectories(toolsDir);
         Files.writeString(toolsDir.resolve("legacy.json"), "{\"name\":\"legacy\"}");
 
-        assertThatThrownBy(() -> new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir)))
+        assertThatThrownBy(() -> service(toolsDir))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Legacy JSON tool files are no longer supported");
     }
@@ -148,7 +148,7 @@ class ToolFileRegistryServiceTest {
                       type: object
                 """);
 
-        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+        ToolFileRegistryService service = service(toolsDir);
 
         assertThat(service.find("legacy_tool")).isEmpty();
     }
@@ -168,7 +168,7 @@ class ToolFileRegistryServiceTest {
                   type: object
                 """);
 
-        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+        ToolFileRegistryService service = service(toolsDir);
 
         ToolDescriptor descriptor = service.find("hidden_yaml_tool").orElseThrow();
         assertThat(descriptor.kind()).isEqualTo(ToolKind.BACKEND);
@@ -205,7 +205,7 @@ class ToolFileRegistryServiceTest {
                   type: object
                 """);
 
-        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+        ToolFileRegistryService service = service(toolsDir);
 
         assertThat(service.find("custom_tool")).isEmpty();
         assertThat(service.list()).isEmpty();
@@ -224,7 +224,7 @@ class ToolFileRegistryServiceTest {
                   type: object
                 """);
 
-        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+        ToolFileRegistryService service = service(toolsDir);
 
         Files.writeString(toolsDir.resolve("b.yml"), """
                 name: b_tool
@@ -246,15 +246,13 @@ class ToolFileRegistryServiceTest {
         Files.createDirectories(toolsDir.resolve("nested/forms"));
         Files.writeString(toolsDir.resolve("nested/forms/confirm_dialog.yml"), frontendToolYaml("confirm_dialog", "确认弹窗", "confirm", "html", "confirm_dialog"));
 
-        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper(), properties(toolsDir));
+        ToolFileRegistryService service = service(toolsDir);
 
         assertThat(service.find("confirm_dialog")).isPresent();
     }
 
-    private ToolProperties properties(Path toolsDir) {
-        ToolProperties properties = new ToolProperties();
-        properties.setExternalDir(toolsDir.toString());
-        return properties;
+    private ToolFileRegistryService service(Path toolsDir) {
+        return new ToolFileRegistryService(new ObjectMapper(), new PathMatchingResourcePatternResolver(), toolsDir);
     }
 
     private String backendToolYaml(String name, String label, String description, String afterCallHint) {

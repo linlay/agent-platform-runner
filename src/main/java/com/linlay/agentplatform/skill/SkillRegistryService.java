@@ -53,6 +53,9 @@ public class SkillRegistryService {
     }
 
     public Path skillsRoot() {
+        if (!StringUtils.hasText(properties.getExternalDir())) {
+            return null;
+        }
         return Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
     }
 
@@ -75,6 +78,10 @@ public class SkillRegistryService {
             Map<String, SkillDescriptor> before = byId;
             Map<String, SkillDescriptor> loaded = new LinkedHashMap<>();
             Path dir = skillsRoot();
+            if (dir == null) {
+                byId = Map.of();
+                return CatalogDiff.between(before, byId);
+            }
             if (!Files.exists(dir)) {
                 byId = Map.of();
                 return CatalogDiff.between(before, byId);

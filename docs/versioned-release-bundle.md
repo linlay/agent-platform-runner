@@ -86,7 +86,7 @@ ARCH=amd64 make release
 - 宿主机构建产物：`target/*.jar`
 - 配置模板：`configs/*.example.yml`
 - 配置模板：`configs/**/*.example.*`
-- runtime 目录骨架：`runtime/agents`、`runtime/teams`、`runtime/models`、`runtime/providers`、`runtime/tools`、`runtime/mcp-servers`、`runtime/viewport-servers`、`runtime/viewports`、`runtime/skills-market`、`runtime/schedules`、`runtime/chats`、`runtime/root`、`runtime/pan`
+- runtime 目录骨架：`runtime/agents`、`runtime/teams`、`runtime/models`、`runtime/providers`、`runtime/mcp-servers`、`runtime/viewport-servers`、`runtime/chats`、`runtime/root`、`runtime/pan`
 
 脚本会强校验版本格式：
 
@@ -240,16 +240,14 @@ agent-platform-runner/
     teams/
     models/
     providers/
-    tools/
     mcp-servers/
     viewport-servers/
-    viewports/
-    skills-market/
-    schedules/
     chats/
     root/
     pan/
 ```
+
+其中 `SKILLS_MARKET_DIR` 与 `SCHEDULES_DIR` 由 `.env` 显式指定；若指向 `./runtime/...`，启动脚本会在首次启动时自动创建。
 
 部署启动后，还会在本地生成或补充：
 
@@ -286,7 +284,7 @@ docker network create zenmind-network   # 仅在网络尚不存在时执行
 
 当前仓库同时保留两条运维入口：
 
-- 仓库根目录 `docker-compose.yml`：适合源码仓库内直接部署或本地联调
+- 仓库根目录 `compose.yml`：适合源码仓库内直接部署或本地联调
 - `make release` 产出的离线 bundle：适合交付制品、上传制品库或在部署机解压运行
 
 两套入口共用同一套应用配置约定，但职责不同：

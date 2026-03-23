@@ -55,7 +55,9 @@ import java.util.Date;
                 "agent.chat-image-token.secret=chat-image-token-secret-for-tests",
                 "agent.chat-image-token.data-token-validation-enabled=false",
                 "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-chats-${random.uuid}",
-                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-chats-db-${random.uuid}/chats.db"
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-chats-db-${random.uuid}/chats.db",
+                "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-skills-${random.uuid}",
+                "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-schedules-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient

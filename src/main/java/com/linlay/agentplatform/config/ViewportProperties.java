@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "agent.viewports")
 public class ViewportProperties {
 
-    private String externalDir = "runtime/viewports";
+    private String externalDir;
     private long refreshIntervalMs = 30_000L;
 
     public String getExternalDir() {

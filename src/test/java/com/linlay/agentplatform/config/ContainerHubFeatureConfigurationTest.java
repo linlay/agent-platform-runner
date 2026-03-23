@@ -64,6 +64,7 @@ class ContainerHubFeatureConfigurationTest {
             AgentProperties.class,
             ModelProperties.class,
             ViewportProperties.class,
+            ViewportServerProperties.class,
             TeamProperties.class,
             ScheduleProperties.class,
             McpProperties.class,

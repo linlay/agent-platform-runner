@@ -42,7 +42,7 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
                   - http://localhost:8081
                 """);
 
-        StandardEnvironment environment = new StandardEnvironment();
+        StandardEnvironment environment = environmentWithRequiredDirectories();
         withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)));
 
         assertThat(environment.getProperty("agent.auth.enabled")).isEqualTo("false");
@@ -65,7 +65,7 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
                     enabled: false
                 """);
 
-        StandardEnvironment environment = new StandardEnvironment();
+        StandardEnvironment environment = environmentWithRequiredDirectories();
 
         assertThatThrownBy(() -> withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class))))
                 .isInstanceOf(IllegalStateException.class)
@@ -82,7 +82,7 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
                 mounts.user-dir: /tmp/user
                 """);
 
-        StandardEnvironment environment = new StandardEnvironment();
+        StandardEnvironment environment = environmentWithRequiredDirectories();
 
         assertThatThrownBy(() -> withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class))))
                 .isInstanceOf(IllegalStateException.class)
@@ -92,8 +92,8 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
 
     @Test
     void shouldFailFastWhenDeprecatedDirectoryEnvVariableIsConfigured() {
-        StandardEnvironment environment = new StandardEnvironment();
-        environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
+        StandardEnvironment environment = environmentWithRequiredDirectories();
+        environment.getPropertySources().addFirst(new MapPropertySource("deprecated", Map.of(
                 "AGENT_AGENTS_EXTERNAL_DIR", tempDir.resolve("agents").toString()
         )));
 
@@ -105,8 +105,8 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
 
     @Test
     void shouldFailFastWhenConfigsDirEnvVariableIsConfigured() {
-        StandardEnvironment environment = new StandardEnvironment();
-        environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
+        StandardEnvironment environment = environmentWithRequiredDirectories();
+        environment.getPropertySources().addFirst(new MapPropertySource("deprecated", Map.of(
                 ConfigDirectorySupport.CONFIG_DIR_ENV, tempDir.resolve("configs").toString()
         )));
 
@@ -121,7 +121,7 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
     void shouldIgnoreMissingFixedConfigDirectory() throws Exception {
         Path projectDir = tempDir.resolve("project");
         Files.createDirectories(projectDir);
-        StandardEnvironment environment = new StandardEnvironment();
+        StandardEnvironment environment = environmentWithRequiredDirectories();
 
         withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)));
 
@@ -139,11 +139,49 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
                 baseUrl: https://api.one.example
                 """);
 
-        StandardEnvironment environment = new StandardEnvironment();
+        StandardEnvironment environment = environmentWithRequiredDirectories();
         withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)));
 
         assertThat(environment.getProperty("key")).isNull();
         assertThat(environment.getProperty("baseUrl")).isNull();
+    }
+
+    @Test
+    void shouldFailFastWhenRequiredSkillsDirectoryIsMissing() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("required", Map.of(
+                "SCHEDULES_DIR", tempDir.resolve("schedules").toString()
+        )));
+
+        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SKILLS_MARKET_DIR")
+                .hasMessageContaining("skills market");
+    }
+
+    @Test
+    void shouldAllowExplicitPropertyFallbackForRequiredDirectories() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("required", Map.of(
+                "agent.skills.external-dir", tempDir.resolve("skills-market").toString(),
+                "agent.schedule.external-dir", tempDir.resolve("schedules").toString()
+        )));
+
+        withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)));
+
+        assertThat(environment.getProperty("agent.skills.external-dir")).isEqualTo(tempDir.resolve("skills-market").toString());
+        assertThat(environment.getProperty("agent.schedule.external-dir")).isEqualTo(tempDir.resolve("schedules").toString());
+    }
+
+    private StandardEnvironment environmentWithRequiredDirectories() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("required", Map.of(
+                "SKILLS_MARKET_DIR", tempDir.resolve("skills-market").toString(),
+                "SCHEDULES_DIR", tempDir.resolve("schedules").toString()
+        )));
+        return environment;
     }
 
     private static void withUserDir(Path userDir, ThrowingRunnable action) throws Exception {

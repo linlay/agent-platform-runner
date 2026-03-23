@@ -97,12 +97,8 @@ mkdir -p \
   "$BUNDLE_ROOT/runtime/teams" \
   "$BUNDLE_ROOT/runtime/models" \
   "$BUNDLE_ROOT/runtime/providers" \
-  "$BUNDLE_ROOT/runtime/tools" \
   "$BUNDLE_ROOT/runtime/mcp-servers" \
   "$BUNDLE_ROOT/runtime/viewport-servers" \
-  "$BUNDLE_ROOT/runtime/viewports" \
-  "$BUNDLE_ROOT/runtime/skills-market" \
-  "$BUNDLE_ROOT/runtime/schedules" \
   "$BUNDLE_ROOT/runtime/chats" \
   "$BUNDLE_ROOT/runtime/root" \
   "$BUNDLE_ROOT/runtime/pan"

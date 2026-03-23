@@ -38,7 +38,9 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.providers.siliconflow.default-model=test-siliconflow-model",
                 "agent.auth.enabled=false",
                 "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-test-data-chats-${random.uuid}",
-                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-test-data-chats-db-${random.uuid}/chats.db"
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-test-data-chats-db-${random.uuid}/chats.db",
+                "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-test-data-skills-${random.uuid}",
+                "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-test-data-schedules-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient

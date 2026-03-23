@@ -4,10 +4,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.service.CatalogDiff;
 import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,17 +49,9 @@ public class ToolFileRegistryService {
     private final Object reloadLock = new Object();
     private volatile Map<String, ToolDescriptor> byName = Map.of();
 
+    @Autowired
     public ToolFileRegistryService(ObjectMapper objectMapper) {
         this(objectMapper, new PathMatchingResourcePatternResolver(), null);
-    }
-
-    @Autowired
-    public ToolFileRegistryService(ObjectMapper objectMapper, ToolProperties properties) {
-        this(
-                objectMapper,
-                new PathMatchingResourcePatternResolver(),
-                properties == null ? null : Path.of(properties.getExternalDir()).toAbsolutePath().normalize()
-        );
     }
 
     ToolFileRegistryService(ObjectMapper objectMapper, ResourcePatternResolver resourcePatternResolver) {

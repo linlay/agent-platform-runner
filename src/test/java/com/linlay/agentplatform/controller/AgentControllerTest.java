@@ -5,15 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.api.QueryRequest;
-import com.linlay.agentplatform.service.McpToolSyncService;
-import com.linlay.agentplatform.config.ToolProperties;
-import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.service.McpToolSyncService;
 import com.linlay.agentplatform.service.ViewportRegistryService;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.stream.model.StreamRequest;
@@ -22,7 +20,6 @@ import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.team.TeamRegistryService;
 import com.linlay.agentplatform.testsupport.TestCatalogFixtures;
 import com.linlay.agentplatform.tool.ToolDescriptor;
-import com.linlay.agentplatform.tool.ToolFileRegistryService;
 import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,9 +46,9 @@ import reactor.core.publisher.Mono;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -82,6 +79,8 @@ import static org.mockito.Mockito.when;
                 "agent.auth.enabled=false",
                 "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-test-chats-${random.uuid}",
                 "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-test-chats-db-${random.uuid}/chats.db",
+                "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-test-skills-${random.uuid}",
+                "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-test-schedules-${random.uuid}",
                 "agent.mcp-servers.enabled=true",
                 "agent.teams.external-dir=${java.io.tmpdir}/agent-platform-runner-test-teams-${random.uuid}"
         }
@@ -97,19 +96,11 @@ class AgentControllerTest {
     @Autowired
     private FrontendSubmitCoordinator frontendSubmitCoordinator;
     @Autowired
-    private ViewportProperties viewportProperties;
-    @Autowired
-    private ViewportRegistryService viewportRegistryService;
-    @Autowired
     private ChatWindowMemoryProperties chatWindowMemoryProperties;
     @Autowired
     private ChatRecordStore chatRecordStore;
     @Autowired
     private ActiveRunService activeRunService;
-    @Autowired
-    private ToolFileRegistryService toolFileRegistryService;
-    @Autowired
-    private ToolProperties toolProperties;
     @Autowired
     private TeamProperties teamProperties;
     @Autowired
@@ -136,28 +127,6 @@ class AgentControllerTest {
                   - demoModeReact
                 """);
         teamRegistryService.refreshTeams();
-
-        Path toolsDir = Path.of(toolProperties.getExternalDir()).toAbsolutePath().normalize();
-        Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("switch_theme.yml"), """
-                name: switch_theme
-                label: 切换主题
-                description: 切换主题
-                type: function
-                toolAction: true
-                inputSchema:
-                  type: object
-                  properties:
-                    theme:
-                      type: string
-                      enum:
-                        - light
-                        - dark
-                  required:
-                    - theme
-                  additionalProperties: false
-                """, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        toolFileRegistryService.refreshTools();
     }
 
     private static Path prepareProvidersDir() {
@@ -469,7 +438,7 @@ class AgentControllerTest {
                 .jsonPath("$.data[0].meta.kind").exists()
                 .jsonPath("$.data[0].meta.sourceType").exists()
                 .jsonPath("$.data[?(@.key=='datetime')]").exists()
-                .jsonPath("$.data[?(@.key=='switch_theme')]").exists();
+                .jsonPath("$.data[?(@.key=='confirm_dialog')]").exists();
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/tools").queryParam("kind", "frontend").build())
@@ -478,7 +447,7 @@ class AgentControllerTest {
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data[?(@.key=='datetime')]").doesNotExist()
-                .jsonPath("$.data[?(@.key=='switch_theme')]").doesNotExist();
+                .jsonPath("$.data[?(@.key=='confirm_dialog')]").exists();
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder.path("/api/tools")
@@ -954,11 +923,6 @@ class AgentControllerTest {
 
     @Test
     void viewportShouldReturnHtmlData() throws Exception {
-        Path viewportDir = Path.of(viewportProperties.getExternalDir());
-        Files.createDirectories(viewportDir);
-        Files.writeString(viewportDir.resolve("weather_card.html"), "<div>sunny</div>");
-        viewportRegistryService.refreshViewports();
-
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/viewport")
@@ -968,16 +932,11 @@ class AgentControllerTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data.html").isEqualTo("<div>sunny</div>");
+                .jsonPath("$.data.html").isEqualTo("<div>sunny</div>\n");
     }
 
     @Test
     void viewportShouldReturnQlcJsonData() throws Exception {
-        Path viewportDir = Path.of(viewportProperties.getExternalDir());
-        Files.createDirectories(viewportDir);
-        Files.writeString(viewportDir.resolve("flight_form.qlc"), "{\"schema\":{\"type\":\"object\"},\"packages\":[\"pkg-a\"]}");
-        viewportRegistryService.refreshViewports();
-
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/viewport")

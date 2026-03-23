@@ -450,29 +450,20 @@ class DefinitionDrivenAgentTest {
 
     @Test
     void planExecuteShouldExposeSyncedPlanToolSchemasToModel(@TempDir Path tempDir) throws Exception {
-        Path toolsDir = tempDir.resolve("tools");
         Path skillsDir = tempDir.resolve("skills");
         Path schedulesDir = tempDir.resolve("schedules");
-        Path viewportsDir = tempDir.resolve("viewports");
-
-        ToolProperties toolProperties = new ToolProperties();
-        toolProperties.setExternalDir(toolsDir.toString());
         SkillProperties skillProperties = new SkillProperties();
         skillProperties.setExternalDir(skillsDir.toString());
         ScheduleProperties scheduleProperties = new ScheduleProperties();
         scheduleProperties.setExternalDir(schedulesDir.toString());
-        ViewportProperties viewportProperties = new ViewportProperties();
-        viewportProperties.setExternalDir(viewportsDir.toString());
 
         RuntimeResourceSyncService runtimeResourceSyncService = new RuntimeResourceSyncService(
-                toolProperties,
                 skillProperties,
-                scheduleProperties,
-                viewportProperties
+                scheduleProperties
         );
         runtimeResourceSyncService.syncRuntimeDirectories();
 
-        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper(), toolProperties);
+        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper());
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("toolFileRegistryService", toolFileRegistryService);
@@ -587,9 +578,7 @@ class DefinitionDrivenAgentTest {
                   additionalProperties: false
                 """);
 
-        ToolProperties toolProperties = new ToolProperties();
-        toolProperties.setExternalDir(toolsDir.toString());
-        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper(), toolProperties);
+        ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper());
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("toolFileRegistryService", toolFileRegistryService);

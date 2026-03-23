@@ -13,43 +13,28 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.ToolProperties;
 
 class ToolFileRegistryServiceContextTest {
-
-    private static Path configuredToolsDir;
 
     @TempDir
     Path tempDir;
 
     @Test
-    void shouldCreateToolFileRegistryServiceBeanWithInjectedToolProperties() throws Exception {
-        Path toolsDir = tempDir.resolve("tools");
-        Files.createDirectories(toolsDir);
-        configuredToolsDir = toolsDir;
-
+    void shouldCreateToolFileRegistryServiceBeanUsingClasspathBuiltins() throws Exception {
         new ApplicationContextRunner()
                 .withUserConfiguration(ToolFileRegistryServiceContextConfiguration.class)
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    assertThat(context).hasSingleBean(ToolProperties.class);
                     assertThat(context).hasSingleBean(ToolFileRegistryService.class);
 
                     ToolFileRegistryService service = context.getBean(ToolFileRegistryService.class);
-                    assertThat(service.list()).isEmpty();
+                    assertThat(service.find("datetime")).isPresent();
                 });
     }
 
     @Configuration(proxyBeanMethods = false)
     @Import(ToolFileRegistryService.class)
     static class ToolFileRegistryServiceContextConfiguration {
-
-        @Bean
-        ToolProperties toolProperties() {
-            ToolProperties properties = new ToolProperties();
-            properties.setExternalDir(configuredToolsDir.toString());
-            return properties;
-        }
 
         @Bean
         ObjectMapper objectMapper() {

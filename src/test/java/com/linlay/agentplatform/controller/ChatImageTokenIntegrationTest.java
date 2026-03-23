@@ -75,7 +75,9 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.chat-image-token.secret=chat-image-token-secret-for-tests",
                 "agent.chat-image-token.ttl-seconds=86400",
                 "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-${random.uuid}",
-                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-db-${random.uuid}/chats.db"
+                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-db-${random.uuid}/chats.db",
+                "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-skills-${random.uuid}",
+                "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-schedules-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient
