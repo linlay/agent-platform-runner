@@ -7,7 +7,7 @@ import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
-import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.ToolFileRegistryService;
 import com.linlay.agentplatform.tool.ToolRegistry;
@@ -43,7 +43,6 @@ public class AgentRegistry {
     private final SkillRegistryService skillRegistryService;
     private final ToolFileRegistryService toolFileRegistryService;
     private final AgentMemoryService agentMemoryService;
-    private final AgentExperienceService agentExperienceService;
     private final LoggingAgentProperties loggingAgentProperties;
     private final ToolInvokerRouter toolInvokerRouter;
     private final ActiveRunService activeRunService;
@@ -67,7 +66,6 @@ public class AgentRegistry {
             SkillRegistryService skillRegistryService,
             ToolFileRegistryService toolFileRegistryService,
             AgentMemoryService agentMemoryService,
-            AgentExperienceService agentExperienceService,
             LoggingAgentProperties loggingAgentProperties,
             ToolInvokerRouter toolInvokerRouter,
             ActiveRunService activeRunService,
@@ -83,7 +81,6 @@ public class AgentRegistry {
         this.skillRegistryService = skillRegistryService;
         this.toolFileRegistryService = toolFileRegistryService;
         this.agentMemoryService = agentMemoryService;
-        this.agentExperienceService = agentExperienceService;
         this.loggingAgentProperties = loggingAgentProperties;
         this.toolInvokerRouter = toolInvokerRouter;
         this.activeRunService = activeRunService;
@@ -115,7 +112,6 @@ public class AgentRegistry {
                 skillRegistryService,
                 new ToolFileRegistryService(objectMapper),
                 new AgentMemoryService(),
-                new AgentExperienceService(),
                 loggingAgentProperties,
                 toolInvokerRouter,
                 activeRunService,
@@ -271,7 +267,6 @@ public class AgentRegistry {
                 frontendSubmitCoordinator,
                 skillRegistryService,
                 agentMemoryService,
-                agentExperienceService,
                 loggingAgentProperties,
                 toolInvokerRouter,
                 activeRunService,

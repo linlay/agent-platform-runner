@@ -387,8 +387,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `sandbox_bash`：在 Container Hub 沙箱环境中执行命令，受 `sandboxConfig` 与 `agent.tools.container-hub.*` 控制。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
-- `mock_city_weather`：模拟城市天气数据。
-- `agent_file_create`：创建 / 更新 agent YAML 文件。
+- `confirm_dialog`：前端确认对话框工具，声明位于 `src/main/resources/tools/confirm_dialog.yml`。
 
 ### 工具参数模板
 
@@ -565,7 +564,6 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `request.submit`：`requestId`, `chatId`, `runId`, `toolId`, `payload`, `viewId?`
 - `request.steer`：`requestId?`, `chatId`, `runId`, `steerId`, `message`, `role=user`
 - `chat.start`：`chatId`, `chatName?`（仅该 chat 首次 run 发送一次）
-- `chat.update`：当前不发送
 
 ### 3. 计划、运行与任务事件
 
@@ -602,11 +600,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `action.result`：`actionId`, `result`
 - `action.snapshot`：`actionId`, `actionName?`, `taskId?`, `description?`, `arguments?`
 
-### 6. 来源事件
-
-- `source.snapshot`：`sourceId`, `runId?`, `taskId?`, `icon?`, `title?`, `url?`
-
-### 7. 补充行为约束
+### 6. 补充行为约束
 
 - 无活跃 task 出错时：只发 `run.error`（不补 `task.fail`）。
 - plain 模式（当前无 plan）不应出现 `task.*`，叶子事件直接归属 `run`。
@@ -619,7 +613,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 
 以下为 V3 格式基础 + V3.1 增量改进的完整规范。
 
-- 存储文件：`chats/{chatId}.json`，JSONL 格式，**一行一个 step**，逐步增量写入。
+- 存储文件：`chats/{chatId}.jsonl`，JSONL 格式，**一行一个 step**，逐步增量写入。
 - 行类型通过 `_type` 字段区分：
   - `"query"`：用户原始请求行。必带 `chatId`、`runId`、`updatedAt`、`query`。
   - `"step"`：一个执行步骤行。必带 `chatId`、`runId`、`_stage`、`_seq`、`updatedAt`、`messages`；可选 `taskId`、`system`、`plan`。
@@ -696,21 +690,20 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 
 ### 核心环境变量
 
-#### Agent Catalog / Model / Viewport / Data
+#### Agent Catalog / Model / Registry
 
 | 环境变量 | 属性键 | 默认值 | 说明 |
 |---------|--------|-------|------|
-| `AGENTS_DIR` | `agent.agents.external-dir` | `agents` | Agent Definition 目录 |
+| `AGENTS_DIR` | `agent.agents.external-dir` | `runtime/agents` | Agent Definition 目录 |
 | `AGENT_AGENTS_REFRESH_INTERVAL_MS` | `agent.agents.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
-| `TEAMS_DIR` | `agent.teams.external-dir` | `teams` | Team 定义目录 |
-| `PROVIDERS_DIR` | `agent.providers.external-dir` | `providers` | Provider YAML 定义目录 |
-| `MODELS_DIR` | `agent.models.external-dir` | `models` | Model YAML 定义目录 |
+| `TEAMS_DIR` | `agent.teams.external-dir` | `runtime/teams` | Team 定义目录 |
+| `AGENT_TEAMS_REFRESH_INTERVAL_MS` | `agent.teams.refresh-interval-ms` | `30000` | Team 目录刷新间隔（ms） |
+| `PROVIDERS_DIR` | `agent.providers.external-dir` | `runtime/providers` | Provider YAML 定义目录 |
+| `AGENT_PROVIDERS_REFRESH_INTERVAL_MS` | `agent.providers.refresh-interval-ms` | `30000` | Provider 目录刷新间隔（ms） |
+| `MODELS_DIR` | `agent.models.external-dir` | `runtime/models` | Model YAML 定义目录 |
 | `AGENT_MODELS_REFRESH_INTERVAL_MS` | `agent.models.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |
-| `MCP_SERVERS_DIR` | `agent.mcp-servers.registry.external-dir` | `mcp-servers` | MCP server 注册目录 |
-| `VIEWPORT_SERVERS_DIR` | `agent.viewport-servers.registry.external-dir` | `viewport-servers` | Viewport server 注册目录 |
-| `VIEWPORTS_DIR` | `agent.viewports.external-dir` | `viewports` | Viewport 目录 |
-| `AGENT_VIEWPORTS_REFRESH_INTERVAL_MS` | `agent.viewports.refresh-interval-ms` | `30000` | Viewport 刷新间隔（ms） |
-| `DATA_DIR` | `agent.data.external-dir` | `data` | 静态文件目录 |
+| `MCP_SERVERS_DIR` | `agent.mcp-servers.registry.external-dir` | `runtime/mcp-servers` | MCP server 注册目录 |
+| `VIEWPORT_SERVERS_DIR` | `agent.viewport-servers.registry.external-dir` | `runtime/viewport-servers` | Viewport server 注册目录 |
 
 #### H2A / Tools / Skills / Schedule
 
@@ -720,10 +713,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `AGENT_H2A_RENDER_MAX_BUFFERED_CHARS` | `agent.h2a.render.max-buffered-chars` | `0` | H2A RenderQueue 字符阈值刷新 |
 | `AGENT_H2A_RENDER_MAX_BUFFERED_EVENTS` | `agent.h2a.render.max-buffered-events` | `0` | H2A RenderQueue 事件数阈值刷新 |
 | `AGENT_H2A_RENDER_HEARTBEAT_PASS_THROUGH` | `agent.h2a.render.heartbeat-pass-through` | `true` | 心跳是否强制透传 |
-| `TOOLS_DIR` | `agent.tools.external-dir` | `tools` | 工具定义文件目录 |
-| `AGENT_TOOLS_REFRESH_INTERVAL_MS` | `agent.tools.refresh-interval-ms` | `30000` | 工具目录刷新间隔（ms） |
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `agent.tools.frontend.submit-timeout-ms` | `300000` | 前端工具提交等待超时（ms） |
-| `AGENT_TOOLS_AGENT_FILE_CREATE_DEFAULT_SYSTEM_PROMPT` | `agent.tools.agent-file-create.default-system-prompt` | `你是通用助理，回答要清晰和可执行。` | `agent_file_create` 默认 system prompt |
 | `AGENT_BASH_WORKING_DIRECTORY` | `agent.tools.bash.working-directory` | 项目运行根目录（通常为 `configs/` 上级目录） | Bash 工具工作目录 |
 | `AGENT_BASH_ALLOWED_PATHS` | `agent.tools.bash.allowed-paths` | （空） | Bash 工具路径白名单（逗号分隔） |
 | `AGENT_BASH_ALLOWED_COMMANDS` | `agent.tools.bash.allowed-commands` | （空 = 拒绝执行） | Bash 允许命令列表（逗号分隔） |
@@ -777,6 +767,8 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `MEMORY_CHATS_K` | `memory.chats.k` | `20` | 滑动窗口大小（按 run） |
 | `MEMORY_CHATS_CHARSET` | `memory.chats.charset` | `UTF-8` | 记忆文件编码 |
 | `MEMORY_CHATS_ACTION_TOOLS` | `memory.chats.action-tools` | （空） | action 工具白名单 |
+| `MEMORY_CHATS_INDEX_SQLITE_FILE` | `memory.chats.index.sqlite-file` | `chats.db` | SQLite 聊天索引文件名 |
+| `MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `memory.chats.index.auto-rebuild-on-incompatible-schema` | `true` | 索引 schema 不兼容时是否自动重建 |
 | `LOGGING_AGENT_LLM_INTERACTION_ENABLED` | `logging.agent.llm.interaction.enabled` | `true` | LLM 交互日志开关 |
 | `LOGGING_AGENT_LLM_INTERACTION_MASK_SENSITIVE` | `logging.agent.llm.interaction.mask-sensitive` | `true` | 日志脱敏开关 |
 
@@ -786,7 +778,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 
 - 旧键已禁用：`agent.catalog.*`、`agent.viewport.*`、`agent.capability.*`、`agent.skill.*`、`agent.team.*`、`agent.model.*`、`agent.mcp.*`、`memory.chat.*`。
 - 旧环境变量已禁用：`AGENT_CONFIG_DIR`、`AGENT_AGENTS_EXTERNAL_DIR`、`AGENT_TEAMS_EXTERNAL_DIR`、`AGENT_MODELS_EXTERNAL_DIR`、`AGENT_PROVIDERS_EXTERNAL_DIR`、`AGENT_TOOLS_EXTERNAL_DIR`、`AGENT_SKILLS_EXTERNAL_DIR`、`AGENT_VIEWPORTS_EXTERNAL_DIR`、`AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_SCHEDULE_EXTERNAL_DIR`、`AGENT_DATA_EXTERNAL_DIR`、`MEMORY_CHATS_DIR` 等。
-- 启动时若检测到旧键或旧变量，服务会直接失败；请按新命名迁移后再启动。
+- 当前文档仅记录 `application.yml` 中实际使用的键；历史目录类兼容变量不再作为公开 contract。
 
 ### CORS（主配置默认）
 
@@ -822,17 +814,25 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 |--------|--------|
 | `logging.level.root` | `INFO` |
 | `logging.level.com.linlay.agentplatform` | `INFO` |
-| `logging.level.com.linlay.agentplatform.service.LlmService` | `DEBUG` |
-| `logging.level.com.linlay.agentplatform.service.OpenAiCompatibleSseClient` | `DEBUG` |
-| `logging.level.com.linlay.agentplatform.service.LlmCallLogger` | `DEBUG` |
+| `logging.level.com.linlay.agentplatform.service.llm.LlmService` | `DEBUG` |
+| `logging.level.com.linlay.agentplatform.service.llm.OpenAiCompatibleSseClient` | `DEBUG` |
+| `logging.level.com.linlay.agentplatform.service.llm.LlmCallLogger` | `DEBUG` |
 | `logging.level.com.linlay.agentplatform.llm.wiretap` | `DEBUG` |
 | `logging.agent.request.enabled` | `true` |
+| `logging.agent.request.include-query` | `true` |
+| `logging.agent.request.include-body` | `false` |
 | `logging.agent.auth.enabled` | `true` |
 | `logging.agent.exception.enabled` | `true` |
 | `logging.agent.tool.enabled` | `true` |
+| `logging.agent.tool.include-args` | `false` |
+| `logging.agent.tool.include-result` | `false` |
 | `logging.agent.action.enabled` | `true` |
+| `logging.agent.action.include-args` | `false` |
+| `logging.agent.action.include-result` | `false` |
 | `logging.agent.viewport.enabled` | `true` |
 | `logging.agent.sse.enabled` | `false` |
+| `logging.agent.sse.include-payload` | `false` |
+| `logging.agent.sse.event-whitelist` | `` |
 | `logging.agent.llm.interaction.enabled` | `true` |
 
 ## H2A 流式传输说明

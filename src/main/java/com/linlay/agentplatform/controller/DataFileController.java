@@ -6,7 +6,7 @@ import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.security.ChatImageTokenService;
 import com.linlay.agentplatform.security.ChatImageTokenService.VerifyResult;
-import com.linlay.agentplatform.service.ChatAssetAccessService;
+import com.linlay.agentplatform.service.chat.ChatAssetAccessService;
 import com.linlay.agentplatform.service.DataFilePathNormalizer;
 import com.linlay.agentplatform.service.LoggingSanitizer;
 import org.slf4j.Logger;

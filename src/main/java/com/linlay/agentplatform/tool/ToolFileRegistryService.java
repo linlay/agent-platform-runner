@@ -41,7 +41,7 @@ public class ToolFileRegistryService {
     private final ObjectMapper objectMapper;
     private final ObjectMapper yamlMapper;
     private final ResourcePatternResolver resourcePatternResolver;
-    private final Path legacyToolsDir;
+    private final Path toolsDir;
 
     private final Object reloadLock = new Object();
     private volatile Map<String, ToolDescriptor> byName = Map.of();
@@ -55,11 +55,11 @@ public class ToolFileRegistryService {
         this(objectMapper, resourcePatternResolver, null);
     }
 
-    ToolFileRegistryService(ObjectMapper objectMapper, ResourcePatternResolver resourcePatternResolver, Path legacyToolsDir) {
+    ToolFileRegistryService(ObjectMapper objectMapper, ResourcePatternResolver resourcePatternResolver, Path toolsDir) {
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.resourcePatternResolver = resourcePatternResolver;
-        this.legacyToolsDir = legacyToolsDir;
+        this.toolsDir = toolsDir;
         refreshTools();
     }
 
@@ -81,8 +81,8 @@ public class ToolFileRegistryService {
             Map<String, ToolDescriptor> before = byName;
             Map<String, ToolDescriptor> loaded = new LinkedHashMap<>();
             Set<String> conflicts = new HashSet<>();
-            if (legacyToolsDir != null) {
-                loaded.putAll(loadToolsDirectory(legacyToolsDir));
+            if (toolsDir != null) {
+                loaded.putAll(loadToolsDirectory(toolsDir));
             } else {
                 for (Resource resource : classpathResources()) {
                     parseClasspathResource(resource, loaded, conflicts);
@@ -182,11 +182,6 @@ public class ToolFileRegistryService {
             log.warn("Skip tool '{}' due to invalid header: {} ({})", source, headerError.value(), source);
             return;
         }
-        if (root.has("tools") && root.get("tools").isArray()) {
-            log.warn("Skip legacy multi-tool file; tools[] is no longer supported: {}", source);
-            return;
-        }
-
         String type = normalize(root.path("type").asText(""));
         String name = normalize(root.path("name").asText(""));
         String normalizedName = normalizeName(name);

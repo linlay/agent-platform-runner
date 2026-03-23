@@ -3,7 +3,7 @@ package com.linlay.agentplatform.controller;
 import com.linlay.agentplatform.config.LoggingAgentProperties;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.service.LoggingSanitizer;
-import com.linlay.agentplatform.service.ChatNotFoundException;
+import com.linlay.agentplatform.service.chat.ChatNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;

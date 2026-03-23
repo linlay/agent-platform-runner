@@ -120,14 +120,16 @@ class ToolFileRegistryServiceTest {
     }
 
     @Test
-    void shouldFailFastOnLegacyJsonToolFiles() throws Exception {
+    void shouldIgnoreLegacyJsonToolFiles() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
         Files.writeString(toolsDir.resolve("legacy.json"), "{\"name\":\"legacy\"}");
+        Files.writeString(toolsDir.resolve("valid.yml"), backendToolYaml("bash", "Bash", "bash tool", "bash prompt"));
 
-        assertThatThrownBy(() -> service(toolsDir))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Legacy JSON tool files are no longer supported");
+        ToolFileRegistryService service = service(toolsDir);
+
+        assertThat(service.find("legacy")).isEmpty();
+        assertThat(service.find("bash")).isPresent();
     }
 
     @Test

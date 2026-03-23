@@ -4,7 +4,12 @@ import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
-import com.linlay.agentplatform.config.ProviderRegistryService;
+import com.linlay.agentplatform.service.llm.ProviderRegistryService;
+import com.linlay.agentplatform.service.mcp.McpServerRegistryService;
+import com.linlay.agentplatform.service.mcp.McpToolSyncService;
+import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
+import com.linlay.agentplatform.service.viewport.ViewportServerRegistryService;
+import com.linlay.agentplatform.service.viewport.ViewportSyncService;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.config.ViewportServerProperties;
@@ -499,7 +504,6 @@ public class DirectoryWatchService implements DisposableBean {
 
         String topLevel = relative.getName(1).toString().trim();
         if ("memory".equals(topLevel)
-                || "experiences".equals(topLevel)
                 || "tools".equals(topLevel)
                 || "skills".equals(topLevel)) {
             return;

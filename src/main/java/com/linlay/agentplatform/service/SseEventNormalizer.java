@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.config.FrontendToolProperties;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolRegistry;
+import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.util.StringUtils;
 

@@ -26,17 +26,6 @@ public final class YamlCatalogSupport {
             return List.of();
         }
 
-        List<Path> legacyJsonFiles = candidates.stream()
-                .filter(path -> hasExtension(path, ".json"))
-                .sorted(Comparator.comparing(path -> path.getFileName().toString()))
-                .toList();
-        if (!legacyJsonFiles.isEmpty()) {
-            throw new IllegalStateException(
-                    "Legacy JSON " + resourceLabel + " files are no longer supported: "
-                            + legacyJsonFiles.stream().map(Path::toString).toList()
-            );
-        }
-
         Map<String, List<Path>> byBaseName = new LinkedHashMap<>();
         for (Path candidate : candidates) {
             if (!isYamlFile(candidate)) {
@@ -153,13 +142,6 @@ public final class YamlCatalogSupport {
             return HeaderError.of("'" + expectedKey + "' does not support multi-line YAML scalars");
         }
         return HeaderError.empty();
-    }
-
-    private static boolean hasExtension(Path path, String extension) {
-        if (path == null || path.getFileName() == null) {
-            return false;
-        }
-        return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(extension);
     }
 
     private static boolean containsHiddenPathSegment(Path root, Path path) {

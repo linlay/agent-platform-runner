@@ -35,7 +35,6 @@ public class ExecutionContext {
     private final String memoryPrompt;
     private final String skillCatalogPrompt;
     private final Map<String, SkillDescriptor> resolvedSkillsById;
-    private final Map<String, String> skillExperiencePromptById;
     private final Map<String, ToolDescriptor> resolvedToolDescriptorsByName;
     private final Map<String, BaseTool> localNativeToolsByName;
     private final SkillAppend skillAppend;
@@ -63,7 +62,6 @@ public class ExecutionContext {
         this.memoryPrompt = StringUtils.hasText(builder.memoryPrompt) ? builder.memoryPrompt.trim() : "";
         this.skillCatalogPrompt = StringUtils.hasText(builder.skillCatalogPrompt) ? builder.skillCatalogPrompt.trim() : "";
         this.resolvedSkillsById = normalizeResolvedSkills(builder.resolvedSkillsById);
-        this.skillExperiencePromptById = normalizeSkillExperiencePrompts(builder.skillExperiencePromptById);
         this.resolvedToolDescriptorsByName = normalizeToolDescriptors(builder.resolvedToolDescriptorsByName);
         this.localNativeToolsByName = normalizeLocalTools(builder.localNativeToolsByName);
         this.skillAppend = builder.skillAppend == null ? SkillAppend.DEFAULTS : builder.skillAppend;
@@ -404,22 +402,6 @@ public class ExecutionContext {
         return normalized.isEmpty() ? Map.of() : Map.copyOf(normalized);
     }
 
-    private Map<String, String> normalizeSkillExperiencePrompts(Map<String, String> raw) {
-        if (raw == null || raw.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, String> normalized = new LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : raw.entrySet()) {
-            String key = normalizeSkillId(entry.getKey());
-            String value = entry.getValue();
-            if (!StringUtils.hasText(key) || !StringUtils.hasText(value)) {
-                continue;
-            }
-            normalized.putIfAbsent(key, value.trim());
-        }
-        return normalized.isEmpty() ? Map.of() : Map.copyOf(normalized);
-    }
-
     private Map<String, ToolDescriptor> normalizeToolDescriptors(Map<String, ToolDescriptor> raw) {
         if (raw == null || raw.isEmpty()) {
             return Map.of();
@@ -492,7 +474,6 @@ public class ExecutionContext {
         private String memoryPrompt = "";
         private String skillCatalogPrompt = "";
         private Map<String, SkillDescriptor> resolvedSkillsById = Map.of();
-        private Map<String, String> skillExperiencePromptById = Map.of();
         private Map<String, ToolDescriptor> resolvedToolDescriptorsByName = Map.of();
         private Map<String, BaseTool> localNativeToolsByName = Map.of();
         private SkillAppend skillAppend;
@@ -533,11 +514,6 @@ public class ExecutionContext {
 
         public Builder resolvedSkillsById(Map<String, SkillDescriptor> resolvedSkillsById) {
             this.resolvedSkillsById = resolvedSkillsById == null ? Map.of() : Map.copyOf(resolvedSkillsById);
-            return this;
-        }
-
-        public Builder skillExperiencePromptById(Map<String, String> skillExperiencePromptById) {
-            this.skillExperiencePromptById = skillExperiencePromptById == null ? Map.of() : Map.copyOf(skillExperiencePromptById);
             return this;
         }
 

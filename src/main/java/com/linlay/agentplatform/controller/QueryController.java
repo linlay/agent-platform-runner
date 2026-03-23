@@ -12,6 +12,7 @@ import com.linlay.agentplatform.model.api.SteerRequest;
 import com.linlay.agentplatform.model.api.SteerResponse;
 import com.linlay.agentplatform.model.api.SubmitRequest;
 import com.linlay.agentplatform.model.api.SubmitResponse;
+import com.linlay.agentplatform.security.ChatImageTokenHelper;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;

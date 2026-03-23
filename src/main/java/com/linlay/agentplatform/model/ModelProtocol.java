@@ -5,8 +5,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import java.util.Locale;
 
 public enum ModelProtocol {
-    OPENAI,
-    ANTHROPIC;
+    OPENAI;
 
     @JsonCreator
     public static ModelProtocol fromJson(String raw) {
@@ -16,7 +15,6 @@ public enum ModelProtocol {
         String normalized = raw.trim().replace('-', '_').toUpperCase(Locale.ROOT);
         return switch (normalized) {
             case "OPENAI" -> OPENAI;
-            case "ANTHROPIC" -> ANTHROPIC;
             default -> throw new IllegalArgumentException("Unsupported model protocol: " + raw);
         };
     }

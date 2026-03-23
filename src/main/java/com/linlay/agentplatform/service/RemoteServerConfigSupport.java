@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-final class RemoteServerConfigSupport {
+public final class RemoteServerConfigSupport {
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
     };
@@ -29,7 +29,7 @@ final class RemoteServerConfigSupport {
     private RemoteServerConfigSupport() {
     }
 
-    static List<ServerSpec> loadServerSpecs(Path dir, ObjectMapper objectMapper, Logger log) {
+    public static List<ServerSpec> loadServerSpecs(Path dir, ObjectMapper objectMapper, Logger log) {
         if (dir == null || objectMapper == null || !Files.isDirectory(dir)) {
             return List.of();
         }
@@ -40,7 +40,7 @@ final class RemoteServerConfigSupport {
         return List.copyOf(loaded);
     }
 
-    static List<ServerSpec> parseServerFile(Path file, ObjectMapper objectMapper, Logger log) {
+    public static List<ServerSpec> parseServerFile(Path file, ObjectMapper objectMapper, Logger log) {
         try {
             String raw = Files.readString(file);
             YamlCatalogSupport.HeaderError headerError = YamlCatalogSupport.validateHeader(
@@ -60,16 +60,16 @@ final class RemoteServerConfigSupport {
         return List.of();
     }
 
-    static String normalizeKey(String raw) {
+    public static String normalizeKey(String raw) {
         String text = normalizeText(raw);
         return StringUtils.hasText(text) ? text.toLowerCase(Locale.ROOT) : "";
     }
 
-    static String normalizeText(String raw) {
+    public static String normalizeText(String raw) {
         return raw == null ? "" : raw.trim();
     }
 
-    static String normalizeEndpointPath(String raw, String defaultPath) {
+    public static String normalizeEndpointPath(String raw, String defaultPath) {
         String normalized = normalizeText(raw);
         if (!StringUtils.hasText(normalized)) {
             normalized = StringUtils.hasText(defaultPath) ? defaultPath.trim() : "/mcp";
@@ -77,7 +77,7 @@ final class RemoteServerConfigSupport {
         return normalized.startsWith("/") ? normalized : "/" + normalized;
     }
 
-    static Map<String, String> normalizeStringMap(Map<String, String> source) {
+    public static Map<String, String> normalizeStringMap(Map<String, String> source) {
         if (source == null || source.isEmpty()) {
             return Map.of();
         }
@@ -93,7 +93,7 @@ final class RemoteServerConfigSupport {
         return Map.copyOf(normalized);
     }
 
-    static Map<String, String> normalizeAliasMap(Map<String, String> source) {
+    public static Map<String, String> normalizeAliasMap(Map<String, String> source) {
         if (source == null || source.isEmpty()) {
             return Map.of();
         }
@@ -109,7 +109,7 @@ final class RemoteServerConfigSupport {
         return Map.copyOf(normalized);
     }
 
-    static Integer parseInt(Object value) {
+    public static Integer parseInt(Object value) {
         if (value instanceof Number number) {
             return number.intValue();
         }
@@ -166,7 +166,7 @@ final class RemoteServerConfigSupport {
         return null;
     }
 
-    record ServerSpec(
+    public record ServerSpec(
             String serverKey,
             String baseUrl,
             String endpointPath,
@@ -178,12 +178,12 @@ final class RemoteServerConfigSupport {
             Map<String, String> headers,
             Map<String, String> aliasMap
     ) {
-        ServerSpec {
+        public ServerSpec {
             headers = headers == null ? Map.of() : Map.copyOf(headers);
             aliasMap = aliasMap == null ? Map.of() : Map.copyOf(aliasMap);
         }
 
-        Optional<String> normalizedServerKey() {
+        public Optional<String> normalizedServerKey() {
             String normalized = normalizeKey(serverKey);
             return StringUtils.hasText(normalized) ? Optional.of(normalized) : Optional.empty();
         }

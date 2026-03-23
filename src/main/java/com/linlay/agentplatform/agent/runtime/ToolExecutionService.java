@@ -224,13 +224,13 @@ public class ToolExecutionService {
         deltas.add(delta);
     }
 
-    public List<com.linlay.agentplatform.service.LlmService.LlmFunctionTool> enabledFunctionTools(Map<String, BaseTool> enabledToolsByName) {
+    public List<com.linlay.agentplatform.service.llm.LlmService.LlmFunctionTool> enabledFunctionTools(Map<String, BaseTool> enabledToolsByName) {
         if (enabledToolsByName == null || enabledToolsByName.isEmpty()) {
             return List.of();
         }
         return enabledToolsByName.values().stream()
                 .sorted(java.util.Comparator.comparing(BaseTool::name))
-                .map(tool -> new com.linlay.agentplatform.service.LlmService.LlmFunctionTool(
+                .map(tool -> new com.linlay.agentplatform.service.llm.LlmService.LlmFunctionTool(
                         normalizeToolName(tool.name()),
                         normalize(tool.description()),
                         tool.parametersSchema(),

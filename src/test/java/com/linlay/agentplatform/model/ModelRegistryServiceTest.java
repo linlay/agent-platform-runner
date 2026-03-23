@@ -2,7 +2,7 @@ package com.linlay.agentplatform.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.ProviderProperties;
-import com.linlay.agentplatform.config.ProviderRegistryService;
+import com.linlay.agentplatform.service.llm.ProviderRegistryService;
 import com.linlay.agentplatform.service.CatalogDiff;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -12,8 +12,6 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 class ModelRegistryServiceTest {
 
     @TempDir
@@ -147,11 +145,11 @@ class ModelRegistryServiceTest {
     }
 
     @Test
-    void shouldRejectAnthropicProtocolUntilImplemented() throws Exception {
+    void shouldRejectUnsupportedProtocol() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);
         Files.writeString(modelsDir.resolve("anthropic.yml"), """
-                key: anthropic-model
+                key: unsupported-model
                 provider: bailian
                 protocol: ANTHROPIC
                 modelId: claude-sonnet
@@ -163,7 +161,7 @@ class ModelRegistryServiceTest {
                 providerRegistry(Map.of("bailian", "https://example.com"))
         );
 
-        assertThat(service.find("anthropic-model")).isEmpty();
+        assertThat(service.find("unsupported-model")).isEmpty();
     }
 
     @Test
@@ -216,18 +214,25 @@ class ModelRegistryServiceTest {
     }
 
     @Test
-    void shouldFailFastOnLegacyJsonModelFile() throws Exception {
+    void shouldIgnoreLegacyJsonModelFile() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);
         Files.writeString(modelsDir.resolve("legacy.json"), "{\"key\":\"legacy\"}");
+        Files.writeString(modelsDir.resolve("valid.yml"), """
+                key: valid-model
+                provider: bailian
+                protocol: OPENAI
+                modelId: qwen3-max
+                """);
 
-        assertThatThrownBy(() -> new ModelRegistryService(
+        ModelRegistryService service = new ModelRegistryService(
                 new ObjectMapper(),
                 modelProperties(modelsDir),
                 providerRegistry(Map.of("bailian", "https://example.com"))
-        ))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Legacy JSON model files are no longer supported");
+        );
+
+        assertThat(service.find("legacy")).isEmpty();
+        assertThat(service.find("valid-model")).isPresent();
     }
 
     private ModelProperties modelProperties(Path modelsDir) {

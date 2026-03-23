@@ -23,7 +23,7 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.ContainerHubToolProperties;
-import com.linlay.agentplatform.service.McpToolSyncService;
+import com.linlay.agentplatform.service.mcp.McpToolSyncService;
 import com.linlay.agentplatform.config.ToolProperties;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

@@ -424,15 +424,7 @@ public class ChatWindowMemoryStore {
 
     private Path resolvePath(String chatId) {
         Path dir = Paths.get(properties.getDir()).toAbsolutePath().normalize();
-        Path jsonl = dir.resolve(chatId + ".jsonl");
-        if (Files.exists(jsonl)) {
-            return jsonl;
-        }
-        Path legacy = dir.resolve(chatId + ".json");
-        if (Files.exists(legacy)) {
-            return legacy;
-        }
-        return jsonl;
+        return dir.resolve(chatId + ".jsonl");
     }
 
     private Charset resolveCharset() {

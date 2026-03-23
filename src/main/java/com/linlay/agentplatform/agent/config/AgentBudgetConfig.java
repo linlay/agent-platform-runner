@@ -7,16 +7,8 @@ import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class AgentBudgetConfig {
-
-    private static final Set<String> LEGACY_FIELDS = Set.of(
-            "maxModelCalls",
-            "maxToolCalls",
-            "timeoutMs",
-            "retryCount"
-    );
 
     private Long runTimeoutMs;
     private ScopeConfig model;
@@ -62,12 +54,6 @@ public class AgentBudgetConfig {
     public Budget toBudget() {
         if (!unknownFields.isEmpty()) {
             List<String> names = unknownFields.keySet().stream().sorted().toList();
-            List<String> legacy = names.stream().filter(LEGACY_FIELDS::contains).toList();
-            if (!legacy.isEmpty()) {
-                throw new IllegalArgumentException(
-                        "budget legacy fields are not supported: " + String.join(", ", legacy)
-                );
-            }
             throw new IllegalArgumentException(
                     "budget contains unsupported fields: " + String.join(", ", names)
             );

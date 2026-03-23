@@ -3,7 +3,7 @@ package com.linlay.agentplatform.model;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.linlay.agentplatform.config.ProviderRegistryService;
+import com.linlay.agentplatform.service.llm.ProviderRegistryService;
 import com.linlay.agentplatform.service.CatalogDiff;
 import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
@@ -159,11 +159,6 @@ public class ModelRegistryService {
                 log.warn("Skip model '{}' with unsupported protocol in {}", key, file, ex);
                 return Optional.empty();
             }
-            if (protocol == ModelProtocol.ANTHROPIC) {
-                log.warn("Skip model '{}' with protocol '{}' because this protocol is not implemented yet: {}", key, protocol, file);
-                return Optional.empty();
-            }
-
             ModelDefinition.Pricing pricing = parsePricing(root.path("pricing"));
 
             return Optional.of(new ModelDefinition(

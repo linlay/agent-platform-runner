@@ -8,7 +8,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TeamRegistryServiceTest {
 
@@ -35,15 +34,18 @@ class TeamRegistryServiceTest {
     }
 
     @Test
-    void shouldFailFastOnLegacyJsonTeamFile() throws Exception {
+    void shouldIgnoreLegacyJsonTeamFile() throws Exception {
         Files.writeString(tempDir.resolve("a1b2c3d4e5f6.json"), "{\"name\":\"legacy\"}");
+        Files.writeString(tempDir.resolve("a1b2c3d4e5f6.yml"), """
+                name: Default Team
+                defaultAgentKey: demoModeReact
+                """);
 
         TeamProperties properties = new TeamProperties();
         properties.setExternalDir(tempDir.toString());
+        TeamRegistryService service = new TeamRegistryService(new ObjectMapper(), properties);
 
-        assertThatThrownBy(() -> new TeamRegistryService(new ObjectMapper(), properties))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Legacy JSON team files are no longer supported");
+        assertThat(service.find("a1b2c3d4e5f6")).isPresent();
     }
 
     @Test

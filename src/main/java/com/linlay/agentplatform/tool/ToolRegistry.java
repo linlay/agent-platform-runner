@@ -2,7 +2,7 @@ package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.linlay.agentplatform.config.ContainerHubToolProperties;
-import com.linlay.agentplatform.service.McpToolSyncService;
+import com.linlay.agentplatform.service.mcp.McpToolSyncService;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

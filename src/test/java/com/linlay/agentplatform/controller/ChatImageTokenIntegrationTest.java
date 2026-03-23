@@ -4,9 +4,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
-import com.linlay.agentplatform.service.ChatRecordStore;
-import com.linlay.agentplatform.service.LlmCallSpec;
-import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.service.chat.ChatRecordStore;
+import com.linlay.agentplatform.service.llm.LlmCallSpec;
+import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.testsupport.StubLlmService;
 import com.linlay.agentplatform.testsupport.TestCatalogFixtures;
 import com.nimbusds.jose.JOSEException;
@@ -420,7 +420,7 @@ class ChatImageTokenIntegrationTest {
                 "message", "show image",
                 "stream", true
         ));
-        writeJsonLine(chatDir.resolve(chatId + ".json"), queryLine);
+        writeJsonLine(chatDir.resolve(chatId + ".jsonl"), queryLine);
 
         Map<String, Object> stepLine = new LinkedHashMap<>();
         stepLine.put("_type", "step");
@@ -441,7 +441,7 @@ class ChatImageTokenIntegrationTest {
                         "ts", now + 1
                 )
         ));
-        writeJsonLine(chatDir.resolve(chatId + ".json"), stepLine);
+        writeJsonLine(chatDir.resolve(chatId + ".jsonl"), stepLine);
     }
 
     private String fetchChatImageToken(String chatId, String authToken) throws Exception {

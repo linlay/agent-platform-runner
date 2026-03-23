@@ -631,7 +631,7 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
-    void shouldFailFastOnLegacyJsonFiles() throws IOException {
+    void shouldIgnoreLegacyJsonFiles() throws IOException {
         Files.writeString(tempDir.resolve("legacy.json"), """
                 {
                   "key": "legacy",
@@ -640,10 +640,19 @@ class AgentDefinitionLoaderTest {
                   "description": "legacy"
                 }
                 """);
+        writeYaml("valid.yml", """
+                key: valid
+                name: Valid
+                role: Valid
+                description: valid
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: valid prompt
+                """);
 
-        assertThatThrownBy(this::loadById)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Legacy JSON agent files are no longer supported");
+        assertThat(loadById()).containsKey("valid");
     }
 
     @Test

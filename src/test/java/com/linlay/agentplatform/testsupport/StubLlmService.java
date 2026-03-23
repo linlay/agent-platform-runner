@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.testsupport;
 
-import com.linlay.agentplatform.service.LlmCallSpec;
-import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.service.llm.LlmCallSpec;
+import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import reactor.core.publisher.Flux;
 

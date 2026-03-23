@@ -23,12 +23,13 @@ import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
-import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.service.RunIdGenerator;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.BaseTool;
+import com.linlay.agentplatform.tool.ToolAdapters;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolFileRegistryService;
 import com.linlay.agentplatform.tool.ToolRegistry;
@@ -66,7 +67,6 @@ public class DefinitionDrivenAgent implements Agent {
     private final ObjectMapper objectMapper;
     private final SkillRegistryService skillRegistryService;
     private final AgentMemoryService agentMemoryService;
-    private final AgentExperienceService agentExperienceService;
     private final ActiveRunService activeRunService;
     private final ContainerHubSandboxService containerHubSandboxService;
     private final AgentRunSnapshotLogger snapshotLogger;
@@ -83,7 +83,6 @@ public class DefinitionDrivenAgent implements Agent {
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             AgentMemoryService agentMemoryService,
-            AgentExperienceService agentExperienceService,
             LoggingAgentProperties loggingAgentProperties,
             ToolInvoker toolInvoker,
             ActiveRunService activeRunService,
@@ -97,7 +96,6 @@ public class DefinitionDrivenAgent implements Agent {
         this.objectMapper = objectMapper;
         this.skillRegistryService = skillRegistryService;
         this.agentMemoryService = agentMemoryService;
-        this.agentExperienceService = agentExperienceService;
         this.activeRunService = activeRunService;
         this.containerHubSandboxService = containerHubSandboxService;
         this.runtimeContextPromptService = runtimeContextPromptService;
@@ -182,7 +180,6 @@ public class DefinitionDrivenAgent implements Agent {
                 frontendSubmitCoordinator,
                 skillRegistryService == null ? new SkillRegistryService(new com.linlay.agentplatform.skill.SkillProperties()) : skillRegistryService,
                 new AgentMemoryService(),
-                new AgentExperienceService(),
                 loggingAgentProperties,
                 toolInvoker,
                 activeRunService,
@@ -288,7 +285,6 @@ public class DefinitionDrivenAgent implements Agent {
                             latestSystem
                     );
                     SkillPromptBundle skillPromptBundle = resolveSkillPrompts();
-                    Map<String, String> skillExperiencePrompts = resolveSkillExperiencePrompts(skillPromptBundle.resolvedSkillsById());
                     String runtimeContextPrompt = buildRuntimeContextPrompt(request);
                     ExecutionContext context = ExecutionContext.builder(definition, request)
                             .historyMessages(historyMessages)
@@ -297,7 +293,6 @@ public class DefinitionDrivenAgent implements Agent {
                             .memoryPrompt(buildMemoryPrompt())
                             .skillCatalogPrompt(skillPromptBundle.catalogPrompt())
                             .resolvedSkillsById(skillPromptBundle.resolvedSkillsById())
-                            .skillExperiencePromptById(skillExperiencePrompts)
                             .resolvedToolDescriptorsByName(configuredToolDescriptorsByName)
                             .localNativeToolsByName(localNativeToolsByName)
                             .runControl(runControl)
@@ -344,9 +339,9 @@ public class DefinitionDrivenAgent implements Agent {
             ToolDescriptor descriptor = resolveToolDescriptor(name);
             if (descriptor == null) {
                 log.warn("[agent:{}] configured tool currently not registered, keep runtime placeholder: {}", id(), name);
-                resolved.put(name, ConfiguredToolAdapters.declaredPlaceholder(name));
+                resolved.put(name, ToolAdapters.declaredPlaceholder(name));
             } else {
-                resolved.put(name, ConfiguredToolAdapters.resolvedConfiguredTool(name, descriptor));
+                resolved.put(name, ToolAdapters.descriptorBacked(name, descriptor));
                 descriptors.put(name, descriptor);
             }
         }
@@ -431,26 +426,6 @@ public class DefinitionDrivenAgent implements Agent {
             }
         }
         return skillRegistryService.find(skillId).orElse(null);
-    }
-
-    private Map<String, String> resolveSkillExperiencePrompts(Map<String, SkillDescriptor> resolvedSkillsById) {
-        if (agentExperienceService == null || definition.agentDir() == null || resolvedSkillsById == null || resolvedSkillsById.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, String> prompts = new LinkedHashMap<>();
-        for (Map.Entry<String, SkillDescriptor> entry : resolvedSkillsById.entrySet()) {
-            String skillId = normalize(entry.getKey(), "").trim().toLowerCase(Locale.ROOT);
-            if (!StringUtils.hasText(skillId)) {
-                continue;
-            }
-            String prompt = agentExperienceService.formatForPrompt(
-                    agentExperienceService.loadExperiencesForSkill(definition.agentDir(), skillId)
-            );
-            if (StringUtils.hasText(prompt)) {
-                prompts.put(skillId, prompt);
-            }
-        }
-        return prompts.isEmpty() ? Map.of() : Map.copyOf(prompts);
     }
 
     private String buildBaseSystemPrompt() {

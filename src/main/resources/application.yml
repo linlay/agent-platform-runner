@@ -176,7 +176,7 @@ logging:
   level:
     root: INFO
     com.linlay.agentplatform: INFO
-    com.linlay.agentplatform.service.LlmService: DEBUG
-    com.linlay.agentplatform.service.OpenAiCompatibleSseClient: DEBUG
-    com.linlay.agentplatform.service.LlmCallLogger: DEBUG
+    com.linlay.agentplatform.service.llm.LlmService: DEBUG
+    com.linlay.agentplatform.service.llm.OpenAiCompatibleSseClient: DEBUG
+    com.linlay.agentplatform.service.llm.LlmCallLogger: DEBUG
     com.linlay.agentplatform.llm.wiretap: DEBUG

@@ -9,7 +9,7 @@ import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
-import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.SystemBash;
 import com.linlay.agentplatform.tool.TestSystemBashFactory;
@@ -141,14 +141,15 @@ class AgentRegistryTest {
     }
 
     @Test
-    void shouldFailFastOnLegacyJsonAgents() throws Exception {
+    void shouldIgnoreLegacyJsonAgents() throws Exception {
         Path agentsDir = tempDir.resolve("agents");
         Files.createDirectories(agentsDir);
         Files.writeString(agentsDir.resolve("legacy.json"), "{\"key\":\"legacy\"}");
+        writeOneshotAgent(agentsDir, "agent_one", "Agent One", "demo", "_bash_", "prompt");
 
-        assertThatThrownBy(() -> createRegistry(agentsDir))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Legacy JSON agent files are no longer supported");
+        AgentRegistry registry = createRegistry(agentsDir);
+
+        assertThat(registry.listIds()).containsExactly("agent_one");
     }
 
     @Test

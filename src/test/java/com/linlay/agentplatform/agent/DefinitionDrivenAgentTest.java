@@ -38,8 +38,8 @@ import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.service.AgentDeltaToStreamInputMapper;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
-import com.linlay.agentplatform.service.LlmCallSpec;
-import com.linlay.agentplatform.service.LlmService;
+import com.linlay.agentplatform.service.llm.LlmCallSpec;
+import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
@@ -575,7 +575,7 @@ class DefinitionDrivenAgentTest {
         ToolRegistry toolRegistry = new ToolRegistry(
                 List.of(),
                 beanFactory.getBeanProvider(ToolFileRegistryService.class),
-                beanFactory.getBeanProvider(com.linlay.agentplatform.service.McpToolSyncService.class),
+                beanFactory.getBeanProvider(com.linlay.agentplatform.service.mcp.McpToolSyncService.class),
                 containerHubProperties
         );
 

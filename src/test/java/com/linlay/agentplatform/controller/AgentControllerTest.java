@@ -7,12 +7,12 @@ import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.ActiveRunService;
-import com.linlay.agentplatform.service.ChatRecordStore;
+import com.linlay.agentplatform.service.chat.ChatRecordStore;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
-import com.linlay.agentplatform.service.LlmCallSpec;
-import com.linlay.agentplatform.service.LlmService;
-import com.linlay.agentplatform.service.McpToolSyncService;
-import com.linlay.agentplatform.service.ViewportRegistryService;
+import com.linlay.agentplatform.service.llm.LlmCallSpec;
+import com.linlay.agentplatform.service.llm.LlmService;
+import com.linlay.agentplatform.service.mcp.McpToolSyncService;
+import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.service.SseFlushWriter;
@@ -587,7 +587,7 @@ class AgentControllerTest {
                 mock(ChatRecordStore.class),
                 flushWriter,
                 mock(ViewportRegistryService.class),
-                mock(com.linlay.agentplatform.service.McpViewportService.class),
+                mock(com.linlay.agentplatform.service.mcp.McpViewportService.class),
                 mock(FrontendSubmitCoordinator.class),
                 mock(ActiveRunService.class),
                 mock(com.linlay.agentplatform.security.ChatImageTokenService.class),
@@ -1420,7 +1420,7 @@ class AgentControllerTest {
                 "message", "测试计划",
                 "stream", true
         ));
-        writeJsonLine(chatDir.resolve(chatId + ".json"), queryLine);
+        writeJsonLine(chatDir.resolve(chatId + ".jsonl"), queryLine);
 
         Map<String, Object> stepLine = new LinkedHashMap<>();
         stepLine.put("_type", "step");
@@ -1448,7 +1448,7 @@ class AgentControllerTest {
                         Map.of("taskId", "task1", "description", "执行任务", "status", "init")
                 )
         ));
-        writeJsonLine(chatDir.resolve(chatId + ".json"), stepLine);
+        writeJsonLine(chatDir.resolve(chatId + ".jsonl"), stepLine);
 
         byte[] responseBody = webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
@@ -1502,7 +1502,7 @@ class AgentControllerTest {
                 "message", "初始化计划",
                 "stream", true
         ));
-        writeJsonLine(chatDir.resolve(chatId + ".json"), queryLine);
+        writeJsonLine(chatDir.resolve(chatId + ".jsonl"), queryLine);
 
         Map<String, Object> stepLine = new LinkedHashMap<>();
         stepLine.put("_type", "step");
@@ -1530,7 +1530,7 @@ class AgentControllerTest {
                         Map.of("taskId", "task1", "description", "执行任务", "status", "init")
                 )
         ));
-        writeJsonLine(chatDir.resolve(chatId + ".json"), stepLine);
+        writeJsonLine(chatDir.resolve(chatId + ".jsonl"), stepLine);
 
         FluxExchangeResult<String> result = webTestClient.post()
                 .uri("/api/query")

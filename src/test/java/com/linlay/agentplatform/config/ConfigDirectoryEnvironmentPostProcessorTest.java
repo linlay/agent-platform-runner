@@ -112,30 +112,29 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
     }
 
     @Test
-    void shouldFailFastWhenDeprecatedDirectoryEnvVariableIsConfigured() {
+    void shouldIgnoreDeprecatedDirectoryEnvVariableWhenConfigured() {
         StandardEnvironment environment = environmentWithRequiredDirectories();
         environment.getPropertySources().addFirst(new MapPropertySource("deprecated", Map.of(
                 "AGENT_AGENTS_EXTERNAL_DIR", tempDir.resolve("agents").toString()
         )));
 
-        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("AGENT_AGENTS_EXTERNAL_DIR")
-                .hasMessageContaining("AGENTS_DIR");
+        processor.postProcessEnvironment(environment, new SpringApplication(Object.class));
+
+        assertThat(environment.getProperty("AGENT_AGENTS_EXTERNAL_DIR"))
+                .isEqualTo(tempDir.resolve("agents").toString());
     }
 
     @Test
-    void shouldFailFastWhenConfigsDirEnvVariableIsConfigured() {
+    void shouldIgnoreConfigsDirEnvVariableWhenConfigured() {
         StandardEnvironment environment = environmentWithRequiredDirectories();
         environment.getPropertySources().addFirst(new MapPropertySource("deprecated", Map.of(
                 ConfigDirectorySupport.CONFIG_DIR_ENV, tempDir.resolve("configs").toString()
         )));
 
-        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("CONFIGS_DIR")
-                .hasMessageContaining("fixed to './configs'")
-                .hasMessageContaining("must not be overridden");
+        processor.postProcessEnvironment(environment, new SpringApplication(Object.class));
+
+        assertThat(environment.getProperty(ConfigDirectorySupport.CONFIG_DIR_ENV))
+                .isEqualTo(tempDir.resolve("configs").toString());
     }
 
     @Test
