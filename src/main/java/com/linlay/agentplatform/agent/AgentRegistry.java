@@ -16,7 +16,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -31,7 +30,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Component
-@DependsOn("runtimeResourceSyncService")
 public class AgentRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(AgentRegistry.class);

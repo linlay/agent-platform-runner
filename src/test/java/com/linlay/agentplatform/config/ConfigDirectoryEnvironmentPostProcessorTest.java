@@ -147,20 +147,19 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
     }
 
     @Test
-    void shouldFailFastWhenRequiredSkillsDirectoryIsMissing() {
+    void shouldNotRequireSkillsOrSchedulesDirectoryConfiguration() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Files.createDirectories(projectDir);
         StandardEnvironment environment = new StandardEnvironment();
-        environment.getPropertySources().addFirst(new MapPropertySource("required", Map.of(
-                "SCHEDULES_DIR", tempDir.resolve("schedules").toString()
-        )));
 
-        assertThatThrownBy(() -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("SKILLS_MARKET_DIR")
-                .hasMessageContaining("skills market");
+        withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)));
+
+        assertThat(environment.getProperty("agent.skills.external-dir")).isNull();
+        assertThat(environment.getProperty("agent.schedule.external-dir")).isNull();
     }
 
     @Test
-    void shouldAllowExplicitPropertyFallbackForRequiredDirectories() throws Exception {
+    void shouldAllowExplicitPropertyOverridesForDirectories() throws Exception {
         Path projectDir = tempDir.resolve("project");
         Files.createDirectories(projectDir);
         StandardEnvironment environment = new StandardEnvironment();
@@ -176,12 +175,7 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
     }
 
     private StandardEnvironment environmentWithRequiredDirectories() {
-        StandardEnvironment environment = new StandardEnvironment();
-        environment.getPropertySources().addFirst(new MapPropertySource("required", Map.of(
-                "SKILLS_MARKET_DIR", tempDir.resolve("skills-market").toString(),
-                "SCHEDULES_DIR", tempDir.resolve("schedules").toString()
-        )));
-        return environment;
+        return new StandardEnvironment();
     }
 
     private static void withUserDir(Path userDir, ThrowingRunnable action) throws Exception {

@@ -46,10 +46,10 @@ services:
         source: ${VIEWPORT_SERVERS_DIR:-./runtime/viewport-servers}
         target: /opt/runtime/viewport-servers
       - type: bind
-        source: ${SKILLS_MARKET_DIR:?Set SKILLS_MARKET_DIR in .env}
+        source: ${SKILLS_MARKET_DIR:-./runtime/skills-market}
         target: /opt/runtime/skills-market
       - type: bind
-        source: ${SCHEDULES_DIR:?Set SCHEDULES_DIR in .env}
+        source: ${SCHEDULES_DIR:-./runtime/schedules}
         target: /opt/runtime/schedules
       - type: bind
         source: ${CHATS_DIR:-./runtime/chats}

@@ -133,11 +133,6 @@ class AgentSkillSyncServiceTest {
     @EnableConfigurationProperties(SkillProperties.class)
     static class AgentSkillSyncServiceContextConfiguration {
 
-        @Bean(name = "runtimeResourceSyncService")
-        Object runtimeResourceSyncService() {
-            return new Object();
-        }
-
         @Bean
         AgentSkillSyncService agentSkillSyncService(SkillProperties skillProperties) {
             return new AgentSkillSyncService(skillProperties);

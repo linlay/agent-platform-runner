@@ -40,7 +40,6 @@ import com.linlay.agentplatform.service.AgentDeltaToStreamInputMapper;
 import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.LlmCallSpec;
 import com.linlay.agentplatform.service.LlmService;
-import com.linlay.agentplatform.service.RuntimeResourceSyncService;
 import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
@@ -450,19 +449,6 @@ class DefinitionDrivenAgentTest {
 
     @Test
     void planExecuteShouldExposeSyncedPlanToolSchemasToModel(@TempDir Path tempDir) throws Exception {
-        Path skillsDir = tempDir.resolve("skills");
-        Path schedulesDir = tempDir.resolve("schedules");
-        SkillProperties skillProperties = new SkillProperties();
-        skillProperties.setExternalDir(skillsDir.toString());
-        ScheduleProperties scheduleProperties = new ScheduleProperties();
-        scheduleProperties.setExternalDir(schedulesDir.toString());
-
-        RuntimeResourceSyncService runtimeResourceSyncService = new RuntimeResourceSyncService(
-                skillProperties,
-                scheduleProperties
-        );
-        runtimeResourceSyncService.syncRuntimeDirectories();
-
         ToolFileRegistryService toolFileRegistryService = new ToolFileRegistryService(new ObjectMapper());
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();

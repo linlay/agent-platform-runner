@@ -40,10 +40,5 @@ class ToolFileRegistryServiceContextTest {
         ObjectMapper objectMapper() {
             return new ObjectMapper();
         }
-
-        @Bean("runtimeResourceSyncService")
-        Object runtimeResourceSyncService() {
-            return new Object();
-        }
     }
 }

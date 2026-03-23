@@ -20,11 +20,6 @@ import java.util.Map;
 
 public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 
-    private static final List<RequiredDirectoryProperty> REQUIRED_DIRECTORY_PROPERTIES = List.of(
-            new RequiredDirectoryProperty("SKILLS_MARKET_DIR", "agent.skills.external-dir", "skills market"),
-            new RequiredDirectoryProperty("SCHEDULES_DIR", "agent.schedule.external-dir", "schedule")
-    );
-
     private static final List<String> TOP_LEVEL_FILES = List.of(
             "auth.yml",
             "container-hub.yml",
@@ -49,7 +44,6 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
         RuntimeDirectoryEnvironmentSupport.validateNoUnsupportedDirectoryVariables(environment);
         RuntimeDirectoryEnvironmentSupport.validateNoDeprecatedDirectoryVariables(environment);
         RuntimeDirectoryEnvironmentSupport.validateNoDeprecatedProperties(environment);
-        validateRequiredDirectoryProperties(environment);
         Path configDir = ConfigDirectorySupport.resolveConfigDirectory().orElse(null);
         if (configDir == null || !Files.isDirectory(configDir)) {
             return;
@@ -70,24 +64,6 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
     @Override
     public int getOrder() {
         return Ordered.LOWEST_PRECEDENCE;
-    }
-
-    private void validateRequiredDirectoryProperties(ConfigurableEnvironment environment) {
-        if (environment == null) {
-            return;
-        }
-        for (RequiredDirectoryProperty required : REQUIRED_DIRECTORY_PROPERTIES) {
-            String configured = environment.getProperty(required.envVar());
-            if (!org.springframework.util.StringUtils.hasText(configured)) {
-                configured = environment.getProperty(required.propertyKey());
-            }
-            if (org.springframework.util.StringUtils.hasText(configured)) {
-                continue;
-            }
-            throw new IllegalStateException("Missing required " + required.label()
-                    + " directory configuration. Set '" + required.envVar()
-                    + "' in .env or environment before startup.");
-        }
     }
 
     private boolean isRuntimeYamlFile(Path file) {
@@ -214,12 +190,5 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
         MapPropertySource bootstrap = new MapPropertySource("config-directory-bootstrap", java.util.Map.of());
         propertySources.addFirst(bootstrap);
         return bootstrap.getName();
-    }
-
-    private record RequiredDirectoryProperty(
-            String envVar,
-            String propertyKey,
-            String label
-    ) {
     }
 }

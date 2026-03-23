@@ -86,7 +86,7 @@ ARCH=amd64 make release
 - 宿主机构建产物：`target/*.jar`
 - 配置模板：`configs/*.example.yml`
 - 配置模板：`configs/**/*.example.*`
-- runtime 目录骨架：`runtime/agents`、`runtime/teams`、`runtime/models`、`runtime/providers`、`runtime/mcp-servers`、`runtime/viewport-servers`、`runtime/chats`、`runtime/root`、`runtime/pan`
+- runtime 目录骨架：`runtime/agents`、`runtime/teams`、`runtime/models`、`runtime/providers`、`runtime/mcp-servers`、`runtime/viewport-servers`、`runtime/skills-market`、`runtime/schedules`、`runtime/chats`、`runtime/root`、`runtime/pan`
 
 脚本会强校验版本格式：
 
@@ -242,12 +242,14 @@ agent-platform-runner/
     providers/
     mcp-servers/
     viewport-servers/
+    skills-market/
+    schedules/
     chats/
     root/
     pan/
 ```
 
-其中 `SKILLS_MARKET_DIR` 与 `SCHEDULES_DIR` 由 `.env` 显式指定；若指向 `./runtime/...`，启动脚本会在首次启动时自动创建。
+其中 `SKILLS_MARKET_DIR` 与 `SCHEDULES_DIR` 默认为 `./runtime/...`，也可以在 `.env` 中覆盖为任意宿主机路径；启动脚本会自动创建最终生效的目录。
 
 部署启动后，还会在本地生成或补充：
 

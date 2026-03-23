@@ -464,7 +464,7 @@ schedules/<schedule-id>.yml
 - `query` 必须是对象；支持字段：`requestId`、`chatId`、`role`、`message`、`references`、`params`、`scene`、`hidden`，其中 `message` 必填。
 - `query.stream` 不支持；`query.agentKey` / `query.teamId` 也不支持，仍使用顶层字段。
 - 不再支持旧扁平格式：顶层字符串 `query`、顶层 `params`、仅配置 `teamId`。
-- 启动时会同步内置 `src/main/resources/schedules/**` 到运行目录 `schedules/`。
+- 不再同步任何内置 schedule 资源；内容完全来自运行目录 `schedules/` 或 `SCHEDULES_DIR` 覆盖目录。
 - 热加载：仅监听运行目录 `schedules/` 的文件变化，并做增量重编排。
 - 触发执行：内部构造一次 `QueryRequest`（`stream=false`）；若配置 `query.chatId` 则继续该会话，否则新建 UUID。
 
@@ -739,12 +739,12 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `AGENT_CONTAINER_HUB_DEFAULT_SANDBOX_LEVEL` | `agent.tools.container-hub.default-sandbox-level` | `run` | 全局默认沙箱级别 |
 | `AGENT_CONTAINER_HUB_AGENT_IDLE_TIMEOUT_MS` | `agent.tools.container-hub.agent-idle-timeout-ms` | `600000` | agent 级别空闲驱逐超时（ms） |
 | `AGENT_CONTAINER_HUB_DESTROY_QUEUE_DELAY_MS` | `agent.tools.container-hub.destroy-queue-delay-ms` | `5000` | run 级别异步销毁延迟（ms） |
-| `ROOT_DIR` | `agent.root.external-dir` | `root` | 容器 `/root` 对应的 runner 根目录 |
-| `PAN_DIR` | `agent.pan.external-dir` | `pan` | 容器 `/pan` 对应的 runner 目录 |
-| `SKILLS_MARKET_DIR` | `agent.skills.external-dir` | `skills-market` | 技能目录 |
+| `ROOT_DIR` | `agent.root.external-dir` | `runtime/root` | 容器 `/root` 对应的 runner 根目录 |
+| `PAN_DIR` | `agent.pan.external-dir` | `runtime/pan` | 容器 `/pan` 对应的 runner 目录 |
+| `SKILLS_MARKET_DIR` | `agent.skills.external-dir` | `runtime/skills-market` | 技能目录 |
 | `AGENT_SKILLS_REFRESH_INTERVAL_MS` | `agent.skills.refresh-interval-ms` | `30000` | 技能刷新间隔（ms） |
 | `AGENT_SKILLS_MAX_PROMPT_CHARS` | `agent.skills.max-prompt-chars` | `8000` | 技能 prompt 最大字符数 |
-| `SCHEDULES_DIR` | `agent.schedule.external-dir` | `schedules` | 计划任务目录 |
+| `SCHEDULES_DIR` | `agent.schedule.external-dir` | `runtime/schedules` | 计划任务目录 |
 | `AGENT_SCHEDULE_ENABLED` | `agent.schedule.enabled` | `true` | 计划任务总开关 |
 | `AGENT_SCHEDULE_DEFAULT_ZONE_ID` | `agent.schedule.default-zone-id` | 系统时区 | 计划任务默认时区 |
 | `AGENT_SCHEDULE_POOL_SIZE` | `agent.schedule.pool-size` | `4` | 计划任务线程池大小 |
@@ -771,7 +771,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `CHAT_IMAGE_TOKEN_PREVIOUS_SECRETS` | `agent.chat-image-token.previous-secrets` | （空） | 历史密钥列表（逗号分隔），用于密钥轮换验证 |
 | `CHAT_IMAGE_TOKEN_TTL_SECONDS` | `agent.chat-image-token.ttl-seconds` | `86400` | 图片令牌过期秒数 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `agent.chat-image-token.data-token-validation-enabled` | `true` | `/api/data` 的 `t` 参数校验开关 |
-| `CHATS_DIR` | `memory.chats.dir` | `./chats` | 聊天记忆目录 |
+| `CHATS_DIR` | `memory.chats.dir` | `runtime/chats` | 聊天记忆目录 |
 | `MEMORY_CHATS_K` | `memory.chats.k` | `20` | 滑动窗口大小（按 run） |
 | `MEMORY_CHATS_CHARSET` | `memory.chats.charset` | `UTF-8` | 记忆文件编码 |
 | `MEMORY_CHATS_ACTION_TOOLS` | `memory.chats.action-tools` | （空） | action 工具白名单 |

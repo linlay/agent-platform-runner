@@ -41,8 +41,8 @@ class RunnerDirectoryPropertiesBindingTest {
             assertThat(context.getBean(ModelProperties.class).getExternalDir()).isEqualTo("runtime/models");
             assertThat(context.getBean(ProviderProperties.class).getExternalDir()).isEqualTo("runtime/providers");
             assertThat(context.getBean(ToolProperties.class).getExternalDir()).isNull();
-            assertThat(context.getBean(SkillProperties.class).getExternalDir()).isNull();
-            assertThat(context.getBean(ScheduleProperties.class).getExternalDir()).isNull();
+            assertThat(context.getBean(SkillProperties.class).getExternalDir()).isEqualTo("runtime/skills-market");
+            assertThat(context.getBean(ScheduleProperties.class).getExternalDir()).isEqualTo("runtime/schedules");
             assertThat(context.getBean(ViewportProperties.class).getExternalDir()).isNull();
             assertThat(context.getBean(McpProperties.class).getRegistry().getExternalDir()).isEqualTo("runtime/mcp-servers");
             assertThat(context.getBean(ViewportServerProperties.class).getRegistry().getExternalDir()).isEqualTo("runtime/viewport-servers");
@@ -50,6 +50,19 @@ class RunnerDirectoryPropertiesBindingTest {
             assertThat(context.getBean(PanProperties.class).getExternalDir()).isEqualTo("runtime/pan");
             assertThat(context.getBean(ChatWindowMemoryProperties.class).getDir()).isEqualTo("runtime/chats");
         });
+    }
+
+    @Test
+    void shouldAllowExplicitSkillAndScheduleOverrides() {
+        contextRunner
+                .withPropertyValues(
+                        "agent.skills.external-dir=/tmp/skills-market",
+                        "agent.schedule.external-dir=/tmp/schedules"
+                )
+                .run(context -> {
+                    assertThat(context.getBean(SkillProperties.class).getExternalDir()).isEqualTo("/tmp/skills-market");
+                    assertThat(context.getBean(ScheduleProperties.class).getExternalDir()).isEqualTo("/tmp/schedules");
+                });
     }
 
     @Configuration(proxyBeanMethods = false)

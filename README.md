@@ -276,7 +276,7 @@ docker compose up -d --build
 
 - `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
-- 运行时业务目录建议放到仓库外，通过 `.env` 的 `*_DIR` 指向宿主机路径；其中 `SKILLS_MARKET_DIR`、`SCHEDULES_DIR` 为必填。
+- 运行时业务目录既可以保留在仓库内默认的 `./runtime/*`，也可以通过 `.env` 的 `*_DIR` 指向宿主机其他路径覆盖默认值。
 - `compose.yml` 会把 `.env` 中的 `*_DIR` 变量用于宿主机 bind mount，同时在容器内把同名变量固定为 `/opt/...` 路径；因此同一份 `.env` 可以同时服务 `make run` 和 `docker compose`。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
@@ -595,22 +595,19 @@ contextConfig:
   - providers: `runtime/providers/`
   - mcp-servers: `runtime/mcp-servers/`
   - viewport-servers: `runtime/viewport-servers/`
-  - skills-market: 通过 `SKILLS_MARKET_DIR` 显式配置
-  - schedules: 通过 `SCHEDULES_DIR` 显式配置
+  - skills-market: `runtime/skills-market/`（可通过 `SKILLS_MARKET_DIR` 覆盖）
+  - schedules: `runtime/schedules/`（可通过 `SCHEDULES_DIR` 覆盖）
   - chats: `runtime/chats/`
   - root: `runtime/root/`
   - pan: `runtime/pan/`
-- 启动时仅同步系统内置 `src/main/resources/skills|schedules` 到外部目录：
-  - `SKILLS_MARKET_DIR`
-  - `SCHEDULES_DIR`
-- runner 不再附带任何 demo/example 业务资源；内置 tool 与 viewport 固定来自 `src/main/resources`，外部 skill 与 schedule 通过显式目录提供，其余 agents、teams、models、providers、mcp-servers、viewport-servers 仍由外部目录提供。
+- runner 不再同步任何内置 skill / schedule 资源；内置 tool 与 viewport 固定来自 `src/main/resources`，skill 与 schedule 始终来自运行目录或 `*_DIR` 覆盖目录，其余 agents、teams、models、providers、mcp-servers、viewport-servers 仍由外部目录提供。
 - 目录监听热重载策略：
   - `runtime/agents/` 变更：全量刷新 agent 定义。
   - `runtime/mcp-servers/` 变更：刷新 mcp server 与 mcp tool registry，并按依赖精准刷新受影响 agent。
   - `runtime/viewport-servers/` 变更：刷新 viewport server 与远端 viewport registry，不触发 agent reload。
   - `runtime/models/` 变更：刷新 model registry，并按 `modelKey` 依赖精准刷新受影响 agent。
-  - `SKILLS_MARKET_DIR` 指向目录变更：仅刷新 skill registry，不触发 agent reload。
-  - `SCHEDULES_DIR` 指向目录变更：刷新计划任务 registry，并增量重编排 cron 触发器。
+  - `runtime/skills-market/`（或 `SKILLS_MARKET_DIR` 覆盖目录）变更：仅刷新 skill registry，不触发 agent reload。
+  - `runtime/schedules/`（或 `SCHEDULES_DIR` 覆盖目录）变更：刷新计划任务 registry，并增量重编排 cron 触发器。
 - 运行中一致性：当前进行中的 run 保持旧快照；reload 后仅新 run 使用新配置。
 - 内置 `viewports` 支持后缀：`.html`、`.qlc`，默认每 30 秒刷新内存快照。
 - `tools`:
@@ -685,13 +682,9 @@ contextConfig:
 ### 系统内置资源
 
 - `tools/`：仅保留系统内置工具定义，例如 `_bash_`、`datetime`、`container_hub_bash`、plan tools、`confirm_dialog`。
-- `skills/`：当前仅内置 `container_hub_validation`。
-- `schedules/`：当前仅保留占位用的内置 schedule，用于验证同步链路与调度加载。
+- `viewports/`：保留系统内置 viewport 模板。
+- skill 与 schedule 不再提供任何内置 starter 内容，完全由 `runtime/skills-market/`、`runtime/schedules/` 或对应 `*_DIR` 覆盖目录提供。
 - runner 不再分发任何内置 demo viewport、UI action tool 或示例 agent。
-
-### 内置 Skills
-
-- `container_hub_validation`：Container Hub RUN 沙箱验证清单，要求先做 Bash smoke，再用容器内 Python 写文件。
 
 ### Java 内置工具
 
@@ -825,10 +818,10 @@ for f in *.md; do echo "$f"; done
 | `PROVIDERS_DIR` | `providers` | Provider 定义目录 |
 | `MCP_SERVERS_DIR` | `mcp-servers` | MCP server 注册目录 |
 | `VIEWPORT_SERVERS_DIR` | `viewport-servers` | Viewport server 注册目录 |
-| `SKILLS_MARKET_DIR` | 必填 | Skill market 目录 |
-| `SCHEDULES_DIR` | 必填 | Schedule 目录 |
+| `SKILLS_MARKET_DIR` | `runtime/skills-market` | Skill market 目录 |
+| `SCHEDULES_DIR` | `runtime/schedules` | Schedule 目录 |
 | `DATA_DIR` | `data` | 静态文件目录 |
-| `CHATS_DIR` | `./chats` | 聊天记忆目录 |
+| `CHATS_DIR` | `runtime/chats` | 聊天记忆目录 |
 | `AGENT_SCHEDULE_ENABLED` | `true` | 计划任务总开关 |
 | `AGENT_SCHEDULE_DEFAULT_ZONE_ID` | 系统时区 | 计划任务默认时区 |
 | `AGENT_SCHEDULE_POOL_SIZE` | `4` | 计划任务线程池大小 |

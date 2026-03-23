@@ -6,8 +6,6 @@ import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.core.io.support.ResourcePatternResolver;
@@ -25,7 +23,6 @@ import java.util.Optional;
 import java.util.Set;
 
 @Service
-@DependsOn("runtimeResourceSyncService")
 public class ViewportRegistryService {
 
     private static final Logger log = LoggerFactory.getLogger(ViewportRegistryService.class);

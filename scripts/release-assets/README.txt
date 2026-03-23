@@ -2,7 +2,7 @@ agent-platform-runner release bundle
 ===================================
 
 1. Copy `.env.example` to `.env`.
-2. Adjust `.env` as needed. `SKILLS_MARKET_DIR` and `SCHEDULES_DIR` are required; the provided defaults under `./runtime/*` work out of the box.
+2. Adjust `.env` as needed. `SKILLS_MARKET_DIR` and `SCHEDULES_DIR` default to `./runtime/*`, and you may override them to any external host paths.
 3. Copy the config templates you need under `configs/`, for example:
    - `configs/container-hub.example.yml` -> `configs/container-hub.yml`
    - `configs/bash.example.yml` -> `configs/bash.yml`
@@ -15,4 +15,4 @@ agent-platform-runner release bundle
 Bundle contents:
 - `images/agent-platform-runner.tar`: offline Docker image
 - `configs/`: safe-to-distribute config templates only
-- `runtime/`: empty runtime directory skeleton for the core host-mounted directories; `SKILLS_MARKET_DIR` and `SCHEDULES_DIR` are created from `.env` on startup
+- `runtime/`: empty runtime directory skeleton for the core host-mounted directories, including default `skills-market/` and `schedules/`

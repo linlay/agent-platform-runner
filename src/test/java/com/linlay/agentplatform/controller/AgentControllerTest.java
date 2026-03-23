@@ -333,16 +333,15 @@ class AgentControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data[0].key").exists()
                 .jsonPath("$.data[0].meta.promptTruncated").isBoolean()
-                .jsonPath("$.data[?(@.key=='container_hub_validation')]").exists()
                 .jsonPath("$.data[?(@.key=='docx')]").exists();
 
         webTestClient.get()
-                .uri(uriBuilder -> uriBuilder.path("/api/skills").queryParam("tag", "container").build())
+                .uri(uriBuilder -> uriBuilder.path("/api/skills").queryParam("tag", "docx").build())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data[?(@.key=='container_hub_validation')]").exists();
+                .jsonPath("$.data[?(@.key=='docx')]").exists();
     }
 
     @Test

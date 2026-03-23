@@ -2,7 +2,6 @@ package com.linlay.agentplatform.skill;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import com.linlay.agentplatform.service.CatalogDiff;
@@ -20,7 +19,6 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 @Service
-@DependsOn("runtimeResourceSyncService")
 public class SkillRegistryService {
 
     private static final Logger log = LoggerFactory.getLogger(SkillRegistryService.class);
