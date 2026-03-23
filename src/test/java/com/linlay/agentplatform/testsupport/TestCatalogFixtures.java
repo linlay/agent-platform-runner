@@ -163,7 +163,7 @@ public final class TestCatalogFixtures {
                       modelKey: bailian-qwen3-max
                     toolConfig:
                       backends:
-                        - container_hub_bash
+                        - sandbox_bash
                     mode: REACT
                     react:
                       systemPrompt: 使用 container hub 验证沙箱
@@ -222,7 +222,7 @@ public final class TestCatalogFixtures {
                       modelKey: bailian-qwen3-max
                     toolConfig:
                       backends:
-                        - container_hub_bash
+                        - sandbox_bash
                     skillConfig:
                       skills:
                         - docx

@@ -527,7 +527,7 @@ public class AgentQueryService {
         String level = resolveSandboxLevel(definition);
         boolean usesContainerHubTool = definition != null
                 && definition.tools() != null
-                && definition.tools().stream().anyMatch("container_hub_bash"::equals);
+                && definition.tools().stream().anyMatch("sandbox_bash"::equals);
         List<String> extraMounts = summarizeExtraMounts(definition);
         ContainerHubClient.EnvironmentAgentPromptResult promptResult = fetchSandboxPrompt(
                 effectiveEnvironmentId,

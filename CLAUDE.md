@@ -118,7 +118,7 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 | `model.api` | REST 契约：`ApiResponse`、`QueryRequest`、`SubmitRequest`、`SteerRequest`、`InterruptRequest`、`ChatDetailResponse` 等 |
 | `model.stream` | 流式领域模型：`AgentDelta`、`ToolCallDelta`、SSE payload 映射 |
 | `service` | `LlmService`、`AgentQueryService`、`ActiveRunService`、`ChatRecordStore`、`DirectoryWatchService`、MCP 同步与重连 |
-| `tool` | `BaseTool`、`ToolRegistry`、`ToolFileRegistryService`、内置 `_bash_` / `datetime` / `container_hub_bash` 等 |
+| `tool` | `BaseTool`、`ToolRegistry`、`ToolFileRegistryService`、内置 `_bash_` / `datetime` / `sandbox_bash` 等 |
 | `skill` | `SkillRegistryService`、`SkillDescriptor`、`SkillProperties`、运行时 prompt 注入 |
 | `schedule` | Schedule 注册、增量 reconcile、Cron dispatch |
 | `security` | `ApiJwtAuthWebFilter`、`ChatImageTokenService`、JWT/JWKS 本地与远程校验 |
@@ -384,7 +384,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 ### 内置工具
 
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
-- `container_hub_bash`：在 Container Hub 沙箱环境中执行命令，受 `sandboxConfig` 与 `agent.tools.container-hub.*` 控制。
+- `sandbox_bash`：在 Container Hub 沙箱环境中执行命令，受 `sandboxConfig` 与 `agent.tools.container-hub.*` 控制。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
 - `mock_city_weather`：模拟城市天气数据。
 - `agent_file_create`：创建 / 更新 agent YAML 文件。
@@ -732,7 +732,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `AGENT_BASH_SHELL_TIMEOUT_MS` | `agent.tools.bash.shell-timeout-ms` | `10000` | Shell 模式超时（ms） |
 | `AGENT_BASH_MAX_COMMAND_CHARS` | `agent.tools.bash.max-command-chars` | `16000` | Bash 命令最大字符数 |
 | `AGENT_CONTAINER_HUB_ENABLED` | `agent.tools.container-hub.enabled` | `false` | 是否启用 Container Hub 沙箱 |
-| `AGENT_CONTAINER_HUB_BASE_URL` | `agent.tools.container-hub.base-url` | `http://127.0.0.1:8080` | Container Hub 服务地址 |
+| `AGENT_CONTAINER_HUB_BASE_URL` | `agent.tools.container-hub.base-url` | `模板示例: http://host.docker.internal:11960；代码默认: http://127.0.0.1:8080` | Container Hub 服务地址 |
 | `AGENT_CONTAINER_HUB_AUTH_TOKEN` | `agent.tools.container-hub.auth-token` | （空） | Container Hub Bearer Token |
 | `AGENT_CONTAINER_HUB_DEFAULT_ENVIRONMENT_ID` | `agent.tools.container-hub.default-environment-id` | （空） | 默认环境 ID |
 | `AGENT_CONTAINER_HUB_REQUEST_TIMEOUT_MS` | `agent.tools.container-hub.request-timeout-ms` | `30000` | Container Hub HTTP 调用超时（ms） |

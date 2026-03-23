@@ -274,12 +274,13 @@ docker compose up -d --build
 
 约定：
 
-- `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
+- `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`、`AGENT_CONTAINER_HUB_BASE_URL`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
 - 运行时业务目录既可以保留在仓库内默认的 `./runtime/*`，也可以通过 `.env` 的 `*_DIR` 指向宿主机其他路径覆盖默认值。
 - `compose.yml` 会把 `.env` 中的 `*_DIR` 变量用于宿主机 bind mount，同时在容器内把同名变量固定为 `/opt/...` 路径；因此同一份 `.env` 可以同时服务 `make run` 和 `docker compose`。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
+- `.env.example` 默认把 `AGENT_CONTAINER_HUB_BASE_URL` 指向 `http://host.docker.internal:11960`，用于容器内访问宿主机上的 Container Hub；compose 同时注入 `host.docker.internal:host-gateway` 以兼容 Linux Docker。
 - `compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（compose 会显式覆盖 `SERVER_PORT=8080`）。
@@ -682,7 +683,7 @@ contextConfig:
 
 ### 系统内置资源
 
-- `tools/`：仅保留系统内置工具定义，例如 `_bash_`、`datetime`、`container_hub_bash`、plan tools、`confirm_dialog`。
+- `tools/`：仅保留系统内置工具定义，例如 `_bash_`、`datetime`、`sandbox_bash`、plan tools、`confirm_dialog`。
 - `viewports/`：保留系统内置 viewport 模板。
 - skill 与 schedule 不再提供任何内置 starter 内容，完全由 `runtime/skills-market/`、`runtime/schedules/` 或对应 `*_DIR` 覆盖目录提供。
 - runner 不再分发任何内置 demo viewport、UI action tool 或示例 agent。
@@ -694,20 +695,20 @@ contextConfig:
 
 ## Container Hub 工具说明
 
-`container_hub_bash` 是 runner 内置的 native/local backend tool，不是 MCP tool。它不会经过 `McpToolInvoker` 或 `mcp-servers/*.yml` 注册链路，而是通过 `ContainerHubClient` 直接请求 `agent-container-hub` 的 `/api/sessions/create`、`/api/sessions/{id}/execute`、`/api/sessions/{id}/stop` REST 接口。
+`sandbox_bash` 是 runner 内置的本地 backend tool，用于在沙箱容器中执行命令。
 
 配置前缀固定为：
 
 ```yaml
 enabled: true
-base-url: http://127.0.0.1:8080
+base-url: ${AGENT_CONTAINER_HUB_BASE_URL:http://host.docker.internal:11960}
 default-environment-id: shell
 ```
 
 说明：
 
-- `meta.sourceType` 在 `/api/tools` 与 `/api/tool?toolName=container_hub_bash` 中应表现为 `local`。
-- 该工具的职责是把 runner 的 tool call 桥接为 `agent-container-hub` 的 HTTP session API，而不是提供一个 MCP transport 封装。
+- `meta.sourceType` 在 `/api/tools` 与 `/api/tool?toolName=sandbox_bash` 中应表现为 `local`。
+- 建议通过 `.env` 中的 `AGENT_CONTAINER_HUB_BASE_URL` 配置 Container Hub 地址；容器化部署模板默认使用 `http://host.docker.internal:11960`。
 - `RUN` 级 sandbox 在创建 session 前会自动准备 `CHATS_DIR/<chatId>` 目录，并把它挂载到容器内的 `/workspace`。
 - `/root` 与 `/pan` 分别来自 runner 全局目录 `ROOT_DIR` 与 `PAN_DIR`；`configs/container-hub.yml` 不再单独配置挂载源目录。
 

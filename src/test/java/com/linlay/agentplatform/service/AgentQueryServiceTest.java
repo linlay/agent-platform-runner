@@ -372,7 +372,7 @@ class AgentQueryServiceTest {
         AgentDefinition definition = agentDefinition(
                 "demo-agent",
                 List.of(RuntimeContextTags.SANDBOX, RuntimeContextTags.ALL_AGENTS),
-                List.of("container_hub_bash"),
+                List.of("sandbox_bash"),
                 List.of("docx"),
                 "daily-office"
         );
@@ -388,7 +388,7 @@ class AgentQueryServiceTest {
         when(agent.role()).thenReturn("Demo Role");
         when(agent.description()).thenReturn("Demo Description");
         when(agent.mode()).thenReturn(AgentRuntimeMode.ONESHOT);
-        when(agent.tools()).thenReturn(List.of("container_hub_bash"));
+        when(agent.tools()).thenReturn(List.of("sandbox_bash"));
         when(agent.skills()).thenReturn(List.of("docx"));
         when(agent.definition()).thenReturn(Optional.of(definition));
         when(otherAgent.id()).thenReturn("writer");
@@ -459,7 +459,7 @@ class AgentQueryServiceTest {
         AgentDefinition definition = agentDefinition(
                 "demo-agent",
                 List.of(RuntimeContextTags.SANDBOX),
-                List.of("container_hub_bash"),
+                List.of("sandbox_bash"),
                 List.of(),
                 "daily-office"
         );

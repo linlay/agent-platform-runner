@@ -211,7 +211,7 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 toolConfig:
                   backends:
-                    - container_hub_bash
+                    - sandbox_bash
                 sandboxConfig:
                   environmentId: shell
                 mode: ONESHOT
@@ -222,7 +222,7 @@ class AgentDefinitionLoaderTest {
         AgentDefinition definition = loadById().get("sandboxed");
 
         assertThat(definition).isNotNull();
-        assertThat(definition.tools()).contains("container_hub_bash");
+        assertThat(definition.tools()).contains("sandbox_bash");
         assertThat(definition.sandboxConfig().environmentId()).isEqualTo("shell");
     }
 
@@ -237,7 +237,7 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 toolConfig:
                   backends:
-                    - container_hub_bash
+                    - sandbox_bash
                 sandboxConfig:
                   environmentId: shell
                   level: agent
@@ -266,7 +266,7 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 toolConfig:
                   backends:
-                    - container_hub_bash
+                    - sandbox_bash
                 sandboxConfig:
                   environmentId: shell
                   level: agent
@@ -304,7 +304,7 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.name()).isEqualTo("Sandbox Validator");
-        assertThat(definition.tools()).containsExactly("container_hub_bash");
+        assertThat(definition.tools()).containsExactly("sandbox_bash");
         assertThat(definition.skills()).isEmpty();
         assertThat(definition.sandboxConfig()).isNotNull();
         assertThat(definition.sandboxConfig().environmentId()).isNull();
@@ -325,7 +325,7 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.name()).isEqualTo("Daily Office Assistant");
-        assertThat(definition.tools()).containsExactly("container_hub_bash");
+        assertThat(definition.tools()).containsExactly("sandbox_bash");
         assertThat(definition.skills()).containsExactly("docx", "pptx");
         assertThat(definition.sandboxConfig()).isNotNull();
         assertThat(definition.sandboxConfig().environmentId()).isNull();

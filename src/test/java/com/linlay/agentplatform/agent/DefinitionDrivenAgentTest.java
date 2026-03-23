@@ -549,9 +549,9 @@ class DefinitionDrivenAgentTest {
     void disabledContainerHubToolShouldBeExcludedFromEffectiveAgentToolsAndLlmSchema(@TempDir Path tempDir) throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("container_hub_bash.yml"), """
-                name: container_hub_bash
-                label: Container Hub Bash
+        Files.writeString(toolsDir.resolve("sandbox_bash.yml"), """
+                name: sandbox_bash
+                label: 执行命令（沙箱）
                 description: hidden when disabled
                 type: function
                 inputSchema:
@@ -583,8 +583,8 @@ class DefinitionDrivenAgentTest {
                 "demoDisabledContainerHub",
                 AgentRuntimeMode.ONESHOT,
                 new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
-                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("container_hub_bash"), false, ComputePolicy.MEDIUM), null, null),
-                List.of("container_hub_bash")
+                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of("sandbox_bash"), false, ComputePolicy.MEDIUM), null, null),
+                List.of("sandbox_bash")
         );
 
         AtomicReference<LlmCallSpec> captured = new AtomicReference<>();
@@ -2344,8 +2344,8 @@ class DefinitionDrivenAgentTest {
                 null,
                 AgentRuntimeMode.REACT,
                 new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
-                new ReactMode(new StageSettings("sys", null, null, List.of("container_hub_bash"), false, ComputePolicy.MEDIUM), 3, null, null),
-                List.of("container_hub_bash"),
+                new ReactMode(new StageSettings("sys", null, null, List.of("sandbox_bash"), false, ComputePolicy.MEDIUM), 3, null, null),
+                List.of("sandbox_bash"),
                 List.of(),
                 new AgentDefinition.SandboxConfig("shell"),
                 List.of()
@@ -2357,12 +2357,12 @@ class DefinitionDrivenAgentTest {
                 return switch (stage) {
                     case "agent-react-step-1" -> Flux.just(new LlmDelta(
                             null,
-                            List.of(new ToolCallDelta("call_1", "function", "container_hub_bash", "{\"command\":\"echo one\"}")),
+                            List.of(new ToolCallDelta("call_1", "function", "sandbox_bash", "{\"command\":\"echo one\"}")),
                             "tool_calls"
                     ));
                     case "agent-react-step-2" -> Flux.just(new LlmDelta(
                             null,
-                            List.of(new ToolCallDelta("call_2", "function", "container_hub_bash", "{\"command\":\"echo two\"}")),
+                            List.of(new ToolCallDelta("call_2", "function", "sandbox_bash", "{\"command\":\"echo two\"}")),
                             "tool_calls"
                     ));
                     case "agent-react-step-3" -> Flux.just(new LlmDelta("done", null, "stop"));
@@ -2452,8 +2452,8 @@ class DefinitionDrivenAgentTest {
                 null,
                 AgentRuntimeMode.REACT,
                 new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
-                new ReactMode(new StageSettings("sys", null, null, List.of("container_hub_bash"), false, ComputePolicy.MEDIUM), 4, null, null),
-                List.of("container_hub_bash"),
+                new ReactMode(new StageSettings("sys", null, null, List.of("sandbox_bash"), false, ComputePolicy.MEDIUM), 4, null, null),
+                List.of("sandbox_bash"),
                 List.of("container_hub_validation"),
                 new AgentDefinition.SandboxConfig("shell"),
                 List.of()
@@ -2469,7 +2469,7 @@ class DefinitionDrivenAgentTest {
                             List.of(new ToolCallDelta(
                                     "call_bash_1",
                                     "function",
-                                    "container_hub_bash",
+                                    "sandbox_bash",
                                     "{\"command\":\"echo hello > /workspace/bash_ok.txt && cat /workspace/bash_ok.txt\"}"
                             )),
                             "tool_calls"
@@ -2479,7 +2479,7 @@ class DefinitionDrivenAgentTest {
                             List.of(new ToolCallDelta(
                                     "call_python_1",
                                     "function",
-                                    "container_hub_bash",
+                                    "sandbox_bash",
                                     "{\"command\":\"python3 -c \\\"from pathlib import Path; Path('/workspace/validation_report.txt').write_text('container hub ok\\\\n', encoding='utf-8')\\\" && cat /workspace/validation_report.txt\"}"
                             )),
                             "tool_calls"
@@ -2556,8 +2556,8 @@ class DefinitionDrivenAgentTest {
                 null,
                 AgentRuntimeMode.ONESHOT,
                 new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
-                new OneshotMode(new StageSettings("sys", null, null, List.of("container_hub_bash"), false, ComputePolicy.MEDIUM), null, null),
-                List.of("container_hub_bash"),
+                new OneshotMode(new StageSettings("sys", null, null, List.of("sandbox_bash"), false, ComputePolicy.MEDIUM), null, null),
+                List.of("sandbox_bash"),
                 List.of(),
                 new AgentDefinition.SandboxConfig("shell"),
                 List.of()

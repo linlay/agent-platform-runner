@@ -37,7 +37,7 @@ public class ContainerHubFeatureConfiguration {
             ContainerHubClient containerHubClient
     ) {
         log.info(
-                "container_hub_bash enabled as native HTTP bridge, baseUrl={}, defaultEnvironmentId={}, defaultSandboxLevel={}",
+                "sandbox_bash enabled as sandbox command tool, baseUrl={}, defaultEnvironmentId={}, defaultSandboxLevel={}",
                 properties.getBaseUrl(),
                 properties.getDefaultEnvironmentId(),
                 properties.getDefaultSandboxLevel()

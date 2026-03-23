@@ -228,9 +228,9 @@ class ToolRegistryTest {
     void disabledContainerHubShouldBeHiddenEvenWhenYamlMetadataExists(@TempDir Path tempDir) throws IOException {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("container_hub_bash.yml"), """
-                name: container_hub_bash
-                label: Container Hub Bash
+        Files.writeString(toolsDir.resolve("sandbox_bash.yml"), """
+                name: sandbox_bash
+                label: 执行命令（沙箱）
                 description: hidden when disabled
                 type: function
                 inputSchema:
@@ -262,19 +262,19 @@ class ToolRegistryTest {
                 containerHubProperties
         );
 
-        assertThat(toolRegistry.list().stream().map(BaseTool::name)).doesNotContain("container_hub_bash");
-        assertThat(toolRegistry.descriptor("container_hub_bash")).isEmpty();
-        assertThat(toolRegistry.description("container_hub_bash")).isEmpty();
-        assertThat(toolRegistry.label("container_hub_bash")).isNull();
+        assertThat(toolRegistry.list().stream().map(BaseTool::name)).doesNotContain("sandbox_bash");
+        assertThat(toolRegistry.descriptor("sandbox_bash")).isEmpty();
+        assertThat(toolRegistry.description("sandbox_bash")).isEmpty();
+        assertThat(toolRegistry.label("sandbox_bash")).isNull();
     }
 
     @Test
     void enabledContainerHubShouldExposeLocalDescriptorEvenWhenYamlMetadataExists(@TempDir Path tempDir) throws IOException {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("container_hub_bash.yml"), """
-                name: container_hub_bash
-                label: Container Hub Bash
+        Files.writeString(toolsDir.resolve("sandbox_bash.yml"), """
+                name: sandbox_bash
+                label: 执行命令（沙箱）
                 description: metadata from yaml
                 type: function
                 inputSchema:
@@ -311,13 +311,13 @@ class ToolRegistryTest {
                 containerHubProperties
         );
 
-        assertThat(toolRegistry.descriptor("container_hub_bash"))
+        assertThat(toolRegistry.descriptor("sandbox_bash"))
                 .isPresent()
                 .get()
                 .satisfies(descriptor -> {
                     assertThat(descriptor.sourceType()).isEqualTo("agent-local");
                     assertThat(descriptor.sourceKey()).isNull();
-                    assertThat(descriptor.description()).contains("native HTTP bridge");
+                    assertThat(descriptor.description()).contains("在沙箱容器中执行命令");
                 });
     }
 

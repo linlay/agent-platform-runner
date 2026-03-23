@@ -1,13 +1,13 @@
-name: container_hub_bash
-label: Container Hub Bash
-description: 在 run 级 container-hub 容器沙箱中执行 bash 命令；这是一个 native HTTP bridge，直连 agent-container-hub 的 /api/sessions/* REST 接口，不经过 MCP。
+name: sandbox_bash
+label: 执行命令（沙箱）
+description: 在沙箱容器中执行命令。
 type: function
 inputSchema:
   type: object
   properties:
     command:
       type: string
-      description: 必填。要在容器沙箱中通过 /bin/sh -lc 执行的命令字符串。
+      description: 必填。要在沙箱容器中通过 /bin/sh -lc 执行的命令字符串。
     cwd:
       type: string
       description: 可选。本次执行的工作目录；为空时沿用当前 run 沙箱默认 cwd。

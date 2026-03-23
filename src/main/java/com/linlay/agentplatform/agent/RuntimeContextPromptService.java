@@ -239,7 +239,7 @@ public class RuntimeContextPromptService {
         appendKeyValue(lines, "defaultEnvironmentId", sandboxContext.defaultEnvironmentId());
         appendKeyValue(lines, "level", sandboxContext.level());
         lines.add("container_hub_enabled: " + sandboxContext.containerHubEnabled());
-        lines.add("uses_container_hub_bash: " + sandboxContext.usesContainerHubTool());
+        lines.add("uses_sandbox_bash: " + sandboxContext.usesContainerHubTool());
         if (sandboxContext.extraMounts() != null && !sandboxContext.extraMounts().isEmpty()) {
             lines.add("extraMounts:");
             for (String extraMount : sandboxContext.extraMounts()) {

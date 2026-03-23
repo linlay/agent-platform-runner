@@ -47,7 +47,7 @@ class ContainerHubToolTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void containerHubBashShouldExecuteAgainstRunScopedSession() throws Exception {
+    void sandboxBashShouldExecuteAgainstRunScopedSession() throws Exception {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         AtomicReference<String> requestBody = new AtomicReference<>();
         httpClient.register("/api/sessions/run-run1/execute", request -> {
@@ -70,14 +70,14 @@ class ContainerHubToolTest {
         assertThat(request.path("args")).isEqualTo(objectMapper.valueToTree(List.of("-lc", "pwd && echo ok")));
         assertThat(request.path("cwd").asText()).isEqualTo("/workspace");
         assertThat(result.asText()).contains("exitCode: 0");
-        assertThat(result.asText()).contains("mode: container-hub");
+        assertThat(result.asText()).contains("mode: sandbox");
         assertThat(result.asText()).contains("\"workingDirectory\": \"/workspace\"");
         assertThat(result.asText()).contains("/workspace");
         assertThat(result.asText()).contains("ok");
     }
 
     @Test
-    void containerHubBashShouldSurfaceTransportErrorsAsTextResult() {
+    void sandboxBashShouldSurfaceTransportErrorsAsTextResult() {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.register("/api/sessions/run-run1/execute", request -> new StubHttpResponse(request, 503, """
                 {"error":"hub unavailable"}
@@ -105,8 +105,8 @@ class ContainerHubToolTest {
                 "qwen3-max",
                 AgentRuntimeMode.ONESHOT,
                 new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
-                new OneshotMode(new StageSettings("sys", null, null, List.of("container_hub_bash"), false, ComputePolicy.MEDIUM), null, null),
-                List.of("container_hub_bash"),
+                new OneshotMode(new StageSettings("sys", null, null, List.of("sandbox_bash"), false, ComputePolicy.MEDIUM), null, null),
+                List.of("sandbox_bash"),
                 List.of()
         );
     }

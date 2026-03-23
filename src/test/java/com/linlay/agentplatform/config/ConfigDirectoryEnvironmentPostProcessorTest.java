@@ -55,6 +55,27 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
     }
 
     @Test
+    void shouldResolveContainerHubBaseUrlPlaceholderFromEnvironment() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Path configsDir = projectDir.resolve("configs");
+        Files.createDirectories(configsDir);
+        Files.writeString(configsDir.resolve("container-hub.yml"), """
+                enabled: true
+                base-url: ${AGENT_CONTAINER_HUB_BASE_URL:http://host.docker.internal:11960}
+                """);
+
+        StandardEnvironment environment = environmentWithRequiredDirectories();
+        environment.getPropertySources().addFirst(new MapPropertySource("test-env", Map.of(
+                "AGENT_CONTAINER_HUB_BASE_URL", "http://host.docker.internal:11960"
+        )));
+
+        withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)));
+
+        assertThat(environment.getProperty("agent.tools.container-hub.base-url"))
+                .isEqualTo("http://host.docker.internal:11960");
+    }
+
+    @Test
     void shouldFailFastWhenConfigUsesDeprecatedNestedKeys() throws Exception {
         Path projectDir = tempDir.resolve("project");
         Path configsDir = projectDir.resolve("configs");

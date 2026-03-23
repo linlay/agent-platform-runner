@@ -21,27 +21,24 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
 
     @Override
     public String name() {
-        return "container_hub_bash";
+        return "sandbox_bash";
     }
 
     @Override
     public String description() {
-        return "在 container-hub 容器沙箱里执行 bash 命令。"
-                + "这是一个 native HTTP bridge，会直连 agent-container-hub 的 /api/sessions/* REST 接口，"
-                + "不会走 MCP transport。当前 baseUrl: " + properties.getBaseUrl();
+        return "在沙箱容器中执行命令。";
     }
 
     @Override
     public JsonNode invoke(Map<String, Object> args) {
-        return failureText("container_hub_bash requires an active run sandbox context");
+        return failureText("sandbox_bash requires an active run sandbox context");
     }
 
     @Override
     public JsonNode invoke(Map<String, Object> args, ExecutionContext context) {
         if (context == null || context.sandboxSession() == null) {
-            return failureText("container_hub_bash requires an active run sandbox session");
+            return failureText("sandbox_bash requires an active run sandbox session");
         }
-        // This tool bridges directly to agent-container-hub's REST session APIs.
         JsonNode root = OBJECT_MAPPER.valueToTree(args == null ? Map.of() : args);
         String command = readText(root, "command");
         if (!StringUtils.hasText(command)) {
@@ -81,7 +78,7 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
         String safeStdout = stdout == null ? "" : stdout;
         String safeStderr = stderr == null ? "" : stderr;
         String text = "exitCode: " + exitCode
-                + "\nmode: container-hub"
+                + "\nmode: sandbox"
                 + "\n\"workingDirectory\": \"" + workingDirectory + "\""
                 + "\nstdout:\n" + safeStdout
                 + "\nstderr:\n" + safeStderr;

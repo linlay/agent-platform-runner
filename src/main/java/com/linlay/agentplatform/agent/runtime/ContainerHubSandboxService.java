@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class ContainerHubSandboxService implements DisposableBean {
 
-    public static final String TOOL_NAME = "container_hub_bash";
+    public static final String TOOL_NAME = "sandbox_bash";
     private static final Logger log = LoggerFactory.getLogger(ContainerHubSandboxService.class);
     private static final String DEFAULT_WORKSPACE_CWD = "/workspace";
 

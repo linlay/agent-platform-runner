@@ -9,6 +9,8 @@ services:
       - .env
     ports:
       - "${HOST_PORT:-11949}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       SERVER_PORT: 8080
       AGENTS_DIR: /opt/runtime/agents

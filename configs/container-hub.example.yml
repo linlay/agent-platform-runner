@@ -1,5 +1,5 @@
 enabled: true
-base-url: http://127.0.0.1:11960
+base-url: ${AGENT_CONTAINER_HUB_BASE_URL:http://host.docker.internal:11960}
 auth-token:
 default-environment-id:
 request-timeout-ms: 60000
