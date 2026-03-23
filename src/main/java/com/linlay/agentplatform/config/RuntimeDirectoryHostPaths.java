@@ -1,0 +1,130 @@
+package com.linlay.agentplatform.config;
+
+import org.springframework.util.StringUtils;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+public final class RuntimeDirectoryHostPaths {
+
+    private static final Set<String> RUNTIME_DIR_KEYS = Set.of(
+            "AGENTS_DIR",
+            "OWNER_DIR",
+            "TEAMS_DIR",
+            "MODELS_DIR",
+            "PROVIDERS_DIR",
+            "MCP_SERVERS_DIR",
+            "VIEWPORT_SERVERS_DIR",
+            "SKILLS_MARKET_DIR",
+            "SCHEDULES_DIR",
+            "CHATS_DIR",
+            "ROOT_DIR",
+            "PAN_DIR"
+    );
+
+    private final Map<String, String> values;
+
+    public RuntimeDirectoryHostPaths(Map<String, String> values) {
+        this.values = values == null ? Map.of() : Map.copyOf(values);
+    }
+
+    public static RuntimeDirectoryHostPaths load() {
+        return new RuntimeDirectoryHostPaths(loadDefaultValues());
+    }
+
+    public String get(String key) {
+        if (!StringUtils.hasText(key)) {
+            return null;
+        }
+        String value = values.get(key.trim());
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    public Map<String, String> asMap() {
+        return values;
+    }
+
+    static Map<String, String> loadFrom(Path file) {
+        if (file == null || !Files.isRegularFile(file)) {
+            return Map.of();
+        }
+        LinkedHashMap<String, String> values = new LinkedHashMap<>();
+        try {
+            for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+                parseLine(values, line);
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to read runtime directory host paths from " + file, ex);
+        }
+        return Map.copyOf(values);
+    }
+
+    private static Map<String, String> loadDefaultValues() {
+        Optional<Path> dotenv = locateDotEnv();
+        return dotenv.map(RuntimeDirectoryHostPaths::loadFrom).orElseGet(Map::of);
+    }
+
+    private static Optional<Path> locateDotEnv() {
+        LinkedHashSet<Path> candidates = new LinkedHashSet<>();
+        candidates.add(Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize().resolve(".env"));
+        ConfigDirectorySupport.resolveConfigDirectory()
+                .ifPresent(dir -> candidates.add(dir.toAbsolutePath().normalize().resolve(".env")));
+        for (Path candidate : candidates) {
+            if (Files.isRegularFile(candidate)) {
+                return Optional.of(candidate);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static void parseLine(Map<String, String> values, String rawLine) {
+        if (rawLine == null) {
+            return;
+        }
+        String line = stripBom(rawLine).trim();
+        if (!StringUtils.hasText(line) || line.startsWith("#")) {
+            return;
+        }
+        if (line.startsWith("export ")) {
+            line = line.substring("export ".length()).trim();
+        }
+        int equals = line.indexOf('=');
+        if (equals <= 0) {
+            return;
+        }
+        String key = line.substring(0, equals).trim();
+        if (!RUNTIME_DIR_KEYS.contains(key)) {
+            return;
+        }
+        String value = stripMatchingQuotes(line.substring(equals + 1).trim());
+        if (StringUtils.hasText(value)) {
+            values.put(key, value.trim());
+        }
+    }
+
+    private static String stripBom(String value) {
+        if (value != null && !value.isEmpty() && value.charAt(0) == '\uFEFF') {
+            return value.substring(1);
+        }
+        return value;
+    }
+
+    private static String stripMatchingQuotes(String value) {
+        if (!StringUtils.hasText(value) || value.length() < 2) {
+            return value;
+        }
+        char first = value.charAt(0);
+        char last = value.charAt(value.length() - 1);
+        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
+    }
+}

@@ -87,6 +87,7 @@ ARCH=amd64 make release
 - 配置模板：`configs/*.example.yml`
 - 配置模板：`configs/**/*.example.*`
 - 运行时目录约定：由 `.env` 中的 `*_DIR` 指向宿主机路径，默认回落到 `./runtime/agents`、`./runtime/teams`、`./runtime/models`、`./runtime/providers`、`./runtime/mcp-servers`、`./runtime/viewport-servers`、`./runtime/skills-market`、`./runtime/schedules`、`./runtime/chats`、`./runtime/root`、`./runtime/pan`
+- release compose 会把根目录 `.env` 只读挂载到容器内 `/opt/configs/.env`，供 runner 在创建 sandbox mount 时读取原始宿主机路径
 
 脚本会强校验版本格式：
 
@@ -165,7 +166,7 @@ RELEASE_BASE_IMAGE=<candidate-image> ARCH=arm64 make release
 - `.env.example`
 - `configs/` 下全部可安全分发的 `*.example.*` 模板
 
-脚本不会在 bundle 组装阶段预创建 `runtime/` 目录。宿主机上的运行时目录仍由 `.env` 里的 `*_DIR` 变量决定；如果没有覆盖，则默认回落到 `./runtime/*`。部署端首次执行 `./start.sh` 时，脚本会对最终生效的这些目录逐一执行 `mkdir -p`，因此无需在解压产物里提前塞入空目录骨架。
+脚本不会在 bundle 组装阶段预创建 `runtime/` 目录。宿主机上的运行时目录仍由 `.env` 里的 `*_DIR` 变量决定；如果没有覆盖，则默认回落到 `./runtime/*`。部署端首次执行 `./start.sh` 时，脚本会对最终生效的这些目录逐一执行 `mkdir -p`，因此无需在解压产物里提前塞入空目录骨架。若启用 `sandbox_bash` 且 Container Hub 运行在宿主机上，`.env` 中这些 `*_DIR` 应写成宿主机可直接访问的真实路径。
 
 同时脚本会把 bundle 内 `.env.example` 的 `RUNNER_VERSION` 替换成当前构建版本，保证部署端复制后默认镜像标签和 bundle 内镜像一致。
 

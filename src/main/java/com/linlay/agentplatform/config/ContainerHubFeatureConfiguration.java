@@ -61,6 +61,7 @@ public class ContainerHubFeatureConfiguration {
             McpProperties mcpProperties,
             ProviderProperties providerProperties
     ) {
+        RuntimeDirectoryHostPaths hostPaths = RuntimeDirectoryHostPaths.load();
         return new ContainerHubMountResolver(
                 chatWindowMemoryProperties,
                 rootProperties,
@@ -74,7 +75,8 @@ public class ContainerHubFeatureConfiguration {
                 teamProperties,
                 scheduleProperties,
                 mcpProperties,
-                providerProperties
+                providerProperties,
+                hostPaths
         );
     }
 

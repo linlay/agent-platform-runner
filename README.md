@@ -278,13 +278,14 @@ docker compose up -d --build
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
 - 运行时业务目录既可以保留在仓库内默认的 `./runtime/*`，也可以通过 `.env` 的 `*_DIR` 指向宿主机其他路径覆盖默认值。
 - `compose.yml` 会把 `.env` 中的 `*_DIR` 变量用于宿主机 bind mount，同时在容器内把同名变量固定为 `/opt/...` 路径；因此同一份 `.env` 可以同时服务 `make run` 和 `docker compose`。
+- `compose.yml` 还会把根目录 `.env` 只读挂载到容器内 `/opt/configs/.env`；`sandbox_bash` 创建 container-hub session 时，会优先从这份 `.env` 读取原始 `*_DIR` 宿主机路径作为 mount source，而不是使用容器内 `/opt/...` 路径。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
 - `.env.example` 默认把 `AGENT_CONTAINER_HUB_BASE_URL` 指向 `http://host.docker.internal:11960`，用于容器内访问宿主机上的 Container Hub；compose 同时注入 `host.docker.internal:host-gateway` 以兼容 Linux Docker。
 - `compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（compose 会显式覆盖 `SERVER_PORT=8080`）。
-- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`AGENTS_DIR`、`OWNER_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`SKILLS_MARKET_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`ROOT_DIR`、`PAN_DIR`。
+- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`、`./.env -> /opt/configs/.env`，并映射这些可配置运行目录：`AGENTS_DIR`、`OWNER_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`SKILLS_MARKET_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`ROOT_DIR`、`PAN_DIR`。
 - 应用内部仍按 `AGENTS_DIR` 的父目录推导 owner 路径；`OWNER_DIR` 只是部署层的宿主机 bind mount 入口，不新增 Spring `external-dir` 配置键。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
@@ -714,6 +715,8 @@ default-environment-id: shell
 - `meta.sourceType` 在 `/api/tools` 与 `/api/tool?toolName=sandbox_bash` 中应表现为 `local`。
 - 建议通过 `.env` 中的 `AGENT_CONTAINER_HUB_BASE_URL` 配置 Container Hub 地址；容器化部署模板默认使用 `http://host.docker.internal:11960`。
 - `RUN` 级 sandbox 在创建 session 前会自动准备 `CHATS_DIR/<chatId>` 目录，并把它挂载到容器内的 `/workspace`。
+- sandbox mount source 会优先读取根目录 `.env` 里的原始 `*_DIR` 值；如果当前运行目录已被容器重写成 `/opt/...`，但 `.env` 没有提供对应宿主机路径，runner 会直接报配置错误。
+- 当 Container Hub 运行在宿主机时，建议把 `.env` 中的 `*_DIR` 写成该宿主机可直接访问的真实路径。
 - `/root` 与 `/pan` 分别来自 runner 全局目录 `ROOT_DIR` 与 `PAN_DIR`；`configs/container-hub.yml` 不再单独配置挂载源目录。
 
 挂载模式规则：
@@ -812,7 +815,7 @@ for f in *.md; do echo "$f"; done
 
 常用运维变量：
 
-- 目录型变量统一使用 `*_DIR` 命名；本地 `make run` 直接把这些值当作运行目录，Docker Compose 则把它们当作宿主机 bind source，并在容器内覆盖为 `/opt/...` 目标路径。
+- 目录型变量统一使用 `*_DIR` 命名；本地 `make run` 直接把这些值当作运行目录，Docker Compose 则把它们当作宿主机 bind source，并在容器内覆盖为 `/opt/...` 目标路径。对 sandbox mount 来说，`.env` 中的原始 `*_DIR` 仍然是宿主机 source-of-truth。
 
 | 环境变量 | 默认值 | 说明 |
 |---------|-------|------|

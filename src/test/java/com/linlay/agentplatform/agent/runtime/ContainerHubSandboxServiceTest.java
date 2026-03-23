@@ -16,6 +16,7 @@ import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.PanProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
+import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.config.ViewportServerProperties;
@@ -331,6 +332,59 @@ class ContainerHubSandboxServiceTest {
         assertThat(findMount(mounts, "/skills").path("read_only").asBoolean()).isFalse();
     }
 
+    @Test
+    void runLevelShouldUseDotEnvHostPathsInCreatePayload() throws Exception {
+        CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
+        ContainerHubToolProperties properties = containerHubProperties("run");
+        RecordingStubContainerHubClient client = new RecordingStubContainerHubClient(events);
+
+        Path hostChatsDir = createTempMountDir("container-hub-host-chats");
+        Path hostRootDir = createTempMountDir("container-hub-host-root");
+        Path hostPanDir = createTempMountDir("container-hub-host-pan");
+        Path hostSkillsDir = createTempMountDir("container-hub-host-skills");
+        Path hostAgentsDir = createTempMountDir("container-hub-host-agents");
+        Files.createDirectories(hostAgentsDir.resolve("sandbox-agent").resolve("skills"));
+
+        DataProperties dataProperties = new DataProperties();
+        dataProperties.setExternalDir("/opt/runtime/chats");
+        RootProperties rootProperties = new RootProperties();
+        rootProperties.setExternalDir("/opt/runtime/root");
+        PanProperties panProperties = new PanProperties();
+        panProperties.setExternalDir("/opt/runtime/pan");
+        SkillProperties skillProperties = new SkillProperties();
+        skillProperties.setExternalDir("/opt/runtime/skills-market");
+        AgentProperties agentProperties = new AgentProperties();
+        agentProperties.setExternalDir("/opt/runtime/agents");
+
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(
+                properties,
+                dataProperties,
+                skillProperties,
+                rootProperties,
+                panProperties,
+                agentProperties,
+                Map.of(
+                        "CHATS_DIR", hostChatsDir.toString(),
+                        "ROOT_DIR", hostRootDir.toString(),
+                        "PAN_DIR", hostPanDir.toString(),
+                        "SKILLS_MARKET_DIR", hostSkillsDir.toString(),
+                        "AGENTS_DIR", hostAgentsDir.toString()
+                )
+        );
+        ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
+
+        ExecutionContext context = createContext(definitionWithLevel(SandboxLevel.RUN));
+        service.openIfNeeded(context);
+
+        JsonNode mounts = client.lastCreatePayload.path("mounts");
+        assertThat(findMount(mounts, "/workspace").path("source").asText())
+                .isEqualTo(hostChatsDir.resolve("chat-1").toAbsolutePath().normalize().toString());
+        assertThat(findMount(mounts, "/root").path("source").asText())
+                .isEqualTo(hostRootDir.toAbsolutePath().normalize().toString());
+        assertThat(findMount(mounts, "/pan").path("source").asText())
+                .isEqualTo(hostPanDir.toAbsolutePath().normalize().toString());
+    }
+
     private ContainerHubToolProperties containerHubProperties(String defaultLevel) {
         ContainerHubToolProperties properties = new ContainerHubToolProperties();
         properties.setEnabled(true);
@@ -385,6 +439,26 @@ class ContainerHubSandboxServiceTest {
             PanProperties panProperties,
             AgentProperties agentProperties
     ) {
+        return containerHubMountResolver(
+                properties,
+                dataProperties,
+                skillProperties,
+                rootProperties,
+                panProperties,
+                agentProperties,
+                Map.of()
+        );
+    }
+
+    private ContainerHubMountResolver containerHubMountResolver(
+            ContainerHubToolProperties properties,
+            DataProperties dataProperties,
+            SkillProperties skillProperties,
+            RootProperties rootProperties,
+            PanProperties panProperties,
+            AgentProperties agentProperties,
+            Map<String, String> hostRuntimeDirOverrides
+    ) {
         RootProperties resolvedRootProperties = rootProperties == null ? new RootProperties() : rootProperties;
         if (rootProperties == null) {
             resolvedRootProperties.setExternalDir(createTempMountDir("container-hub-root").toString());
@@ -418,7 +492,8 @@ class ContainerHubSandboxServiceTest {
                 new TeamProperties(),
                 new ScheduleProperties(),
                 new McpProperties(),
-                new ProviderProperties()
+                new ProviderProperties(),
+                new RuntimeDirectoryHostPaths(hostRuntimeDirOverrides)
         );
     }
 

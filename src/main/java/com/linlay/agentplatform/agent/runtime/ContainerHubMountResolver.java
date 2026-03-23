@@ -6,6 +6,7 @@ import com.linlay.agentplatform.config.DataProperties;
 import com.linlay.agentplatform.config.McpProperties;
 import com.linlay.agentplatform.config.PanProperties;
 import com.linlay.agentplatform.config.ProviderProperties;
+import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
 import com.linlay.agentplatform.config.ToolProperties;
 import com.linlay.agentplatform.config.ViewportProperties;
 import com.linlay.agentplatform.config.ViewportServerProperties;
@@ -58,6 +59,7 @@ public class ContainerHubMountResolver {
     private final ScheduleProperties scheduleProperties;
     private final McpProperties mcpProperties;
     private final ProviderProperties providerProperties;
+    private final RuntimeDirectoryHostPaths hostPaths;
 
     public ContainerHubMountResolver(
             ChatWindowMemoryProperties chatWindowMemoryProperties,
@@ -74,6 +76,40 @@ public class ContainerHubMountResolver {
             McpProperties mcpProperties,
             ProviderProperties providerProperties
     ) {
+        this(
+                chatWindowMemoryProperties,
+                rootProperties,
+                panProperties,
+                skillProperties,
+                agentProperties,
+                toolProperties,
+                modelProperties,
+                viewportProperties,
+                viewportServerProperties,
+                teamProperties,
+                scheduleProperties,
+                mcpProperties,
+                providerProperties,
+                new RuntimeDirectoryHostPaths(Map.of())
+        );
+    }
+
+    public ContainerHubMountResolver(
+            ChatWindowMemoryProperties chatWindowMemoryProperties,
+            RootProperties rootProperties,
+            PanProperties panProperties,
+            SkillProperties skillProperties,
+            AgentProperties agentProperties,
+            ToolProperties toolProperties,
+            ModelProperties modelProperties,
+            ViewportProperties viewportProperties,
+            ViewportServerProperties viewportServerProperties,
+            TeamProperties teamProperties,
+            ScheduleProperties scheduleProperties,
+            McpProperties mcpProperties,
+            ProviderProperties providerProperties,
+            RuntimeDirectoryHostPaths hostPaths
+    ) {
         this.chatWindowMemoryProperties = chatWindowMemoryProperties;
         this.rootProperties = rootProperties;
         this.panProperties = panProperties;
@@ -87,6 +123,7 @@ public class ContainerHubMountResolver {
         this.scheduleProperties = scheduleProperties;
         this.mcpProperties = mcpProperties;
         this.providerProperties = providerProperties;
+        this.hostPaths = hostPaths == null ? new RuntimeDirectoryHostPaths(Map.of()) : hostPaths;
     }
 
     public ContainerHubMountResolver(
@@ -105,6 +142,40 @@ public class ContainerHubMountResolver {
             ProviderProperties providerProperties
     ) {
         this(
+                dataProperties,
+                rootProperties,
+                panProperties,
+                skillProperties,
+                toolProperties,
+                agentProperties,
+                modelProperties,
+                viewportProperties,
+                viewportServerProperties,
+                teamProperties,
+                scheduleProperties,
+                mcpProperties,
+                providerProperties,
+                new RuntimeDirectoryHostPaths(Map.of())
+        );
+    }
+
+    public ContainerHubMountResolver(
+            DataProperties dataProperties,
+            RootProperties rootProperties,
+            PanProperties panProperties,
+            SkillProperties skillProperties,
+            ToolProperties toolProperties,
+            AgentProperties agentProperties,
+            ModelProperties modelProperties,
+            ViewportProperties viewportProperties,
+            ViewportServerProperties viewportServerProperties,
+            TeamProperties teamProperties,
+            ScheduleProperties scheduleProperties,
+            McpProperties mcpProperties,
+            ProviderProperties providerProperties,
+            RuntimeDirectoryHostPaths hostPaths
+    ) {
+        this(
                 toChatWindowMemoryProperties(dataProperties),
                 rootProperties,
                 panProperties,
@@ -117,7 +188,8 @@ public class ContainerHubMountResolver {
                 teamProperties,
                 scheduleProperties,
                 mcpProperties,
-                providerProperties
+                providerProperties,
+                hostPaths
         );
     }
 
@@ -191,24 +263,15 @@ public class ContainerHubMountResolver {
     }
 
     private String resolveDataDir() {
-        if (chatWindowMemoryProperties != null && StringUtils.hasText(chatWindowMemoryProperties.getDir())) {
-            return chatWindowMemoryProperties.getDir().trim();
-        }
-        return null;
+        return resolveHostBackedDirectory("CHATS_DIR", directoryValue(chatWindowMemoryProperties == null ? null : chatWindowMemoryProperties.getDir()), "data-dir");
     }
 
     private String resolveRootDir() {
-        if (rootProperties != null && StringUtils.hasText(rootProperties.getExternalDir())) {
-            return rootProperties.getExternalDir().trim();
-        }
-        return null;
+        return resolveHostBackedDirectory("ROOT_DIR", directoryValue(rootProperties == null ? null : rootProperties.getExternalDir()), "root-dir");
     }
 
     private String resolveGlobalSkillsDir() {
-        if (skillProperties != null && StringUtils.hasText(skillProperties.getExternalDir())) {
-            return skillProperties.getExternalDir().trim();
-        }
-        return null;
+        return resolveHostBackedDirectory("SKILLS_MARKET_DIR", directoryValue(skillProperties == null ? null : skillProperties.getExternalDir()), "skills-dir");
     }
 
     private String resolveSkillsDir(SandboxLevel level, String agentKey) {
@@ -223,10 +286,7 @@ public class ContainerHubMountResolver {
     }
 
     private String resolvePanDir() {
-        if (panProperties != null && StringUtils.hasText(panProperties.getExternalDir())) {
-            return panProperties.getExternalDir().trim();
-        }
-        return null;
+        return resolveHostBackedDirectory("PAN_DIR", directoryValue(panProperties == null ? null : panProperties.getExternalDir()), "pan-dir");
     }
 
     private String resolveToolsDir() {
@@ -238,11 +298,11 @@ public class ContainerHubMountResolver {
     }
 
     private String resolveAgentsDir() {
-        return resolveDirectory(agentProperties == null ? null : agentProperties.getExternalDir());
+        return resolveHostBackedDirectory("AGENTS_DIR", directoryValue(agentProperties == null ? null : agentProperties.getExternalDir()), "agents-dir");
     }
 
     private String resolveModelsDir() {
-        return resolveDirectory(modelProperties == null ? null : modelProperties.getExternalDir());
+        return resolveHostBackedDirectory("MODELS_DIR", directoryValue(modelProperties == null ? null : modelProperties.getExternalDir()), "models-dir");
     }
 
     private String resolveViewportsDir() {
@@ -250,27 +310,35 @@ public class ContainerHubMountResolver {
     }
 
     private String resolveViewportServersDir() {
-        return resolveDirectory(viewportServerProperties == null || viewportServerProperties.getRegistry() == null
-                ? null
-                : viewportServerProperties.getRegistry().getExternalDir());
+        return resolveHostBackedDirectory(
+                "VIEWPORT_SERVERS_DIR",
+                directoryValue(viewportServerProperties == null || viewportServerProperties.getRegistry() == null
+                        ? null
+                        : viewportServerProperties.getRegistry().getExternalDir()),
+                "viewport-servers-dir"
+        );
     }
 
     private String resolveTeamsDir() {
-        return resolveDirectory(teamProperties == null ? null : teamProperties.getExternalDir());
+        return resolveHostBackedDirectory("TEAMS_DIR", directoryValue(teamProperties == null ? null : teamProperties.getExternalDir()), "teams-dir");
     }
 
     private String resolveSchedulesDir() {
-        return resolveDirectory(scheduleProperties == null ? null : scheduleProperties.getExternalDir());
+        return resolveHostBackedDirectory("SCHEDULES_DIR", directoryValue(scheduleProperties == null ? null : scheduleProperties.getExternalDir()), "schedules-dir");
     }
 
     private String resolveMcpServersDir() {
-        return resolveDirectory(mcpProperties == null || mcpProperties.getRegistry() == null
-                ? null
-                : mcpProperties.getRegistry().getExternalDir());
+        return resolveHostBackedDirectory(
+                "MCP_SERVERS_DIR",
+                directoryValue(mcpProperties == null || mcpProperties.getRegistry() == null
+                        ? null
+                        : mcpProperties.getRegistry().getExternalDir()),
+                "mcp-servers-dir"
+        );
     }
 
     private String resolveProvidersDir() {
-        return resolveDirectory(providerProperties == null ? null : providerProperties.getExternalDir());
+        return resolveHostBackedDirectory("PROVIDERS_DIR", directoryValue(providerProperties == null ? null : providerProperties.getExternalDir()), "providers-dir");
     }
 
     private String resolveAgentSelfDir(String agentKey) {
@@ -321,6 +389,37 @@ public class ContainerHubMountResolver {
             return path.trim();
         }
         return null;
+    }
+
+    private String directoryValue(String path) {
+        return StringUtils.hasText(path) ? path.trim() : null;
+    }
+
+    private String resolveHostBackedDirectory(String envKey, String configuredPath, String mountName) {
+        String hostPath = hostPaths.get(envKey);
+        if (StringUtils.hasText(hostPath)) {
+            return hostPath.trim();
+        }
+        String resolved = resolveDirectory(configuredPath);
+        if (!StringUtils.hasText(resolved)) {
+            return null;
+        }
+        if (looksLikeContainerInternalPath(resolved)) {
+            throw new IllegalStateException(
+                    ("container-hub mount validation failed for %s: missing host path in .env key %s "
+                            + "(configured=%s). Sandbox mounts must use the original host filesystem path.")
+                            .formatted(mountName, envKey, resolved)
+            );
+        }
+        return resolved;
+    }
+
+    private boolean looksLikeContainerInternalPath(String path) {
+        if (!StringUtils.hasText(path)) {
+            return false;
+        }
+        String normalized = Path.of(path.trim()).normalize().toString();
+        return normalized.startsWith("/opt/");
     }
 
     private void resolvePlatformMount(
