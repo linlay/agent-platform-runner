@@ -274,7 +274,7 @@ docker compose up -d --build
 
 约定：
 
-- `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`、`AGENT_CONTAINER_HUB_BASE_URL`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
+- `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`、`OWNER_DIR`、`AGENT_CONTAINER_HUB_BASE_URL`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
 - 运行时业务目录既可以保留在仓库内默认的 `./runtime/*`，也可以通过 `.env` 的 `*_DIR` 指向宿主机其他路径覆盖默认值。
 - `compose.yml` 会把 `.env` 中的 `*_DIR` 变量用于宿主机 bind mount，同时在容器内把同名变量固定为 `/opt/...` 路径；因此同一份 `.env` 可以同时服务 `make run` 和 `docker compose`。
@@ -284,7 +284,8 @@ docker compose up -d --build
 - `compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（compose 会显式覆盖 `SERVER_PORT=8080`）。
-- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`AGENTS_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`SKILLS_MARKET_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`ROOT_DIR`、`PAN_DIR`。
+- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`AGENTS_DIR`、`OWNER_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`SKILLS_MARKET_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`ROOT_DIR`、`PAN_DIR`。
+- 应用内部仍按 `AGENTS_DIR` 的父目录推导 owner 路径；`OWNER_DIR` 只是部署层的宿主机 bind mount 入口，不新增 Spring `external-dir` 配置键。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
 ### 版本化离线 bundle（release 交付版）
@@ -660,7 +661,7 @@ contextConfig:
   - `qlc` 文件：`data` 直接是文件内 JSON 对象
 - `viewportKey` 不存在时返回 `404`。
 - 远端 viewport 来源为 `viewport-servers/`：
-  - `viewports/list` 负责注册 summary
+  - `viewports/list` 负责注册 summary，单个条目至少包含 `viewportKey` 和 `viewportType`
   - `viewports/get` 负责透传 payload
   - 不支持 viewports 协议的服务会被跳过并按配置自动重试
 

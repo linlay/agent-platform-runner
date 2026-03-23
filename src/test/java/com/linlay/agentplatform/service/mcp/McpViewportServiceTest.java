@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -31,7 +30,6 @@ class McpViewportServiceTest {
         ViewportSyncService.RemoteViewportBinding binding = new ViewportSyncService.RemoteViewportBinding(
                 "show_weather_card",
                 "html",
-                List.of("mock.weather.query"),
                 "viewport-mock"
         );
         ViewportServerRegistryService.RegisteredServer server = new ViewportServerRegistryService.RegisteredServer(
@@ -67,7 +65,6 @@ class McpViewportServiceTest {
         ViewportSyncService.RemoteViewportBinding binding = new ViewportSyncService.RemoteViewportBinding(
                 "flight_form",
                 "qlc",
-                List.of(),
                 "viewport-mock"
         );
         ViewportServerRegistryService.RegisteredServer server = new ViewportServerRegistryService.RegisteredServer(
@@ -107,7 +104,6 @@ class McpViewportServiceTest {
         ViewportSyncService.RemoteViewportBinding binding = new ViewportSyncService.RemoteViewportBinding(
                 "missing",
                 "html",
-                List.of(),
                 "viewport-mock"
         );
         ViewportServerRegistryService.RegisteredServer server = new ViewportServerRegistryService.RegisteredServer(
@@ -146,7 +142,6 @@ class McpViewportServiceTest {
         ViewportSyncService.RemoteViewportBinding binding = new ViewportSyncService.RemoteViewportBinding(
                 "show_weather_card",
                 "html",
-                List.of(),
                 "viewport-mock"
         );
         ViewportServerRegistryService.RegisteredServer server = new ViewportServerRegistryService.RegisteredServer(
@@ -180,7 +175,6 @@ class McpViewportServiceTest {
         ViewportSyncService.RemoteViewportBinding binding = new ViewportSyncService.RemoteViewportBinding(
                 "show_weather_card",
                 "html",
-                List.of(),
                 "viewport-mock"
         );
         ViewportServerRegistryService.RegisteredServer server = new ViewportServerRegistryService.RegisteredServer(

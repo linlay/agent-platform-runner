@@ -245,7 +245,7 @@ docker network create zenmind-network   # 仅在网络尚不存在时执行
 
 - `start.sh` 会校验 `.env`、Docker、`docker compose` 和外部网络 `zenmind-network`
 - 若本机没有 `agent-platform-runner:$RUNNER_VERSION`，脚本会自动从 `images/agent-platform-runner.tar` 执行 `docker load`
-- 若 `*_DIR` 指向的宿主机目录不存在，脚本会在 `docker compose up -d` 之前自动创建
+- 若 `*_DIR` 指向的宿主机目录不存在，脚本会在 `docker compose up -d` 之前自动创建，包括新的 `OWNER_DIR`
 - release compose 继续接入 `zenmind-network`，与现有容器互联模型保持一致
 
 停止命令：

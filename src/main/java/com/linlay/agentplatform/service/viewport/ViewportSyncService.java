@@ -189,7 +189,6 @@ public class ViewportSyncService {
             viewportsByKey.put(viewportKey, new RemoteViewportBinding(
                     viewportKey,
                     normalizeText(summary.viewportType()),
-                    summary.toolNames() == null ? List.of() : List.copyOf(summary.toolNames()),
                     normalize(server.serverKey())
             ));
         }
@@ -260,11 +259,7 @@ public class ViewportSyncService {
     public record RemoteViewportBinding(
             String viewportKey,
             String viewportType,
-            List<String> toolNames,
             String serverKey
     ) {
-        public RemoteViewportBinding {
-            toolNames = toolNames == null ? List.of() : List.copyOf(toolNames);
-        }
     }
 }

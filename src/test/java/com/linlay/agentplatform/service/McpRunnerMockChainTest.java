@@ -240,7 +240,7 @@ class McpRunnerMockChainTest {
 
                         """;
                 case 4 -> """
-                        data: {"jsonrpc":"2.0","id":"4","result":{"viewports":[{"viewportKey":"show_weather_card","viewportType":"html","toolNames":["mock.weather.query"]}]}}
+                        data: {"jsonrpc":"2.0","id":"4","result":{"viewports":[{"viewportKey":"show_weather_card","viewportType":"html"}]}}
 
                         """;
                 case 5 -> """

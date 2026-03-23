@@ -161,19 +161,11 @@ public class McpStreamableHttpClient {
             }
             String viewportKey = text(node.get("viewportKey"));
             String viewportType = text(node.get("viewportType"));
-            JsonNode toolNamesNode = node.get("toolNames");
-            if (!StringUtils.hasText(viewportKey) || !StringUtils.hasText(viewportType) || toolNamesNode == null || !toolNamesNode.isArray()) {
-                log.warn("Skip invalid viewport summary from server '{}' due to missing fields", server.serverKey());
+            if (!StringUtils.hasText(viewportKey) || !StringUtils.hasText(viewportType)) {
+                log.warn("Skip invalid viewport summary from server '{}' due to missing required viewport fields", server.serverKey());
                 continue;
             }
-            List<String> toolNames = new ArrayList<>();
-            for (JsonNode toolNameNode : toolNamesNode) {
-                String toolName = text(toolNameNode);
-                if (StringUtils.hasText(toolName)) {
-                    toolNames.add(toolName);
-                }
-            }
-            summaries.add(new RemoteViewportSummary(viewportKey, viewportType, List.copyOf(toolNames)));
+            summaries.add(new RemoteViewportSummary(viewportKey, viewportType));
         }
         return List.copyOf(summaries);
     }
@@ -438,8 +430,7 @@ public class McpStreamableHttpClient {
 
     public record RemoteViewportSummary(
             String viewportKey,
-            String viewportType,
-            List<String> toolNames
+            String viewportType
     ) {
     }
 

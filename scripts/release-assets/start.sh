@@ -46,6 +46,7 @@ load_image "$IMAGE_REF" "$IMAGE_TAR"
 
 ensure_dir "$SCRIPT_DIR/configs"
 ensure_dir "${AGENTS_DIR:-$SCRIPT_DIR/runtime/agents}"
+ensure_dir "${OWNER_DIR:-$SCRIPT_DIR/runtime/owner}"
 ensure_dir "${TEAMS_DIR:-$SCRIPT_DIR/runtime/teams}"
 ensure_dir "${MODELS_DIR:-$SCRIPT_DIR/runtime/models}"
 ensure_dir "${PROVIDERS_DIR:-$SCRIPT_DIR/runtime/providers}"

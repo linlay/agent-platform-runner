@@ -39,8 +39,7 @@ class ViewportSyncServiceTest {
         when(client.listViewports(server)).thenReturn(List.of(
                 new McpStreamableHttpClient.RemoteViewportSummary(
                         "show_weather_card",
-                        "html",
-                        List.of("mock.weather.query")
+                        "html"
                 )
         ));
 
@@ -55,7 +54,7 @@ class ViewportSyncServiceTest {
         assertThat(diff.addedKeys()).contains("show_weather_card");
         assertThat(service.findViewport("show_weather_card")).isPresent();
         assertThat(service.findViewport("show_weather_card").orElseThrow().viewportType()).isEqualTo("html");
-        assertThat(service.findViewport("show_weather_card").orElseThrow().toolNames()).containsExactly("mock.weather.query");
+        assertThat(service.findViewport("show_weather_card").orElseThrow().serverKey()).isEqualTo("viewport-mock");
     }
 
     @Test
@@ -88,10 +87,10 @@ class ViewportSyncServiceTest {
         doNothing().when(client).initialize(first, "2025-06");
         doNothing().when(client).initialize(second, "2025-06");
         when(client.listViewports(first)).thenReturn(List.of(
-                new McpStreamableHttpClient.RemoteViewportSummary("shared", "html", List.of("a.tool"))
+                new McpStreamableHttpClient.RemoteViewportSummary("shared", "html")
         ));
         when(client.listViewports(second)).thenReturn(List.of(
-                new McpStreamableHttpClient.RemoteViewportSummary("shared", "qlc", List.of("b.tool"))
+                new McpStreamableHttpClient.RemoteViewportSummary("shared", "qlc")
         ));
 
         ViewportSyncService service = new ViewportSyncService(

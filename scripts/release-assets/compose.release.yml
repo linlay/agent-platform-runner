@@ -14,6 +14,7 @@ services:
     environment:
       SERVER_PORT: 8080
       AGENTS_DIR: /opt/runtime/agents
+      OWNER_DIR: /opt/runtime/owner
       TEAMS_DIR: /opt/runtime/teams
       MODELS_DIR: /opt/runtime/models
       PROVIDERS_DIR: /opt/runtime/providers
@@ -32,6 +33,9 @@ services:
       - type: bind
         source: ${AGENTS_DIR:-./runtime/agents}
         target: /opt/runtime/agents
+      - type: bind
+        source: ${OWNER_DIR:-./runtime/owner}
+        target: /opt/runtime/owner
       - type: bind
         source: ${TEAMS_DIR:-./runtime/teams}
         target: /opt/runtime/teams

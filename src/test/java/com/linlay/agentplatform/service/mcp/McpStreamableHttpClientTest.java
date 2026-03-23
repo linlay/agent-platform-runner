@@ -69,7 +69,7 @@ class McpStreamableHttpClientTest {
         McpStreamableHttpClient client = new McpStreamableHttpClient(
                 objectMapper,
                 WebClient.builder().exchangeFunction(new FixedResponseExchange("""
-                        data: {"jsonrpc":"2.0","id":"2","result":{"viewports":[{"viewportKey":"show_weather_card","viewportType":"html","toolNames":["mock.weather.query"]}]}}
+                        data: {"jsonrpc":"2.0","id":"2","result":{"viewports":[{"viewportKey":"show_weather_card","viewportType":"html"}]}}
 
                         """))
         );
@@ -89,6 +89,33 @@ class McpStreamableHttpClientTest {
                 .extracting(McpStreamableHttpClient.RemoteViewportSummary::viewportKey,
                         McpStreamableHttpClient.RemoteViewportSummary::viewportType)
                 .containsExactly("show_weather_card", "html");
+    }
+
+    @Test
+    void shouldSkipInvalidViewportSummariesMissingRequiredFields() {
+        McpStreamableHttpClient client = new McpStreamableHttpClient(
+                objectMapper,
+                WebClient.builder().exchangeFunction(new FixedResponseExchange("""
+                        data: {"jsonrpc":"2.0","id":"2","result":{"viewports":[{"viewportKey":"show_weather_card"},{"viewportType":"html"},{"viewportKey":"flight_form","viewportType":"qlc"}]}}
+
+                        """))
+        );
+
+        ViewportServerRegistryService.RegisteredServer server = new ViewportServerRegistryService.RegisteredServer(
+                "viewport-mock",
+                "http://localhost:11969",
+                "/mcp",
+                java.util.Map.of(),
+                3000,
+                15000,
+                0
+        );
+
+        assertThat(client.listViewports(server))
+                .singleElement()
+                .extracting(McpStreamableHttpClient.RemoteViewportSummary::viewportKey,
+                        McpStreamableHttpClient.RemoteViewportSummary::viewportType)
+                .containsExactly("flight_form", "qlc");
     }
 
     @Test
