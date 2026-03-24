@@ -698,12 +698,12 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `AGENT_AGENTS_REFRESH_INTERVAL_MS` | `agent.agents.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
 | `TEAMS_DIR` | `agent.teams.external-dir` | `runtime/teams` | Team 定义目录 |
 | `AGENT_TEAMS_REFRESH_INTERVAL_MS` | `agent.teams.refresh-interval-ms` | `30000` | Team 目录刷新间隔（ms） |
-| `PROVIDERS_DIR` | `agent.providers.external-dir` | `runtime/providers` | Provider YAML 定义目录 |
+| `PROVIDERS_DIR` | `agent.providers.external-dir` | `runtime/providers` | Provider YAML 定义目录；若外置共享目录，推荐 `registries/providers`，模板放到 `example.registries/providers` |
 | `AGENT_PROVIDERS_REFRESH_INTERVAL_MS` | `agent.providers.refresh-interval-ms` | `30000` | Provider 目录刷新间隔（ms） |
-| `MODELS_DIR` | `agent.models.external-dir` | `runtime/models` | Model YAML 定义目录 |
+| `MODELS_DIR` | `agent.models.external-dir` | `runtime/models` | Model YAML 定义目录；若外置共享目录，推荐 `registries/models`，模板放到 `example.registries/models` |
 | `AGENT_MODELS_REFRESH_INTERVAL_MS` | `agent.models.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |
-| `MCP_SERVERS_DIR` | `agent.mcp-servers.registry.external-dir` | `runtime/mcp-servers` | MCP server 注册目录 |
-| `VIEWPORT_SERVERS_DIR` | `agent.viewport-servers.registry.external-dir` | `runtime/viewport-servers` | Viewport server 注册目录 |
+| `MCP_SERVERS_DIR` | `agent.mcp-servers.registry.external-dir` | `runtime/mcp-servers` | MCP server 注册目录；若外置共享目录，推荐 `registries/mcp-servers`，模板放到 `example.registries/mcp-servers` |
+| `VIEWPORT_SERVERS_DIR` | `agent.viewport-servers.registry.external-dir` | `runtime/viewport-servers` | Viewport server 注册目录；若外置共享目录，推荐 `registries/viewport-servers`，模板放到 `example.registries/viewport-servers` |
 
 #### H2A / Tools / Skills / Schedule
 
@@ -793,7 +793,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `agent.cors.allow-credentials` | `false` | 是否允许凭证 |
 | `agent.cors.max-age-seconds` | `3600` | 预检缓存秒数 |
 
-### Provider 配置（通常在 `configs/providers/<provider>.yml`）
+### Provider 配置（通常在 `runtime/providers/<provider>.yml`，外置共享目录时推荐 `registries/providers/<provider>.yml`）
 
 `agent.providers.<providerKey>` 支持：
 
