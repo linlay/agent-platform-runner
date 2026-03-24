@@ -6,8 +6,11 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -24,44 +27,37 @@ class JwksJwtVerifierLocalKeyValidationTests {
         .withUserConfiguration(LocalKeyValidationTestConfiguration.class);
 
     @Test
-    void shouldTreatBlankLocalKeyAsUnconfigured() {
-        contextRunner
-            .withPropertyValues(
-                "agent.auth.local-public-key="
-            )
-            .run(context -> {
-                assertThat(context).hasNotFailed();
+    void shouldIgnoreDeprecatedInlineLocalKeyWhenFileConfigured(@TempDir Path tempDir) throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Path configsDir = projectDir.resolve("configs");
+        Files.createDirectories(configsDir);
+        Files.writeString(configsDir.resolve("local-public-key.pem"), toPem(generateRsaKey()), StandardCharsets.UTF_8);
+        withUserDir(projectDir, () -> contextRunner
+                .withPropertyValues(
+                    "agent.auth.local-public-key=not-a-valid-pem",
+                    "agent.auth.local-public-key-file=local-public-key.pem"
+                )
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(JwksJwtVerifier.class)).isNotNull();
+                }));
+    }
+
+    @Test
+    void shouldLoadDefaultLocalKeyFromFallbackPemFile(@TempDir Path tempDir) throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Path configsDir = projectDir.resolve("configs");
+        Files.createDirectories(configsDir);
+        Files.writeString(configsDir.resolve("local-public-key.pem"), toPem(generateRsaKey()), StandardCharsets.UTF_8);
+        withUserDir(projectDir, () -> {
+            try (ConfigurableApplicationContext context = new SpringApplicationBuilder(LocalKeyValidationTestConfiguration.class)
+                    .web(WebApplicationType.NONE)
+                    .properties("spring.main.banner-mode=off")
+                    .run()) {
+                assertThat(context.getBean(AppAuthProperties.class).getLocalPublicKeyFile()).isEqualTo("local-public-key.pem");
                 assertThat(context.getBean(JwksJwtVerifier.class)).isNotNull();
-            });
-    }
-
-    @Test
-    void shouldFailFastWhenLocalKeyPemIsInvalid() {
-        contextRunner
-            .withPropertyValues(
-                "agent.auth.local-public-key=not-a-valid-pem"
-            )
-            .run(context -> {
-                assertThat(context).hasFailed();
-                assertThat(context.getStartupFailure()).hasCauseInstanceOf(IllegalStateException.class);
-                assertThat(context.getStartupFailure())
-                    .hasStackTraceContaining("agent.auth.local-public-key is not a valid PEM RSA public key");
-            });
-    }
-
-    @Test
-    void shouldFailFastWhenLocalKeyAndFileAreConfiguredTogether() {
-        contextRunner
-            .withPropertyValues(
-                "agent.auth.local-public-key=not-a-valid-pem",
-                "agent.auth.local-public-key-file=local-public-key.pem"
-            )
-            .run(context -> {
-                assertThat(context).hasFailed();
-                assertThat(context.getStartupFailure()).hasCauseInstanceOf(IllegalStateException.class);
-                assertThat(context.getStartupFailure())
-                    .hasStackTraceContaining("agent.auth.local-public-key and agent.auth.local-public-key-file cannot be configured together");
-            });
+            }
+        });
     }
 
     @Test

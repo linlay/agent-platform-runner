@@ -56,11 +56,13 @@ class RunnerDirectoryPropertiesBindingTest {
     }
 
     @Test
-    void shouldDefaultLocalPublicKeyFileToUnset() {
-        contextRunner.run(context -> {
-            AppAuthProperties authProperties = context.getBean(AppAuthProperties.class);
-            assertThat(authProperties.getLocalPublicKeyFile()).isNull();
-        });
+    void shouldDefaultLocalPublicKeyFileToFallbackPem() {
+        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(RunnerDirectoryConfiguration.class)
+                .web(WebApplicationType.NONE)
+                .properties("spring.main.banner-mode=off")
+                .run()) {
+            assertThat(context.getBean(AppAuthProperties.class).getLocalPublicKeyFile()).isEqualTo("local-public-key.pem");
+        }
     }
 
     @Test

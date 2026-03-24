@@ -165,9 +165,7 @@ public class JwksJwtVerifier {
             return null;
         }
 
-        String sourceProperty = StringUtils.hasText(authProperties.getLocalPublicKey())
-                ? "agent.auth.local-public-key"
-                : "agent.auth.local-public-key-file";
+        String sourceProperty = "agent.auth.local-public-key-file";
         String pem = resolveLocalPublicKeyContent();
         try {
             JWK jwk = JWK.parseFromPEMEncodedObjects(pem.trim());
@@ -278,28 +276,17 @@ public class JwksJwtVerifier {
     }
 
     private void validateLocalKeyConfiguration() {
-        String localPublicKey = authProperties.getLocalPublicKey();
         String localPublicKeyFile = authProperties.getLocalPublicKeyFile();
-        if (localPublicKey != null && !StringUtils.hasText(localPublicKey)) {
-            throw new IllegalStateException("agent.auth.local-public-key cannot be blank");
-        }
         if (localPublicKeyFile != null && !StringUtils.hasText(localPublicKeyFile)) {
             throw new IllegalStateException("agent.auth.local-public-key-file cannot be blank");
-        }
-        if (StringUtils.hasText(localPublicKey) && StringUtils.hasText(localPublicKeyFile)) {
-            throw new IllegalStateException("agent.auth.local-public-key and agent.auth.local-public-key-file cannot be configured together");
         }
     }
 
     private boolean isLocalKeyConfigured() {
-        return StringUtils.hasText(authProperties.getLocalPublicKey())
-            || StringUtils.hasText(authProperties.getLocalPublicKeyFile());
+        return StringUtils.hasText(authProperties.getLocalPublicKeyFile());
     }
 
     private String resolveLocalPublicKeyContent() {
-        if (StringUtils.hasText(authProperties.getLocalPublicKey())) {
-            return authProperties.getLocalPublicKey();
-        }
         String rawPath = authProperties.getLocalPublicKeyFile();
         Path path = ConfigDirectorySupport.resolveConfigRelativePath(rawPath);
         if (!Files.exists(path)) {

@@ -9,7 +9,6 @@ public class AppAuthProperties {
     private String jwksUri;
     private String issuer;
     private Long jwksCacheSeconds;
-    private String localPublicKey;
     private String localPublicKeyFile;
 
     public boolean isEnabled() {
@@ -42,14 +41,6 @@ public class AppAuthProperties {
 
     public void setJwksCacheSeconds(Long jwksCacheSeconds) {
         this.jwksCacheSeconds = jwksCacheSeconds;
-    }
-
-    public String getLocalPublicKey() {
-        return localPublicKey;
-    }
-
-    public void setLocalPublicKey(String localPublicKey) {
-        this.localPublicKey = normalize(localPublicKey);
     }
 
     public String getLocalPublicKeyFile() {

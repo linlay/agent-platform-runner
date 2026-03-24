@@ -415,30 +415,36 @@ RELEASE_BASE_IMAGE=<candidate-image> ARCH=arm64 make release
 
 - HTTP API 的 `Authorization` 请求头格式：`Bearer <token>`
 - 当 `agent.auth.enabled=true` 时，`/api/**`（除 `OPTIONS`）都需要 JWT。
+- 仅支持两种验签来源：`agent.auth.local-public-key-file` 与 JWKS（`agent.auth.jwks-uri` / `agent.auth.issuer` / `agent.auth.jwks-cache-seconds`）。
 - 验签优先级：
-  - 若显式配置了 `agent.auth.local-public-key-file` 或 `agent.auth.local-public-key`，先使用本地公钥验签；
+  - 先使用本地公钥文件验签；
   - 本地验签失败后，再回退到 `agent.auth.jwks-uri` 拉取的 JWKS 验签。
 - 本地公钥模式为启动期加载，更新密钥后需要重启服务生效。
-- 本地公钥模式默认关闭；只有显式配置 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE` 或 `agent.auth.local-public-key` 时才会启用。
+- 默认本地公钥文件是 `local-public-key.pem`；相对路径按 `configs/` 目录解析，也可通过 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE` 改成其他路径。
+- 若你想使用纯 JWKS 模式，需要把 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=` 置空，再同时配置完整的 JWKS 三元组。
+- 不再支持 `agent.auth.local-public-key` 这种内联 PEM 配置方式。
 
 示例（`.env`）：
 
 ```env
 AGENT_AUTH_ENABLED=true
+AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=local-public-key.pem
+```
+
+若你想切换到 JWKS 模式：
+
+```env
+AGENT_AUTH_ENABLED=true
+AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=
 AGENT_AUTH_JWKS_URI=https://auth.example.local/api/auth/jwks
 AGENT_AUTH_ISSUER=https://auth.example.local
 AGENT_AUTH_JWKS_CACHE_SECONDS=300
 ```
 
-若你希望启用本地公钥验签，再额外显式配置：
-
-```env
-AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=local-public-key.pem
-```
-
 注意：
 
-- 当配置了空的 `local-public-key` / `local-public-key-file` 或非法 PEM 时，服务会在启动时失败（fail-fast）。
+- 当配置了空的 `local-public-key-file` 或非法 PEM 时，服务会在启动时失败（fail-fast）。
+- 若 `agent.auth.enabled=true`，你必须确保至少存在一个有效验签来源：默认本地公钥文件，或完整的 JWKS 配置。
 - `jwks-uri` / `issuer` / `jwks-cache-seconds` 必须三者同时配置；只配部分会启动失败。
 - 当前仅支持 RSA 公钥（与 RS256 验签一致）。
 

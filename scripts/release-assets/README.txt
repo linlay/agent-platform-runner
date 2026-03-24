@@ -7,7 +7,7 @@ agent-platform-runner release bundle
    - `configs/container-hub.example.yml` -> `configs/container-hub.yml`
    - `configs/bash.example.yml` -> `configs/bash.yml`
    - `configs/cors.example.yml` -> `configs/cors.yml`
-   - `configs/local-public-key.example.pem` -> `configs/local-public-key.pem` (only if you explicitly enable local public key verification)
+   - `configs/local-public-key.example.pem` -> `configs/local-public-key.pem` (default local public key file mode; if you use JWKS-only, set `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=` in `.env`)
 4. Make sure the external Docker network `zenmind-network` already exists.
 5. Start with `./start.sh`. It will create the effective runtime directories from `.env` automatically when they are missing.
 6. Stop with `./stop.sh`.

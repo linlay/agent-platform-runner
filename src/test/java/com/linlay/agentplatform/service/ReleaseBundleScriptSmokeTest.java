@@ -52,12 +52,13 @@ class ReleaseBundleScriptSmokeTest {
         assertThat(startScript).contains("ensure_dir \"${SKILLS_MARKET_DIR:-$SCRIPT_DIR/runtime/skills-market}\"");
         assertThat(startScript).contains("ensure_dir \"${SCHEDULES_DIR:-$SCRIPT_DIR/runtime/schedules}\"");
         assertThat(bundleReadme).contains("container paths fixed under `/opt/*`");
-        assertThat(bundleReadme).contains("only if you explicitly enable local public key verification");
+        assertThat(bundleReadme).contains("default local public key file mode");
         assertThat(bundleDoc).contains("`SPRING_PROFILES_ACTIVE=docker`");
-        assertThat(bundleDoc).contains("本地公钥 JWT 验签默认关闭");
-        assertThat(projectReadme).contains("本地公钥模式默认关闭");
-        assertThat(projectEnvExample).doesNotContain("AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=");
-        assertThat(envExample).doesNotContain("AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=");
+        assertThat(bundleDoc).contains("默认使用 `local-public-key.pem` 作为本地公钥文件");
+        assertThat(projectReadme).contains("默认本地公钥文件是 `local-public-key.pem`");
+        assertThat(projectReadme).contains("不再支持 `agent.auth.local-public-key`");
+        assertThat(projectEnvExample).contains("AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=local-public-key.pem");
+        assertThat(envExample).contains("AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=local-public-key.pem");
         assertThat(bundleDoc).contains("/opt/registries/{providers,models,mcp-servers,viewport-servers}");
         assertThat(releaseCompose).contains("target: /tmp/runner-host.env");
         assertThat(releaseCompose).contains("SANDBOX_HOST_DIRS_FILE: /tmp/runner-host.env");

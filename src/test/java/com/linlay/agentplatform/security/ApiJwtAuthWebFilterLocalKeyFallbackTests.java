@@ -48,6 +48,7 @@ class ApiJwtAuthWebFilterLocalKeyFallbackTests {
 
     private static final RSAKey LOCAL_RSA_KEY = generateRsaKey("local-fallback-kid");
     private static final RSAKey JWKS_RSA_KEY = generateRsaKey("jwks-fallback-kid");
+    private static final Path LOCAL_KEY_FILE = createPemFile(LOCAL_RSA_KEY, "agent-platform-local-fallback-key-");
     private static final Path JWKS_FILE = createJwksFile(JWKS_RSA_KEY);
 
     @Autowired
@@ -55,14 +56,14 @@ class ApiJwtAuthWebFilterLocalKeyFallbackTests {
 
     @DynamicPropertySource
     static void dynamicProperties(DynamicPropertyRegistry registry) {
-        registry.add("agent.auth.local-public-key", () -> toPem(LOCAL_RSA_KEY));
-        registry.add("agent.auth.local-public-key-file", () -> "");
+        registry.add("agent.auth.local-public-key-file", () -> LOCAL_KEY_FILE.toString());
         registry.add("agent.auth.jwks-uri", () -> JWKS_FILE.toUri().toString());
         registry.add("agent.auth.jwks-cache-seconds", () -> 60);
     }
 
     @AfterAll
     static void afterAll() throws Exception {
+        Files.deleteIfExists(LOCAL_KEY_FILE);
         Files.deleteIfExists(JWKS_FILE);
     }
 
@@ -120,6 +121,16 @@ class ApiJwtAuthWebFilterLocalKeyFallbackTests {
             return jwksFile;
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to create temporary JWKS file for test", ex);
+        }
+    }
+
+    private static Path createPemFile(RSAKey rsaKey, String prefix) {
+        try {
+            Path pemFile = Files.createTempFile(prefix, ".pem");
+            Files.writeString(pemFile, toPem(rsaKey), StandardCharsets.UTF_8);
+            return pemFile;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to create temporary PEM file for test", ex);
         }
     }
 
