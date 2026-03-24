@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.config.ConfigDirectorySupport;
+import com.linlay.agentplatform.util.RuntimeCatalogNaming;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
@@ -15,20 +16,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
-
-    private static final List<String> TOP_LEVEL_FILES = List.of(
-            "auth.yml",
-            "container-hub.yml",
-            "bash.yml",
-            "voice-tts.yml",
-            "cors.yml",
-            "chat-image-token.yml"
-    );
 
     private static final Map<String, String> PREFIX_MAP = Map.of(
             "bash", "agent.tools.bash",
@@ -50,11 +44,7 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
         MutablePropertySources propertySources = environment.getPropertySources();
         String anchor = resolveAnchor(propertySources);
 
-        for (String fileName : TOP_LEVEL_FILES) {
-            Path file = configDir.resolve(fileName);
-            if (!isRuntimeYamlFile(file)) {
-                continue;
-            }
+        for (Path file : resolveTopLevelConfigFiles(configDir)) {
             anchor = loadYamlFile(propertySources, anchor, file);
         }
     }
@@ -64,15 +54,65 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
         return Ordered.LOWEST_PRECEDENCE;
     }
 
+    private List<Path> resolveTopLevelConfigFiles(Path configDir) {
+        if (configDir == null || !Files.isDirectory(configDir)) {
+            return List.of();
+        }
+        try (Stream<Path> stream = Files.list(configDir)) {
+            Map<String, List<Path>> candidatesByBase = new LinkedHashMap<>();
+            stream.filter(Files::isRegularFile)
+                    .filter(this::isRuntimeYamlFile)
+                    .forEach(path -> {
+                        String logicalBaseName = RuntimeCatalogNaming.logicalBaseName(path.getFileName().toString());
+                        if (PREFIX_MAP.containsKey(logicalBaseName)) {
+                            candidatesByBase.computeIfAbsent(logicalBaseName, ignored -> new ArrayList<>()).add(path);
+                        }
+                    });
+
+            List<Path> resolved = new ArrayList<>();
+            Comparator<Path> comparator = Comparator
+                    .comparingInt(this::runtimeVariantPriority)
+                    .thenComparingInt(this::yamlFormatPriority)
+                    .thenComparing(path -> path.getFileName().toString());
+            for (String baseName : List.of("auth", "container-hub", "bash", "voice-tts", "cors", "chat-image-token")) {
+                List<Path> candidates = candidatesByBase.get(baseName);
+                if (candidates == null || candidates.isEmpty()) {
+                    continue;
+                }
+                resolved.add(candidates.stream().sorted(comparator).findFirst().orElseThrow());
+            }
+            return List.copyOf(resolved);
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to list config directory: " + configDir, ex);
+        }
+    }
+
     private boolean isRuntimeYamlFile(Path file) {
         if (file == null || !Files.isRegularFile(file)) {
             return false;
         }
-        String name = file.getFileName().toString().toLowerCase();
-        if (name.contains(".example.")) {
+        String name = file.getFileName().toString();
+        if (!RuntimeCatalogNaming.shouldLoadRuntimeName(name)) {
             return false;
         }
-        return name.endsWith(".yml") || name.endsWith(".yaml");
+        String lowerName = name.toLowerCase();
+        return lowerName.endsWith(".yml") || lowerName.endsWith(".yaml");
+    }
+
+    private int runtimeVariantPriority(Path file) {
+        String name = file.getFileName() == null ? "" : file.getFileName().toString();
+        return RuntimeCatalogNaming.isDemoName(name) ? 1 : 0;
+    }
+
+    private int yamlFormatPriority(Path file) {
+        String name = file.getFileName() == null ? "" : file.getFileName().toString().toLowerCase();
+        if (name.endsWith(".yml")) {
+            return 0;
+        }
+        if (name.endsWith(".yaml")) {
+            return 1;
+        }
+        return 2;
     }
 
     private String loadYamlFile(MutablePropertySources propertySources, String anchor, Path file) {
@@ -171,8 +211,7 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
 
     private String baseName(Path file) {
         String fileName = file.getFileName().toString();
-        int dot = fileName.lastIndexOf('.');
-        return dot > 0 ? fileName.substring(0, dot) : fileName;
+        return RuntimeCatalogNaming.logicalBaseName(fileName);
     }
 
     private String resolveAnchor(MutablePropertySources propertySources) {

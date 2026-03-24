@@ -235,6 +235,33 @@ class ModelRegistryServiceTest {
         assertThat(service.find("valid-model")).isPresent();
     }
 
+    @Test
+    void shouldIgnoreExampleModelAndLoadDemoModel() throws Exception {
+        Path modelsDir = tempDir.resolve("models");
+        Files.createDirectories(modelsDir);
+        Files.writeString(modelsDir.resolve("template.example.yml"), """
+                key: template-model
+                provider: bailian
+                protocol: OPENAI
+                modelId: ignored-template
+                """);
+        Files.writeString(modelsDir.resolve("live.demo.yml"), """
+                key: live-demo-model
+                provider: bailian
+                protocol: OPENAI
+                modelId: loaded-demo
+                """);
+
+        ModelRegistryService service = new ModelRegistryService(
+                new ObjectMapper(),
+                modelProperties(modelsDir),
+                providerRegistry(Map.of("bailian", "https://example.com"))
+        );
+
+        assertThat(service.find("template-model")).isEmpty();
+        assertThat(service.find("live-demo-model")).isPresent();
+    }
+
     private ModelProperties modelProperties(Path modelsDir) {
         ModelProperties properties = new ModelProperties();
         properties.setExternalDir(modelsDir.toString());

@@ -77,6 +77,27 @@ class ConfigDirectoryEnvironmentPostProcessorTest {
     }
 
     @Test
+    void shouldLoadDemoConfigFileAndIgnoreExampleTemplate() throws Exception {
+        Path projectDir = tempDir.resolve("project");
+        Path configsDir = projectDir.resolve("configs");
+        Files.createDirectories(configsDir);
+        Files.writeString(configsDir.resolve("auth.demo.yml"), """
+                enabled: false
+                local-public-key-file: demo-public-key.pem
+                """);
+        Files.writeString(configsDir.resolve("auth.example.yml"), """
+                enabled: true
+                local-public-key-file: example-public-key.pem
+                """);
+
+        StandardEnvironment environment = environmentWithRequiredDirectories();
+        withUserDir(projectDir, () -> processor.postProcessEnvironment(environment, new SpringApplication(Object.class)));
+
+        assertThat(environment.getProperty("agent.auth.enabled")).isEqualTo("false");
+        assertThat(environment.getProperty("agent.auth.local-public-key-file")).isEqualTo("demo-public-key.pem");
+    }
+
+    @Test
     void shouldFailFastWhenConfigUsesDeprecatedNestedKeys() throws Exception {
         Path projectDir = tempDir.resolve("project");
         Path configsDir = projectDir.resolve("configs");

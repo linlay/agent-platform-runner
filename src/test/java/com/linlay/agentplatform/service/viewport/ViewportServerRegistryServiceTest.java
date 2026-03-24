@@ -106,4 +106,29 @@ class ViewportServerRegistryServiceTest {
 
         assertThat(service.find("viewport-mock")).isPresent();
     }
+
+    @Test
+    void shouldIgnoreExampleViewportRegistryFileAndLoadDemoRegistryFile() throws Exception {
+        Path registryDir = tempDir.resolve("viewport-servers");
+        Files.createDirectories(registryDir);
+        Files.writeString(registryDir.resolve("ignored.example.yml"), """
+                serverKey: ignored-viewport
+                baseUrl: http://ignored-host:11969
+                endpointPath: /mcp
+                """);
+        Files.writeString(registryDir.resolve("live.demo.yml"), """
+                serverKey: live-viewport
+                baseUrl: http://live-host:11969
+                endpointPath: /mcp
+                """);
+
+        ViewportServerProperties properties = new ViewportServerProperties();
+        properties.getRegistry().setExternalDir(registryDir.toString());
+
+        ViewportServerRegistryService service = new ViewportServerRegistryService(new ObjectMapper(), properties);
+        service.refreshServers();
+
+        assertThat(service.find("ignored-viewport")).isEmpty();
+        assertThat(service.find("live-viewport")).isPresent();
+    }
 }

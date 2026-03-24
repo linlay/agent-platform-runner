@@ -8,6 +8,7 @@ import com.linlay.agentplatform.config.ProviderConfig;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
 import com.linlay.agentplatform.model.ModelProtocol;
 import com.linlay.agentplatform.util.CatalogDiff;
+import com.linlay.agentplatform.util.RuntimeCatalogNaming;
 import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;
@@ -74,7 +75,9 @@ public class ProviderRegistryService {
             Map<String, ProviderConfig> loaded = new LinkedHashMap<>();
             try {
                 for (Path path : YamlCatalogSupport.selectYamlFiles(
-                        YamlCatalogSupport.listRegularFiles(dir, log),
+                        YamlCatalogSupport.listRegularFiles(dir, log).stream()
+                                .filter(RuntimeCatalogNaming::shouldLoadRuntimePath)
+                                .toList(),
                         "provider",
                         log
                 )) {
@@ -105,7 +108,7 @@ public class ProviderRegistryService {
     }
 
     private Optional<ProviderConfig> tryLoad(Path file) {
-        String fileBasedKey = YamlCatalogSupport.fileBaseName(file).trim();
+        String fileBasedKey = RuntimeCatalogNaming.logicalBaseName(file.getFileName().toString()).trim();
         if (fileBasedKey.isBlank()) {
             log.warn("Skip provider file with empty name: {}", file);
             return Optional.empty();

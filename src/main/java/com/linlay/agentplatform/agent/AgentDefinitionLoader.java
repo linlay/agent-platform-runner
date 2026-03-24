@@ -11,6 +11,7 @@ import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.MountAccessMode;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
+import com.linlay.agentplatform.util.RuntimeCatalogNaming;
 import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
 import com.linlay.agentplatform.model.ModelDefinition;
@@ -97,6 +98,9 @@ public class AgentDefinitionLoader {
         Map<String, AgentDefinition> loaded = new LinkedHashMap<>();
         Map<String, Path> sourceFilesByAgentId = new LinkedHashMap<>();
         for (Path path : entries) {
+            if (!RuntimeCatalogNaming.shouldLoadRuntimePath(path)) {
+                continue;
+            }
             if (!Files.isDirectory(path)) {
                 continue;
             }
@@ -112,7 +116,10 @@ public class AgentDefinitionLoader {
         }
 
         List<Path> flatFiles = YamlCatalogSupport.selectYamlFiles(
-                entries.stream().filter(Files::isRegularFile).toList(),
+                entries.stream()
+                        .filter(Files::isRegularFile)
+                        .filter(RuntimeCatalogNaming::shouldLoadRuntimePath)
+                        .toList(),
                 "agent",
                 log
         );
@@ -150,7 +157,7 @@ public class AgentDefinitionLoader {
     }
 
     private Optional<AgentDefinition> tryLoadExternal(Path file) {
-        String fileBasedId = YamlCatalogSupport.fileBaseName(file).trim();
+        String fileBasedId = RuntimeCatalogNaming.logicalBaseName(file.getFileName().toString()).trim();
         if (fileBasedId.isEmpty()) {
             log.warn("Skip external agent with empty name: {}", file);
             return Optional.empty();
@@ -322,6 +329,7 @@ public class AgentDefinitionLoader {
         try (Stream<Path> stream = Files.list(skillsDir)) {
             return stream.filter(Files::isDirectory)
                     .filter(path -> !isHiddenEntry(path))
+                    .filter(RuntimeCatalogNaming::shouldLoadRuntimePath)
                     .filter(path -> Files.isRegularFile(path.resolve("SKILL.md")))
                     .filter(path -> !isScaffoldSkill(path.resolve("SKILL.md")))
                     .map(path -> normalize(path.getFileName() == null ? null : path.getFileName().toString(), "").trim().toLowerCase(Locale.ROOT))

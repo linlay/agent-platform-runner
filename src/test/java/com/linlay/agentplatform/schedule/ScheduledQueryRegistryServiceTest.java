@@ -271,6 +271,31 @@ class ScheduledQueryRegistryServiceTest {
     }
 
     @Test
+    void shouldIgnoreExampleScheduleAndLoadDemoSchedule() throws Exception {
+        Files.writeString(tempDir.resolve("daily.example.yml"), """
+                name: Example Schedule
+                description: 模板计划
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                query:
+                  message: ignored
+                """);
+        Files.writeString(tempDir.resolve("daily.demo.yml"), """
+                name: Demo Schedule
+                description: demo 计划
+                cron: "0 0 9 * * *"
+                agentKey: demoModePlain
+                query:
+                  message: loaded
+                """);
+
+        ScheduledQueryRegistryService service = newService(mock(TeamRegistryService.class));
+
+        assertThat(service.find("daily")).isPresent();
+        assertThat(service.find("daily").orElseThrow().description()).isEqualTo("demo 计划");
+    }
+
+    @Test
     void shouldRejectInvalidHeaderDisclosure() throws Exception {
         Files.writeString(tempDir.resolve("blank-prefix.yml"), """
 

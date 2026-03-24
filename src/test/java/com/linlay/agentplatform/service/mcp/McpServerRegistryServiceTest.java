@@ -124,4 +124,29 @@ class McpServerRegistryServiceTest {
 
         assertThat(service.find("mock")).isPresent();
     }
+
+    @Test
+    void shouldIgnoreExampleRegistryFileAndLoadDemoRegistryFile() throws Exception {
+        Path registryDir = tempDir.resolve("mcp-servers");
+        Files.createDirectories(registryDir);
+        Files.writeString(registryDir.resolve("ignored.example.yml"), """
+                serverKey: ignored
+                baseUrl: http://ignored-host:18080
+                endpointPath: /mcp
+                """);
+        Files.writeString(registryDir.resolve("live.demo.yml"), """
+                serverKey: live
+                baseUrl: http://live-host:18080
+                endpointPath: /mcp
+                """);
+
+        McpProperties properties = new McpProperties();
+        properties.getRegistry().setExternalDir(registryDir.toString());
+
+        McpServerRegistryService service = new McpServerRegistryService(new ObjectMapper(), properties);
+        service.refreshServers();
+
+        assertThat(service.find("ignored")).isEmpty();
+        assertThat(service.find("live")).isPresent();
+    }
 }

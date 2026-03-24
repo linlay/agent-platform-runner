@@ -34,7 +34,13 @@ public final class RemoteServerConfigSupport {
             return List.of();
         }
         List<ServerSpec> loaded = new ArrayList<>();
-        for (Path file : YamlCatalogSupport.selectYamlFiles(YamlCatalogSupport.listRegularFiles(dir, log), "remote server", log)) {
+        for (Path file : YamlCatalogSupport.selectYamlFiles(
+                YamlCatalogSupport.listRegularFiles(dir, log).stream()
+                        .filter(RuntimeCatalogNaming::shouldLoadRuntimePath)
+                        .toList(),
+                "remote server",
+                log
+        )) {
             loaded.addAll(parseServerFile(file, objectMapper, log));
         }
         return List.copyOf(loaded);

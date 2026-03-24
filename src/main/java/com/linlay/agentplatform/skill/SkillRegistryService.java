@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import com.linlay.agentplatform.util.CatalogDiff;
+import com.linlay.agentplatform.util.RuntimeCatalogNaming;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -96,6 +97,9 @@ public class SkillRegistryService {
                             if (isHiddenEntry(path)) {
                                 return;
                             }
+                            if (!RuntimeCatalogNaming.shouldLoadRuntimePath(path)) {
+                                return;
+                            }
                             if (Files.isRegularFile(path)) {
                                 log.warn(
                                         "Invalid skill layout entry '{}'. Skill files must be placed at skills/<skill-id>/{}",
@@ -143,6 +147,9 @@ public class SkillRegistryService {
             return Optional.empty();
         }
         if (isHiddenEntry(skillDir)) {
+            return Optional.empty();
+        }
+        if (!RuntimeCatalogNaming.shouldLoadRuntimePath(skillDir)) {
             return Optional.empty();
         }
         Path skillFile = skillDir.resolve(SKILL_FILE).normalize();

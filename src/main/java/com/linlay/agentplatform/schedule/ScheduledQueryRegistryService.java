@@ -7,6 +7,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.team.TeamDescriptor;
 import com.linlay.agentplatform.team.TeamRegistryService;
+import com.linlay.agentplatform.util.RuntimeCatalogNaming;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,6 +99,7 @@ public class ScheduledQueryRegistryService {
 
             Map<String, ScheduledQueryDescriptor> loaded = new LinkedHashMap<>();
             YamlCatalogSupport.listRegularFiles(dir, log).stream()
+                    .filter(RuntimeCatalogNaming::shouldLoadRuntimePath)
                     .filter(path -> path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(SUPPORTED_SUFFIX))
                     .forEach(path -> tryLoad(path).ifPresent(descriptor -> {
                         ScheduledQueryDescriptor existing = loaded.putIfAbsent(descriptor.id(), descriptor);
@@ -117,7 +119,7 @@ public class ScheduledQueryRegistryService {
 
     private Optional<ScheduledQueryDescriptor> tryLoad(Path file) {
         String fileName = file.getFileName().toString();
-        String fileBasedId = fileName.substring(0, fileName.length() - SUPPORTED_SUFFIX.length()).trim();
+        String fileBasedId = RuntimeCatalogNaming.logicalBaseName(fileName).trim();
         String scheduleId = normalizeId(fileBasedId);
         if (!StringUtils.hasText(scheduleId)) {
             log.warn("Skip schedule file with empty id: {}", file);

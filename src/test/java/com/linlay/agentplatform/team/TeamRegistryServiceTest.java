@@ -63,4 +63,23 @@ class TeamRegistryServiceTest {
 
         assertThat(service.find("a1b2c3d4e5f6")).isPresent();
     }
+
+    @Test
+    void shouldIgnoreExampleTeamAndLoadDemoTeam() throws Exception {
+        Files.writeString(tempDir.resolve("deadbeefcafe.example.yml"), """
+                name: Example Team
+                defaultAgentKey: demoModeReact
+                """);
+        Files.writeString(tempDir.resolve("feedfacecafe.demo.yml"), """
+                name: Demo Team
+                defaultAgentKey: demoModePlain
+                """);
+
+        TeamProperties properties = new TeamProperties();
+        properties.setExternalDir(tempDir.toString());
+        TeamRegistryService service = new TeamRegistryService(new ObjectMapper(), properties);
+
+        assertThat(service.find("deadbeefcafe")).isEmpty();
+        assertThat(service.find("feedfacecafe")).isPresent();
+    }
 }

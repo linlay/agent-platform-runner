@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.service.llm.ProviderRegistryService;
 import com.linlay.agentplatform.util.CatalogDiff;
+import com.linlay.agentplatform.util.RuntimeCatalogNaming;
 import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;
@@ -95,7 +96,13 @@ public class ModelRegistryService {
                 return CatalogDiff.between(before, byKey);
             }
 
-            YamlCatalogSupport.selectYamlFiles(YamlCatalogSupport.listRegularFiles(dir, log), "model", log)
+            YamlCatalogSupport.selectYamlFiles(
+                            YamlCatalogSupport.listRegularFiles(dir, log).stream()
+                                    .filter(RuntimeCatalogNaming::shouldLoadRuntimePath)
+                                    .toList(),
+                            "model",
+                            log
+                    )
                     .forEach(path -> tryLoad(path).ifPresent(model -> {
                         if (loaded.containsKey(model.key())) {
                             log.warn("Duplicate model key '{}' found in {}, keep the first one", model.key(), path);
@@ -112,7 +119,7 @@ public class ModelRegistryService {
     }
 
     private Optional<ModelDefinition> tryLoad(Path file) {
-        String fileBasedKey = YamlCatalogSupport.fileBaseName(file).trim();
+        String fileBasedKey = RuntimeCatalogNaming.logicalBaseName(file.getFileName().toString()).trim();
         if (fileBasedKey.isBlank()) {
             log.warn("Skip model file with empty name: {}", file);
             return Optional.empty();

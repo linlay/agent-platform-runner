@@ -1170,6 +1170,42 @@ class AgentDefinitionLoaderTest {
         assertThat(byId.get("demoModePlanExecuteDeepThinking").mode()).isEqualTo(AgentRuntimeMode.PLAN_EXECUTE);
     }
 
+    @Test
+    void shouldIgnoreExampleAgentDirectoryAndLoadDemoAgentDirectory() throws IOException {
+        Path ignoredDir = tempDir.resolve("ignored.example");
+        Files.createDirectories(ignoredDir);
+        Files.writeString(ignoredDir.resolve("agent.yml"), """
+                key: ignored.example
+                name: Ignored Example
+                role: Ignored Example
+                description: template
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: ignored
+                """);
+
+        Path liveDir = tempDir.resolve("live.demo");
+        Files.createDirectories(liveDir);
+        Files.writeString(liveDir.resolve("agent.yml"), """
+                key: live.demo
+                name: Live Demo
+                role: Live Demo
+                description: runtime demo
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                plain:
+                  systemPrompt: loaded
+                """);
+
+        Map<String, AgentDefinition> byId = loadById();
+
+        assertThat(byId).doesNotContainKey("ignored.example");
+        assertThat(byId).containsKey("live.demo");
+    }
+
     private Map<String, AgentDefinition> loadById() {
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());

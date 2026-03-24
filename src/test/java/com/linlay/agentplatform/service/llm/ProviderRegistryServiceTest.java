@@ -66,6 +66,29 @@ class ProviderRegistryServiceTest {
         assertThat(service.find("bailian")).isPresent();
     }
 
+    @Test
+    void shouldIgnoreExampleProviderAndLoadDemoProvider() throws Exception {
+        Path providersDir = tempDir.resolve("providers");
+        Files.createDirectories(providersDir);
+        Files.writeString(providersDir.resolve("example-only.example.yml"), """
+                key: example-only
+                baseUrl: https://example-template.invalid
+                apiKey: dummy
+                defaultModel: template-model
+                """);
+        Files.writeString(providersDir.resolve("demo-live.demo.yml"), """
+                key: demo-live
+                baseUrl: https://demo-live.example
+                apiKey: dummy
+                defaultModel: demo-model
+                """);
+
+        ProviderRegistryService service = new ProviderRegistryService(providerProperties(providersDir));
+
+        assertThat(service.find("example-only")).isEmpty();
+        assertThat(service.find("demo-live")).isPresent();
+    }
+
     private ProviderProperties providerProperties(Path providersDir) {
         ProviderProperties properties = new ProviderProperties();
         properties.setExternalDir(providersDir.toString());

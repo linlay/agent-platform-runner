@@ -136,6 +136,19 @@ class SkillRegistryServiceTest {
         assertThat(service.list()).isEmpty();
     }
 
+    @Test
+    void shouldIgnoreExampleSkillDirectoryAndLoadDemoSkillDirectory() throws Exception {
+        writeSkill("sample.example", "Example Skill", "template");
+        writeSkill("sample.demo", "Demo Skill", "live demo");
+
+        SkillProperties properties = new SkillProperties();
+        properties.setExternalDir(tempDir.toString());
+        SkillRegistryService service = new SkillRegistryService(properties);
+
+        assertThat(service.find("sample.example")).isEmpty();
+        assertThat(service.find("sample.demo")).isPresent();
+    }
+
     private void writeSkill(String id, String name, String description) throws Exception {
         Path skillFile = tempDir.resolve(id).resolve("SKILL.md");
         Files.createDirectories(skillFile.getParent());

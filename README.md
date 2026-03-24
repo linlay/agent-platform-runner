@@ -245,7 +245,7 @@ make run
 若 `.env` 或环境变量覆盖了端口（例如开发常用 `11949`），则以覆盖值为准。
 注意：`make run` 会自动加载根目录 `.env`；直接执行 `mvn spring-boot:run` 则不会自动加载。
 
-推荐把可配置运行时目录统一放到项目外，再通过 `.env` 指向它们。`configs/` 不是可配置目录，固定使用 runner 自带的 `./configs`（容器内固定挂载到 `/opt/configs`）。当前默认已经把 `providers/models/mcp-servers/viewport-servers` 这四类动态注册目录统一收口到 `registries/` 父目录下，与静态启动配置 `configs/` 区分开；若你需要保留模板文件，也建议放到单独的 `example.registries/` 下，避免运行时扫描到示例文件。例如代码仓库保留在当前工作区，而运行目录放在共享目录：
+推荐把可配置运行时目录统一放到项目外，再通过 `.env` 指向它们。`configs/` 不是可配置目录，固定使用 runner 自带的 `./configs`（容器内固定挂载到 `/opt/configs`）。当前默认已经把 `providers/models/mcp-servers/viewport-servers` 这四类动态注册目录统一收口到 `registries/` 父目录下，与静态启动配置 `configs/` 区分开；若你需要保留模板文件，也建议放到单独的 `registries.example/` 下，避免运行时扫描到示例文件。例如代码仓库保留在当前工作区，而运行目录放在共享目录：
 
 ```bash
 PROVIDERS_DIR=/Users/you/runtime/runner/registries/providers
@@ -278,7 +278,7 @@ docker compose up -d --build
 - `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`、`OWNER_DIR`、`AGENT_CONTAINER_HUB_BASE_URL`）；`SERVER_PORT` 主要用于本地非 Docker 运行。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
 - 运行时业务目录既可以保留在仓库内默认路径，也可以通过 `.env` 的 `*_DIR` 指向宿主机其他路径覆盖默认值；其中 `providers/models/mcp-servers/viewport-servers` 默认回落到 `./runtime/registries/*`，其余目录默认回落到 `./runtime/*`。
-- 若把这四类动态注册目录外置到共享根目录，保持使用 `registries/` 作为它们的父目录命名，并把模板放到独立的 `example.registries/`。
+- 若把这四类动态注册目录外置到共享根目录，保持使用 `registries/` 作为它们的父目录命名，并把模板放到独立的 `registries.example/`。
 - 本地 `make run` 会先加载 `.env`，因此 `*_DIR` 会直接作为应用读取目录生效；Docker Compose 继续复用同一份 `.env`，但这些 `*_DIR` 在容器里只用于宿主机 bind mount source。
 - `compose.yml` 会把根目录 `.env` 只读挂载到容器内 `/tmp/runner-host.env`，并通过 `SANDBOX_HOST_DIRS_FILE` 指向这份 mapping 文件；`sandbox_bash` 创建 container-hub session 时，会优先从这份文件读取宿主机路径作为 mount source，而不是使用容器内 `/opt/...` 路径。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。

@@ -3,6 +3,7 @@ package com.linlay.agentplatform.team;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.linlay.agentplatform.util.RuntimeCatalogNaming;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,7 +71,13 @@ public class TeamRegistryService {
                 return;
             }
 
-            YamlCatalogSupport.selectYamlFiles(YamlCatalogSupport.listRegularFiles(dir, log), "team", log)
+            YamlCatalogSupport.selectYamlFiles(
+                            YamlCatalogSupport.listRegularFiles(dir, log).stream()
+                                    .filter(RuntimeCatalogNaming::shouldLoadRuntimePath)
+                                    .toList(),
+                            "team",
+                            log
+                    )
                     .forEach(path -> tryLoad(path).ifPresent(team -> {
                         if (loaded.containsKey(team.id())) {
                             log.warn("Duplicate team id '{}' found in {}, keep the first one", team.id(), path);
@@ -85,7 +92,7 @@ public class TeamRegistryService {
     }
 
     private Optional<TeamDescriptor> tryLoad(Path file) {
-        String fileBasedId = YamlCatalogSupport.fileBaseName(file).trim();
+        String fileBasedId = RuntimeCatalogNaming.logicalBaseName(file.getFileName().toString()).trim();
         String teamId = normalizeTeamId(fileBasedId);
         if (!isValidTeamId(teamId)) {
             log.warn("Skip team file with invalid teamId '{}': {}", fileBasedId, file);
