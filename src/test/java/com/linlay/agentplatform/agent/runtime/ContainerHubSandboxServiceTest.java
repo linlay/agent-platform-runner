@@ -313,6 +313,57 @@ class ContainerHubSandboxServiceTest {
     }
 
     @Test
+    void openShouldUseHostOverrideSourcesWhilePreparingWorkspaceViaConfiguredAccessPaths() throws Exception {
+        CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
+        ContainerHubToolProperties properties = containerHubProperties("run");
+        RecordingStubContainerHubClient client = new RecordingStubContainerHubClient(events);
+
+        DataProperties dataProperties = new DataProperties();
+        Path accessChatsDir = createTempMountDir("container-hub-access-chats");
+        dataProperties.setExternalDir(accessChatsDir.toString());
+
+        RootProperties rootProperties = new RootProperties();
+        rootProperties.setExternalDir(createTempMountDir("container-hub-access-root").toString());
+
+        PanProperties panProperties = new PanProperties();
+        panProperties.setExternalDir(createTempMountDir("container-hub-access-pan").toString());
+
+        SkillProperties skillProperties = new SkillProperties();
+        skillProperties.setExternalDir(createTempMountDir("container-hub-access-skills").toString());
+
+        AgentProperties agentProperties = new AgentProperties();
+        Path accessAgentsDir = createTempMountDir("container-hub-access-agents");
+        agentProperties.setExternalDir(accessAgentsDir.toString());
+        Files.createDirectories(accessAgentsDir.resolve("sandbox-agent"));
+
+        ContainerHubMountResolver mountResolver = containerHubMountResolver(
+                properties,
+                dataProperties,
+                skillProperties,
+                rootProperties,
+                panProperties,
+                agentProperties,
+                hostRuntimeDirOverrides(Map.of(
+                        "CHATS_DIR", "/host/chats",
+                        "ROOT_DIR", "/host/root",
+                        "PAN_DIR", "/host/pan",
+                        "SKILLS_MARKET_DIR", "/host/skills-market",
+                        "AGENTS_DIR", "/host/agents"
+                ))
+        );
+        ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
+
+        ExecutionContext context = createContext(definitionWithLevel(SandboxLevel.RUN));
+        service.openIfNeeded(context);
+
+        assertThat(Files.isDirectory(accessChatsDir.resolve("chat-1"))).isTrue();
+        JsonNode mounts = client.lastCreatePayload.path("mounts");
+        assertThat(findMount(mounts, "/workspace").path("source").asText()).isEqualTo("/host/chats/chat-1");
+        assertThat(findMount(mounts, "/root").path("source").asText()).isEqualTo("/host/root");
+        assertThat(findMount(mounts, "/pan").path("source").asText()).isEqualTo("/host/pan");
+    }
+
+    @Test
     void runLevelShouldSerializeOverriddenDefaultMountModes() {
         CopyOnWriteArrayList<String> events = new CopyOnWriteArrayList<>();
         ContainerHubToolProperties properties = containerHubProperties("run");
@@ -345,17 +396,23 @@ class ContainerHubSandboxServiceTest {
         Path hostSkillsDir = createTempMountDir("container-hub-host-skills");
         Path hostAgentsDir = createTempMountDir("container-hub-host-agents");
         Files.createDirectories(hostAgentsDir.resolve("sandbox-agent").resolve("skills"));
+        Path accessChatsDir = createTempMountDir("container-hub-access-chats");
+        Path accessRootDir = createTempMountDir("container-hub-access-root");
+        Path accessPanDir = createTempMountDir("container-hub-access-pan");
+        Path accessSkillsDir = createTempMountDir("container-hub-access-skills");
+        Path accessAgentsDir = createTempMountDir("container-hub-access-agents");
+        Files.createDirectories(accessAgentsDir.resolve("sandbox-agent"));
 
         DataProperties dataProperties = new DataProperties();
-        dataProperties.setExternalDir("/opt/chats");
+        dataProperties.setExternalDir(accessChatsDir.toString());
         RootProperties rootProperties = new RootProperties();
-        rootProperties.setExternalDir("/opt/root");
+        rootProperties.setExternalDir(accessRootDir.toString());
         PanProperties panProperties = new PanProperties();
-        panProperties.setExternalDir("/opt/pan");
+        panProperties.setExternalDir(accessPanDir.toString());
         SkillProperties skillProperties = new SkillProperties();
-        skillProperties.setExternalDir("/opt/skills-market");
+        skillProperties.setExternalDir(accessSkillsDir.toString());
         AgentProperties agentProperties = new AgentProperties();
-        agentProperties.setExternalDir("/opt/agents");
+        agentProperties.setExternalDir(accessAgentsDir.toString());
 
         ContainerHubMountResolver mountResolver = containerHubMountResolver(
                 properties,

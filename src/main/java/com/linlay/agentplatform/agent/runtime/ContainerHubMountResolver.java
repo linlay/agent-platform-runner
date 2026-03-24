@@ -201,43 +201,44 @@ public class ContainerHubMountResolver {
     ) {
         Map<String, MountSpec> mountsByContainerPath = new LinkedHashMap<>();
 
-        String dataDir = resolveDataDir();
-        if (StringUtils.hasText(dataDir)) {
-            String hostPath;
+        ResolvedPath dataDir = resolveDataDir();
+        if (dataDir != null) {
+            String mountSourcePath;
             if (level == SandboxLevel.RUN && StringUtils.hasText(chatId)) {
-                hostPath = prepareRunDataMountDirectory(dataDir, chatId);
+                mountSourcePath = prepareRunDataMountDirectory(dataDir, chatId);
             } else {
-                hostPath = requireExistingPath(
+                validateExistingPath(
                         "data-dir",
-                        dataDir,
-                        toAbsolute(dataDir),
+                        dataDir.rawPath(),
+                        dataDir.accessPath(),
                         WORKSPACE_PATH,
                         MountSourceType.DIRECTORY
                 );
                 if (StringUtils.hasText(chatId)) {
-                    prepareSharedDataMountDirectory(hostPath, chatId);
+                    prepareSharedDataMountDirectory(dataDir, chatId);
                 }
+                mountSourcePath = normalizeMountSourcePath(dataDir.mountSourcePath());
             }
-            addMount(mountsByContainerPath, new MountSpec("data-dir", normalizeRawPath(dataDir), hostPath, WORKSPACE_PATH, false));
+            addMount(mountsByContainerPath, new MountSpec("data-dir", dataDir.rawPath(), mountSourcePath, WORKSPACE_PATH, false));
         }
 
-        String rootDir = resolveRootDir();
-        if (StringUtils.hasText(rootDir)) {
+        ResolvedPath rootDir = resolveRootDir();
+        if (rootDir != null) {
             addResolvedMount(mountsByContainerPath, "root-dir", rootDir, ROOT_PATH, false);
         }
 
-        String skillsDir = resolveSkillsDir(level, agentKey);
-        if (StringUtils.hasText(skillsDir)) {
+        ResolvedPath skillsDir = resolveSkillsDir(level, agentKey);
+        if (skillsDir != null) {
             addResolvedMount(mountsByContainerPath, "skills-dir", skillsDir, SKILLS_PATH, true);
         }
 
-        String panDir = resolvePanDir();
-        if (StringUtils.hasText(panDir)) {
+        ResolvedPath panDir = resolvePanDir();
+        if (panDir != null) {
             addResolvedMount(mountsByContainerPath, "pan-dir", panDir, PAN_PATH, false);
         }
 
-        String agentSelfDir = resolveAgentSelfDir(agentKey);
-        if (StringUtils.hasText(agentSelfDir)) {
+        ResolvedPath agentSelfDir = resolveAgentSelfDir(agentKey);
+        if (agentSelfDir != null) {
             addResolvedMount(mountsByContainerPath, "agent-self", agentSelfDir, AGENT_PATH, true);
         }
 
@@ -262,54 +263,54 @@ public class ContainerHubMountResolver {
         return List.copyOf(mountsByContainerPath.values());
     }
 
-    private String resolveDataDir() {
+    private ResolvedPath resolveDataDir() {
         return resolveHostBackedDirectory("CHATS_DIR", directoryValue(chatWindowMemoryProperties == null ? null : chatWindowMemoryProperties.getDir()), "data-dir");
     }
 
-    private String resolveRootDir() {
+    private ResolvedPath resolveRootDir() {
         return resolveHostBackedDirectory("ROOT_DIR", directoryValue(rootProperties == null ? null : rootProperties.getExternalDir()), "root-dir");
     }
 
-    private String resolveGlobalSkillsDir() {
+    private ResolvedPath resolveGlobalSkillsDir() {
         return resolveHostBackedDirectory("SKILLS_MARKET_DIR", directoryValue(skillProperties == null ? null : skillProperties.getExternalDir()), "skills-dir");
     }
 
-    private String resolveSkillsDir(SandboxLevel level, String agentKey) {
+    private ResolvedPath resolveSkillsDir(SandboxLevel level, String agentKey) {
         if (level == SandboxLevel.GLOBAL) {
             return resolveGlobalSkillsDir();
         }
-        String localSkillsDir = resolveAgentSkillsDir(agentKey);
-        if (StringUtils.hasText(localSkillsDir)) {
+        ResolvedPath localSkillsDir = resolveAgentSkillsDir(agentKey);
+        if (localSkillsDir != null) {
             return localSkillsDir;
         }
         return resolveGlobalSkillsDir();
     }
 
-    private String resolvePanDir() {
+    private ResolvedPath resolvePanDir() {
         return resolveHostBackedDirectory("PAN_DIR", directoryValue(panProperties == null ? null : panProperties.getExternalDir()), "pan-dir");
     }
 
-    private String resolveToolsDir() {
-        return resolveDirectory(toolProperties == null ? null : toolProperties.getExternalDir());
+    private ResolvedPath resolveToolsDir() {
+        return resolveDirectPath(directoryValue(toolProperties == null ? null : toolProperties.getExternalDir()));
     }
 
-    private String resolveChatsDir() {
+    private ResolvedPath resolveChatsDir() {
         return resolveDataDir();
     }
 
-    private String resolveAgentsDir() {
+    private ResolvedPath resolveAgentsDir() {
         return resolveHostBackedDirectory("AGENTS_DIR", directoryValue(agentProperties == null ? null : agentProperties.getExternalDir()), "agents-dir");
     }
 
-    private String resolveModelsDir() {
+    private ResolvedPath resolveModelsDir() {
         return resolveHostBackedDirectory("MODELS_DIR", directoryValue(modelProperties == null ? null : modelProperties.getExternalDir()), "models-dir");
     }
 
-    private String resolveViewportsDir() {
-        return resolveDirectory(viewportProperties == null ? null : viewportProperties.getExternalDir());
+    private ResolvedPath resolveViewportsDir() {
+        return resolveDirectPath(directoryValue(viewportProperties == null ? null : viewportProperties.getExternalDir()));
     }
 
-    private String resolveViewportServersDir() {
+    private ResolvedPath resolveViewportServersDir() {
         return resolveHostBackedDirectory(
                 "VIEWPORT_SERVERS_DIR",
                 directoryValue(viewportServerProperties == null || viewportServerProperties.getRegistry() == null
@@ -319,15 +320,15 @@ public class ContainerHubMountResolver {
         );
     }
 
-    private String resolveTeamsDir() {
+    private ResolvedPath resolveTeamsDir() {
         return resolveHostBackedDirectory("TEAMS_DIR", directoryValue(teamProperties == null ? null : teamProperties.getExternalDir()), "teams-dir");
     }
 
-    private String resolveSchedulesDir() {
+    private ResolvedPath resolveSchedulesDir() {
         return resolveHostBackedDirectory("SCHEDULES_DIR", directoryValue(scheduleProperties == null ? null : scheduleProperties.getExternalDir()), "schedules-dir");
     }
 
-    private String resolveMcpServersDir() {
+    private ResolvedPath resolveMcpServersDir() {
         return resolveHostBackedDirectory(
                 "MCP_SERVERS_DIR",
                 directoryValue(mcpProperties == null || mcpProperties.getRegistry() == null
@@ -337,55 +338,74 @@ public class ContainerHubMountResolver {
         );
     }
 
-    private String resolveProvidersDir() {
+    private ResolvedPath resolveProvidersDir() {
         return resolveHostBackedDirectory("PROVIDERS_DIR", directoryValue(providerProperties == null ? null : providerProperties.getExternalDir()), "providers-dir");
     }
 
-    private String resolveAgentSelfDir(String agentKey) {
+    private ResolvedPath resolveAgentSelfDir(String agentKey) {
         if (!StringUtils.hasText(agentKey)) {
             return null;
         }
-        String ownerDir = resolveHostBackedDirectory("OWNER_DIR", null, "owner-dir");
-        if (StringUtils.hasText(ownerDir)) {
+        ResolvedPath ownerDir = resolveOwnerDirOverride();
+        if (ownerDir != null) {
             return ownerDir;
         }
-        String agentsDir = resolveAgentsDir();
-        if (!StringUtils.hasText(agentsDir)) {
+        ResolvedPath agentsDir = resolveAgentsDir();
+        if (agentsDir == null) {
             return null;
         }
-        Path agentDir = Path.of(agentsDir, agentKey).toAbsolutePath().normalize();
-        return Files.isDirectory(agentDir) ? agentDir.toString() : null;
+        Path agentDir = Path.of(agentsDir.accessPath(), agentKey).toAbsolutePath().normalize();
+        if (!Files.isDirectory(agentDir)) {
+            return null;
+        }
+        return agentsDir.resolveChild(agentKey);
     }
 
-    private String resolveAgentSkillsDir(String agentKey) {
-        String agentSelfDir = resolveAgentSelfDir(agentKey);
-        if (!StringUtils.hasText(agentSelfDir)) {
+    private ResolvedPath resolveOwnerDirOverride() {
+        String ownerMountSource = resolveDirectory(hostPaths.get("OWNER_DIR"));
+        if (!StringUtils.hasText(ownerMountSource)) {
             return null;
         }
-        Path localSkillsDir = Path.of(agentSelfDir, "skills").toAbsolutePath().normalize();
+        ResolvedPath agentsDir = resolveAgentsDir();
+        if (agentsDir == null) {
+            return new ResolvedPath(normalizeRawPath(ownerMountSource), ownerMountSource, ownerMountSource);
+        }
+        Path agentsPath = Path.of(agentsDir.accessPath()).toAbsolutePath().normalize();
+        Path parent = agentsPath.getParent();
+        String accessPath = parent == null ? ownerMountSource : parent.resolve("owner").toString();
+        return new ResolvedPath(normalizeRawPath(ownerMountSource), accessPath, ownerMountSource);
+    }
+
+    private ResolvedPath resolveAgentSkillsDir(String agentKey) {
+        ResolvedPath agentSelfDir = resolveAgentSelfDir(agentKey);
+        if (agentSelfDir == null) {
+            return null;
+        }
+        ResolvedPath localSkillsDir = agentSelfDir.resolveChild("skills");
+        Path localSkillsAccessPath = Path.of(localSkillsDir.accessPath()).toAbsolutePath().normalize();
         try {
-            Files.createDirectories(localSkillsDir);
-            return localSkillsDir.toString();
+            Files.createDirectories(localSkillsAccessPath);
+            return localSkillsDir.withAccessPath(localSkillsAccessPath.toString());
         } catch (IOException ex) {
             throw new IllegalStateException(
                     "container-hub mount validation failed for skills-dir: unable to prepare agent-local skills directory"
-                            + " (resolved=" + localSkillsDir + ", containerPath=" + SKILLS_PATH + ")",
+                            + " (resolved=" + localSkillsAccessPath + ", containerPath=" + SKILLS_PATH + ")",
                     ex
             );
         }
     }
 
-    private String resolveOwnerDirPath() {
-        String agentsDir = resolveAgentsDir();
-        if (!StringUtils.hasText(agentsDir)) {
+    private ResolvedPath resolveOwnerDirPath() {
+        ResolvedPath agentsDir = resolveAgentsDir();
+        if (agentsDir == null) {
             return null;
         }
-        Path agentsPath = Path.of(agentsDir).toAbsolutePath().normalize();
+        Path agentsPath = Path.of(agentsDir.accessPath()).toAbsolutePath().normalize();
         Path parent = agentsPath.getParent();
         if (parent == null) {
             return null;
         }
-        return parent.resolve("owner").toString();
+        return resolveHostBackedDirectory("OWNER_DIR", parent.resolve("owner").toString(), "owner-dir");
     }
 
     private String resolveDirectory(String path) {
@@ -399,23 +419,31 @@ public class ContainerHubMountResolver {
         return StringUtils.hasText(path) ? path.trim() : null;
     }
 
-    private String resolveHostBackedDirectory(String runtimeDirKey, String configuredPath, String mountName) {
+    private ResolvedPath resolveHostBackedDirectory(String runtimeDirKey, String configuredPath, String mountName) {
         String hostPath = resolveDirectory(hostPaths.get(runtimeDirKey));
-        if (StringUtils.hasText(hostPath)) {
-            return hostPath.trim();
-        }
         String resolved = resolveDirectory(configuredPath);
-        if (!StringUtils.hasText(resolved)) {
+        if (!StringUtils.hasText(hostPath) && !StringUtils.hasText(resolved)) {
             return null;
         }
-        if (looksLikeContainerInternalPath(resolved)) {
+        if (!StringUtils.hasText(hostPath) && looksLikeContainerInternalPath(resolved)) {
             throw new IllegalStateException(
                     ("container-hub mount validation failed for %s: missing %s in %s "
                             + "(configured=%s). Sandbox mounts must use the original host filesystem path.")
                             .formatted(mountName, runtimeDirKey, hostPaths.sourcePath(), resolved)
             );
         }
-        return resolved;
+        String accessPath = StringUtils.hasText(resolved) ? resolved.trim() : hostPath.trim();
+        String mountSourcePath = StringUtils.hasText(hostPath) ? hostPath.trim() : accessPath;
+        String rawPath = StringUtils.hasText(resolved) ? resolved.trim() : mountSourcePath;
+        return new ResolvedPath(normalizeRawPath(rawPath), accessPath, mountSourcePath);
+    }
+
+    private ResolvedPath resolveDirectPath(String configuredPath) {
+        String resolved = resolveDirectory(configuredPath);
+        if (!StringUtils.hasText(resolved)) {
+            return null;
+        }
+        return new ResolvedPath(normalizeRawPath(resolved), resolved.trim(), resolved.trim());
     }
 
     private boolean looksLikeContainerInternalPath(String path) {
@@ -443,8 +471,8 @@ public class ContainerHubMountResolver {
                             .formatted(platform)
             );
         }
-        String source = platformMountDef.sourceSupplier().get();
-        if (!StringUtils.hasText(source)) {
+        ResolvedPath source = platformMountDef.sourceSupplier().get();
+        if (source == null) {
             throw new IllegalStateException(
                     "container-hub mount validation failed for extra-mount:%s: source is not configured (containerPath=%s)"
                             .formatted(platform, platformMountDef.containerPath())
@@ -486,7 +514,8 @@ public class ContainerHubMountResolver {
                             + " (destination=" + extraMount.destination() + ")"
             );
         }
-        addResolvedMount(mountsByContainerPath, "extra-mount", extraMount.source(), normalizedDestination, extraMount.mode().readOnly());
+        ResolvedPath source = resolveDirectPath(extraMount.source());
+        addResolvedMount(mountsByContainerPath, "extra-mount", source, normalizedDestination, extraMount.mode().readOnly());
     }
 
     private Map<String, PlatformMountDef> platformMountDefs() {
@@ -512,24 +541,30 @@ public class ContainerHubMountResolver {
     private void addResolvedMount(
             Map<String, MountSpec> mountsByContainerPath,
             String mountName,
-            String rawPath,
+            ResolvedPath path,
             String containerPath,
             boolean readOnly
     ) {
-        addResolvedMount(mountsByContainerPath, mountName, rawPath, containerPath, readOnly, MountSourceType.DIRECTORY);
+        addResolvedMount(mountsByContainerPath, mountName, path, containerPath, readOnly, MountSourceType.DIRECTORY);
     }
 
     private void addResolvedMount(
             Map<String, MountSpec> mountsByContainerPath,
             String mountName,
-            String rawPath,
+            ResolvedPath path,
             String containerPath,
             boolean readOnly,
             MountSourceType sourceType
     ) {
         validateContainerPathConflict(mountsByContainerPath.keySet(), mountName, containerPath);
-        String hostPath = requireExistingPath(mountName, rawPath, toAbsolute(rawPath), containerPath, sourceType);
-        addMount(mountsByContainerPath, new MountSpec(mountName, normalizeRawPath(rawPath), hostPath, containerPath, readOnly));
+        validateExistingPath(mountName, path.rawPath(), path.accessPath(), containerPath, sourceType);
+        addMount(mountsByContainerPath, new MountSpec(
+                mountName,
+                path.rawPath(),
+                normalizeMountSourcePath(path.mountSourcePath()),
+                containerPath,
+                readOnly
+        ));
     }
 
     private void addMount(Map<String, MountSpec> mountsByContainerPath, MountSpec mount) {
@@ -580,11 +615,7 @@ public class ContainerHubMountResolver {
         }
     }
 
-    private String toAbsolute(String path) {
-        return Path.of(path).toAbsolutePath().normalize().toString();
-    }
-
-    private String requireExistingPath(
+    private String validateExistingPath(
             String mountName,
             String rawPath,
             String resolvedPath,
@@ -610,32 +641,32 @@ public class ContainerHubMountResolver {
                 .formatted(mountName, reason, normalizeRawPath(rawPath), path.toAbsolutePath().normalize(), containerPath));
     }
 
-    private String prepareRunDataMountDirectory(String dataDir, String chatId) {
-        Path path = Path.of(dataDir, chatId).toAbsolutePath().normalize();
+    private String prepareRunDataMountDirectory(ResolvedPath dataDir, String chatId) {
+        Path path = Path.of(dataDir.accessPath(), chatId).toAbsolutePath().normalize();
         try {
             Files.createDirectories(path);
         } catch (IOException ex) {
             throw new IllegalStateException(
                     "container-hub mount validation failed for data-dir: failed to prepare chat-scoped directory "
                             + "(configured=%s, resolved=%s, containerPath=/workspace)".formatted(
-                            normalizeRawPath(dataDir),
+                            dataDir.rawPath(),
                             path
                     ),
                     ex
             );
         }
-        return path.toString();
+        return normalizeMountSourcePath(Path.of(dataDir.mountSourcePath(), chatId).normalize().toString());
     }
 
-    private void prepareSharedDataMountDirectory(String dataDir, String chatId) {
-        Path path = Path.of(dataDir, chatId).toAbsolutePath().normalize();
+    private void prepareSharedDataMountDirectory(ResolvedPath dataDir, String chatId) {
+        Path path = Path.of(dataDir.accessPath(), chatId).toAbsolutePath().normalize();
         try {
             Files.createDirectories(path);
         } catch (IOException ex) {
             throw new IllegalStateException(
                     "container-hub mount validation failed for data-dir: failed to prepare chat-scoped directory "
                             + "(configured=%s, resolved=%s, containerPath=/workspace/%s)".formatted(
-                            normalizeRawPath(dataDir),
+                            dataDir.rawPath(),
                             path,
                             chatId.trim()
                     ),
@@ -646,6 +677,13 @@ public class ContainerHubMountResolver {
 
     private String normalizeRawPath(String rawPath) {
         return rawPath == null ? "" : rawPath.trim();
+    }
+
+    private String normalizeMountSourcePath(String path) {
+        if (!StringUtils.hasText(path)) {
+            return "";
+        }
+        return Path.of(path.trim()).normalize().toString();
     }
 
     private String normalizeContainerPath(String path) {
@@ -663,12 +701,33 @@ public class ContainerHubMountResolver {
         return properties;
     }
 
-    private record PlatformMountDef(Supplier<String> sourceSupplier, String containerPath, MountSourceType sourceType) {
+    private record PlatformMountDef(Supplier<ResolvedPath> sourceSupplier, String containerPath, MountSourceType sourceType) {
     }
 
     private enum MountSourceType {
         DIRECTORY,
         FILE
+    }
+
+    private record ResolvedPath(String rawPath, String accessPath, String mountSourcePath) {
+
+        private ResolvedPath {
+            rawPath = rawPath == null ? "" : rawPath.trim();
+            accessPath = accessPath == null ? "" : Path.of(accessPath.trim()).toAbsolutePath().normalize().toString();
+            mountSourcePath = mountSourcePath == null ? "" : mountSourcePath.trim();
+        }
+
+        private ResolvedPath resolveChild(String child) {
+            return new ResolvedPath(
+                    Path.of(rawPath, child).normalize().toString(),
+                    Path.of(accessPath, child).toAbsolutePath().normalize().toString(),
+                    Path.of(mountSourcePath, child).normalize().toString()
+            );
+        }
+
+        private ResolvedPath withAccessPath(String newAccessPath) {
+            return new ResolvedPath(rawPath, newAccessPath, mountSourcePath);
+        }
     }
 
     public record MountSpec(String mountName, String rawPath, String hostPath, String containerPath, boolean readOnly) {

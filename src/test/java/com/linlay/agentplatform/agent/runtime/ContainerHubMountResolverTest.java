@@ -590,11 +590,16 @@ class ContainerHubMountResolverTest {
         Path hostAgentsDir = Files.createDirectories(tempDir.resolve("host-agents"));
         Path hostAgentDir = Files.createDirectories(hostAgentsDir.resolve("atlas"));
         Path hostAgentSkillsDir = Files.createDirectories(hostAgentDir.resolve("skills"));
+        Path accessChatsDir = Files.createDirectories(tempDir.resolve("access-chats"));
+        Path accessRootDir = Files.createDirectories(tempDir.resolve("access-root"));
+        Path accessPanDir = Files.createDirectories(tempDir.resolve("access-pan"));
+        Path accessSkillsDir = Files.createDirectories(tempDir.resolve("access-skills"));
+        Files.createDirectories(tempDir.resolve("agents").resolve("atlas"));
 
-        DataProperties dataProperties = dataProperties(Path.of("/opt/chats"));
-        SkillProperties skillProperties = skillProperties(Path.of("/opt/skills-market"));
-        RootProperties rootProperties = rootProperties(Path.of("/opt/root"));
-        PanProperties panProperties = panProperties(Path.of("/opt/pan"));
+        DataProperties dataProperties = dataProperties(accessChatsDir);
+        SkillProperties skillProperties = skillProperties(accessSkillsDir);
+        RootProperties rootProperties = rootProperties(accessRootDir);
+        PanProperties panProperties = panProperties(accessPanDir);
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
@@ -614,7 +619,7 @@ class ContainerHubMountResolverTest {
 
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.RUN, "chat-host", "atlas", List.of());
 
-        assertThat(Files.isDirectory(hostChatsDir.resolve("chat-host"))).isTrue();
+        assertThat(Files.isDirectory(accessChatsDir.resolve("chat-host"))).isTrue();
         assertThat(mounts).filteredOn(mount -> "/workspace".equals(mount.containerPath()))
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::hostPath)
@@ -631,6 +636,89 @@ class ContainerHubMountResolverTest {
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .isEqualTo(hostAgentSkillsDir.toAbsolutePath().normalize().toString());
+    }
+
+    @Test
+    void shouldUseConfiguredAccessPathsWhenHostOverridesAreNotLocallyAccessible() throws Exception {
+        Path accessChatsDir = Files.createDirectories(tempDir.resolve("access-chats"));
+        Path accessRootDir = Files.createDirectories(tempDir.resolve("access-root"));
+        Path accessPanDir = Files.createDirectories(tempDir.resolve("access-pan"));
+        Path accessSkillsDir = Files.createDirectories(tempDir.resolve("access-skills"));
+        Path accessAgentsDir = Files.createDirectories(tempDir.resolve("agents"));
+        Path accessAgentDir = Files.createDirectories(accessAgentsDir.resolve("atlas"));
+        Path accessAgentSkillsDir = accessAgentDir.resolve("skills");
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(accessChatsDir),
+                skillProperties(accessSkillsDir),
+                rootProperties(accessRootDir),
+                panProperties(accessPanDir),
+                providerProperties(tempDir.resolve("providers")),
+                hostRuntimeDirOverrides(Map.of(
+                        "CHATS_DIR", "/host/chats",
+                        "ROOT_DIR", "/host/root",
+                        "PAN_DIR", "/host/pan",
+                        "SKILLS_MARKET_DIR", "/host/skills-market",
+                        "AGENTS_DIR", "/host/agents"
+                ))
+        );
+
+        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.RUN, "chat-split", "atlas", List.of());
+
+        assertThat(Files.isDirectory(accessChatsDir.resolve("chat-split"))).isTrue();
+        assertThat(Files.isDirectory(accessAgentSkillsDir)).isTrue();
+        assertThat(mounts).filteredOn(mount -> "/workspace".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo("/host/chats/chat-split");
+        assertThat(mounts).filteredOn(mount -> "/root".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo("/host/root");
+        assertThat(mounts).filteredOn(mount -> "/pan".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo("/host/pan");
+        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo("/host/agents/atlas/skills");
+        assertThat(mounts).filteredOn(mount -> "/agent".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo("/host/agents/atlas");
+    }
+
+    @Test
+    void shouldUseConfiguredAccessPathsForPlatformMountsWhenHostOverridesAreNotLocallyAccessible() throws Exception {
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
+        Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
+        Path panDir = Files.createDirectories(tempDir.resolve("pan"));
+        Path dataDir = Files.createDirectories(tempDir.resolve("data"));
+        Path providersDir = Files.createDirectories(tempDir.resolve("providers"));
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(dataDir),
+                skillProperties(skillsDir),
+                rootProperties(rootDir),
+                panProperties(panDir),
+                providerProperties(providersDir),
+                hostRuntimeDirOverrides(Map.of("PROVIDERS_DIR", "/host/providers"))
+        );
+
+        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(
+                SandboxLevel.RUN,
+                "chat",
+                "flat-agent",
+                List.of(new AgentDefinition.ExtraMount("providers", null, null, MountAccessMode.RO))
+        );
+
+        assertThat(mounts).filteredOn(mount -> "/providers".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo("/host/providers");
     }
 
     @Test
