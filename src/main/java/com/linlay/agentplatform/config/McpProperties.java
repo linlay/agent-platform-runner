@@ -64,7 +64,7 @@ public class McpProperties {
     }
 
     public static class Registry {
-        private String externalDir = "runtime/mcp-servers";
+        private String externalDir = "runtime/registries/mcp-servers";
 
         public String getExternalDir() {
             return externalDir;

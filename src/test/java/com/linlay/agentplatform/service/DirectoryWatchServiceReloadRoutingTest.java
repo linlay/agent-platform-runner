@@ -306,6 +306,41 @@ class DirectoryWatchServiceReloadRoutingTest {
         );
         try {
             String logs = output.getOut() + output.getErr();
+            assertLogLineWithLevel(
+                    logs,
+                    "INFO",
+                    "Directory watch root active: AGENTS=" + tempDir.resolve("agents").toAbsolutePath().normalize() + " (dirs=3)"
+            );
+            assertLogLineWithLevel(
+                    logs,
+                    "INFO",
+                    "Directory watch root active: MODELS=" + tempDir.resolve("models").toAbsolutePath().normalize() + " (dirs=1)"
+            );
+            assertLogLineWithLevel(
+                    logs,
+                    "INFO",
+                    "Directory watch root active: PROVIDERS=" + tempDir.resolve("providers").toAbsolutePath().normalize() + " (dirs=1)"
+            );
+            assertLogLineWithLevel(
+                    logs,
+                    "INFO",
+                    "Directory watch root active: MCP_SERVERS=" + tempDir.resolve("mcp-servers").toAbsolutePath().normalize() + " (dirs=1)"
+            );
+            assertLogLineWithLevel(
+                    logs,
+                    "INFO",
+                    "Directory watch root active: VIEWPORT_SERVERS=" + tempDir.resolve("viewport-servers").toAbsolutePath().normalize() + " (dirs=1)"
+            );
+            assertLogLineWithLevel(
+                    logs,
+                    "INFO",
+                    "Directory watch root active: TEAMS=" + tempDir.resolve("teams").toAbsolutePath().normalize() + " (dirs=1)"
+            );
+            assertLogLineWithLevel(
+                    logs,
+                    "INFO",
+                    "Directory watch root active: SCHEDULES=" + tempDir.resolve("schedules").toAbsolutePath().normalize() + " (dirs=1)"
+            );
             assertContainsInOrder(
                     logs,
                     "Directory watch root active: AGENTS=" + tempDir.resolve("agents").toAbsolutePath().normalize() + " (dirs=3)",
@@ -342,15 +377,31 @@ class DirectoryWatchServiceReloadRoutingTest {
         );
         try {
             String logs = output.getOut() + output.getErr();
-            assertThat(logs).contains("Directory watch roots active: none");
-            assertThat(logs).contains("Directory watch root skipped: MODELS="
-                    + tempDir.resolve("models").toAbsolutePath().normalize() + " (reason=missing)");
-            assertThat(logs).contains("Directory watch root skipped: PROVIDERS="
-                    + tempDir.resolve("providers").toAbsolutePath().normalize() + " (reason=missing)");
-            assertThat(logs).contains("Directory watch root skipped: MCP_SERVERS="
-                    + tempDir.resolve("mcp-servers").toAbsolutePath().normalize() + " (reason=missing)");
-            assertThat(logs).contains("Directory watch root skipped: VIEWPORT_SERVERS="
-                    + tempDir.resolve("viewport-servers").toAbsolutePath().normalize() + " (reason=missing)");
+            assertLogLineWithLevel(logs, "INFO", "Directory watch roots active: none");
+            assertLogLineWithLevel(
+                    logs,
+                    "WARN",
+                    "Directory watch root skipped: MODELS="
+                            + tempDir.resolve("models").toAbsolutePath().normalize() + " (reason=missing)"
+            );
+            assertLogLineWithLevel(
+                    logs,
+                    "WARN",
+                    "Directory watch root skipped: PROVIDERS="
+                            + tempDir.resolve("providers").toAbsolutePath().normalize() + " (reason=missing)"
+            );
+            assertLogLineWithLevel(
+                    logs,
+                    "WARN",
+                    "Directory watch root skipped: MCP_SERVERS="
+                            + tempDir.resolve("mcp-servers").toAbsolutePath().normalize() + " (reason=missing)"
+            );
+            assertLogLineWithLevel(
+                    logs,
+                    "WARN",
+                    "Directory watch root skipped: VIEWPORT_SERVERS="
+                            + tempDir.resolve("viewport-servers").toAbsolutePath().normalize() + " (reason=missing)"
+            );
             assertThat(logs).doesNotContain("Directory watch roots skipped: [");
             assertThat(logs).doesNotContain("Directory watch root skipped: SKILLS_MARKET=");
             assertThat(logs).doesNotContain("Directory watch root skipped: TOOLS=");
@@ -810,5 +861,11 @@ class DirectoryWatchServiceReloadRoutingTest {
                     .isGreaterThan(offset);
             offset = next;
         }
+    }
+
+    private void assertLogLineWithLevel(String logs, String level, String message) {
+        assertThat(logs.lines().anyMatch(line -> line.contains(" " + level + " ") && line.contains(message)))
+                .withFailMessage("Expected %s log line containing: %s%nCaptured logs:%n%s", level, message, logs)
+                .isTrue();
     }
 }

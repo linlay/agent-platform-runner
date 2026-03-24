@@ -24,17 +24,17 @@ services:
         target: /tmp/runner-host.env
         read_only: true
       - type: bind
-        source: ${PROVIDERS_DIR:-./runtime/providers}
-        target: /opt/providers
+        source: ${PROVIDERS_DIR:-./runtime/registries/providers}
+        target: /opt/registries/providers
       - type: bind
-        source: ${MODELS_DIR:-./runtime/models}
-        target: /opt/models
+        source: ${MODELS_DIR:-./runtime/registries/models}
+        target: /opt/registries/models
       - type: bind
-        source: ${MCP_SERVERS_DIR:-./runtime/mcp-servers}
-        target: /opt/mcp-servers
+        source: ${MCP_SERVERS_DIR:-./runtime/registries/mcp-servers}
+        target: /opt/registries/mcp-servers
       - type: bind
-        source: ${VIEWPORT_SERVERS_DIR:-./runtime/viewport-servers}
-        target: /opt/viewport-servers
+        source: ${VIEWPORT_SERVERS_DIR:-./runtime/registries/viewport-servers}
+        target: /opt/registries/viewport-servers
       - type: bind
         source: ${OWNER_DIR:-./runtime/owner}
         target: /opt/owner

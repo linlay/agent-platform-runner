@@ -41,14 +41,14 @@ class RunnerDirectoryPropertiesBindingTest {
         contextRunner.run(context -> {
             assertThat(context.getBean(AgentProperties.class).getExternalDir()).isEqualTo("runtime/agents");
             assertThat(context.getBean(TeamProperties.class).getExternalDir()).isEqualTo("runtime/teams");
-            assertThat(context.getBean(ModelProperties.class).getExternalDir()).isEqualTo("runtime/models");
-            assertThat(context.getBean(ProviderProperties.class).getExternalDir()).isEqualTo("runtime/providers");
+            assertThat(context.getBean(ModelProperties.class).getExternalDir()).isEqualTo("runtime/registries/models");
+            assertThat(context.getBean(ProviderProperties.class).getExternalDir()).isEqualTo("runtime/registries/providers");
             assertThat(context.getBean(ToolProperties.class).getExternalDir()).isNull();
             assertThat(context.getBean(SkillProperties.class).getExternalDir()).isEqualTo("runtime/skills-market");
             assertThat(context.getBean(ScheduleProperties.class).getExternalDir()).isEqualTo("runtime/schedules");
             assertThat(context.getBean(ViewportProperties.class).getExternalDir()).isNull();
-            assertThat(context.getBean(McpProperties.class).getRegistry().getExternalDir()).isEqualTo("runtime/mcp-servers");
-            assertThat(context.getBean(ViewportServerProperties.class).getRegistry().getExternalDir()).isEqualTo("runtime/viewport-servers");
+            assertThat(context.getBean(McpProperties.class).getRegistry().getExternalDir()).isEqualTo("runtime/registries/mcp-servers");
+            assertThat(context.getBean(ViewportServerProperties.class).getRegistry().getExternalDir()).isEqualTo("runtime/registries/viewport-servers");
             assertThat(context.getBean(RootProperties.class).getExternalDir()).isEqualTo("runtime/root");
             assertThat(context.getBean(PanProperties.class).getExternalDir()).isEqualTo("runtime/pan");
             assertThat(context.getBean(ChatWindowMemoryProperties.class).getDir()).isEqualTo("runtime/chats");
@@ -77,12 +77,12 @@ class RunnerDirectoryPropertiesBindingTest {
                 .run()) {
             assertThat(context.getBean(AgentProperties.class).getExternalDir()).isEqualTo("/opt/agents");
             assertThat(context.getBean(TeamProperties.class).getExternalDir()).isEqualTo("/opt/teams");
-            assertThat(context.getBean(ModelProperties.class).getExternalDir()).isEqualTo("/opt/models");
-            assertThat(context.getBean(ProviderProperties.class).getExternalDir()).isEqualTo("/opt/providers");
+            assertThat(context.getBean(ModelProperties.class).getExternalDir()).isEqualTo("/opt/registries/models");
+            assertThat(context.getBean(ProviderProperties.class).getExternalDir()).isEqualTo("/opt/registries/providers");
             assertThat(context.getBean(SkillProperties.class).getExternalDir()).isEqualTo("/opt/skills-market");
             assertThat(context.getBean(ScheduleProperties.class).getExternalDir()).isEqualTo("/opt/schedules");
-            assertThat(context.getBean(McpProperties.class).getRegistry().getExternalDir()).isEqualTo("/opt/mcp-servers");
-            assertThat(context.getBean(ViewportServerProperties.class).getRegistry().getExternalDir()).isEqualTo("/opt/viewport-servers");
+            assertThat(context.getBean(McpProperties.class).getRegistry().getExternalDir()).isEqualTo("/opt/registries/mcp-servers");
+            assertThat(context.getBean(ViewportServerProperties.class).getRegistry().getExternalDir()).isEqualTo("/opt/registries/viewport-servers");
             assertThat(context.getBean(RootProperties.class).getExternalDir()).isEqualTo("/opt/root");
             assertThat(context.getBean(PanProperties.class).getExternalDir()).isEqualTo("/opt/pan");
             assertThat(context.getBean(ChatWindowMemoryProperties.class).getDir()).isEqualTo("/opt/chats");

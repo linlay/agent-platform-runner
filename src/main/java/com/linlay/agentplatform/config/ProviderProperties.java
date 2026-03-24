@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "agent.providers")
 public class ProviderProperties {
 
-    private String externalDir = "runtime/providers";
+    private String externalDir = "runtime/registries/providers";
     private long refreshIntervalMs = 30_000L;
 
     public String getExternalDir() {

@@ -259,7 +259,7 @@ plain:
 
 - 支持外层默认 + stage 内层覆盖；内层优先。
 - 外层 `modelConfig` 可省略，但“外层或任一 stage”至少要有一处 `modelConfig.modelKey`。
-- `provider/modelId/protocol` 不在 Agent Definition 文件中声明，统一由 `models/<modelKey>.yml` 解析得到。
+- `provider/modelId/protocol` 不在 Agent Definition 文件中声明，统一由 `registries/models/<modelKey>.yml` 解析得到。
 
 **toolConfig 继承：**
 
@@ -313,10 +313,10 @@ contextConfig:
 
 ## Models 目录（内部注册）
 
-- 运行目录：`models/`（默认，可通过 `agent.models.external-dir` 覆盖）。
+- 运行目录：`runtime/registries/models/`（默认，可通过 `agent.models.external-dir` 覆盖）。
 - 不再内置同步 `models/`；可从 `example/models/` 复制到外置目录。
 - 热加载：目录变更会触发模型刷新，并按 `modelKey` 依赖精准刷新受影响 agent。
-- 文件格式：每个模型一个 YAML（建议 `models/<modelKey>.yml`）。
+- 文件格式：每个模型一个 YAML（建议 `registries/models/<modelKey>.yml`）。
 - 必填字段：`key`、`provider`、`protocol`、`modelId`。
 - 常用字段：`isReasoner`、`isFunction`、`maxTokens`、`maxInputTokens`、`maxOutputTokens`。
 - 计费字段：`pricing.promptPointsPer1k`、`pricing.completionPointsPer1k`、`pricing.perCallPoints`、`pricing.priceRatio`、`pricing.tiers[]`。
@@ -698,12 +698,12 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `AGENT_AGENTS_REFRESH_INTERVAL_MS` | `agent.agents.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
 | `TEAMS_DIR` | `agent.teams.external-dir` | `runtime/teams` | Team 定义目录 |
 | `AGENT_TEAMS_REFRESH_INTERVAL_MS` | `agent.teams.refresh-interval-ms` | `30000` | Team 目录刷新间隔（ms） |
-| `PROVIDERS_DIR` | `agent.providers.external-dir` | `runtime/providers` | Provider YAML 定义目录；若外置共享目录，推荐 `registries/providers`，模板放到 `example.registries/providers` |
+| `PROVIDERS_DIR` | `agent.providers.external-dir` | `runtime/registries/providers` | Provider YAML 定义目录；默认归到 `registries/providers`，模板建议放到 `example.registries/providers` |
 | `AGENT_PROVIDERS_REFRESH_INTERVAL_MS` | `agent.providers.refresh-interval-ms` | `30000` | Provider 目录刷新间隔（ms） |
-| `MODELS_DIR` | `agent.models.external-dir` | `runtime/models` | Model YAML 定义目录；若外置共享目录，推荐 `registries/models`，模板放到 `example.registries/models` |
+| `MODELS_DIR` | `agent.models.external-dir` | `runtime/registries/models` | Model YAML 定义目录；默认归到 `registries/models`，模板建议放到 `example.registries/models` |
 | `AGENT_MODELS_REFRESH_INTERVAL_MS` | `agent.models.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |
-| `MCP_SERVERS_DIR` | `agent.mcp-servers.registry.external-dir` | `runtime/mcp-servers` | MCP server 注册目录；若外置共享目录，推荐 `registries/mcp-servers`，模板放到 `example.registries/mcp-servers` |
-| `VIEWPORT_SERVERS_DIR` | `agent.viewport-servers.registry.external-dir` | `runtime/viewport-servers` | Viewport server 注册目录；若外置共享目录，推荐 `registries/viewport-servers`，模板放到 `example.registries/viewport-servers` |
+| `MCP_SERVERS_DIR` | `agent.mcp-servers.registry.external-dir` | `runtime/registries/mcp-servers` | MCP server 注册目录；默认归到 `registries/mcp-servers`，模板建议放到 `example.registries/mcp-servers` |
+| `VIEWPORT_SERVERS_DIR` | `agent.viewport-servers.registry.external-dir` | `runtime/registries/viewport-servers` | Viewport server 注册目录；默认归到 `registries/viewport-servers`，模板建议放到 `example.registries/viewport-servers` |
 
 #### H2A / Tools / Skills / Schedule
 
@@ -793,7 +793,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `agent.cors.allow-credentials` | `false` | 是否允许凭证 |
 | `agent.cors.max-age-seconds` | `3600` | 预检缓存秒数 |
 
-### Provider 配置（通常在 `runtime/providers/<provider>.yml`，外置共享目录时推荐 `registries/providers/<provider>.yml`）
+### Provider 配置（通常在 `runtime/registries/providers/<provider>.yml`，外置共享目录时也保持 `registries/providers/<provider>.yml`）
 
 `agent.providers.<providerKey>` 支持：
 
@@ -804,7 +804,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 
 说明：
 
-- provider 不再绑定 protocol；协议由 `models/*.yml` 中 `protocol` 字段决定。
+- provider 不再绑定 protocol；协议由 `registries/models/*.yml` 中 `protocol` 字段决定。
 - `OPENAI` 未显式配置 `protocols.OPENAI.endpoint-path` 时，会按 `base-url` 推导默认 completions 路径。
 - provider 只负责连接信息与 endpoint 组织，不负责声明 Agent 使用哪个协议。
 

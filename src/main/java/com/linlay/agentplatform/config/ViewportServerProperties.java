@@ -61,7 +61,7 @@ public class ViewportServerProperties {
     }
 
     public static class Registry {
-        private String externalDir = "runtime/viewport-servers";
+        private String externalDir = "runtime/registries/viewport-servers";
 
         public String getExternalDir() {
             return externalDir;

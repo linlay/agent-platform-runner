@@ -86,9 +86,9 @@ ARCH=amd64 make release
 - 宿主机构建产物：`target/*.jar`
 - 配置模板：`configs/*.example.yml`
 - 配置模板：`configs/**/*.example.*`
-- 运行时目录约定：由 `.env` 中的 `*_DIR` 指向宿主机路径，默认回落到 `./runtime/providers`、`./runtime/models`、`./runtime/mcp-servers`、`./runtime/viewport-servers`、`./runtime/owner`、`./runtime/agents`、`./runtime/teams`、`./runtime/root`、`./runtime/schedules`、`./runtime/chats`、`./runtime/pan`、`./runtime/skills-market`；所有这些 `*_DIR` 都可以改成绝对宿主机路径。若把四类动态注册目录统一外置，推荐使用 `registries/providers`、`registries/models`、`registries/mcp-servers`、`registries/viewport-servers` 作为父目录命名
+- 运行时目录约定：由 `.env` 中的 `*_DIR` 指向宿主机路径，其中四类动态注册目录默认回落到 `./runtime/registries/providers`、`./runtime/registries/models`、`./runtime/registries/mcp-servers`、`./runtime/registries/viewport-servers`，其余目录默认回落到 `./runtime/owner`、`./runtime/agents`、`./runtime/teams`、`./runtime/root`、`./runtime/schedules`、`./runtime/chats`、`./runtime/pan`、`./runtime/skills-market`；所有这些 `*_DIR` 都可以改成绝对宿主机路径
 - release compose 会把根目录 `.env` 只读挂载到 `/tmp/runner-host.env`，并通过 `SANDBOX_HOST_DIRS_FILE` 指向这份 mapping 文件，供 runner 在创建 sandbox mount 时读取宿主机路径
-- release compose 会显式设置 `SPRING_PROFILES_ACTIVE=docker`，应用在容器内固定读取 `/opt/agents`、`/opt/chats`、`/opt/root` 等目录；`.env` 里的 `*_DIR` 只负责宿主机 bind mount source
+- release compose 会显式设置 `SPRING_PROFILES_ACTIVE=docker`，应用在容器内固定读取 `/opt/agents`、`/opt/chats`、`/opt/root` 以及 `/opt/registries/{providers,models,mcp-servers,viewport-servers}` 等目录；`.env` 里的 `*_DIR` 只负责宿主机 bind mount source
 
 脚本会强校验版本格式：
 

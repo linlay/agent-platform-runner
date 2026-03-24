@@ -13,17 +13,17 @@ agent:
   teams:
     external-dir: /opt/teams
   providers:
-    external-dir: /opt/providers
+    external-dir: /opt/registries/providers
   models:
-    external-dir: /opt/models
+    external-dir: /opt/registries/models
   schedule:
     external-dir: /opt/schedules
   mcp-servers:
     registry:
-      external-dir: /opt/mcp-servers
+      external-dir: /opt/registries/mcp-servers
   viewport-servers:
     registry:
-      external-dir: /opt/viewport-servers
+      external-dir: /opt/registries/viewport-servers
 
 memory:
   chats:

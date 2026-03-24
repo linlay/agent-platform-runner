@@ -580,7 +580,7 @@ public class DirectoryWatchService implements DisposableBean {
                     .sorted(Comparator
                             .comparingInt((WatchedRoot root) -> logOrder(root.kind()))
                             .thenComparing(root -> root.path().toString()))
-                    .forEach(root -> log.info(
+                    .forEach(root -> log.warn(
                             "Directory watch root skipped: {}={} (reason=missing)",
                             root.kind(),
                             root.path()
