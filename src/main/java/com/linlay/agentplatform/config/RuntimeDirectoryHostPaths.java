@@ -7,12 +7,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 public final class RuntimeDirectoryHostPaths {
+
+    public static final String HOST_DIRS_FILE_ENV = "SANDBOX_HOST_DIRS_FILE";
+    public static final String DEFAULT_HOST_DIRS_FILE = "/tmp/runner-host.env";
 
     private static final Set<String> RUNTIME_DIR_KEYS = Set.of(
             "AGENTS_DIR",
@@ -30,13 +31,26 @@ public final class RuntimeDirectoryHostPaths {
     );
 
     private final Map<String, String> values;
+    private final String sourcePath;
 
     public RuntimeDirectoryHostPaths(Map<String, String> values) {
-        this.values = values == null ? Map.of() : Map.copyOf(values);
+        this(values, DEFAULT_HOST_DIRS_FILE);
     }
 
-    public static RuntimeDirectoryHostPaths load() {
-        return new RuntimeDirectoryHostPaths(loadDefaultValues());
+    public RuntimeDirectoryHostPaths(Map<String, String> values, String sourcePath) {
+        this.values = values == null ? Map.of() : Map.copyOf(values);
+        this.sourcePath = StringUtils.hasText(sourcePath) ? sourcePath.trim() : DEFAULT_HOST_DIRS_FILE;
+    }
+
+    public static RuntimeDirectoryHostPaths load(Map<String, String> environment) {
+        String sourcePath = DEFAULT_HOST_DIRS_FILE;
+        if (environment != null) {
+            String configured = environment.get(HOST_DIRS_FILE_ENV);
+            if (StringUtils.hasText(configured)) {
+                sourcePath = configured.trim();
+            }
+        }
+        return new RuntimeDirectoryHostPaths(loadFrom(Path.of(sourcePath)), sourcePath);
     }
 
     public String get(String key) {
@@ -47,8 +61,8 @@ public final class RuntimeDirectoryHostPaths {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    public Map<String, String> asMap() {
-        return values;
+    public String sourcePath() {
+        return sourcePath;
     }
 
     static Map<String, String> loadFrom(Path file) {
@@ -64,24 +78,6 @@ public final class RuntimeDirectoryHostPaths {
             throw new IllegalStateException("Failed to read runtime directory host paths from " + file, ex);
         }
         return Map.copyOf(values);
-    }
-
-    private static Map<String, String> loadDefaultValues() {
-        Optional<Path> dotenv = locateDotEnv();
-        return dotenv.map(RuntimeDirectoryHostPaths::loadFrom).orElseGet(Map::of);
-    }
-
-    private static Optional<Path> locateDotEnv() {
-        LinkedHashSet<Path> candidates = new LinkedHashSet<>();
-        candidates.add(Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize().resolve(".env"));
-        ConfigDirectorySupport.resolveConfigDirectory()
-                .ifPresent(dir -> candidates.add(dir.toAbsolutePath().normalize().resolve(".env")));
-        for (Path candidate : candidates) {
-            if (Files.isRegularFile(candidate)) {
-                return Optional.of(candidate);
-            }
-        }
-        return Optional.empty();
     }
 
     private static void parseLine(Map<String, String> values, String rawLine) {

@@ -1,2 +1,3 @@
 org.springframework.boot.env.EnvironmentPostProcessor=\
-com.linlay.agentplatform.config.ConfigDirectoryEnvironmentPostProcessor
+com.linlay.agentplatform.config.ConfigDirectoryEnvironmentPostProcessor,\
+com.linlay.agentplatform.config.DockerProfileEnvironmentPostProcessor

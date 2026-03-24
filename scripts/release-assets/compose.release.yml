@@ -12,19 +12,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      SERVER_PORT: 8080
-      AGENTS_DIR: /opt/runtime/agents
-      OWNER_DIR: /opt/runtime/owner
-      TEAMS_DIR: /opt/runtime/teams
-      MODELS_DIR: /opt/runtime/models
-      PROVIDERS_DIR: /opt/runtime/providers
-      MCP_SERVERS_DIR: /opt/runtime/mcp-servers
-      VIEWPORT_SERVERS_DIR: /opt/runtime/viewport-servers
-      SKILLS_MARKET_DIR: /opt/runtime/skills-market
-      SCHEDULES_DIR: /opt/runtime/schedules
-      CHATS_DIR: /opt/runtime/chats
-      ROOT_DIR: /opt/runtime/root
-      PAN_DIR: /opt/runtime/pan
+      SPRING_PROFILES_ACTIVE: docker
+      SANDBOX_HOST_DIRS_FILE: /tmp/runner-host.env
     volumes:
       - type: bind
         source: ./configs
@@ -32,44 +21,44 @@ services:
         read_only: true
       - type: bind
         source: ./.env
-        target: /opt/configs/.env
+        target: /tmp/runner-host.env
         read_only: true
       - type: bind
-        source: ${AGENTS_DIR:-./runtime/agents}
-        target: /opt/runtime/agents
-      - type: bind
-        source: ${OWNER_DIR:-./runtime/owner}
-        target: /opt/runtime/owner
-      - type: bind
-        source: ${TEAMS_DIR:-./runtime/teams}
-        target: /opt/runtime/teams
+        source: ${PROVIDERS_DIR:-./runtime/providers}
+        target: /opt/providers
       - type: bind
         source: ${MODELS_DIR:-./runtime/models}
-        target: /opt/runtime/models
-      - type: bind
-        source: ${PROVIDERS_DIR:-./runtime/providers}
-        target: /opt/runtime/providers
+        target: /opt/models
       - type: bind
         source: ${MCP_SERVERS_DIR:-./runtime/mcp-servers}
-        target: /opt/runtime/mcp-servers
+        target: /opt/mcp-servers
       - type: bind
         source: ${VIEWPORT_SERVERS_DIR:-./runtime/viewport-servers}
-        target: /opt/runtime/viewport-servers
+        target: /opt/viewport-servers
       - type: bind
-        source: ${SKILLS_MARKET_DIR:-./runtime/skills-market}
-        target: /opt/runtime/skills-market
+        source: ${OWNER_DIR:-./runtime/owner}
+        target: /opt/owner
       - type: bind
-        source: ${SCHEDULES_DIR:-./runtime/schedules}
-        target: /opt/runtime/schedules
+        source: ${AGENTS_DIR:-./runtime/agents}
+        target: /opt/agents
       - type: bind
-        source: ${CHATS_DIR:-./runtime/chats}
-        target: /opt/runtime/chats
+        source: ${TEAMS_DIR:-./runtime/teams}
+        target: /opt/teams
       - type: bind
         source: ${ROOT_DIR:-./runtime/root}
-        target: /opt/runtime/root
+        target: /opt/root
+      - type: bind
+        source: ${SCHEDULES_DIR:-./runtime/schedules}
+        target: /opt/schedules
       - type: bind
         source: ${PAN_DIR:-./runtime/pan}
-        target: /opt/runtime/pan
+        target: /opt/pan
+      - type: bind
+        source: ${SKILLS_MARKET_DIR:-./runtime/skills-market}
+        target: /opt/skills-market
+      - type: bind
+        source: ${CHATS_DIR:-./runtime/chats}
+        target: /opt/chats
     networks:
       zenmind-network:
         aliases:

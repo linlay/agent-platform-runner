@@ -248,17 +248,18 @@ make run
 推荐把可配置运行时目录统一放到项目外，再通过 `.env` 指向它们。`configs/` 不是可配置目录，固定使用 runner 自带的 `./configs`（容器内固定挂载到 `/opt/configs`）。例如代码仓库保留在当前工作区，而运行目录放在共享目录：
 
 ```bash
-AGENTS_DIR=/Users/you/runtime/runner/agents
-TEAMS_DIR=/Users/you/runtime/runner/teams
-MODELS_DIR=/Users/you/runtime/runner/models
 PROVIDERS_DIR=/Users/you/runtime/runner/providers
+MODELS_DIR=/Users/you/runtime/runner/models
 MCP_SERVERS_DIR=/Users/you/runtime/runner/mcp-servers
 VIEWPORT_SERVERS_DIR=/Users/you/runtime/runner/viewport-servers
-SKILLS_MARKET_DIR=/Users/you/runtime/runner/skills-market
+OWNER_DIR=/Users/you/runtime/runner/owner
+AGENTS_DIR=/Users/you/runtime/runner/agents
+TEAMS_DIR=/Users/you/runtime/runner/teams
+ROOT_DIR=/Users/you/runtime/runner/root
 SCHEDULES_DIR=/Users/you/runtime/runner/schedules
 CHATS_DIR=/Users/you/runtime/runner/chats
-ROOT_DIR=/Users/you/runtime/runner/root
 PAN_DIR=/Users/you/runtime/runner/pan
+SKILLS_MARKET_DIR=/Users/you/runtime/runner/skills-market
 ```
 
 ### 根目录 `.env` 与 Docker Compose（发布部署版）
@@ -274,19 +275,21 @@ docker compose up -d --build
 
 约定：
 
-- `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`、`OWNER_DIR`、`AGENT_CONTAINER_HUB_BASE_URL`）；`SERVER_PORT` 主要用于本地非 Docker 运行，默认 compose 会固定容器内监听 `8080`。
+- `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`、`OWNER_DIR`、`AGENT_CONTAINER_HUB_BASE_URL`）；`SERVER_PORT` 主要用于本地非 Docker 运行。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
 - 运行时业务目录既可以保留在仓库内默认的 `./runtime/*`，也可以通过 `.env` 的 `*_DIR` 指向宿主机其他路径覆盖默认值。
-- `compose.yml` 会把 `.env` 中的 `*_DIR` 变量用于宿主机 bind mount，同时在容器内把同名变量固定为 `/opt/...` 路径；因此同一份 `.env` 可以同时服务 `make run` 和 `docker compose`。
-- `compose.yml` 还会把根目录 `.env` 只读挂载到容器内 `/opt/configs/.env`；`sandbox_bash` 创建 container-hub session 时，会优先从这份 `.env` 读取原始 `*_DIR` 宿主机路径作为 mount source，而不是使用容器内 `/opt/...` 路径。
+- 本地 `make run` 会先加载 `.env`，因此 `*_DIR` 会直接作为应用读取目录生效；Docker Compose 继续复用同一份 `.env`，但这些 `*_DIR` 在容器里只用于宿主机 bind mount source。
+- `compose.yml` 会把根目录 `.env` 只读挂载到容器内 `/tmp/runner-host.env`，并通过 `SANDBOX_HOST_DIRS_FILE` 指向这份 mapping 文件；`sandbox_bash` 创建 container-hub session 时，会优先从这份文件读取宿主机路径作为 mount source，而不是使用容器内 `/opt/...` 路径。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
-- `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例。
+- `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例；所有 `*_DIR` 都支持改成绝对宿主机路径。
 - `.env.example` 默认把 `AGENT_CONTAINER_HUB_BASE_URL` 指向 `http://host.docker.internal:11960`，用于容器内访问宿主机上的 Container Hub；compose 同时注入 `host.docker.internal:host-gateway` 以兼容 Linux Docker。
+- Docker Compose / release bundle 会显式启用 `SPRING_PROFILES_ACTIVE=docker`，应用在该 profile 下固定使用容器内 `/opt/agents`、`/opt/chats`、`/opt/root` 等路径。
 - `compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
-  - 容器内应用端口固定为 `8080`（compose 会显式覆盖 `SERVER_PORT=8080`）。
-- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`、`./.env -> /opt/configs/.env`，并映射这些可配置运行目录：`AGENTS_DIR`、`OWNER_DIR`、`TEAMS_DIR`、`MODELS_DIR`、`PROVIDERS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`SKILLS_MARKET_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`ROOT_DIR`、`PAN_DIR`。
-- 应用内部仍按 `AGENTS_DIR` 的父目录推导 owner 路径；`OWNER_DIR` 只是部署层的宿主机 bind mount 入口，不新增 Spring `external-dir` 配置键。
+  - 容器内应用端口固定为 `8080`（由 `docker` profile 固定，不依赖 `.env` 中的 `SERVER_PORT`）。
+- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`、`./.env -> /tmp/runner-host.env`，并映射这些可配置运行目录：`PROVIDERS_DIR`、`MODELS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`OWNER_DIR`、`AGENTS_DIR`、`TEAMS_DIR`、`ROOT_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`PAN_DIR`、`SKILLS_MARKET_DIR`。
+- Docker 容器内这些目录固定映射到 `/opt/*`；`.env` 中的 `*_DIR` 不再直接决定容器内 Spring 绑定值。
+- 应用内部仍按 `AGENTS_DIR` 的父目录推导 owner 路径；`OWNER_DIR` 只是部署层的宿主机 bind mount 入口和 sandbox host mapping 键，不新增 Spring `external-dir` 配置键。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
 ### 版本化离线 bundle（release 交付版）
@@ -715,7 +718,7 @@ default-environment-id: shell
 - `meta.sourceType` 在 `/api/tools` 与 `/api/tool?toolName=sandbox_bash` 中应表现为 `local`。
 - 建议通过 `.env` 中的 `AGENT_CONTAINER_HUB_BASE_URL` 配置 Container Hub 地址；容器化部署模板默认使用 `http://host.docker.internal:11960`。
 - `RUN` 级 sandbox 在创建 session 前会自动准备 `CHATS_DIR/<chatId>` 目录，并把它挂载到容器内的 `/workspace`。
-- sandbox mount source 会优先读取根目录 `.env` 里的原始 `*_DIR` 值；如果当前运行目录已被容器重写成 `/opt/...`，但 `.env` 没有提供对应宿主机路径，runner 会直接报配置错误。
+- sandbox mount source 会优先读取 `SANDBOX_HOST_DIRS_FILE` 指向的 mapping 文件；在 Docker Compose / release bundle 中，这通常是根目录 `.env` 被挂载后的 `/tmp/runner-host.env`。如果当前运行目录已被容器重写成 `/opt/...`，但 mapping 文件里没有对应的 `*_DIR`，runner 会直接报配置错误。
 - 当 Container Hub 运行在宿主机时，建议把 `.env` 中的 `*_DIR` 写成该宿主机可直接访问的真实路径。
 - `/root` 与 `/pan` 分别来自 runner 全局目录 `ROOT_DIR` 与 `PAN_DIR`；`configs/container-hub.yml` 不再单独配置挂载源目录。
 
@@ -820,17 +823,20 @@ for f in *.md; do echo "$f"; done
 | 环境变量 | 默认值 | 说明 |
 |---------|-------|------|
 | `HOST_PORT` | `11949` | Docker Compose 宿主机暴露端口（映射到容器 `8080`） |
-| `SERVER_PORT` | `8080` | 应用 HTTP 监听端口（容器内固定 `8080`；本地非 Docker 运行可覆盖） |
-| `AGENTS_DIR` | `agents` | Agent 定义目录 |
-| `TEAMS_DIR` | `teams` | Team 定义目录 |
-| `MODELS_DIR` | `models` | Model 定义目录 |
-| `PROVIDERS_DIR` | `providers` | Provider 定义目录 |
-| `MCP_SERVERS_DIR` | `mcp-servers` | MCP server 注册目录 |
-| `VIEWPORT_SERVERS_DIR` | `viewport-servers` | Viewport server 注册目录 |
-| `SKILLS_MARKET_DIR` | `runtime/skills-market` | Skill market 目录 |
-| `SCHEDULES_DIR` | `runtime/schedules` | Schedule 目录 |
+| `SERVER_PORT` | `8080` | 应用 HTTP 监听端口（本地非 Docker 运行可覆盖；Docker `docker` profile 内固定 `8080`） |
+| `PROVIDERS_DIR` | `runtime/providers` | 本地运行时的 Provider 定义目录；Docker 中仅作为宿主机挂载 source |
+| `MODELS_DIR` | `runtime/models` | 本地运行时的 Model 定义目录；Docker 中仅作为宿主机挂载 source |
+| `MCP_SERVERS_DIR` | `runtime/mcp-servers` | 本地运行时的 MCP server 注册目录；Docker 中仅作为宿主机挂载 source |
+| `VIEWPORT_SERVERS_DIR` | `runtime/viewport-servers` | 本地运行时的 Viewport server 注册目录；Docker 中仅作为宿主机挂载 source |
+| `OWNER_DIR` | `runtime/owner` | 本地运行时的 owner 目录；Docker 中仅作为宿主机挂载 source |
+| `AGENTS_DIR` | `runtime/agents` | 本地运行时的 Agent 定义目录；Docker 中仅作为宿主机挂载 source |
+| `TEAMS_DIR` | `runtime/teams` | 本地运行时的 Team 定义目录；Docker 中仅作为宿主机挂载 source |
+| `ROOT_DIR` | `runtime/root` | 本地运行时的 runner 根目录；Docker 中仅作为宿主机挂载 source |
+| `SCHEDULES_DIR` | `runtime/schedules` | 本地运行时的 Schedule 目录；Docker 中仅作为宿主机挂载 source |
+| `CHATS_DIR` | `runtime/chats` | 本地运行时的聊天记忆目录；Docker 中仅作为宿主机挂载 source |
+| `PAN_DIR` | `runtime/pan` | 本地运行时的 pan 目录；Docker 中仅作为宿主机挂载 source |
+| `SKILLS_MARKET_DIR` | `runtime/skills-market` | 本地运行时的 Skill market 目录；Docker 中仅作为宿主机挂载 source |
 | `DATA_DIR` | `data` | 静态文件目录 |
-| `CHATS_DIR` | `runtime/chats` | 聊天记忆目录 |
 | `AGENT_SCHEDULE_ENABLED` | `true` | 计划任务总开关 |
 | `AGENT_SCHEDULE_DEFAULT_ZONE_ID` | 系统时区 | 计划任务默认时区 |
 | `AGENT_SCHEDULE_POOL_SIZE` | `4` | 计划任务线程池大小 |

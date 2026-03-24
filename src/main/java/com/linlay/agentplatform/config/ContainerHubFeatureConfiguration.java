@@ -61,7 +61,7 @@ public class ContainerHubFeatureConfiguration {
             McpProperties mcpProperties,
             ProviderProperties providerProperties
     ) {
-        RuntimeDirectoryHostPaths hostPaths = RuntimeDirectoryHostPaths.load();
+        RuntimeDirectoryHostPaths hostPaths = RuntimeDirectoryHostPaths.load(System.getenv());
         return new ContainerHubMountResolver(
                 chatWindowMemoryProperties,
                 rootProperties,

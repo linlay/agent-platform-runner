@@ -35,6 +35,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -346,15 +347,15 @@ class ContainerHubSandboxServiceTest {
         Files.createDirectories(hostAgentsDir.resolve("sandbox-agent").resolve("skills"));
 
         DataProperties dataProperties = new DataProperties();
-        dataProperties.setExternalDir("/opt/runtime/chats");
+        dataProperties.setExternalDir("/opt/chats");
         RootProperties rootProperties = new RootProperties();
-        rootProperties.setExternalDir("/opt/runtime/root");
+        rootProperties.setExternalDir("/opt/root");
         PanProperties panProperties = new PanProperties();
-        panProperties.setExternalDir("/opt/runtime/pan");
+        panProperties.setExternalDir("/opt/pan");
         SkillProperties skillProperties = new SkillProperties();
-        skillProperties.setExternalDir("/opt/runtime/skills-market");
+        skillProperties.setExternalDir("/opt/skills-market");
         AgentProperties agentProperties = new AgentProperties();
-        agentProperties.setExternalDir("/opt/runtime/agents");
+        agentProperties.setExternalDir("/opt/agents");
 
         ContainerHubMountResolver mountResolver = containerHubMountResolver(
                 properties,
@@ -363,13 +364,13 @@ class ContainerHubSandboxServiceTest {
                 rootProperties,
                 panProperties,
                 agentProperties,
-                Map.of(
+                hostRuntimeDirOverrides(Map.of(
                         "CHATS_DIR", hostChatsDir.toString(),
                         "ROOT_DIR", hostRootDir.toString(),
                         "PAN_DIR", hostPanDir.toString(),
                         "SKILLS_MARKET_DIR", hostSkillsDir.toString(),
                         "AGENTS_DIR", hostAgentsDir.toString()
-                )
+                ))
         );
         ContainerHubSandboxService service = new ContainerHubSandboxService(properties, client, mountResolver);
 
@@ -446,7 +447,7 @@ class ContainerHubSandboxServiceTest {
                 rootProperties,
                 panProperties,
                 agentProperties,
-                Map.of()
+                new RuntimeDirectoryHostPaths(Map.of())
         );
     }
 
@@ -457,7 +458,7 @@ class ContainerHubSandboxServiceTest {
             RootProperties rootProperties,
             PanProperties panProperties,
             AgentProperties agentProperties,
-            Map<String, String> hostRuntimeDirOverrides
+            RuntimeDirectoryHostPaths hostRuntimeDirOverrides
     ) {
         RootProperties resolvedRootProperties = rootProperties == null ? new RootProperties() : rootProperties;
         if (rootProperties == null) {
@@ -493,8 +494,20 @@ class ContainerHubSandboxServiceTest {
                 new ScheduleProperties(),
                 new McpProperties(),
                 new ProviderProperties(),
-                new RuntimeDirectoryHostPaths(hostRuntimeDirOverrides)
+                hostRuntimeDirOverrides
         );
+    }
+
+    private RuntimeDirectoryHostPaths hostRuntimeDirOverrides(Map<String, String> values) throws Exception {
+        Path file = java.nio.file.Files.createTempFile("runner-host", ".env");
+        String body = values.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining("\n", "", "\n"));
+        Files.writeString(file, body);
+        return RuntimeDirectoryHostPaths.load(Map.of(
+                RuntimeDirectoryHostPaths.HOST_DIRS_FILE_ENV,
+                file.toString()
+        ));
     }
 
     private AgentDefinition definitionWithLevel(SandboxLevel level) {

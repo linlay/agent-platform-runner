@@ -1,0 +1,30 @@
+server:
+  port: 8080
+
+agent:
+  agents:
+    external-dir: /opt/agents
+  skills:
+    external-dir: /opt/skills-market
+  root:
+    external-dir: /opt/root
+  pan:
+    external-dir: /opt/pan
+  teams:
+    external-dir: /opt/teams
+  providers:
+    external-dir: /opt/providers
+  models:
+    external-dir: /opt/models
+  schedule:
+    external-dir: /opt/schedules
+  mcp-servers:
+    registry:
+      external-dir: /opt/mcp-servers
+  viewport-servers:
+    registry:
+      external-dir: /opt/viewport-servers
+
+memory:
+  chats:
+    dir: /opt/chats

@@ -45,18 +45,18 @@ ensure_dir() {
 load_image "$IMAGE_REF" "$IMAGE_TAR"
 
 ensure_dir "$SCRIPT_DIR/configs"
-ensure_dir "${AGENTS_DIR:-$SCRIPT_DIR/runtime/agents}"
-ensure_dir "${OWNER_DIR:-$SCRIPT_DIR/runtime/owner}"
-ensure_dir "${TEAMS_DIR:-$SCRIPT_DIR/runtime/teams}"
-ensure_dir "${MODELS_DIR:-$SCRIPT_DIR/runtime/models}"
 ensure_dir "${PROVIDERS_DIR:-$SCRIPT_DIR/runtime/providers}"
+ensure_dir "${MODELS_DIR:-$SCRIPT_DIR/runtime/models}"
 ensure_dir "${MCP_SERVERS_DIR:-$SCRIPT_DIR/runtime/mcp-servers}"
 ensure_dir "${VIEWPORT_SERVERS_DIR:-$SCRIPT_DIR/runtime/viewport-servers}"
-ensure_dir "${SKILLS_MARKET_DIR:-$SCRIPT_DIR/runtime/skills-market}"
+ensure_dir "${OWNER_DIR:-$SCRIPT_DIR/runtime/owner}"
+ensure_dir "${AGENTS_DIR:-$SCRIPT_DIR/runtime/agents}"
+ensure_dir "${TEAMS_DIR:-$SCRIPT_DIR/runtime/teams}"
+ensure_dir "${ROOT_DIR:-$SCRIPT_DIR/runtime/root}"
 ensure_dir "${SCHEDULES_DIR:-$SCRIPT_DIR/runtime/schedules}"
 ensure_dir "${CHATS_DIR:-$SCRIPT_DIR/runtime/chats}"
-ensure_dir "${ROOT_DIR:-$SCRIPT_DIR/runtime/root}"
 ensure_dir "${PAN_DIR:-$SCRIPT_DIR/runtime/pan}"
+ensure_dir "${SKILLS_MARKET_DIR:-$SCRIPT_DIR/runtime/skills-market}"
 
 export RUNNER_VERSION
 docker compose -f "$COMPOSE_FILE" up -d

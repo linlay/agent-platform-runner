@@ -86,8 +86,9 @@ ARCH=amd64 make release
 - 宿主机构建产物：`target/*.jar`
 - 配置模板：`configs/*.example.yml`
 - 配置模板：`configs/**/*.example.*`
-- 运行时目录约定：由 `.env` 中的 `*_DIR` 指向宿主机路径，默认回落到 `./runtime/agents`、`./runtime/teams`、`./runtime/models`、`./runtime/providers`、`./runtime/mcp-servers`、`./runtime/viewport-servers`、`./runtime/skills-market`、`./runtime/schedules`、`./runtime/chats`、`./runtime/root`、`./runtime/pan`
-- release compose 会把根目录 `.env` 只读挂载到容器内 `/opt/configs/.env`，供 runner 在创建 sandbox mount 时读取原始宿主机路径
+- 运行时目录约定：由 `.env` 中的 `*_DIR` 指向宿主机路径，默认回落到 `./runtime/providers`、`./runtime/models`、`./runtime/mcp-servers`、`./runtime/viewport-servers`、`./runtime/owner`、`./runtime/agents`、`./runtime/teams`、`./runtime/root`、`./runtime/schedules`、`./runtime/chats`、`./runtime/pan`、`./runtime/skills-market`；所有这些 `*_DIR` 都可以改成绝对宿主机路径
+- release compose 会把根目录 `.env` 只读挂载到 `/tmp/runner-host.env`，并通过 `SANDBOX_HOST_DIRS_FILE` 指向这份 mapping 文件，供 runner 在创建 sandbox mount 时读取宿主机路径
+- release compose 会显式设置 `SPRING_PROFILES_ACTIVE=docker`，应用在容器内固定读取 `/opt/agents`、`/opt/chats`、`/opt/root` 等目录；`.env` 里的 `*_DIR` 只负责宿主机 bind mount source
 
 脚本会强校验版本格式：
 
@@ -247,6 +248,7 @@ docker network create zenmind-network   # 仅在网络尚不存在时执行
 - `start.sh` 会校验 `.env`、Docker、`docker compose` 和外部网络 `zenmind-network`
 - 若本机没有 `agent-platform-runner:$RUNNER_VERSION`，脚本会自动从 `images/agent-platform-runner.tar` 执行 `docker load`
 - 若 `*_DIR` 指向的宿主机目录不存在，脚本会在 `docker compose up -d` 之前自动创建，包括新的 `OWNER_DIR`
+- 容器内应用目录固定为 `/opt/*`；`*_DIR` 不再直接决定容器内 Spring 读取路径
 - release compose 继续接入 `zenmind-network`，与现有容器互联模型保持一致
 
 停止命令：

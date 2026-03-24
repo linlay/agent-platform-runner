@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -590,10 +591,10 @@ class ContainerHubMountResolverTest {
         Path hostAgentDir = Files.createDirectories(hostAgentsDir.resolve("atlas"));
         Path hostAgentSkillsDir = Files.createDirectories(hostAgentDir.resolve("skills"));
 
-        DataProperties dataProperties = dataProperties(Path.of("/opt/runtime/chats"));
-        SkillProperties skillProperties = skillProperties(Path.of("/opt/runtime/skills-market"));
-        RootProperties rootProperties = rootProperties(Path.of("/opt/runtime/root"));
-        PanProperties panProperties = panProperties(Path.of("/opt/runtime/pan"));
+        DataProperties dataProperties = dataProperties(Path.of("/opt/chats"));
+        SkillProperties skillProperties = skillProperties(Path.of("/opt/skills-market"));
+        RootProperties rootProperties = rootProperties(Path.of("/opt/root"));
+        PanProperties panProperties = panProperties(Path.of("/opt/pan"));
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
@@ -602,13 +603,13 @@ class ContainerHubMountResolverTest {
                 rootProperties,
                 panProperties,
                 providerProperties(tempDir.resolve("providers")),
-                Map.of(
+                hostRuntimeDirOverrides(Map.of(
                         "CHATS_DIR", hostChatsDir.toString(),
                         "ROOT_DIR", hostRootDir.toString(),
                         "PAN_DIR", hostPanDir.toString(),
                         "SKILLS_MARKET_DIR", hostSkillsDir.toString(),
                         "AGENTS_DIR", hostAgentsDir.toString()
-                )
+                ))
         );
 
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.RUN, "chat-host", "atlas", List.of());
@@ -636,7 +637,7 @@ class ContainerHubMountResolverTest {
     void shouldFailWhenContainerPathDoesNotHaveDotEnvHostOverride() throws Exception {
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
-                dataProperties(Path.of("/opt/runtime/chats")),
+                dataProperties(Path.of("/opt/chats")),
                 skillProperties(Files.createDirectories(tempDir.resolve("skills"))),
                 rootProperties(Files.createDirectories(tempDir.resolve("root"))),
                 panProperties(Files.createDirectories(tempDir.resolve("pan"))),
@@ -645,8 +646,8 @@ class ContainerHubMountResolverTest {
 
         assertThatThrownBy(() -> resolver.resolve(SandboxLevel.RUN, "chat-missing-host", "flat-agent", List.of()))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("missing host path in .env key CHATS_DIR")
-                .hasMessageContaining("configured=/opt/runtime/chats");
+                .hasMessageContaining("missing CHATS_DIR in " + RuntimeDirectoryHostPaths.DEFAULT_HOST_DIRS_FILE)
+                .hasMessageContaining("configured=/opt/chats");
     }
 
     private ContainerHubMountResolver containerHubMountResolver(
@@ -664,7 +665,7 @@ class ContainerHubMountResolverTest {
                 rootProperties,
                 panProperties,
                 providerProperties,
-                Map.of()
+                new RuntimeDirectoryHostPaths(Map.of())
         );
     }
 
@@ -675,7 +676,7 @@ class ContainerHubMountResolverTest {
             RootProperties rootProperties,
             PanProperties panProperties,
             ProviderProperties providerProperties,
-            Map<String, String> hostRuntimeDirOverrides
+            RuntimeDirectoryHostPaths hostRuntimeDirOverrides
     ) {
         AgentProperties agentProperties = new AgentProperties();
         agentProperties.setExternalDir(tempDir.resolve("agents").toString());
@@ -715,8 +716,20 @@ class ContainerHubMountResolverTest {
                 scheduleProperties,
                 mcpProperties,
                 providerProperties,
-                new RuntimeDirectoryHostPaths(hostRuntimeDirOverrides)
+                hostRuntimeDirOverrides
         );
+    }
+
+    private RuntimeDirectoryHostPaths hostRuntimeDirOverrides(Map<String, String> values) throws Exception {
+        Path file = tempDir.resolve("runner-host.env");
+        String body = values.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining("\n", "", "\n"));
+        Files.writeString(file, body);
+        return RuntimeDirectoryHostPaths.load(Map.of(
+                RuntimeDirectoryHostPaths.HOST_DIRS_FILE_ENV,
+                file.toString()
+        ));
     }
 
     private DataProperties dataProperties(Path path) {

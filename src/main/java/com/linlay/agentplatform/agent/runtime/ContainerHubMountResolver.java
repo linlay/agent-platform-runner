@@ -345,6 +345,10 @@ public class ContainerHubMountResolver {
         if (!StringUtils.hasText(agentKey)) {
             return null;
         }
+        String ownerDir = resolveHostBackedDirectory("OWNER_DIR", null, "owner-dir");
+        if (StringUtils.hasText(ownerDir)) {
+            return ownerDir;
+        }
         String agentsDir = resolveAgentsDir();
         if (!StringUtils.hasText(agentsDir)) {
             return null;
@@ -395,8 +399,8 @@ public class ContainerHubMountResolver {
         return StringUtils.hasText(path) ? path.trim() : null;
     }
 
-    private String resolveHostBackedDirectory(String envKey, String configuredPath, String mountName) {
-        String hostPath = hostPaths.get(envKey);
+    private String resolveHostBackedDirectory(String runtimeDirKey, String configuredPath, String mountName) {
+        String hostPath = resolveDirectory(hostPaths.get(runtimeDirKey));
         if (StringUtils.hasText(hostPath)) {
             return hostPath.trim();
         }
@@ -406,9 +410,9 @@ public class ContainerHubMountResolver {
         }
         if (looksLikeContainerInternalPath(resolved)) {
             throw new IllegalStateException(
-                    ("container-hub mount validation failed for %s: missing host path in .env key %s "
+                    ("container-hub mount validation failed for %s: missing %s in %s "
                             + "(configured=%s). Sandbox mounts must use the original host filesystem path.")
-                            .formatted(mountName, envKey, resolved)
+                            .formatted(mountName, runtimeDirKey, hostPaths.sourcePath(), resolved)
             );
         }
         return resolved;
