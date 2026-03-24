@@ -346,10 +346,6 @@ public class ContainerHubMountResolver {
         if (!StringUtils.hasText(agentKey)) {
             return null;
         }
-        ResolvedPath ownerDir = resolveOwnerDirOverride();
-        if (ownerDir != null) {
-            return ownerDir;
-        }
         ResolvedPath agentsDir = resolveAgentsDir();
         if (agentsDir == null) {
             return null;
@@ -359,21 +355,6 @@ public class ContainerHubMountResolver {
             return null;
         }
         return agentsDir.resolveChild(agentKey);
-    }
-
-    private ResolvedPath resolveOwnerDirOverride() {
-        String ownerMountSource = resolveDirectory(hostPaths.get("OWNER_DIR"));
-        if (!StringUtils.hasText(ownerMountSource)) {
-            return null;
-        }
-        ResolvedPath agentsDir = resolveAgentsDir();
-        if (agentsDir == null) {
-            return new ResolvedPath(normalizeRawPath(ownerMountSource), ownerMountSource, ownerMountSource);
-        }
-        Path agentsPath = Path.of(agentsDir.accessPath()).toAbsolutePath().normalize();
-        Path parent = agentsPath.getParent();
-        String accessPath = parent == null ? ownerMountSource : parent.resolve("owner").toString();
-        return new ResolvedPath(normalizeRawPath(ownerMountSource), accessPath, ownerMountSource);
     }
 
     private ResolvedPath resolveAgentSkillsDir(String agentKey) {
@@ -405,6 +386,7 @@ public class ContainerHubMountResolver {
         if (parent == null) {
             return null;
         }
+        // OWNER_DIR is only the host mapping for the optional /owner platform mount.
         return resolveHostBackedDirectory("OWNER_DIR", parent.resolve("owner").toString(), "owner-dir");
     }
 

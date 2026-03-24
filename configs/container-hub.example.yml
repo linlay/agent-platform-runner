@@ -2,11 +2,11 @@ enabled: true
 base-url: ${AGENT_CONTAINER_HUB_BASE_URL:http://host.docker.internal:11960}
 auth-token:
 default-environment-id:
-request-timeout-ms: 60000
+request-timeout-ms: 300000
 # 默认沙箱级别: run / agent / global
 default-sandbox-level: run
 # agent 级别会话空闲超时（ms），超时后自动驱逐
-agent-idle-timeout-ms: 600000
+agent-idle-timeout-ms: 1800000
 # run 级别会话异步销毁延迟（ms）
 destroy-queue-delay-ms: 5000
 # 目录挂载统一来自 runner 全局目录配置：

@@ -639,6 +639,102 @@ class ContainerHubMountResolverTest {
     }
 
     @Test
+    void shouldUseAgentsDirForAgentAndSkillsWhenOwnerDirOverrideAlsoExists() throws Exception {
+        Path hostChatsDir = Files.createDirectories(tempDir.resolve("host-chats"));
+        Path hostRootDir = Files.createDirectories(tempDir.resolve("host-root"));
+        Path hostPanDir = Files.createDirectories(tempDir.resolve("host-pan"));
+        Path hostSkillsDir = Files.createDirectories(tempDir.resolve("host-skills"));
+        Path hostOwnerDir = Files.createDirectories(tempDir.resolve("host-owner"));
+        Path hostAgentsDir = Files.createDirectories(tempDir.resolve("host-agents"));
+        Path hostAgentDir = Files.createDirectories(hostAgentsDir.resolve("atlas"));
+        Path hostAgentSkillsDir = Files.createDirectories(hostAgentDir.resolve("skills"));
+        Path accessChatsDir = Files.createDirectories(tempDir.resolve("access-chats"));
+        Path accessRootDir = Files.createDirectories(tempDir.resolve("access-root"));
+        Path accessPanDir = Files.createDirectories(tempDir.resolve("access-pan"));
+        Path accessSkillsDir = Files.createDirectories(tempDir.resolve("access-skills"));
+        Files.createDirectories(tempDir.resolve("agents").resolve("atlas"));
+        Files.createDirectories(tempDir.resolve("owner"));
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(accessChatsDir),
+                skillProperties(accessSkillsDir),
+                rootProperties(accessRootDir),
+                panProperties(accessPanDir),
+                providerProperties(tempDir.resolve("providers")),
+                hostRuntimeDirOverrides(Map.of(
+                        "CHATS_DIR", hostChatsDir.toString(),
+                        "ROOT_DIR", hostRootDir.toString(),
+                        "PAN_DIR", hostPanDir.toString(),
+                        "SKILLS_MARKET_DIR", hostSkillsDir.toString(),
+                        "OWNER_DIR", hostOwnerDir.toString(),
+                        "AGENTS_DIR", hostAgentsDir.toString()
+                ))
+        );
+
+        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(
+                SandboxLevel.RUN,
+                "chat-owner-override",
+                "atlas",
+                List.of(new AgentDefinition.ExtraMount("owner", null, null, MountAccessMode.RO))
+        );
+
+        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(hostAgentSkillsDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).filteredOn(mount -> "/agent".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(hostAgentDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).filteredOn(mount -> "/owner".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(hostOwnerDir.toAbsolutePath().normalize().toString());
+    }
+
+    @Test
+    void shouldFallbackToGlobalSkillsWhenAgentDirectoryIsMissingEvenIfOwnerOverrideExists() throws Exception {
+        Path hostChatsDir = Files.createDirectories(tempDir.resolve("host-chats"));
+        Path hostRootDir = Files.createDirectories(tempDir.resolve("host-root"));
+        Path hostPanDir = Files.createDirectories(tempDir.resolve("host-pan"));
+        Path hostSkillsDir = Files.createDirectories(tempDir.resolve("host-skills"));
+        Path hostOwnerDir = Files.createDirectories(tempDir.resolve("host-owner"));
+        Path hostAgentsDir = Files.createDirectories(tempDir.resolve("host-agents"));
+        Path accessChatsDir = Files.createDirectories(tempDir.resolve("access-chats"));
+        Path accessRootDir = Files.createDirectories(tempDir.resolve("access-root"));
+        Path accessPanDir = Files.createDirectories(tempDir.resolve("access-pan"));
+        Path accessSkillsDir = Files.createDirectories(tempDir.resolve("access-skills"));
+        Files.createDirectories(tempDir.resolve("owner"));
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(accessChatsDir),
+                skillProperties(accessSkillsDir),
+                rootProperties(accessRootDir),
+                panProperties(accessPanDir),
+                providerProperties(tempDir.resolve("providers")),
+                hostRuntimeDirOverrides(Map.of(
+                        "CHATS_DIR", hostChatsDir.toString(),
+                        "ROOT_DIR", hostRootDir.toString(),
+                        "PAN_DIR", hostPanDir.toString(),
+                        "SKILLS_MARKET_DIR", hostSkillsDir.toString(),
+                        "OWNER_DIR", hostOwnerDir.toString(),
+                        "AGENTS_DIR", hostAgentsDir.toString()
+                ))
+        );
+
+        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.AGENT, "chat-missing-agent", "atlas", List.of());
+
+        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(hostSkillsDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
+                .doesNotContain("/agent", "/owner");
+    }
+
+    @Test
     void shouldUseConfiguredAccessPathsWhenHostOverridesAreNotLocallyAccessible() throws Exception {
         Path accessChatsDir = Files.createDirectories(tempDir.resolve("access-chats"));
         Path accessRootDir = Files.createDirectories(tempDir.resolve("access-root"));
