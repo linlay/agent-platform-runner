@@ -11,7 +11,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.util.CatalogDiff;
 
 class ToolFileRegistryServiceTest {
 

@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.service.chat;
 
-import com.linlay.agentplatform.config.DataProperties;
+import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
-import com.linlay.agentplatform.service.DataFilePathNormalizer;
+import com.linlay.agentplatform.util.DataFilePathNormalizer;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

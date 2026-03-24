@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.controller;
 
-import com.linlay.agentplatform.config.LoggingAgentProperties;
+import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.model.ViewportType;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.service.mcp.McpViewportService;

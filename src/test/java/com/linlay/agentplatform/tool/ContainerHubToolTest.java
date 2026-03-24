@@ -11,7 +11,7 @@ import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
-import com.linlay.agentplatform.config.ContainerHubToolProperties;
+import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.ChatMessage;
 import org.junit.jupiter.api.Test;

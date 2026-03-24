@@ -2,7 +2,7 @@ package com.linlay.agentplatform.stream.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.H2aProperties;
+import com.linlay.agentplatform.config.properties.H2aProperties;
 import jakarta.annotation.PreDestroy;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;

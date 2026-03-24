@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.service.viewport;
 
-import com.linlay.agentplatform.config.ViewportServerProperties;
+import com.linlay.agentplatform.config.properties.ViewportServerProperties;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

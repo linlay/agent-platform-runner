@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.config;
 
+import com.linlay.agentplatform.config.properties.ViewportServerProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.ConfigurationPropertiesAutoConfiguration;

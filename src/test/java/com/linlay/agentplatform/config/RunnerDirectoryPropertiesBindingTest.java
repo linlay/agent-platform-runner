@@ -1,6 +1,14 @@
 package com.linlay.agentplatform.config;
 
 import com.linlay.agentplatform.agent.AgentProperties;
+import com.linlay.agentplatform.config.properties.AppAuthProperties;
+import com.linlay.agentplatform.config.properties.McpProperties;
+import com.linlay.agentplatform.config.properties.PanProperties;
+import com.linlay.agentplatform.config.properties.ProviderProperties;
+import com.linlay.agentplatform.config.properties.RootProperties;
+import com.linlay.agentplatform.config.properties.ToolProperties;
+import com.linlay.agentplatform.config.properties.ViewportProperties;
+import com.linlay.agentplatform.config.properties.ViewportServerProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;

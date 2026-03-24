@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.service.llm.ProviderRegistryService;
-import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.util.CatalogDiff;
 import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.slf4j.Logger;

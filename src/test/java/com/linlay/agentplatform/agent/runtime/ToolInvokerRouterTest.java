@@ -2,7 +2,7 @@ package com.linlay.agentplatform.agent.runtime;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
-import com.linlay.agentplatform.config.ContainerHubToolProperties;
+import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import com.linlay.agentplatform.tool.SystemContainerHubBash;
 import com.linlay.agentplatform.tool.ToolDescriptor;

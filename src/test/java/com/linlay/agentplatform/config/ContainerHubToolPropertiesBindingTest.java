@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.config;
 
+import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;

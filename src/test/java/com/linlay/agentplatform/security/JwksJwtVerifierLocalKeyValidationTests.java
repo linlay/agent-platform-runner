@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.security;
 
-import com.linlay.agentplatform.config.AppAuthProperties;
+import com.linlay.agentplatform.config.properties.AppAuthProperties;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;

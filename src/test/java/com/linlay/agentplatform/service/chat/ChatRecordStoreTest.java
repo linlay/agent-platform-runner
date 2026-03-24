@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.service.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.DataProperties;
+import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;

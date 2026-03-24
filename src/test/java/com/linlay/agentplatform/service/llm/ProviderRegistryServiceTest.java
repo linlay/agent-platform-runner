@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.service.llm;
 
 import com.linlay.agentplatform.config.ProviderConfig;
-import com.linlay.agentplatform.config.ProviderProperties;
+import com.linlay.agentplatform.config.properties.ProviderProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

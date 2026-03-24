@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.controller;
 
-import com.linlay.agentplatform.config.LoggingAgentProperties;
+import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.model.api.ApiResponse;
-import com.linlay.agentplatform.service.LoggingSanitizer;
+import com.linlay.agentplatform.util.LoggingSanitizer;
 import com.linlay.agentplatform.service.mcp.McpViewportService;
 import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
 import org.slf4j.Logger;

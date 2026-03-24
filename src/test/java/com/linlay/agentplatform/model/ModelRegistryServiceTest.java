@@ -1,9 +1,9 @@
 package com.linlay.agentplatform.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.ProviderProperties;
+import com.linlay.agentplatform.config.properties.ProviderProperties;
 import com.linlay.agentplatform.service.llm.ProviderRegistryService;
-import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.util.CatalogDiff;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

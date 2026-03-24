@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.service.viewport;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.ViewportServerProperties;
-import com.linlay.agentplatform.service.RemoteServerConfigSupport;
+import com.linlay.agentplatform.config.properties.ViewportServerProperties;
+import com.linlay.agentplatform.util.RemoteServerConfigSupport;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

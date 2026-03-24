@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.service.viewport;
 
-import com.linlay.agentplatform.config.ViewportServerProperties;
-import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.config.properties.ViewportServerProperties;
+import com.linlay.agentplatform.util.CatalogDiff;
 import com.linlay.agentplatform.service.mcp.McpStreamableHttpClient;
 import org.junit.jupiter.api.Test;
 

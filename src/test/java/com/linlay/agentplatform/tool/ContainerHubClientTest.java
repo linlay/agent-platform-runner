@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.ContainerHubToolProperties;
+import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import org.junit.jupiter.api.Test;
 
 import javax.net.ssl.SSLContext;

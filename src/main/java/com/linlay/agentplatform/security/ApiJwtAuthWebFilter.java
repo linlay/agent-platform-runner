@@ -2,10 +2,10 @@ package com.linlay.agentplatform.security;
 
 import java.nio.charset.StandardCharsets;
 
-import com.linlay.agentplatform.config.LoggingAgentProperties;
-import com.linlay.agentplatform.service.LoggingSanitizer;
-import com.linlay.agentplatform.config.AppAuthProperties;
-import com.linlay.agentplatform.config.ChatImageTokenProperties;
+import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
+import com.linlay.agentplatform.util.LoggingSanitizer;
+import com.linlay.agentplatform.config.properties.AppAuthProperties;
+import com.linlay.agentplatform.config.properties.ChatImageTokenProperties;
 import com.linlay.agentplatform.security.JwksJwtVerifier.JwtPrincipal;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;

@@ -3,7 +3,7 @@ package com.linlay.agentplatform.agent.runtime;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.linlay.agentplatform.config.McpProperties;
+import com.linlay.agentplatform.config.properties.McpProperties;
 import com.linlay.agentplatform.service.mcp.McpServerAvailabilityGate;
 import com.linlay.agentplatform.service.mcp.McpServerRegistryService;
 import com.linlay.agentplatform.service.mcp.McpStreamableHttpClient;

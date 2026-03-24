@@ -3,7 +3,7 @@ package com.linlay.agentplatform.service.llm;
 import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
-import com.linlay.agentplatform.config.LlmInteractionLogProperties;
+import com.linlay.agentplatform.config.properties.LlmInteractionLogProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;

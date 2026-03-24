@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.service.mcp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.McpProperties;
-import com.linlay.agentplatform.service.RemoteServerConfigSupport;
+import com.linlay.agentplatform.config.properties.McpProperties;
+import com.linlay.agentplatform.util.RemoteServerConfigSupport;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

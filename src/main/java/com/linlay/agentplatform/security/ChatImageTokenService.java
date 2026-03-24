@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.security;
 
-import com.linlay.agentplatform.config.ChatImageTokenProperties;
+import com.linlay.agentplatform.config.properties.ChatImageTokenProperties;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;

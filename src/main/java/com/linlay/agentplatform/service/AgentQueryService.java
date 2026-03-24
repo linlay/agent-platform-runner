@@ -3,20 +3,20 @@ package com.linlay.agentplatform.service;
 import com.linlay.agentplatform.stream.model.RunActor;
 import com.linlay.agentplatform.stream.model.StreamEnvelope;
 import com.linlay.agentplatform.stream.model.StreamRequest;
+import com.linlay.agentplatform.stream.service.AgentDeltaToStreamInputMapper;
 import com.linlay.agentplatform.stream.service.RenderQueue;
+import com.linlay.agentplatform.stream.service.SseEventNormalizer;
 import com.linlay.agentplatform.stream.service.StreamEventAssembler;
 import com.linlay.agentplatform.stream.service.StreamSseStreamer;
 import com.linlay.agentplatform.agent.AgentDefinition;
 import com.linlay.agentplatform.agent.RuntimeContextPromptService;
 import com.linlay.agentplatform.agent.RuntimeContextTags;
+import com.linlay.agentplatform.agent.runtime.SandboxContextResolver;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
-import com.linlay.agentplatform.config.ContainerHubToolProperties;
-import com.linlay.agentplatform.config.FrontendToolProperties;
-import com.linlay.agentplatform.config.LoggingAgentProperties;
+import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.agent.Agent;
 import com.linlay.agentplatform.agent.AgentRegistry;
 import com.linlay.agentplatform.model.api.QueryRequest;
@@ -26,11 +26,11 @@ import com.linlay.agentplatform.model.RuntimeRequestContext;
 import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.service.chat.ChatAssetCatalogService;
 import com.linlay.agentplatform.service.chat.ChatRecordStore;
-import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
 import com.linlay.agentplatform.team.TeamDescriptor;
 import com.linlay.agentplatform.team.TeamRegistryService;
-import com.linlay.agentplatform.tool.ContainerHubClient;
 import com.linlay.agentplatform.tool.ToolRegistry;
+import com.linlay.agentplatform.util.LoggingSanitizer;
+import com.linlay.agentplatform.util.RunIdGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -72,17 +72,14 @@ public class AgentQueryService {
     private final ObjectMapper objectMapper;
     private final ChatRecordStore chatRecordStore;
     private final ToolRegistry toolRegistry;
-    private final ViewportRegistryService viewportRegistryService;
-    private final FrontendToolProperties frontendToolProperties;
     private final TeamRegistryService teamRegistryService;
     private final LoggingAgentProperties loggingAgentProperties;
     private final ChatAssetCatalogService chatAssetCatalogService;
     private final ActiveRunService activeRunService;
     private final RenderQueue renderQueue;
     private final RuntimeContextPromptService runtimeContextPromptService;
-    private final ContainerHubClient containerHubClient;
-    private final ContainerHubToolProperties containerHubToolProperties;
     private final SseEventNormalizer sseEventNormalizer;
+    private final SandboxContextResolver sandboxContextResolver;
 
     @Autowired
     public AgentQueryService(
@@ -91,33 +88,28 @@ public class AgentQueryService {
             ObjectMapper objectMapper,
             ChatRecordStore chatRecordStore,
             ToolRegistry toolRegistry,
-            ViewportRegistryService viewportRegistryService,
-            FrontendToolProperties frontendToolProperties,
             TeamRegistryService teamRegistryService,
             LoggingAgentProperties loggingAgentProperties,
             ChatAssetCatalogService chatAssetCatalogService,
             ActiveRunService activeRunService,
             RenderQueue renderQueue,
             RuntimeContextPromptService runtimeContextPromptService,
-            @Nullable ContainerHubClient containerHubClient,
-            ContainerHubToolProperties containerHubToolProperties
+            SseEventNormalizer sseEventNormalizer,
+            SandboxContextResolver sandboxContextResolver
     ) {
         this.agentRegistry = agentRegistry;
         this.streamSseStreamer = streamSseStreamer;
         this.objectMapper = objectMapper;
         this.chatRecordStore = chatRecordStore;
         this.toolRegistry = toolRegistry;
-        this.viewportRegistryService = viewportRegistryService;
-        this.frontendToolProperties = frontendToolProperties;
         this.teamRegistryService = teamRegistryService;
         this.loggingAgentProperties = loggingAgentProperties;
         this.chatAssetCatalogService = chatAssetCatalogService;
         this.activeRunService = activeRunService;
         this.renderQueue = renderQueue;
         this.runtimeContextPromptService = runtimeContextPromptService;
-        this.containerHubClient = containerHubClient;
-        this.containerHubToolProperties = containerHubToolProperties == null ? new ContainerHubToolProperties() : containerHubToolProperties;
-        this.sseEventNormalizer = new SseEventNormalizer(objectMapper, toolRegistry, viewportRegistryService, frontendToolProperties);
+        this.sseEventNormalizer = sseEventNormalizer;
+        this.sandboxContextResolver = sandboxContextResolver;
     }
 
     public QuerySession prepare(QueryRequest request) {
@@ -204,13 +196,13 @@ public class AgentQueryService {
             ObjectMapper objectMapper,
             ChatRecordStore chatRecordStore,
             ToolRegistry toolRegistry,
-            ViewportRegistryService viewportRegistryService,
-            FrontendToolProperties frontendToolProperties,
             TeamRegistryService teamRegistryService,
             LoggingAgentProperties loggingAgentProperties,
             ChatAssetCatalogService chatAssetCatalogService,
             ActiveRunService activeRunService,
-            RenderQueue renderQueue
+            RenderQueue renderQueue,
+            SseEventNormalizer sseEventNormalizer,
+            SandboxContextResolver sandboxContextResolver
     ) {
         this(
                 agentRegistry,
@@ -218,16 +210,14 @@ public class AgentQueryService {
                 objectMapper,
                 chatRecordStore,
                 toolRegistry,
-                viewportRegistryService,
-                frontendToolProperties,
                 teamRegistryService,
                 loggingAgentProperties,
                 chatAssetCatalogService,
                 activeRunService,
                 renderQueue,
                 new RuntimeContextPromptService(),
-                null,
-                new ContainerHubToolProperties()
+                sseEventNormalizer,
+                sandboxContextResolver
         );
     }
 
@@ -324,26 +314,6 @@ public class AgentQueryService {
 
     private ServerSentEvent<String> normalizeEvent(ServerSentEvent<String> event, Set<String> hiddenToolIds) {
         return sseEventNormalizer.normalizeEvent(event, hiddenToolIds);
-    }
-
-    private ServerSentEvent<String> normalizeEvent(ServerSentEvent<String> event) {
-        return normalizeEvent(event, new HashSet<>());
-    }
-
-    private ServerSentEvent<String> normalizeHeartbeatCommentEvent(ServerSentEvent<String> event) {
-        return sseEventNormalizer.normalizeHeartbeatCommentEvent(event);
-    }
-
-    private boolean normalizeFrontendToolEvent(String eventType, ObjectNode root) {
-        return sseEventNormalizer.normalizeFrontendToolEvent(eventType, root);
-    }
-
-    private boolean shouldHideToolEvent(String eventType, ObjectNode root, Set<String> hiddenToolIds) {
-        return sseEventNormalizer.shouldHideToolEvent(eventType, root, hiddenToolIds);
-    }
-
-    private String resolveViewportToolType(String descriptorToolType, String viewportKey) {
-        return sseEventNormalizer.resolveViewportToolType(descriptorToolType, viewportKey);
     }
 
     private Map<String, Object> mergeQueryParams(Map<String, Object> requestParams, boolean created) {
@@ -495,7 +465,7 @@ public class AgentQueryService {
                 ? null
                 : runtimeContextPromptService.resolveWorkspacePaths(chatId);
         RuntimeRequestContext.SandboxContext sandboxContext = requiresContextTag(definition, RuntimeContextTags.SANDBOX)
-                ? buildSandboxContext(definition, chatId, runId, effectiveAgentKey, teamId, chatName)
+                ? sandboxContextResolver.resolve(definition, chatId, runId, effectiveAgentKey, teamId, chatName)
                 : null;
         List<RuntimeRequestContext.AgentDigest> agentDigests = requiresContextTag(definition, RuntimeContextTags.ALL_AGENTS)
                 ? buildAllAgentDigests()
@@ -512,121 +482,6 @@ public class AgentQueryService {
                 sandboxContext,
                 agentDigests
         );
-    }
-
-    private RuntimeRequestContext.SandboxContext buildSandboxContext(
-            AgentDefinition definition,
-            String chatId,
-            String runId,
-            String agentKey,
-            String teamId,
-            String chatName
-    ) {
-        String configuredEnvironmentId = definition != null && definition.sandboxConfig() != null
-                ? normalizeNullable(definition.sandboxConfig().environmentId())
-                : null;
-        String defaultEnvironmentId = normalizeNullable(containerHubToolProperties == null ? null : containerHubToolProperties.getDefaultEnvironmentId());
-        String effectiveEnvironmentId = StringUtils.hasText(configuredEnvironmentId) ? configuredEnvironmentId : defaultEnvironmentId;
-        String level = resolveSandboxLevel(definition);
-        boolean usesContainerHubTool = definition != null
-                && definition.tools() != null
-                && definition.tools().stream().anyMatch("sandbox_bash"::equals);
-        List<String> extraMounts = summarizeExtraMounts(definition);
-        ContainerHubClient.EnvironmentAgentPromptResult promptResult = fetchSandboxPrompt(
-                effectiveEnvironmentId,
-                runId,
-                agentKey,
-                chatId,
-                teamId,
-                chatName
-        );
-        return new RuntimeRequestContext.SandboxContext(
-                effectiveEnvironmentId,
-                configuredEnvironmentId,
-                defaultEnvironmentId,
-                level,
-                containerHubToolProperties != null && containerHubToolProperties.isEnabled(),
-                usesContainerHubTool,
-                extraMounts,
-                promptResult.prompt()
-        );
-    }
-
-    private ContainerHubClient.EnvironmentAgentPromptResult fetchSandboxPrompt(
-            String environmentId,
-            String runId,
-            String agentKey,
-            String chatId,
-            String teamId,
-            String chatName
-    ) {
-        if (!StringUtils.hasText(environmentId)) {
-            log.warn(
-                    "Sandbox agent prompt resolution failed: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
-                    agentKey,
-                    chatId,
-                    runId,
-                    teamId,
-                    normalizeNullable(chatName),
-                    environmentId,
-                    "missing_environment_id"
-            );
-            throw new IllegalStateException("sandbox context requires a non-blank environmentId");
-        }
-        if (containerHubClient == null) {
-            log.warn(
-                    "Sandbox agent prompt fetch failed: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
-                    agentKey,
-                    chatId,
-                    runId,
-                    teamId,
-                    normalizeNullable(chatName),
-                    environmentId,
-                    "container_hub_client_unavailable"
-            );
-            throw new IllegalStateException("sandbox context requires container-hub client availability");
-        }
-        ContainerHubClient.EnvironmentAgentPromptResult result = containerHubClient.getEnvironmentAgentPrompt(environmentId);
-        if (!result.ok()) {
-            log.warn(
-                    "Sandbox agent prompt fetch failed: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
-                    agentKey,
-                    chatId,
-                    runId,
-                    teamId,
-                    normalizeNullable(chatName),
-                    environmentId,
-                    normalizeNullable(result.error())
-            );
-            throw new IllegalStateException("sandbox context failed to load environment prompt for '" + environmentId + "': " + result.error());
-        }
-        if (!result.hasPrompt()) {
-            log.warn(
-                    "Sandbox agent prompt missing: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
-                    agentKey,
-                    chatId,
-                    runId,
-                    teamId,
-                    normalizeNullable(chatName),
-                    environmentId,
-                    "has_prompt_false"
-            );
-            throw new IllegalStateException("sandbox context requires a non-empty environment prompt for '" + environmentId + "'");
-        }
-        if (!StringUtils.hasText(result.prompt())) {
-            log.warn(
-                    "Sandbox agent prompt blank: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
-                    agentKey,
-                    chatId,
-                    runId,
-                    teamId,
-                    normalizeNullable(chatName),
-                    environmentId,
-                    "blank_prompt"
-            );
-            throw new IllegalStateException("sandbox context requires a non-blank environment prompt for '" + environmentId + "'");
-        }
-        return result;
     }
 
     private List<RuntimeRequestContext.AgentDigest> buildAllAgentDigests() {
@@ -676,40 +531,6 @@ public class AgentQueryService {
         return definition != null
                 && definition.contextTags() != null
                 && definition.contextTags().stream().anyMatch(tag::equals);
-    }
-
-    private String resolveSandboxLevel(AgentDefinition definition) {
-        if (definition != null && definition.sandboxConfig() != null && definition.sandboxConfig().level() != null) {
-            return definition.sandboxConfig().level().name();
-        }
-        String configured = normalizeNullable(containerHubToolProperties == null ? null : containerHubToolProperties.getDefaultSandboxLevel());
-        if (!StringUtils.hasText(configured)) {
-            return SandboxLevel.RUN.name();
-        }
-        return configured.toUpperCase(Locale.ROOT);
-    }
-
-    private List<String> summarizeExtraMounts(AgentDefinition definition) {
-        if (definition == null || definition.sandboxConfig() == null || definition.sandboxConfig().extraMounts() == null) {
-            return List.of();
-        }
-        return definition.sandboxConfig().extraMounts().stream()
-                .filter(mount -> mount != null)
-                .map(mount -> {
-                    String mode = mount.mode() == null ? "unspecified" : mount.mode().name().toLowerCase(Locale.ROOT);
-                    if (StringUtils.hasText(mount.platform())) {
-                        return "platform:" + mount.platform() + " (" + mode + ")";
-                    }
-                    if (StringUtils.hasText(mount.source()) && StringUtils.hasText(mount.destination())) {
-                        return mount.source() + " -> " + mount.destination() + " (" + mode + ")";
-                    }
-                    if (StringUtils.hasText(mount.destination())) {
-                        return "destination:" + mount.destination() + " (" + mode + ")";
-                    }
-                    return null;
-                })
-                .filter(StringUtils::hasText)
-                .toList();
     }
 
     private List<QueryRequest.Reference> mergeReferences(String chatId, List<QueryRequest.Reference> references) {

@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.stream.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.H2aProperties;
+import com.linlay.agentplatform.config.properties.H2aProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;

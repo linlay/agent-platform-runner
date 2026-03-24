@@ -5,7 +5,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.util.CatalogDiff;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

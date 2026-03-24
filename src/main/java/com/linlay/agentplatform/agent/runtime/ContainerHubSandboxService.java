@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.agent.AgentDefinition;
-import com.linlay.agentplatform.config.ContainerHubToolProperties;
+import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

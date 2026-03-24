@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.service.chat;
 
 import com.linlay.agentplatform.model.api.QueryRequest;
-import com.linlay.agentplatform.service.DataFilePathNormalizer;
+import com.linlay.agentplatform.util.DataFilePathNormalizer;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 

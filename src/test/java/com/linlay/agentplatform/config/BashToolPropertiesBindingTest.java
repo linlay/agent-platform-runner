@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.linlay.agentplatform.config.properties.BashToolProperties;
 import com.linlay.agentplatform.tool.SystemBash;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

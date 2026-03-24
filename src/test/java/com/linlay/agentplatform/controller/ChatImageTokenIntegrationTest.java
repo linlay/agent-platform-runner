@@ -2,7 +2,7 @@ package com.linlay.agentplatform.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.DataProperties;
+import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.service.chat.ChatRecordStore;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;

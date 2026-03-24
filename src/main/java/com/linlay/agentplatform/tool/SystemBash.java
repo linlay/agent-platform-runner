@@ -2,7 +2,7 @@ package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.linlay.agentplatform.config.ConfigDirectorySupport;
-import com.linlay.agentplatform.config.BashToolProperties;
+import com.linlay.agentplatform.config.properties.BashToolProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.stereotype.Component;

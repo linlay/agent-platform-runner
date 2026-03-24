@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.service.chat;
 
-import com.linlay.agentplatform.config.DataProperties;
+import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

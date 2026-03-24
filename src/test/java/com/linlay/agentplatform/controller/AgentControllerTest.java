@@ -2,13 +2,14 @@ package com.linlay.agentplatform.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.chat.ChatRecordStore;
-import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.service.mcp.McpToolSyncService;
@@ -594,7 +595,7 @@ class AgentControllerTest {
                 mock(com.linlay.agentplatform.skill.SkillRegistryService.class),
                 mock(TeamRegistryService.class),
                 mock(ToolRegistry.class),
-                new com.linlay.agentplatform.config.LoggingAgentProperties(),
+                new LoggingAgentProperties(),
                 new ObjectMapper()
         );
 

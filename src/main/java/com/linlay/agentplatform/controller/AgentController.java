@@ -2,7 +2,7 @@ package com.linlay.agentplatform.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentRegistry;
-import com.linlay.agentplatform.config.LoggingAgentProperties;
+import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.model.api.AgentDetailResponse;
 import com.linlay.agentplatform.model.api.AgentListResponse;
 import com.linlay.agentplatform.model.api.ApiResponse;
@@ -26,7 +26,7 @@ import com.linlay.agentplatform.security.ChatImageTokenService;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.chat.ChatRecordStore;
-import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.mcp.McpViewportService;
 import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
 import com.linlay.agentplatform.skill.SkillRegistryService;

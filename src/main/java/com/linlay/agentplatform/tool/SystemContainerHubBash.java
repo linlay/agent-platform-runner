@@ -3,7 +3,7 @@ package com.linlay.agentplatform.tool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
-import com.linlay.agentplatform.config.ContainerHubToolProperties;
+import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import org.springframework.util.StringUtils;
 
 import java.util.List;

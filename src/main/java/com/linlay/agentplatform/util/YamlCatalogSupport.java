@@ -90,9 +90,6 @@ public final class YamlCatalogSupport {
                 return fileName.substring(0, fileName.length() - extension.length());
             }
         }
-        if (lowerName.endsWith(".json")) {
-            return fileName.substring(0, fileName.length() - ".json".length());
-        }
         return fileName;
     }
 

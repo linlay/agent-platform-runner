@@ -1,5 +1,7 @@
 package com.linlay.agentplatform.config;
 
+import com.linlay.agentplatform.config.properties.LlmInteractionLogProperties;
+import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;

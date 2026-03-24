@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.agent.runtime;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.linlay.agentplatform.config.LoggingAgentProperties;
-import com.linlay.agentplatform.service.LoggingSanitizer;
+import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
+import com.linlay.agentplatform.util.LoggingSanitizer;
 import org.slf4j.Logger;
 import org.springframework.util.StringUtils;
 

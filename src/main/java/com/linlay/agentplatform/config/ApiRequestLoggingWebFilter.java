@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.config;
 
-import com.linlay.agentplatform.service.LoggingSanitizer;
+import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
+import com.linlay.agentplatform.util.LoggingSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.server.reactive.ServerHttpRequest;

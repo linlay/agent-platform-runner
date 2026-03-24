@@ -13,7 +13,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
-import com.linlay.agentplatform.config.AppAuthProperties;
+import com.linlay.agentplatform.config.properties.AppAuthProperties;
 import com.linlay.agentplatform.config.ConfigDirectorySupport;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.JOSEException;

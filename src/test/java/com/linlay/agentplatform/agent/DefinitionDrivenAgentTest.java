@@ -16,17 +16,17 @@ import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
-import com.linlay.agentplatform.config.ContainerHubToolProperties;
-import com.linlay.agentplatform.config.DataProperties;
-import com.linlay.agentplatform.config.FrontendToolProperties;
-import com.linlay.agentplatform.config.LoggingAgentProperties;
-import com.linlay.agentplatform.config.McpProperties;
-import com.linlay.agentplatform.config.PanProperties;
-import com.linlay.agentplatform.config.ProviderProperties;
-import com.linlay.agentplatform.config.ToolProperties;
-import com.linlay.agentplatform.config.ViewportProperties;
-import com.linlay.agentplatform.config.ViewportServerProperties;
-import com.linlay.agentplatform.config.RootProperties;
+import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
+import com.linlay.agentplatform.config.properties.DataProperties;
+import com.linlay.agentplatform.config.properties.FrontendToolProperties;
+import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
+import com.linlay.agentplatform.config.properties.McpProperties;
+import com.linlay.agentplatform.config.properties.PanProperties;
+import com.linlay.agentplatform.config.properties.ProviderProperties;
+import com.linlay.agentplatform.config.properties.ToolProperties;
+import com.linlay.agentplatform.config.properties.ViewportProperties;
+import com.linlay.agentplatform.config.properties.ViewportServerProperties;
+import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.memory.ChatMemoryTypes;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
@@ -36,8 +36,8 @@ import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.security.JwksJwtVerifier;
-import com.linlay.agentplatform.service.AgentDeltaToStreamInputMapper;
-import com.linlay.agentplatform.service.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.stream.service.AgentDeltaToStreamInputMapper;
+import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.skill.SkillProperties;
@@ -2832,7 +2832,7 @@ class DefinitionDrivenAgentTest {
 
     private ContainerHubMountResolver containerHubMountResolver(
             ContainerHubToolProperties properties,
-            com.linlay.agentplatform.config.DataProperties dataProperties,
+            DataProperties dataProperties,
             SkillProperties skillProperties
     ) {
         RootProperties rootProperties = new RootProperties();

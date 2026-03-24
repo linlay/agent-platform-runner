@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.service.mcp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.McpProperties;
-import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.config.properties.McpProperties;
+import com.linlay.agentplatform.util.CatalogDiff;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;

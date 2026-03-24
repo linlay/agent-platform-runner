@@ -1,14 +1,14 @@
 package com.linlay.agentplatform.controller;
 
-import com.linlay.agentplatform.config.ChatImageTokenProperties;
-import com.linlay.agentplatform.config.LoggingAgentProperties;
+import com.linlay.agentplatform.config.properties.ChatImageTokenProperties;
+import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.security.ChatImageTokenService;
 import com.linlay.agentplatform.security.ChatImageTokenService.VerifyResult;
 import com.linlay.agentplatform.service.chat.ChatAssetAccessService;
-import com.linlay.agentplatform.service.DataFilePathNormalizer;
-import com.linlay.agentplatform.service.LoggingSanitizer;
+import com.linlay.agentplatform.util.DataFilePathNormalizer;
+import com.linlay.agentplatform.util.LoggingSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;

@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.service.mcp;
 
-import com.linlay.agentplatform.config.McpProperties;
-import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.config.properties.McpProperties;
+import com.linlay.agentplatform.util.CatalogDiff;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;

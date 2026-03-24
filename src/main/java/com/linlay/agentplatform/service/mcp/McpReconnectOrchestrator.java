@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.service.mcp;
 
 import com.linlay.agentplatform.agent.AgentRegistry;
-import com.linlay.agentplatform.config.McpProperties;
-import com.linlay.agentplatform.service.CatalogDiff;
+import com.linlay.agentplatform.config.properties.McpProperties;
+import com.linlay.agentplatform.util.CatalogDiff;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

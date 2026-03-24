@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.service.viewport;
 
-import com.linlay.agentplatform.config.ViewportServerProperties;
+import com.linlay.agentplatform.config.properties.ViewportServerProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.scheduling.TaskScheduler;

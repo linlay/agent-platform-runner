@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.service.viewport;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.ViewportServerProperties;
+import com.linlay.agentplatform.config.properties.ViewportServerProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
