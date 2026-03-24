@@ -56,6 +56,14 @@ class RunnerDirectoryPropertiesBindingTest {
     }
 
     @Test
+    void shouldDefaultLocalPublicKeyFileToUnset() {
+        contextRunner.run(context -> {
+            AppAuthProperties authProperties = context.getBean(AppAuthProperties.class);
+            assertThat(authProperties.getLocalPublicKeyFile()).isNull();
+        });
+    }
+
+    @Test
     void shouldAllowExplicitSkillAndScheduleOverrides() {
         contextRunner
                 .withPropertyValues(
@@ -95,6 +103,7 @@ class RunnerDirectoryPropertiesBindingTest {
             TeamProperties.class,
             ModelProperties.class,
             ProviderProperties.class,
+            AppAuthProperties.class,
             ToolProperties.class,
             SkillProperties.class,
             ScheduleProperties.class,

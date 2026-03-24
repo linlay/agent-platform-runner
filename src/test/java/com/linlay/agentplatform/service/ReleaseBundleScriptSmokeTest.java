@@ -28,6 +28,8 @@ class ReleaseBundleScriptSmokeTest {
         String bundleReadme = Files.readString(Path.of("scripts/release-assets/README.txt"));
         String bundleDoc = Files.readString(Path.of("docs/versioned-release-bundle.md"));
         String projectReadme = Files.readString(Path.of("README.md"));
+        String projectEnvExample = Files.readString(Path.of(".env.example"));
+        String envExample = Files.readString(Path.of("scripts/release-assets/.env.example"));
         String startScript = Files.readString(Path.of("scripts/release-assets/start.sh"));
         String releaseCompose = Files.readString(Path.of("scripts/release-assets/compose.release.yml"));
         String projectCompose = Files.readString(Path.of("compose.yml"));
@@ -50,7 +52,12 @@ class ReleaseBundleScriptSmokeTest {
         assertThat(startScript).contains("ensure_dir \"${SKILLS_MARKET_DIR:-$SCRIPT_DIR/runtime/skills-market}\"");
         assertThat(startScript).contains("ensure_dir \"${SCHEDULES_DIR:-$SCRIPT_DIR/runtime/schedules}\"");
         assertThat(bundleReadme).contains("container paths fixed under `/opt/*`");
+        assertThat(bundleReadme).contains("only if you explicitly enable local public key verification");
         assertThat(bundleDoc).contains("`SPRING_PROFILES_ACTIVE=docker`");
+        assertThat(bundleDoc).contains("本地公钥 JWT 验签默认关闭");
+        assertThat(projectReadme).contains("本地公钥模式默认关闭");
+        assertThat(projectEnvExample).doesNotContain("AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=");
+        assertThat(envExample).doesNotContain("AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=");
         assertThat(bundleDoc).contains("/opt/registries/{providers,models,mcp-servers,viewport-servers}");
         assertThat(releaseCompose).contains("target: /tmp/runner-host.env");
         assertThat(releaseCompose).contains("SANDBOX_HOST_DIRS_FILE: /tmp/runner-host.env");

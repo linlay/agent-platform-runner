@@ -80,7 +80,7 @@ agent:
     jwks-uri: ${AGENT_AUTH_JWKS_URI:}
     issuer: ${AGENT_AUTH_ISSUER:}
     jwks-cache-seconds: ${AGENT_AUTH_JWKS_CACHE_SECONDS:}
-    local-public-key-file: ${AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE:local-public-key.pem}
+    local-public-key-file: ${AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE:}
   cors:
     # master switch: false = disable CORS filter (no Access-Control-* response headers from this service)
     enabled: false

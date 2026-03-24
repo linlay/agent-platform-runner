@@ -416,18 +416,24 @@ RELEASE_BASE_IMAGE=<candidate-image> ARCH=arm64 make release
 - HTTP API 的 `Authorization` 请求头格式：`Bearer <token>`
 - 当 `agent.auth.enabled=true` 时，`/api/**`（除 `OPTIONS`）都需要 JWT。
 - 验签优先级：
-  - 若 `agent.auth.local-public-key-file` 或 `agent.auth.local-public-key` 已配置，先使用本地公钥验签；
+  - 若显式配置了 `agent.auth.local-public-key-file` 或 `agent.auth.local-public-key`，先使用本地公钥验签；
   - 本地验签失败后，再回退到 `agent.auth.jwks-uri` 拉取的 JWKS 验签。
 - 本地公钥模式为启动期加载，更新密钥后需要重启服务生效。
+- 本地公钥模式默认关闭；只有显式配置 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE` 或 `agent.auth.local-public-key` 时才会启用。
 
 示例（`.env`）：
 
 ```env
 AGENT_AUTH_ENABLED=true
-AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=local-public-key.pem
 AGENT_AUTH_JWKS_URI=https://auth.example.local/api/auth/jwks
 AGENT_AUTH_ISSUER=https://auth.example.local
 AGENT_AUTH_JWKS_CACHE_SECONDS=300
+```
+
+若你希望启用本地公钥验签，再额外显式配置：
+
+```env
+AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=local-public-key.pem
 ```
 
 注意：
