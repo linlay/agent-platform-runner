@@ -14,6 +14,7 @@ import com.linlay.agentplatform.agent.RuntimeContextTags;
 import com.linlay.agentplatform.agent.runtime.SandboxContextResolver;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
+import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -80,6 +81,7 @@ public class AgentQueryService {
     private final RuntimeContextPromptService runtimeContextPromptService;
     private final SseEventNormalizer sseEventNormalizer;
     private final SandboxContextResolver sandboxContextResolver;
+    private final ContainerHubToolProperties containerHubToolProperties;
 
     @Autowired
     public AgentQueryService(
@@ -95,7 +97,8 @@ public class AgentQueryService {
             RenderQueue renderQueue,
             RuntimeContextPromptService runtimeContextPromptService,
             SseEventNormalizer sseEventNormalizer,
-            SandboxContextResolver sandboxContextResolver
+            SandboxContextResolver sandboxContextResolver,
+            ContainerHubToolProperties containerHubToolProperties
     ) {
         this.agentRegistry = agentRegistry;
         this.streamSseStreamer = streamSseStreamer;
@@ -110,6 +113,7 @@ public class AgentQueryService {
         this.runtimeContextPromptService = runtimeContextPromptService;
         this.sseEventNormalizer = sseEventNormalizer;
         this.sandboxContextResolver = sandboxContextResolver;
+        this.containerHubToolProperties = containerHubToolProperties == null ? new ContainerHubToolProperties() : containerHubToolProperties;
     }
 
     public QuerySession prepare(QueryRequest request) {
@@ -217,7 +221,8 @@ public class AgentQueryService {
                 renderQueue,
                 new RuntimeContextPromptService(),
                 sseEventNormalizer,
-                sandboxContextResolver
+                sandboxContextResolver,
+                new ContainerHubToolProperties()
         );
     }
 
@@ -461,9 +466,16 @@ public class AgentQueryService {
             Agent agent
     ) {
         AgentDefinition definition = definitionOf(agent);
-        RuntimeRequestContext.WorkspacePaths workspacePaths = runtimeContextPromptService == null
+        RuntimeRequestContext.LocalPaths localPaths = runtimeContextPromptService == null
                 ? null
-                : runtimeContextPromptService.resolveWorkspacePaths(chatId);
+                : runtimeContextPromptService.resolveLocalPaths(chatId);
+        RuntimeRequestContext.SandboxPaths sandboxPaths = runtimeContextPromptService == null
+                ? null
+                : runtimeContextPromptService.resolveSandboxPaths(
+                        definition,
+                        chatId,
+                        containerHubToolProperties.getDefaultSandboxLevel()
+                );
         RuntimeRequestContext.SandboxContext sandboxContext = requiresContextTag(definition, RuntimeContextTags.SANDBOX)
                 ? sandboxContextResolver.resolve(definition, chatId, runId, effectiveAgentKey, teamId, chatName)
                 : null;
@@ -478,7 +490,8 @@ public class AgentQueryService {
                 scene,
                 references,
                 principal,
-                workspacePaths,
+                localPaths,
+                sandboxPaths,
                 sandboxContext,
                 agentDigests
         );

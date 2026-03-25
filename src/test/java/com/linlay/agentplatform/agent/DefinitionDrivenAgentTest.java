@@ -874,7 +874,8 @@ class DefinitionDrivenAgentTest {
                             Instant.parse("2026-03-20T10:15:30Z"),
                             Instant.parse("2026-03-21T10:15:30Z")
                     ),
-                    runtimeContextPromptService.resolveWorkspacePaths(chatId),
+                    runtimeContextPromptService.resolveLocalPaths(chatId),
+                    runtimeContextPromptService.resolveSandboxPaths(definition, chatId, "run"),
                     null,
                     List.of()
             );
@@ -910,7 +911,11 @@ class DefinitionDrivenAgentTest {
             String systemPrompt = captured.get().systemPrompt();
             assertThat(systemPrompt).contains("soul prompt");
             assertThat(systemPrompt).contains("Runtime Context: Context");
-            assertThat(systemPrompt).contains("owner_dir: " + externalOwner.toAbsolutePath().normalize());
+            assertThat(systemPrompt).contains("sandbox_cwd: /workspace");
+            assertThat(systemPrompt).contains("sandbox_workspace_dir: /workspace");
+            assertThat(systemPrompt).contains("sandbox_root_dir: /root");
+            assertThat(systemPrompt).contains("sandbox_skills_dir: /skills");
+            assertThat(systemPrompt).doesNotContain("\nowner_dir:");
             assertThat(systemPrompt).contains("Runtime Context: Owner");
             assertThat(systemPrompt).contains("--- file: OWNER.md");
             assertThat(systemPrompt).contains("--- file: BOOTSTRAP.md");
@@ -921,6 +926,7 @@ class DefinitionDrivenAgentTest {
             assertThat(systemPrompt).contains("plain markdown");
             assertThat(systemPrompt).contains("Memory:\nmemory note");
             assertThat(systemPrompt).contains("yaml prompt");
+            assertThat(systemPrompt).doesNotContain("runner_working_directory:");
             assertThat(systemPrompt.indexOf("soul prompt")).isLessThan(systemPrompt.indexOf("Runtime Context: Context"));
             assertThat(systemPrompt.indexOf("Runtime Context: Context")).isLessThan(systemPrompt.indexOf("plain markdown"));
             assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("Memory:\nmemory note"));
@@ -2836,6 +2842,7 @@ class DefinitionDrivenAgentTest {
     private RuntimeContextPromptService runtimeContextPromptService(String ownerDir, RuntimeDirectoryHostPaths hostPaths) {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("agent.agents.external-dir", "agents")
+                .withProperty("agent.pan.external-dir", "pan")
                 .withProperty("agent.skills.external-dir", "skills-market")
                 .withProperty("agent.schedule.external-dir", "schedules");
         RootProperties rootProperties = new RootProperties();

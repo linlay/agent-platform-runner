@@ -13,7 +13,8 @@ public record RuntimeRequestContext(
         QueryRequest.Scene scene,
         List<QueryRequest.Reference> references,
         JwksJwtVerifier.JwtPrincipal authPrincipal,
-        WorkspacePaths workspacePaths,
+        LocalPaths localPaths,
+        SandboxPaths sandboxPaths,
         SandboxContext sandboxContext,
         List<AgentDigest> agentDigests
 ) {
@@ -63,7 +64,7 @@ public record RuntimeRequestContext(
     ) {
     }
 
-    public record WorkspacePaths(
+    public record LocalPaths(
             String runtimeHome,
             String workingDirectory,
             String rootDir,
@@ -74,6 +75,27 @@ public record RuntimeRequestContext(
             String schedulesDir,
             String ownerDir,
             String chatAttachmentsDir
+    ) {
+    }
+
+    public record SandboxPaths(
+            String cwd,
+            String workspaceDir,
+            String rootDir,
+            String skillsDir,
+            String panDir,
+            String agentDir,
+            String ownerDir,
+            String agentsDir,
+            String teamsDir,
+            String schedulesDir,
+            String chatsDir,
+            String modelsDir,
+            String providersDir,
+            String mcpServersDir,
+            String viewportServersDir,
+            String toolsDir,
+            String viewportsDir
     ) {
     }
 }

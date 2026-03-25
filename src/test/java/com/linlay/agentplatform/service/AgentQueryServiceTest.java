@@ -185,8 +185,10 @@ class AgentQueryServiceTest {
         assertThat(runtimeContext.scene()).isEqualTo(request.scene());
         assertThat(runtimeContext.references()).hasSize(1);
         assertThat(runtimeContext.authPrincipal()).isEqualTo(principal);
-        assertThat(runtimeContext.workspacePaths()).isNotNull();
-        assertThat(runtimeContext.workspacePaths().chatAttachmentsDir()).contains(chatId);
+        assertThat(runtimeContext.localPaths()).isNotNull();
+        assertThat(runtimeContext.localPaths().chatAttachmentsDir()).contains(chatId);
+        assertThat(runtimeContext.sandboxPaths()).isNotNull();
+        assertThat(runtimeContext.sandboxPaths().workspaceDir()).isEqualTo("/workspace");
         assertThat(runtimeContext.sandboxContext()).isNull();
         assertThat(runtimeContext.agentDigests()).isEmpty();
     }
@@ -448,9 +450,9 @@ class AgentQueryServiceTest {
                 activeRunService,
                 renderQueue,
                 runtimeContextPromptService == null ? new RuntimeContextPromptService() : runtimeContextPromptService,
-                new SseEventNormalizer(objectMapper, effectiveToolRegistry, viewportRegistryService, frontendToolProperties)
-                ,
-                sandboxContextResolver
+                new SseEventNormalizer(objectMapper, effectiveToolRegistry, viewportRegistryService, frontendToolProperties),
+                sandboxContextResolver,
+                containerHubToolProperties
         );
     }
 }

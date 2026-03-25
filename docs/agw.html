@@ -1,0 +1,2539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+	<meta name="x-poe-datastore-behavior" content="local_only" />
+	<meta http-equiv="Content-Security-Policy"
+		content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;" />
+	<meta name="x-poe-datastore-behavior" content="local_only" />
+	<meta http-equiv="Content-Security-Policy"
+		content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;" />
+	<meta name="x-poe-datastore-behavior" content="local_only" />
+	<meta http-equiv="Content-Security-Policy"
+		content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://code.jquery.com https://unpkg.com https://d3js.org https://threejs.org https://cdn.plot.ly https://stackpath.bootstrapcdn.com https://maps.googleapis.com https://cdn.tailwindcss.com https://ajax.googleapis.com https://kit.fontawesome.com https://cdn.datatables.net https://maxcdn.bootstrapcdn.com https://code.highcharts.com https://tako-static-assets-production.s3.amazonaws.com https://www.youtube.com https://fonts.googleapis.com https://fonts.gstatic.com https://pfst.cf2.poecdn.net https://puc.poecdn.net https://i.imgur.com https://wikimedia.org https://*.icons8.com https://*.giphy.com https://picsum.photos https://images.unsplash.com; frame-src 'self' https://www.youtube.com https://trytako.com; child-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; block-all-mixed-content;" />
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Compact Chat Data Structure &amp; Event Docs</title>
+	<style>
+		:root {
+			--bg-body: #f8f9fa;
+
+			/* 容器颜色定义 */
+			/* CHAT: 纯白/中性 */
+			--c-chat-bg: #ffffff;
+			--c-chat-border: #cbd5e1;
+			--c-chat-text: #334155;
+
+			/* RUN: 浅绿 */
+			--c-run-bg: #f0fdf4;
+			--c-run-border: #bbf7d0;
+			--c-run-text: #166534;
+
+			/* PLAN & TASK: 金黄色 */
+			--c-gold-bg: #fffbeb;
+			--c-gold-border: #fde68a;
+			--c-gold-text: #92400e;
+
+			/* REASONING: 紫色 */
+			--c-reason-bg: #faf5ff;
+			--c-reason-border: #e9d5ff;
+			--c-reason-text: #6b21a8;
+
+			/* CONTENT: 蓝色 */
+			--c-content-bg: #eff6ff;
+			--c-content-border: #bfdbfe;
+			--c-content-text: #1e40af;
+
+			/* TOOL: 褐色 */
+			--c-tool-bg: #fffbeb;
+			--c-tool-border: #fde68a;
+			--c-tool-text: #92400e;
+
+			/* ACTION: 红色 */
+			--c-action-bg: #fee2e2;
+			--c-action-border: #fecaca;
+			--c-action-text: #b91c1c;
+
+			/* SOURCE: 深灰色 */
+			--c-source-bg: #f1f5f9;
+			--c-source-border: #e2e8f0;
+			--c-source-text: #334155;
+
+			/* 叶子节点 (Message/Tool/Action): 无色/中性灰 */
+			--c-leaf-bg: #ffffff;
+			--c-leaf-border: #94a3b8;
+			--c-leaf-text: #0f172a;
+
+			--tab-bg: rgba(255, 255, 255, 0.8);
+			--tab-border: #e2e8f0;
+			--tab-text: #334155;
+			--tab-active-bg: #0f172a;
+			--tab-active-text: #f8fafc;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		html {
+			scroll-behavior: smooth;
+		}
+
+		body {
+			font-family: "SFMono-Regular", Consolas, "Liberation Mono",
+				Menlo, monospace;
+			background-color: var(--bg-body);
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			padding: 20px;
+			margin: 0;
+			color: #334155;
+			font-size: 13px;
+		}
+
+		/* =================== Tabs / Panels =================== */
+		.topbar {
+			width: 100%;
+			max-width: 900px;
+			position: sticky;
+			top: 0;
+			z-index: 50;
+			padding: 10px 0 12px 0;
+			backdrop-filter: blur(6px);
+			background: linear-gradient(to bottom,
+					rgba(248, 249, 250, 0.95),
+					rgba(248, 249, 250, 0.7));
+			border-bottom: 1px solid var(--tab-border);
+			margin-bottom: 14px;
+		}
+
+		.topbar-inner {
+			width: 100%;
+			max-width: 800px;
+			margin: 0 auto;
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			justify-content: space-between;
+			gap: 10px;
+			padding: 0 6px;
+		}
+
+		.topbar-title {
+			font-weight: 800;
+			letter-spacing: 0.2px;
+			color: #0f172a;
+			font-size: 14px;
+			white-space: nowrap;
+		}
+
+		.tabs {
+			display: inline-flex;
+			gap: 6px;
+			flex-wrap: wrap;
+		}
+
+		.tab-btn {
+			border: 1px solid var(--tab-border);
+			background: var(--tab-bg);
+			color: var(--tab-text);
+			padding: 6px 10px;
+			border-radius: 999px;
+			cursor: pointer;
+			font-size: 12px;
+			font-weight: 700;
+			user-select: none;
+			transition: 0.15s ease;
+		}
+
+		.tab-btn:hover {
+			border-color: #cbd5e1;
+			background: #ffffff;
+		}
+
+		.tab-btn[aria-selected="true"] {
+			background: var(--tab-active-bg);
+			color: var(--tab-active-text);
+			border-color: var(--tab-active-bg);
+		}
+
+		.panel {
+			width: 100%;
+			display: none;
+		}
+
+		.panel.active {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+		}
+
+		/* 通用容器样式 */
+		.box {
+			border-radius: 4px;
+			border-width: 1px;
+			border-style: dashed;
+			padding: 8px;
+			margin-top: 6px;
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			position: relative;
+		}
+
+		/* 标题行样式 */
+		.header {
+			display: flex;
+			flex-direction: row;
+			flex-wrap: wrap;
+			align-items: baseline;
+			gap: 8px;
+			margin-bottom: 2px;
+		}
+
+		.node-name {
+			font-weight: 800;
+			font-size: 14px;
+			text-transform: uppercase;
+		}
+
+		/* 链接样式 - 用于跳转 */
+		.node-link {
+			text-decoration: none;
+			color: inherit;
+			cursor: pointer;
+			border-bottom: 1px dotted currentColor;
+			transition: background-color 0.2s;
+		}
+
+		.node-link:hover {
+			background-color: rgba(0, 0, 0, 0.05);
+			color: #000;
+		}
+
+		/* 标签样式 */
+		.meta {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 4px;
+			align-items: center;
+			font-size: 11px;
+		}
+
+		.tag {
+			padding: 1px 4px;
+			border-radius: 3px;
+			background-color: rgba(255, 255, 255, 0.6);
+			border: 1px solid rgba(0, 0, 0, 0.05);
+			white-space: nowrap;
+		}
+
+		.tag-event {
+			color: #64748b;
+			font-style: italic;
+		}
+
+		.tag-event::before {
+			content: "evt: ";
+			opacity: 0.6;
+		}
+
+		.tag-id {
+			font-weight: 600;
+			color: inherit;
+			opacity: 0.8;
+		}
+
+		/* 特定容器配色 */
+		.chat {
+			background-color: var(--c-chat-bg);
+			border: 1px solid var(--c-chat-border);
+			color: var(--c-chat-text);
+			width: 100%;
+			max-width: 800px;
+		}
+
+		.plan,
+		.task {
+			background-color: var(--c-gold-bg);
+			border-color: var(--c-gold-border);
+			color: var(--c-gold-text);
+		}
+
+		.run {
+			background-color: var(--c-run-bg);
+			border-color: var(--c-run-border);
+			color: var(--c-run-text);
+		}
+
+		.reasoning {
+			border-left: 3px solid var(--c-reason-border);
+		}
+
+		.content {
+			border-left: 3px solid var(--c-content-border);
+		}
+
+		.tool {
+			border-left: 3px solid var(--c-tool-border);
+		}
+
+		.action {
+			border-left: 3px solid var(--c-action-border);
+		}
+
+		/* 叶子节点 */
+		.leaf-card {
+			background-color: var(--c-leaf-bg);
+			border-top: 1px solid #e2e8f0;
+			border-bottom: 1px solid #e2e8f0;
+			border-right: 1px solid #e2e8f0;
+			border-radius: 3px;
+			padding: 4px 8px;
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			color: var(--c-leaf-text);
+		}
+
+		.leaf-title {
+			font-weight: 700;
+			font-size: 12px;
+			text-transform: uppercase;
+			min-width: 60px;
+		}
+
+		.plan-item {
+			background-color: rgba(255, 255, 255, 0.5);
+			border: 1px dotted var(--c-gold-border);
+			padding: 4px 8px;
+			border-radius: 3px;
+			display: flex;
+			justify-content: space-between;
+			font-size: 12px;
+		}
+
+		/* ================= 文档区域样式 ================= */
+		.doc-instruction {
+			width: 100%;
+			max-width: 800px;
+		}
+
+		.doc-container {
+			width: 100%;
+			max-width: 800px;
+			margin-top: 28px;
+			border-top: 2px dashed #cbd5e1;
+			padding-top: 20px;
+		}
+
+		.doc-title {
+			font-size: 18px;
+			font-weight: 800;
+			margin-bottom: 20px;
+			text-align: center;
+			color: #334155;
+		}
+
+		.doc-section {
+			margin-bottom: 30px;
+			scroll-margin-top: 70px;
+			/* 锚点定位偏移(考虑顶部tab) */
+		}
+
+		.doc-header {
+			font-size: 14px;
+			font-weight: 700;
+			padding: 6px 10px;
+			border-radius: 4px;
+			margin-bottom: 10px;
+			display: inline-block;
+			border: 1px solid transparent;
+		}
+
+		/* 文档头部配色映射 */
+		.doc-header.chat-style {
+			background: var(--c-chat-bg);
+			border-color: var(--c-chat-border);
+			color: var(--c-chat-text);
+		}
+
+		.doc-header.run-style {
+			background: var(--c-run-bg);
+			border-color: var(--c-run-border);
+			color: var(--c-run-text);
+		}
+
+		.doc-header.task-style {
+			background: var(--c-gold-bg);
+			border-color: var(--c-gold-border);
+			color: var(--c-gold-text);
+		}
+
+		.doc-header.reason-style {
+			background: var(--c-reason-bg);
+			border-color: var(--c-reason-border);
+			color: var(--c-reason-text);
+		}
+
+		.doc-header.content-style {
+			background: var(--c-content-bg);
+			border-color: var(--c-content-border);
+			color: var(--c-content-text);
+		}
+
+		.doc-header.tool-style {
+			background: var(--c-tool-bg);
+			border-color: var(--c-tool-border);
+			color: var(--c-tool-text);
+		}
+
+		.doc-header.action-style {
+			background: var(--c-action-bg);
+			border-color: var(--c-action-border);
+			color: var(--c-action-text);
+		}
+
+		.doc-header.source-style {
+			background: var(--c-source-bg);
+			border-color: var(--c-source-border);
+			color: var(--c-source-text);
+		}
+
+		.doc-header.leaf-style {
+			background: #f1f5f9;
+			border-color: #cbd5e1;
+			color: #475569;
+		}
+
+		/* === 新增: Requests 文档头部样式（原文已有 req-style 类但未定义；这里补齐，不改变原文结构，仅补充样式） === */
+		.doc-header.req-style {
+			background: #eef2ff;
+			border-color: #c7d2fe;
+			color: #3730a3;
+		}
+
+		/* ================= Requests / Callout 辅助样式（原文使用了 .callout/.mini-list，但未定义；这里补齐） ================= */
+		.callout {
+			width: 100%;
+			max-width: 800px;
+			background: #ffffff;
+			border: 1px solid #e2e8f0;
+			border-left: 4px solid #0f172a;
+			border-radius: 6px;
+			padding: 10px 12px;
+			margin: 10px auto 0 auto;
+			color: #334155;
+			box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+		}
+
+		.mini-list {
+			margin: 8px 0 0 0;
+			padding-left: 18px;
+			color: #475569;
+			font-size: 12px;
+		}
+
+		.mini-list li {
+			margin: 3px 0;
+		}
+
+		.event-table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 12px;
+			background: #fff;
+			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+		}
+
+		.event-table th,
+		.event-table td {
+			border: 1px solid #e2e8f0;
+			padding: 8px 12px;
+			text-align: left;
+			vertical-align: top;
+		}
+
+		.event-table th {
+			background-color: #f8fafc;
+			color: #64748b;
+			font-weight: 600;
+			width: 180px;
+		}
+
+		.event-name {
+			font-weight: 700;
+			color: #0f172a;
+			font-size: 13px;
+			margin-bottom: 4px;
+		}
+
+		.event-desc {
+			color: #64748b;
+			margin-bottom: 8px;
+			font-style: italic;
+		}
+
+		.field-list {
+			margin: 0;
+			padding-left: 18px;
+			color: #334155;
+		}
+
+		.field-list li {
+			margin-bottom: 2px;
+		}
+
+		.field-key {
+			font-family: monospace;
+			color: #c026d3;
+			/* 紫红色高亮字段名 */
+			font-weight: 600;
+		}
+
+		/* ================= 用例样式 ================= */
+		.example-section {
+			margin-top: 40px;
+			padding: 20px;
+			background: #f1f5f9;
+			border-radius: 8px;
+			border: 1px solid #e2e8f0;
+		}
+
+		.example-item {
+			margin-bottom: 12px;
+			background: #fff;
+			border: 1px solid #cbd5e1;
+			border-radius: 6px;
+			overflow: hidden;
+		}
+
+		.example-summary {
+			padding: 10px 15px;
+			font-weight: 700;
+			cursor: pointer;
+			background: #fff;
+			user-select: none;
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			color: #1e293b;
+		}
+
+		.example-summary:hover {
+			background: #f8fafc;
+		}
+
+		.example-content {
+			padding: 0 15px 15px 15px;
+			border-top: 1px solid #f1f5f9;
+		}
+
+		pre.json-block {
+			background: #1e293b;
+			color: #e2e8f0;
+			padding: 12px;
+			border-radius: 4px;
+			overflow-x: auto;
+			font-size: 11px;
+			line-height: 1.5;
+			margin: 10px 0 0 0;
+			white-space: pre;
+		}
+
+		.json-key {
+			color: #94a3b8;
+		}
+
+		.json-string {
+			color: #38bdf8;
+		}
+
+		.json-number {
+			color: #fbbf24;
+		}
+
+		.json-boolean {
+			color: #f472b6;
+		}
+
+		/* 작은 helper */
+		.hint {
+			max-width: 800px;
+			width: 100%;
+			color: #64748b;
+			font-size: 12px;
+			margin: 4px 0 10px 0;
+		}
+
+		.hint code {
+			background: rgba(15, 23, 42, 0.06);
+			padding: 1px 5px;
+			border-radius: 4px;
+		}
+	</style>
+</head>
+
+<body>
+	<!-- =================== Top Tabs =================== -->
+	<div class="topbar" role="navigation" aria-label="Docs tabs">
+		<div class="topbar-inner">
+			<div class="topbar-title">
+				Compact Chat Data Structure &amp; Event Docs
+			</div>
+			<div class="tabs" role="tablist" aria-label="Requests / SSE Events / Use Cases">
+				<button class="tab-btn" type="button" role="tab" id="tab-requests" aria-controls="panel-requests"
+					aria-selected="false" data-tab="requests">
+					Requests
+				</button>
+				<button class="tab-btn" type="button" role="tab" id="tab-sse" aria-controls="panel-sse"
+					aria-selected="true" data-tab="sse">
+					SSE Events
+				</button>
+				<button class="tab-btn" type="button" role="tab" id="tab-usecases" aria-controls="panel-usecases"
+					aria-selected="false" data-tab="usecases">
+					Use Cases
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- =================== Panel: Requests =================== -->
+	<section id="panel-requests" class="panel" role="tabpanel" aria-labelledby="tab-requests">
+		<div class="doc-title">Multi-Agent Gateway Protocol Documentation</div>
+
+		<div class="doc-instruction">
+			<p>本节定义前端与多智能体网关（Gateway）交互的 RESTful API 规范。所有路径均以 <code>/api</code> 前缀开头。</p>
+			<!-- === 新增：API 动词/名词约定（不删原文，仅补充并突出关键单词与 /api 前缀） === -->
+			<div class="callout">
+				<strong>API 约定（重点：动词/名词命名 + /api 前缀）：</strong><br />
+				<ul class="mini-list">
+					<li>
+						<strong>以下都是动词（动作类请求，建议 <span class="field-key">POST</span>）：</strong>
+						<span class="field-key">query</span> / <span class="field-key">upload</span> / <span class="field-key">submit</span>
+					</li>
+					<li>
+						<strong>以下 GET 都是名词（资源类获取，建议 <span class="field-key">GET</span>）：</strong>
+						<span class="field-key">viewport</span> / <span class="field-key">resource</span> / <span class="field-key">agents</span> / <span class="field-key">agent</span> / <span class="field-key">chats</span> / <span class="field-key">chat</span>
+					</li>
+					<li>
+						<strong>路径示例：</strong>
+						<code>/api/query</code>，<code>/api/upload</code>，<code>/api/submit</code>，
+						<code>/api/viewport</code>，<code>/api/resource</code>，<code>/api/agents</code>，<code>/api/agent</code>，<code>/api/chats</code>，<code>/api/chat</code>
+					</li>
+				</ul>
+			</div>
+
+			<div class="callout">
+				<strong>定位：</strong>前端只对接「多智能体网关（Gateway）」；网关负责路由到具体智能体（Agent），并通过统一的事件流（run/task/message/tool/action 等）把过程与结果回传给前端。<br />
+				<ul class="mini-list">
+					<li><span class="field-key">requestId</span>：前端生成，用于幂等/重试/链路追踪。</li>
+					<li><span class="field-key">chatId</span>：推荐前端生成 UUIDv4（便于离线/重试/跨端关联）；若缺省，网关可创建并在响应与事件中返回。</li>
+					<li><span class="field-key">agentKey</span>：可选；不传或传 "auto" 由网关按策略选择默认智能体或最合适智能体。</li>
+				</ul>
+			</div>
+
+			<div class="callout">
+				<strong>引用（References）与文本标记（Markers）：</strong><br />
+				1) 所有引用统一放入 <span class="field-key">references</span> 数组，并用短 ID：<span class="field-key">referenceId</span>
+				进行关联。<br />
+				2) 在 <span class="field-key">message</span> 中嵌入标记：<span class="field-key">#{{refid:name}}</span>，例如：<br />
+				<span class="field-key">"请总结 #{{f1:requirements.md}} 并解释 #{{i1:ui.png}} 中的流程"</span><br />
+				3) 同时建议在 <span class="field-key">references</span> 显式列出被本次问题依赖的引用（便于渲染、权限、优化）。<br />
+				<ul class="mini-list">
+					<li><span class="field-key">id</span>：要求“简短且在本 chat 内不重复”。推荐：文件用 <span class="field-key">f1,f2,...</span>；图片用
+						<span class="field-key">i1,i2,...</span>（或 base36 递增）。
+					</li>
+					<li><span class="field-key">type</span>：仅允许 <span class="field-key">"file"</span> 或 <span class="field-key">"image"</span>。</li>
+					<li>工作区 selection / 打开文件等“来源差异”，请放进 <span class="field-key">reference.meta</span>（例如 meta.origin/meta.filePath/meta.range/meta.textExcerpt）。</li>
+				</ul>
+			</div>
+		</div>
+
+		<!-- ============ Models ============ -->
+		<div class="doc-container">
+
+		<div id="doc-model-reference" class="doc-section">
+			<div class="doc-header leaf-style">数据模型: Reference</div>
+			<table class="event-table">
+				<tbody>
+					<tr>
+						<th>
+							<div class="event-name">Reference</div>
+						</th>
+						<td>
+							<div class="event-desc">统一引用对象：附件、工作区文件、selection、截图等都用它表达；通过 referenceId 与文本标记/显式 referenceIds 关联</div>
+							<ul class="field-list">
+								<li><span class="field-key">id</span>: string（短 ID；本 chat 内唯一）例：<span class="field-key">"f1"</span> / <span
+										class="field-key">"i1"</span></li>
+								<li><span class="field-key">type</span>: <span class="field-key">"file"</span> | <span class="field-key">"image"</span></li>
+								<li><span class="field-key">name</span>: string（展示名）例：<span class="field-key">"requirements.md"</span></li>
+								<li><span class="field-key">mimeType</span>: string（建议总是提供）</li>
+								<li><span class="field-key">sizeBytes</span>: number｜可选（上传/本地可得时提供）</li>
+								<li><span class="field-key">url</span>: string（网关可访问的地址；或可下载地址）</li>
+								<li><span class="field-key">sha256</span>: string｜可选（去重/校验/缓存）</li>
+								<li><span class="field-key">meta</span>: object｜可选（承载“来源差异”与增强信息）
+									<ul class="field-list">
+										<li><span class="field-key">origin</span>: "upload" | "workspace" | "clipboard" | "url"｜可选</li>
+										<li><span class="field-key">filePath</span>: string｜可选（工作区文件路径）</li>
+										<li><span class="field-key">range</span>: {startLine,startCol,endLine,endCol}｜可选（selection 范围）</li>
+										<li><span class="field-key">textExcerpt</span>: string｜可选（selection/文件摘要，避免智能体必须先拉全文）</li>
+										<li><span class="field-key">caption</span>: string｜可选（图片注释/用户说明）</li>
+										<li><span class="field-key">ocrText</span>: string｜可选（图片 OCR 结果，如前端/网关已提取）</li>
+									</ul>
+								</li>
+							</ul>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+
+		<div id="doc-req-query" class="doc-section">
+			<div class="doc-header req-style">请求(动词): QueryRequest（<span class="field-key">query</span>） /api/query</div>
+			<table class="event-table">
+				<tbody>
+					<tr>
+						<th>
+							<div class="event-name">QueryRequest</div>
+						</th>
+						<td>
+							<div class="event-desc">发起一次对话请求；网关负责路由到具体智能体并返回 run（建议走事件流）。API: <code>POST /api/query</code></div>
+							<ul class="field-list">
+								<li><span class="field-key">requestId</span>: string（前端生成，用于幂等/重试，前端不填会等于runId）</li>
+								<li><span class="field-key">chatId</span>: string(UUID)｜可选；缺省则网关创建 chat</li>
+								<li><span class="field-key">agentKey</span>: string｜可选；如 "auto" / "default" / "agent_researcher"</li>
+								<li><span class="field-key">role</span>: （暂不启用）"user" | "system" | "assistant" | "developer" | "other"</li>
+								<li><span class="field-key">message</span>: string（必填）</li>
+								<li><span class="field-key">references</span>: Reference[]｜可选；本次携带的引用（附件/selection/打开文件/截图等）</li>
+								<li><span class="field-key">params</span>: object｜可选；结构化输入（input/select/datepicker/switch…）</li>
+								<li><span class="field-key">scene</span>: （未设计）object｜可选；场景页面上下文（精简：以 url 为主）
+									<ul class="field-list">
+										<li><span class="field-key">url</span>: string（建议提供）</li>
+										<li><span class="field-key">title</span>: string｜可选</li>
+									</ul>
+								</li>
+								<li><span class="field-key">stream</span>: boolean｜可选；true 表示以事件流返回（推荐）</li>
+							</ul>
+						</td>
+					</tr>
+
+					<tr>
+						<th>
+							<div class="event-name">QueryResponse (non-stream)</div>
+						</th>
+						<td>
+							<div class="event-desc">当不使用事件流时，网关可返回 run 基础信息；具体输出仍建议通过事件获取</div>
+							<ul class="field-list">
+								<li><span class="field-key">requestId</span>: string，前端不填会等于runId</li>
+								<li><span class="field-key">chatId</span>: string(UUID)</li>
+								<li><span class="field-key">runId</span>: string</li>
+								<li><span class="field-key">acceptedAgent</span>: string｜网关最终选择的 agent</li>
+								<li><span class="field-key">streamUrl</span>: string｜可选；事件流地址（若采用单独拉流）</li>
+							</ul>
+						</td>
+					</tr>
+
+				</tbody>
+			</table>
+		</div>
+
+		<div id="doc-req-upload" class="doc-section">
+			<div class="doc-header req-style">请求(动词): UploadRequest / UploadResponse（<span class="field-key">upload</span>） /api/upload</div>
+			<table class="event-table">
+				<tbody>
+					<tr>
+						<th>
+							<div class="event-name">UploadRequest</div>
+						</th>
+						<td>
+							<div class="event-desc">获取上传 URL；上传完成后即可作为 Reference 参与 query（referenceId 要短且 chat 内唯一）。API: <code>POST /api/upload</code></div>
+							<ul class="field-list">
+								<li><span class="field-key">requestId</span>: string（前端生成，用于幂等/重试）</li>
+								<li><span class="field-key">chatId</span>: string(UUID)｜可选；缺省则网关创建 chat</li>
+								<li><span class="field-key">type</span>: <span class="field-key">"file"</span> | <span class="field-key">"image"</span>（必填）</li>
+								<li><span class="field-key">name</span>: string（必填；展示名/文件名）</li>
+								<li><span class="field-key">sizeBytes</span>: number（必填）</li>
+								<li><span class="field-key">mimeType</span>: string（必填）</li>
+								<li><span class="field-key">sha256</span>: string｜可选</li>
+							</ul>
+						</td>
+					</tr>
+
+					<tr>
+						<th>
+							<div class="event-name">UploadResponse</div>
+						</th>
+						<td>
+							<div class="event-desc">返回上传信息与引用信息；前端把 reference 保存到本地引用池，并在 query 时通过 #{{refid:name}} 或 referenceIds 使用</div>
+							<ul class="field-list">
+								<li><span class="field-key">requestId</span>: string</li>
+								<li><span class="field-key">chatId</span>: string(UUID)</li>
+								<li><span class="field-key">reference</span>: Reference（必填；包含短 referenceId 与可访问 url）</li>
+								<li><span class="field-key">upload</span>: object（必填）
+									<ul class="field-list">
+										<li><span class="field-key">url</span>: string（必填；上传 URL）</li>
+										<li><span class="field-key">method</span>: "PUT" | "POST"</li>
+										<li><span class="field-key">headers</span>: object｜可选</li>
+									</ul>
+								</li>
+								<li><span class="field-key">expiresAt</span>: number(timestamp)｜可选</li>
+							</ul>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+
+		<!-- === 原 ViewRequest / ViewResponse：按要求改为 viewport（获取视图是 viewport）；不删字段，仅修改命名并补充 API === -->
+		<div id="doc-req-viewport" class="doc-section">
+			<div class="doc-header req-style">请求(GET 名词): ViewportRequest / ViewportResponse（<span class="field-key">viewport</span>） /api/viewport</div>
+			<table class="event-table">
+				<tbody>
+					<tr>
+						<th>
+							<div class="event-name">ViewportRequest</div>
+						</th>
+						<td>
+							<div class="event-desc">获取工具/渲染对应的视图（表单、UI、HTML 等）；viewportKey 通常来自 tool.start 事件 / ```viewport 内容。API: <code>GET /api/viewport</code></div>
+							<ul class="field-list">
+								<li><span class="field-key">viewportKey</span>: string</li>
+							</ul>
+						</td>
+					</tr>
+
+					<tr>
+						<th>
+							<div class="event-name">ViewportResponse</div>
+						</th>
+						<td>
+							<div class="event-desc">返回渲染所需的视图内容；格式由 viewType 决定</div>
+							<ul class="field-list">
+								<li><span class="field-key">viewportKey</span>: （不传）string</li>
+								<li><span class="field-key">viewportType</span>: （不传）"json_schema" | "html" | "qlc" | "dqlc" | "custom"</li>
+								<li><span class="field-key">data</span>: any</li>
+							</ul>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+
+			<!-- 保留原始命名说明（不删原内容，只做兼容注释） -->
+			<div class="hint" style="margin-top: 6px;">
+				说明：历史文档中使用 <code>ViewRequest / ViewResponse</code>，此处按统一 GET 名词规范调整为 <span class="field-key">viewport</span>（即 <code>/api/viewport</code>）。
+			</div>
+		</div>
+
+		<div id="doc-req-submit" class="doc-section">
+			<div class="doc-header req-style">请求(动词): SubmitRequest / SubmitResponse（<span class="field-key">submit</span>） /api/submit</div>
+			<table class="event-table">
+				<tbody>
+					<tr>
+						<th>
+							<div class="event-name">SubmitRequest</div>
+						</th>
+						<td>
+							<div class="event-desc">提交视图交互结果；网关将其作为 tool.param 或 action.param 转发，最终结果以事件流返回。API: <code>POST /api/submit</code></div>
+							<ul class="field-list">
+								<li><span class="field-key">requestId</span>: string（前端生成，用于幂等/重试）</li>
+								<li><span class="field-key">chatId</span>: string(UUID)</li>
+								<li><span class="field-key">runId</span>: string</li>
+								<li><span class="field-key">toolId</span>: string（必填；当前交互关联的 tool）</li>
+								<li><span class="field-key">viewId</span>: string｜可选（用于校验 tool 与 view 一致性）</li>
+								<li><span class="field-key">payload</span>: any（必填；表单值/按钮/选择结果等）</li>
+							</ul>
+						</td>
+					</tr>
+
+					<tr>
+						<th>
+							<div class="event-name">SubmitResponse</div>
+						</th>
+						<td>
+							<div class="event-desc">提交确认；工具执行结果与最终回答走事件流（tool.result/message.*）</div>
+							<ul class="field-list">
+								<li><span class="field-key">requestId</span>: string</li>
+								<li><span class="field-key">accepted</span>: boolean</li>
+								<li><span class="field-key">runId</span>: string</li>
+								<li><span class="field-key">toolId</span>: string</li>
+							</ul>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+
+		<!-- === 新增：GET 名词 Resource（获取资源：含附件/图片） === -->
+		<div id="doc-req-resource" class="doc-section">
+			<div class="doc-header req-style">请求(GET 名词): ResourceRequest / ResourceResponse（<span class="field-key">resource</span>） /api/resource</div>
+			<table class="event-table">
+				<tbody>
+					<tr>
+						<th>
+							<div class="event-name">ResourceRequest</div>
+						</th>
+						<td>
+							<div class="event-desc">获取资源（含附件/图片）。用于在渲染或二次下载时取回资源元信息或可访问 URL。API: <code>GET /api/resource</code></div>
+							<ul class="field-list">
+								<li><span class="field-key">chatId</span>: string(UUID)</li>
+								<li><span class="field-key">referenceId</span>: string（必填；短 ID，来自 Reference.referenceId）</li>
+								<li><span class="field-key">disposition</span>: "inline" | "attachment"｜可选（下载/预览）</li>
+							</ul>
+						</td>
+					</tr>
+
+					<tr>
+						<th>
+							<div class="event-name">ResourceResponse</div>
+						</th>
+						<td>
+							<div class="event-desc">返回资源的统一引用信息（可直接复用 Reference 模型）</div>
+							<ul class="field-list">
+								<li><span class="field-key">chatId</span>: string(UUID)</li>
+								<li><span class="field-key">reference</span>: Reference（必填）</li>
+								<li><span class="field-key">downloadUrl</span>: string｜可选（若与 reference.url 不同，可提供临时下载地址）</li>
+								<li><span class="field-key">expiresAt</span>: number(timestamp)｜可选</li>
+							</ul>
+						</td>
+					</tr>
+
+				</tbody>
+			</table>
+		</div>
+
+		<!-- === 新增：GET 名词 Agents/Agent（获取智能体列表/内容） === -->
+		<div id="doc-req-agents" class="doc-section">
+			<div class="doc-header req-style">请求(GET 名词): AgentsRequest / AgentsResponse（<span class="field-key">agents</span>） /api/agents</div>
+			<table class="event-table">
+				<tbody>
+					<tr>
+						<th>
+							<div class="event-name">AgentsRequest</div>
+						</th>
+						<td>
+							<div class="event-desc">获取智能体列表（可用于前端选择或展示）。API: <code>GET /api/agents</code></div>
+							<ul class="field-list">
+								<li><span class="field-key">includeHidden</span>: （暂不实现）boolean｜可选</li>
+								<li><span class="field-key">tag</span>: string｜可选（按标签过滤）</li>
+							</ul>
+						</td>
+					</tr>
+
+					<tr>
+						<th>
+							<div class="event-name">AgentsResponse</div>
+						</th>
+						<td>
+							<div class="event-desc">返回智能体列表</div>
+							<ul class="field-list">
+								<li><span class="field-key">agents</span>: object[]（必填）
+									<ul class="field-list">
+										<li><span class="field-key">key</span>: string（如 "agent_researcher"）</li>
+										<li><span class="field-key">name</span>: string</li>
+										<li><span class="field-key">description</span>: string｜可选</li>
+										<li><span class="field-key">capabilities</span>: （暂不实现）string[]｜可选</li>
+										<li><span class="field-key">meta</span>: （暂不实现）object｜可选</li>
+									</ul>
+								</li>
+							</ul>
+						</td>
+					</tr>
+
+				</tbody>
+			</table>
+		</div>
+
+		<div id="doc-req-agent" class="doc-section">
+			<div class="doc-header req-style">请求(GET 名词): AgentRequest / AgentResponse（<span class="field-key">agent</span>） /api/agent</div>
+			<table class="event-table">
+				<tbody>
+					<tr>
+						<th>
+							<div class="event-name">AgentRequest</div>
+						</th>
+						<td>
+							<div class="event-desc">获取某个智能体的内容/详情（配置、说明、能力等）。API: <code>GET /api/agent</code></div>
+							<ul class="field-list">
+								<li><span class="field-key">agentKey</span>: string（必填）</li>
+							</ul>
+						</td>
+					</tr>
+
+					<tr>
+						<th>
+							<div class="event-name">AgentResponse</div>
+						</th>
+						<td>
+							<div class="event-desc">返回单个智能体详情</div>
+							<ul class="field-list">
+								<li><span class="field-key">agent</span>: object（必填）
+									<ul class="field-list">
+										<li><span class="field-key">key</span>: string</li>
+										<li><span class="field-key">name</span>: string</li>
+										<li><span class="field-key">description</span>: string｜可选</li>
+										<li><span class="field-key">instructions</span>: string｜可选</li>
+										<li><span class="field-key">capabilities</span>: （暂不实现）string[]｜可选</li>
+										<li><span class="field-key">meta</span>: （暂不实现）object｜可选</li>
+									</ul>
+								</li>
+							</ul>
+						</td>
+					</tr>
+
+				</tbody>
+			</table>
+		</div>
+
+		<!-- === 新增：GET 名词 Chats/Chat（获取聊天列表/内容） === -->
+		<div id="doc-req-chats" class="doc-section">
+			<div class="doc-header req-style">请求(GET 名词): ChatsRequest / ChatsResponse（<span class="field-key">chats</span>） /api/chats</div>
+			<table class="event-table">
+				<tbody>
+					<tr>
+						<th>
+							<div class="event-name">ChatsRequest</div>
+						</th>
+						<td>
+							<div class="event-desc">获取聊天列表（历史会话列表）。API: <code>GET /api/chats</code></div>
+							<ul class="field-list">
+								<li><span class="field-key">cursor</span>: string｜可选（分页游标）</li>
+								<li><span class="field-key">limit</span>: number｜可选</li>
+								<li><span class="field-key">q</span>: string｜可选（按名称/内容检索）</li>
+							</ul>
+						</td>
+					</tr>
+
+					<tr>
+						<th>
+							<div class="event-name">ChatsResponse</div>
+						</th>
+						<td>
+							<div class="event-desc">返回聊天列表</div>
+							<ul class="field-list">
+								<li><span class="field-key">items</span>: object[]（必填）
+									<ul class="field-list">
+										<li><span class="field-key">chatId</span>: string(UUID)</li>
+										<li><span class="field-key">chatName</span>: string｜可选</li>
+										<li><span class="field-key">updatedAt</span>: number(timestamp)｜可选</li>
+									</ul>
+								</li>
+								<li><span class="field-key">nextCursor</span>: string｜可选</li>
+							</ul>
+						</td>
+					</tr>
+
+				</tbody>
+			</table>
+		</div>
+
+		<div id="doc-req-chat" class="doc-section">
+			<div class="doc-header req-style">请求(GET 名词): ChatRequest / ChatResponse（<span class="field-key">chat</span>） /api/chat</div>
+			<table class="event-table">
+				<tbody>
+					<tr>
+						<th>
+							<div class="event-name">ChatRequest</div>
+						</th>
+						<td>
+							<div class="event-desc">获取聊天内容（会话详情/历史消息/关联 run 等）。API: <code>GET /api/chat</code></div>
+							<ul class="field-list">
+								<li><span class="field-key">chatId</span>: string(UUID)（必填）</li>
+								<li><span class="field-key">includeEvents</span>: boolean｜可选（是否返回事件流快照）</li>
+								<li><span class="field-key">cursor</span>: string｜可选（分页消息）</li>
+								<li><span class="field-key">limit</span>: number｜可选</li>
+							</ul>
+						</td>
+					</tr>
+
+					<tr>
+						<th>
+							<div class="event-name">ChatResponse</div>
+						</th>
+						<td>
+							<div class="event-desc">返回聊天内容（结构可按产品需要扩展；不改变原事件模型，仅补充 GET 入口）</div>
+							<ul class="field-list">
+								<li><span class="field-key">chatId</span>: string(UUID)</li>
+								<li><span class="field-key">chatName</span>: string｜可选</li>
+								<li><span class="field-key">rawMessages</span>: object[]｜可选（若 includeRawMessages=true，可返回大模型原始消息）</li>
+								<li><span class="field-key">events</span>: BaseEvent[]（历史事件列表； start/delta/args/end -> snapshot, params&result保留）</li>
+								<li><span class="field-key">references</span>: Reference[]｜可选（该 chat 的引用池）</li>
+							</ul>
+						</td>
+					</tr>
+
+				</tbody>
+			</table>
+		</div>
+
+		</div>
+	</section>
+
+	<!-- =================== Panel: SSE Events (keep original content) =================== -->
+	<section id="panel-sse" class="panel active" role="tabpanel" aria-labelledby="tab-sse">
+		<!-- CHAT -->
+		<div class="box chat">
+			<div class="header">
+				<span class="node-name"><a href="#doc-chat" class="node-link">CHAT</a></span>
+				<div class="meta">
+					<span class="tag tag-id">chatId</span>
+					<span class="tag tag-event">start/update</span>
+				</div>
+			</div>
+
+			<!-- PLAN (Gold) -->
+			<div class="box plan">
+				<div class="header">
+					<span class="node-name"><a href="#doc-plan" class="node-link">PLAN</a></span>
+					<div class="meta">
+						<span class="tag tag-id">planId, chatId</span>
+						<span class="tag tag-event">create/update</span>
+					</div>
+				</div>
+				<div class="plan-item">
+					<span>TaskElement 1</span>
+					<span style="opacity: 0.6">elementId</span>
+				</div>
+				<div class="plan-item">
+					<span>TaskElement 2</span>
+					<span style="opacity: 0.6">elementId</span>
+				</div>
+			</div>
+
+			<!-- RUN (Pale Green) -->
+			<div class="box run">
+				<div class="header">
+					<span class="node-name"><a href="#doc-run" class="node-link">RUN</a></span>
+					<div class="meta">
+						<span class="tag tag-id">runId, chatId</span>
+						<span class="tag tag-event">start/complete/error/cancel</span>
+					</div>
+				</div>
+
+				<!-- TASK (Gold) -->
+				<div class="box task">
+					<div class="header">
+						<span class="node-name"><a href="#doc-task" class="node-link">TASK</a></span>
+						<div class="meta">
+							<span class="tag tag-id">taskId, runId</span>
+							<span class="tag tag-event">start/complete/cancel/fail</span>
+						</div>
+					</div>
+
+					<!-- Leaves: Color, Uppercase -->
+					<div class="leaf-card reasoning">
+						<span class="leaf-title"><a href="#doc-message" class="node-link">REASONING</a></span>
+						<div class="meta">
+							<span class="tag tag-id">reasoningId, runId, [taskId]</span>
+							<span class="tag tag-event">start/delta/end/snapshot</span>
+						</div>
+					</div>
+
+					<div class="leaf-card content">
+						<span class="leaf-title"><a href="#doc-message" class="node-link">CONTENT</a></span>
+						<div class="meta">
+							<span class="tag tag-id">contentId, runId, [taskId]</span>
+							<span class="tag tag-event">start/delta/end/snapshot</span>
+						</div>
+					</div>
+
+					<div class="leaf-card tool">
+						<span class="leaf-title"><a href="#doc-tool" class="node-link">TOOL</a></span>
+						<div class="meta">
+							<span class="tag tag-id">toolId, runId, [taskId]</span>
+							<span class="tag tag-event">start/args/end/result/snapshot</span>
+						</div>
+					</div>
+
+					<div class="leaf-card action">
+						<span class="leaf-title"><a href="#doc-action" class="node-link">ACTION</a></span>
+						<div class="meta">
+							<span class="tag tag-id">actionId, runId, [taskId]</span>
+							<span class="tag tag-event">start/args/end/param/result/snapshot</span>
+						</div>
+					</div>
+
+					<!-- SOURCE -->
+					<div class="leaf-card source" style="margin-top: 4px">
+						<span class="leaf-title"><a href="#doc-source" class="node-link">SOURCE(未实现)</a></span>
+						<div class="meta">
+							<span class="tag tag-id">sourceId, runId, [taskId]</span>
+							<span class="tag tag-event">snapshot</span>
+						</div>
+					</div>
+				</div>
+				<!-- End Task -->
+			</div>
+			<!-- End Run -->
+		</div>
+		<!-- End Chat -->
+
+		<!-- ================= DOCUMENTATION SECTION ================= -->
+		<div class="doc-container">
+			<div class="doc-title">Event Documentation</div>
+
+			<!-- Base Event -->
+			<div class="doc-section">
+				<div class="doc-header leaf-style">基类: Base Event</div>
+				<table class="event-table">
+					<tbody>
+						<tr>
+							<th>Base</th>
+							<td>
+								<div class="event-desc">
+									所有事件类的抽象基类，定义了事件的基本结构
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">seq</span>:
+										唯一序列号（未实现）
+									</li>
+									<li>
+										<span class="field-key">type</span>:
+										事件类型 (枚举值)
+									</li>
+									<li>
+										<span class="field-key">timestamp</span>: 事件创建时间戳
+									</li>
+									<li>
+										<span class="field-key">rawEvent</span>: [调试用]原始事件对象
+									</li>
+								</ul>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- === 新增：Request Events（按要求补充 request.query / request.upload / request.submit 文档；不删除原文，仅新增） === -->
+			<div id="doc-request" class="doc-section">
+				<div class="doc-header leaf-style">请求: Request Events（新增补充）</div>
+				<table class="event-table">
+					<tbody>
+						<tr>
+							<th>
+								<div class="event-name">RequestQuery</div>
+							</th>
+							<td>
+								<div class="event-desc">请求动作事件：<span class="field-key">request.query</span>（动词：<span class="field-key">query</span>；对应 API: <code>POST /api/query</code>）</div>
+								<ul class="field-list">
+									<li><span class="field-key">type</span>: "request.query"</li>
+									<li><span class="field-key">requestId</span>: 前端生成，用于幂等/重试/链路追踪</li>
+									<li><span class="field-key">chatId</span>: 聊天会话 ID（可由前端生成或由网关创建后回传）</li>
+									<li><span class="field-key">agentKey</span>: 可选；如 "auto" / "default" / "agent_researcher"</li>
+									<li><span class="field-key">role</span>: "user" | "system" | "assistant" | "developer" | "other"</li>
+									<li><span class="field-key">message</span>: string（建议与 QueryRequest 对齐）</li>
+									<li><span class="field-key">references</span>: Reference[]｜可选</li>
+									<li><span class="field-key">params</span>: object｜可选</li>
+									<li><span class="field-key">scene</span>: object｜可选（{url,title}）</li>
+									<li><span class="field-key">stream</span>: boolean｜可选</li>
+								</ul>
+							</td>
+						</tr>
+
+						<tr>
+							<th>
+								<div class="event-name">RequestUpload</div>
+							</th>
+							<td>
+								<div class="event-desc">请求动作事件：<span class="field-key">request.upload</span>（动词：<span class="field-key">upload</span>；对应 API: <code>POST /api/upload</code>）</div>
+								<ul class="field-list">
+									<li><span class="field-key">type</span>: "request.upload"</li>
+									<li><span class="field-key">requestId</span>: 前端生成</li>
+									<li><span class="field-key">chatId</span>: chatId（可选；缺省则网关创建）</li>
+									<li><span class="field-key">upload</span>: object（建议与 UploadRequest 对齐）
+										<ul class="field-list">
+											<li><span class="field-key">type</span>: "file" | "image"</li>
+											<li><span class="field-key">name</span>: string</li>
+											<li><span class="field-key">sizeBytes</span>: number</li>
+											<li><span class="field-key">mimeType</span>: string</li>
+											<li><span class="field-key">sha256</span>: string｜可选</li>
+										</ul>
+									</li>
+								</ul>
+							</td>
+						</tr>
+
+						<tr>
+							<th>
+								<div class="event-name">RequestSubmit</div>
+							</th>
+							<td>
+								<div class="event-desc">请求动作事件：<span class="field-key">request.submit</span>（动词：<span class="field-key">submit</span>；对应 API: <code>POST /api/submit</code>）</div>
+								<ul class="field-list">
+									<li><span class="field-key">type</span>: "request.submit"</li>
+									<li><span class="field-key">requestId</span>: 前端生成</li>
+									<li><span class="field-key">chatId</span>: string(UUID)</li>
+									<li><span class="field-key">runId</span>: string</li>
+									<li><span class="field-key">toolId</span>: string（提交给哪个工具）</li>
+									<li><span class="field-key">viewportKey</span>: string｜可选</li>
+									<li><span class="field-key">payload</span>: any（表单值/按钮/选择结果等）</li>
+								</ul>
+							</td>
+						</tr>
+
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Chat Events -->
+			<div id="doc-chat" class="doc-section">
+				<div class="doc-header chat-style">会话: Chat Events</div>
+				<table class="event-table">
+					<tbody>
+						<tr>
+							<th>
+								<div class="event-name">ChatStart</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									开始聊天会话的事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">chatId</span>: 聊天会话的唯一标识
+									</li>
+									<li>
+										<span class="field-key">chatName</span>: 聊天会话的名称
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ChatUpdate
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									更新聊天信息的事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">chatId</span>: 聊天会话的唯一标识
+									</li>
+									<li>
+										<span class="field-key">chatName</span>: 聊天会话的名称
+									</li>
+								</ul>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Plan Events -->
+			<div id="doc-plan" class="doc-section">
+				<div class="doc-header task-style">计划: Plan Events</div>
+				<table class="event-table">
+					<tbody>
+						<tr>
+							<th>
+								<div class="event-name">
+									PlanCreate
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									创建任务计划的事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">planId</span>: 计划的唯一标识
+									</li>
+									<li>
+										<span class="field-key">chatId</span>: 关联的聊天会话ID
+									</li>
+									<li>
+										<span class="field-key">plan</span>:
+										计划列表，包含多个任务对象
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									PlanUpdate
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									更新任务计划的事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">planId</span>: 计划的唯一标识
+									</li>
+									<li>
+										<span class="field-key">chatId</span>: 关联的聊天会话ID（应该可以不要）
+									</li>
+									<li>
+										<span class="field-key">plan</span>:
+										计划列表，包含多个任务对象
+									</li>
+								</ul>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Run Events -->
+			<div id="doc-run" class="doc-section">
+				<div class="doc-header run-style">运行: Run Events</div>
+				<table class="event-table">
+					<tbody>
+						<tr>
+							<th>
+								<div class="event-name">RunStart</div>
+							</th>
+							<td>
+								<div class="event-desc">运行开始的事件</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">runId</span>: 运行实例的唯一标识
+									</li>
+									<li>
+										<span class="field-key">chatId</span>: 关联的聊天会话ID
+									</li>
+									<li>
+										<span class="field-key">agentKey</span>: 运行的智能体KEY
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									RunComplete
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">运行完成的事件</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">runId</span>: 完成的运行实例ID
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">RunCancel</div>
+							</th>
+							<td>
+								<div class="event-desc">取消运行的事件</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">runId</span>: 被取消的运行实例ID
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">RunError</div>
+							</th>
+							<td>
+								<div class="event-desc">运行出错的事件</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">runId</span>: 出错的运行实例ID
+									</li>
+									<li>
+										<span class="field-key">error</span>: 错误信息
+									</li>
+								</ul>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Task Events -->
+			<div id="doc-task" class="doc-section">
+				<div class="doc-header task-style">任务: Task Events</div>
+				<table class="event-table">
+					<tbody>
+						<tr>
+							<th>
+								<div class="event-name">TaskStart</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									任务开始执行的事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">taskId</span>: 任务的唯一标识
+									</li>
+									<li>
+										<span class="field-key">runId</span>: 所属运行实例ID
+									</li>
+									<li>
+										<span class="field-key">taskName</span>: 任务名称
+									</li>
+									<li>
+										<span class="field-key">description</span>: 任务描述
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									TaskComplete
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">任务完成的事件</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">taskId</span>: 完成的任务ID
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									TaskCancel
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									任务被取消的事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">taskId</span>: 被取消的任务ID
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">TaskFail</div>
+							</th>
+							<td>
+								<div class="event-desc">任务失败的事件</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">taskId</span>: 失败的任务ID
+									</li>
+									<li>
+										<span class="field-key">error</span>: 错误信息
+									</li>
+								</ul>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Reasoning Events -->
+			<div id="doc-reasoning" class="doc-section">
+				<div class="doc-header reason-style">
+					推理: Reasoning Events
+				</div>
+				<table class="event-table">
+					<tbody>
+						<tr>
+							<th>
+								<div class="event-name">
+									ReasoningStart
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">推理开始事件</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">reasoningId</span>: 推理的唯一标识
+									</li>
+									<li>
+										<span class="field-key">runId</span>: 运行实例ID
+									</li>
+									<li>
+										<span class="field-key">taskId</span>: 可选，任务ID
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ReasoningDelta
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									推理增量更新事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">reasoningId</span>: 推理的唯一标识
+									</li>
+									<li>
+										<span class="field-key">delta</span>: 推理的增量部分
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ReasoningEnd
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">推理结束事件</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">reasoningId</span>: 推理的唯一标识
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ReasoningSnapshot
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									推理快照事件（仅用在历史记录）
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">reasoningId</span>: 推理的唯一标识
+									</li>
+									<li>
+										<span class="field-key">taskId</span>: 可选，任务ID
+									</li>
+									<li>
+										<span class="field-key">text</span>:
+										推理的文字
+									</li>
+								</ul>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Content Events -->
+			<div id="doc-content" class="doc-section">
+				<div class="doc-header content-style">
+					正文: Content Events
+				</div>
+				<table class="event-table">
+					<tbody>
+						<tr>
+							<th>
+								<div class="event-name">
+									ContentStart
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">正文开始事件</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">contentId</span>: 正文的唯一标识
+									</li>
+									<li>
+										<span class="field-key">runId</span>: 运行实例ID
+									</li>
+									<li>
+										<span class="field-key">taskId</span>: 可选，任务ID
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ContentDelta
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									正文增量更新事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">contentId</span>: 正文的唯一标识
+									</li>
+									<li>
+										<span class="field-key">delta</span>: 正文的增量部分
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ContentEnd
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">正文结束事件</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">contentId</span>: 正文的唯一标识
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ContentSnapshot
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									正文快照事件（仅用在历史记录）
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">contentId</span>: 正文的唯一标识
+									</li>
+									<li>
+										<span class="field-key">taskId</span>: 可选，任务ID
+									</li>
+									<li>
+										<span class="field-key">text</span>:
+										正文的文字
+									</li>
+								</ul>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Tool Events -->
+			<div id="doc-tool" class="doc-section">
+				<div class="doc-header tool-style">工具: Tool Events</div>
+				<table class="event-table">
+					<tbody>
+						<tr>
+							<th>
+								<div class="event-name">ToolStart</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									工具渲染开始事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">toolId</span>: 工具的唯一标识
+									</li>
+									<li>
+										<span class="field-key">toolName</span>: 工具名称
+									</li>
+									<li>
+										<span class="field-key">runId</span>: 运行实例ID
+									</li>
+									<li>
+										<span class="field-key">taskId</span>: 可选，任务ID
+									</li>
+									<li>
+										<span class="field-key">toolType</span>:
+										工具类型，有类型才代表是前端工具，枚举：qlc/html/dqlc
+									</li>
+									<li>
+										<span class="field-key">toolKey</span>: 工具KEY，目前就是toolName
+									</li>
+									<li>
+										<span class="field-key">description</span>: 工具使用描述（待验证）
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">ToolArgs</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									工具渲染参数更新事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">toolId</span>: 工具的唯一标识
+									</li>
+									<li>
+										<span class="field-key">delta</span>: 工具参数的增量部分
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">ToolEnd</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									工具渲染结束事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">toolId</span>: 工具的唯一标识
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ToolSnapshot
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									工具渲染快照事件（仅用在历史记录）
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">toolId</span>: 工具的唯一标识
+									</li>
+									<li>
+										<span class="field-key">toolName</span>: 工具名称
+									</li>
+									<li>
+										<span class="field-key">taskId</span>: 可选，任务ID
+									</li>
+									<li>
+										<span class="field-key">toolType</span>:
+										工具类型，有类型才代表是前端工具，枚举：qlc/html/dqlc
+									</li>
+									<li>
+										<span class="field-key">toolApi</span>: 工具API（不实现）
+									</li>
+									<li>
+										<span class="field-key">toolParams</span>: 工具API参数
+									</li>
+									<li>
+										<span class="field-key">description</span>: 工具使用描述（待验证）
+									</li>
+									<li>
+										<span class="field-key">arguments</span>: 工具参数
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">ToolParam</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									工具执行参数事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">toolId</span>: 工具的唯一标识
+									</li>
+									<li>
+										<span class="field-key">param</span>: 工具的参数（payload）
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ToolResult
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									工具运行结果事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">toolId</span>: 工具的唯一标识
+									</li>
+									<li>
+										<span class="field-key">result</span>: 工具运行结果
+									</li>
+								</ul>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Action Events -->
+			<div id="doc-action" class="doc-section">
+				<div class="doc-header action-style">动作: Action Events</div>
+				<table class="event-table">
+					<tbody>
+						<tr>
+							<th>
+								<div class="event-name">
+									ActionStart
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									动作渲染开始事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">actionId</span>: 动作的唯一标识
+									</li>
+									<li>
+										<span class="field-key">actionName</span>: 动作名称
+									</li>
+									<li>
+										<span class="field-key">runId</span>: 运行实例ID
+									</li>
+									<li>
+										<span class="field-key">taskId</span>: 可选，任务ID
+									</li>
+									<li>
+										<span class="field-key">description</span>: 动作描述
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ActionArgs
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									动作渲染参数更新事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">actionId</span>: 动作的唯一标识
+									</li>
+									<li>
+										<span class="field-key">delta</span>: 动作参数的增量部分
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">ActionEnd</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									动作渲染结束事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">actionId</span>: 动作的唯一标识
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ActionSnapshot
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									动作渲染快照事件（仅用在历史记录）
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">actionId</span>: 动作的唯一标识
+									</li>
+									<li>
+										<span class="field-key">actionName</span>: 动作名称
+									</li>
+									<li>
+										<span class="field-key">taskId</span>: 可选，任务ID
+									</li>
+									<li>
+										<span class="field-key">description</span>: 动作描述
+									</li>
+									<li>
+										<span class="field-key">arguments</span>: 动作参数
+									</li>
+								</ul>
+							</td>
+						</tr>
+						<tr>
+							<th>
+								<div class="event-name">
+									ActionResult
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									动作执行结果事件
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">actionId</span>: 动作的唯一标识
+									</li>
+									<li>
+										<span class="field-key">result</span>: 动作的结果（response）
+									</li>
+								</ul>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Source Events -->
+			<div id="doc-source" class="doc-section">
+				<div class="doc-header source-style">来源: Source Events</div>
+				<table class="event-table">
+					<tbody>
+						<tr>
+							<th>
+								<div class="event-name">
+									SourceSnapshot
+								</div>
+							</th>
+							<td>
+								<div class="event-desc">
+									源信息块的事件，通常用于显示引用来源
+								</div>
+								<ul class="field-list">
+									<li>
+										<span class="field-key">icon</span>:
+										来源图标
+									</li>
+									<li>
+										<span class="field-key">title</span>: 来源标题
+									</li>
+									<li>
+										<span class="field-key">url</span>:
+										来源URL地址
+									</li>
+								</ul>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- ================= USE CASES SECTION (original kept in Use Cases tab) ================= -->
+		</div>
+	</section>
+
+	<!-- =================== Panel: Use Cases (3 examples include query + SSE events) =================== -->
+
+<!-- =================== Panel: Use Cases (UPDATED: always expanded + SSE format) =================== -->
+<section id="panel-usecases" class="panel" role="tabpanel" aria-labelledby="tab-usecases">
+  <div class="hint">
+    用例以「一次 Query 请求」+「一段 SSE 事件流」为最小闭环展示。注意：
+    <code>reasoning.delta</code>/<code>tool.args</code>/<code>content.delta</code> 都是流式“吐字”（会拆成多段）；
+    SSE 采用 <code>data: {"...":...}</code> 一行 JSON 的格式。
+  </div>
+
+  <div class="doc-container" style="margin-top: 10px; border-top: 0; padding-top: 0">
+    <div class="example-section" style="margin-top: 10px">
+      <div class="doc-title" style="margin-bottom: 15px">
+        Event Use Cases (SSE Examples)
+      </div>
+
+      <!-- #1 Basic: Query + Content -->
+      <div class="example-item">
+        <div class="example-summary">
+          <span class="tag-id">#1</span> 基础问答：Query + Content（无 Tool/Action/Message）
+        </div>
+        <div class="example-content">
+          <pre class="json-block"><code>// POST /api/query
+{
+  "requestId": "req_001",
+  "chatId": "chat_123",
+  "agentKey": "auto",
+  "role": "user",
+  "message": "用一句话解释事件流模型是什么？并说明关键事件有哪些（chat.start、run.start、content.start、content.delta、run.complete）。",
+  "scene": { "url": "https://app.example.com/chat", "title": "Chat" },
+  "stream": true
+}</code></pre>
+
+          <pre class="json-block"><code>// SSE stream (each data: is ONE-LINE JSON)
+event: message
+data: {"type":"chat.start","chatId":"chat_123","chatName":"Minimal QA","timestamp":1707000000}
+
+event: message
+data: {"type":"run.start","runId":"run_001","chatId":"chat_123","timestamp":1707000001}
+
+event: message
+data: {"type":"content.start","contentId":"ctx_001","runId":"run_001","timestamp":1707000002}
+
+event: message
+data: {"type":"content.delta","contentId":"ctx_001","delta":"事件流模型：","timestamp":1707000003}
+
+event: message
+data: {"type":"content.delta","contentId":"ctx_001","delta":"后端把一次请求拆成多个可订阅事件，","timestamp":1707000004}
+
+event: message
+data: {"type":"content.delta","contentId":"ctx_001","delta":"按序推送给前端实现边生成边渲染（如 chat.start→run.start→content.*→run.complete）。","timestamp":1707000005}
+
+event: message
+data: {"type":"content.end","contentId":"ctx_001","timestamp":1707000006}
+
+event: message
+data: {"type":"run.complete","runId":"run_001","timestamp":1707000007}</code></pre>
+        </div>
+      </div>
+
+      <!-- #2 Thinking + Tooling + Content -->
+      <div class="example-item">
+        <div class="example-summary">
+          <span class="tag-id">#2</span> Thinking + Tooling + Content：先推理（reasoning.*），再工具（tool.*），再回答（content.*）
+        </div>
+        <div class="example-content">
+          <pre class="json-block"><code>// POST /api/query
+{
+  "requestId": "req_002",
+  "chatId": "chat_123",
+  "agentKey": "auto",
+  "role": "user",
+  "message": "今天北京天气如何？请先查，再给出穿衣建议与注意事项。",
+  "scene": { "url": "https://app.example.com/chat" },
+  "stream": true
+}</code></pre>
+
+          <pre class="json-block"><code>// SSE stream (reasoning.delta / tool.args / content.delta are streaming chunks)
+event: message
+data: {"type":"chat.start","chatId":"chat_123","chatName":"Weather / Beijing","timestamp":1707000100}
+
+event: message
+data: {"type":"run.start","runId":"run_002","chatId":"chat_123","timestamp":1707000101}
+
+event: message
+data: {"type":"reasoning.start","reasoningId":"re_002_1","runId":"run_002","timestamp":1707000102}
+
+event: message
+data: {"type":"reasoning.delta","reasoningId":"re_002_1","delta":"先","timestamp":1707000103}
+
+event: message
+data: {"type":"reasoning.delta","reasoningId":"re_002_1","delta":"检索北京今天天气要素（温度/降水/风/空气质量），","timestamp":1707000104}
+
+event: message
+data: {"type":"reasoning.delta","reasoningId":"re_002_1","delta":"再基于结果给出穿衣建议与注意事项。","timestamp":1707000105}
+
+event: message
+data: {"type":"reasoning.end","reasoningId":"re_002_1","timestamp":1707000105}
+
+event: message
+data: {"type":"tool.start","toolId":"tool_002_1","runId":"run_002","taskId":"task_002","toolName":"web_search","timestamp":1707000106}
+
+event: message
+data: {"type":"tool.args","toolId":"tool_002_1","delta":"{\"query\":\"Beijing weather","timestamp":1707000107}
+
+event: message
+data: {"type":"tool.args","toolId":"tool_002_1","delta":" today\",\"locale\":\"zh-CN\"","timestamp":1707000108}
+
+event: message
+data: {"type":"tool.args","toolId":"tool_002_1","delta":"}","timestamp":1707000109}
+
+event: message
+data: {"type":"tool.end","toolId":"tool_002_1","timestamp":1707000110}
+
+event: message
+data: {"type":"tool.result","toolId":"tool_002_1","result":"{\"summary\":\"Sunny\",\"tempC\":25,\"wind\":\"NW 3\",\"aqi\":\"Good\"}","timestamp":1707000111}
+
+event: message
+data: {"type":"content.start","contentId":"ctx_002","runId":"run_002","timestamp":1707000113}
+
+event: message
+data: {"type":"content.delta","contentId":"ctx_002","delta":"根据检索结果：北京今天晴，约 25°C，西北风 3 级，空气质量良好。\\n","timestamp":1707000114}
+
+event: message
+data: {"type":"content.delta","contentId":"ctx_002","delta":"穿衣建议：短袖/薄长袖为主，备一件轻薄外套以防早晚温差。\\n","timestamp":1707000115}
+
+event: message
+data: {"type":"content.delta","contentId":"ctx_002","delta":"注意事项：防晒、补水；风较干时注意润唇与眼部防护。","timestamp":1707000116}
+
+event: message
+data: {"type":"content.end","contentId":"ctx_002","timestamp":1707000117}
+
+event: message
+data: {"type":"run.complete","runId":"run_002","timestamp":1707000118}</code></pre>
+        </div>
+      </div>
+
+      <!-- #3 Plan + multi tasks (modified) -->
+      <div class="example-item">
+        <div class="example-summary">
+          <span class="tag-id">#3</span> 计划与多任务：Query + Plan + Tasks（Search → Write；输出只用 reasoning/content/tool/action）
+        </div>
+        <div class="example-content">
+          <pre class="json-block"><code>// POST /api/query
+{
+  "requestId": "req_003",
+  "chatId": "c_01",
+  "agentKey": "auto",
+  "role": "user",
+  "message": "帮我先查资料，再写一段总结。要求：先列出检索关键词，再给 5 条要点，最后给 1 段总结。",
+  "scene": { "url": "https://app.example.com/chat" },
+  "stream": true
+}</code></pre>
+
+          <pre class="json-block"><code>// SSE stream
+event: message
+data: {"type":"chat.start","chatId":"c_01","chatName":"Research then Write","timestamp":1707000200}
+
+event: message
+data: {"type":"plan.create","planId":"p_01","chatId":"c_01","plan":[{"id":"task_search","name":"Search","description":"检索资料并整理要点"},{"id":"task_write","name":"Write","description":"基于检索结果输出结构化要点与总结"}],"timestamp":1707000201}
+
+event: message
+data: {"type":"run.start","runId":"r_01","chatId":"c_01","timestamp":1707000202}
+
+event: message
+data: {"type":"task.start","taskId":"task_search","runId":"r_01","taskName":"Search","description":"检索资料并整理要点","timestamp":1707000203}
+
+event: message
+data: {"type":"reasoning.start","reasoningId":"re_search_1","runId":"r_01","taskId":"task_search","timestamp":1707000204}
+
+event: message
+data: {"type":"reasoning.delta","reasoningId":"re_search_1","delta":"先列关键词，","timestamp":1707000205}
+
+event: message
+data: {"type":"reasoning.delta","reasoningId":"re_search_1","delta":"检索 3-5 个来源，","timestamp":1707000206}
+
+event: message
+data: {"type":"reasoning.delta","reasoningId":"re_search_1","delta":"抽取共识并归纳要点。","timestamp":1707000207}
+
+event: message
+data: {"type":"reasoning.end","reasoningId":"re_search_1","timestamp":1707000207}
+
+event: message
+data: {"type":"tool.start","toolId":"t_search_1","runId":"r_01","taskId":"task_search","toolName":"web_search","timestamp":1707000208}
+
+event: message
+data: {"type":"tool.args","toolId":"t_search_1","delta":"{\"query\":\"topic key","timestamp":1707000209}
+
+event: message
+data: {"type":"tool.args","toolId":"t_search_1","delta":"words\",\"topK\":5","timestamp":1707000210}
+
+event: message
+data: {"type":"tool.args","toolId":"t_search_1","delta":"}","timestamp":1707000211}
+
+event: message
+data: {"type":"tool.end","toolId":"t_search_1","timestamp":1707000212}
+
+event: message
+data: {"type":"tool.result","toolId":"t_search_1","result":"{\"keywords\":[\"keyword1\",\"keyword2\"],\"sources\":[{\"title\":\"Source A\",\"url\":\"https://example.com/a\"}]}","timestamp":1707000213}
+
+event: message
+data: {"type":"task.complete","taskId":"task_search","timestamp":1707000215}
+
+event: message
+data: {"type":"task.start","taskId":"task_write","runId":"r_01","taskName":"Write","description":"基于检索结果输出结构化要点与总结","timestamp":1707000216}
+
+event: message
+data: {"type":"content.start","contentId":"ctx_write_1","runId":"r_01","taskId":"task_write","timestamp":1707000217}
+
+event: message
+data: {"type":"content.delta","contentId":"ctx_write_1","delta":"检索关键词：keyword1、keyword2\\n","timestamp":1707000218}
+
+event: message
+data: {"type":"content.delta","contentId":"ctx_write_1","delta":"要点：\\n1) ...\\n2) ...\\n3) ...\\n4) ...\\n5) ...\\n","timestamp":1707000219}
+
+event: message
+data: {"type":"content.delta","contentId":"ctx_write_1","delta":"总结：...（一段话）","timestamp":1707000220}
+
+event: message
+data: {"type":"content.end","contentId":"ctx_write_1","timestamp":1707000221}
+
+event: message
+data: {"type":"task.complete","taskId":"task_write","timestamp":1707000222}
+
+event: message
+data: {"type":"run.complete","runId":"r_01","timestamp":1707000223}</code></pre>
+        </div>
+      </div>
+
+      <!-- Upload + refs (not SSE; kept as request/response JSON) -->
+      <div class="example-item">
+        <div class="example-summary">
+          <span class="tag-id">#4</span> 文件 + 图片引用：Upload → Query（#{{refid:name}} 标记 + references）
+        </div>
+        <div class="example-content">
+          <pre class="json-block"><code>// 1) POST /api/upload (file)
+{
+  "requestId": "req_up_0001",
+  "chatId": "7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1",
+  "type": "file",
+  "name": "requirements.md",
+  "sizeBytes": 48291,
+  "mimeType": "text/markdown",
+  "sha256": "b9c3...e21a"
+}
+
+// 1) Response
+{
+  "requestId": "req_up_0001",
+  "chatId": "7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1",
+  "reference": {
+    "referenceId": "f1",
+    "type": "file",
+    "name": "requirements.md",
+    "mimeType": "text/markdown",
+    "sizeBytes": 48291,
+    "url": "https://files.example.com/chat/7b09.../f1",
+    "sha256": "b9c3...e21a",
+    "meta": { "origin": "upload" }
+  },
+  "upload": {
+    "url": "https://upload.example.com/presigned/abc",
+    "method": "PUT",
+    "headers": { "Content-Type": "text/markdown" }
+  }
+}
+
+// 2) POST /api/upload (image)
+{
+  "requestId": "req_up_0002",
+  "chatId": "7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1",
+  "type": "image",
+  "name": "ui.png",
+  "sizeBytes": 245991,
+  "mimeType": "image/png"
+}
+
+// 2) Response
+{
+  "requestId": "req_up_0002",
+  "chatId": "7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1",
+  "reference": {
+    "referenceId": "i1",
+    "type": "image",
+    "name": "ui.png",
+    "mimeType": "image/png",
+    "sizeBytes": 245991,
+    "url": "https://files.example.com/chat/7b09.../i1",
+    "meta": { "origin": "upload", "caption": "当前网关协议草图截图" }
+  },
+  "upload": {
+    "url": "https://upload.example.com/presigned/def",
+    "method": "PUT",
+    "headers": { "Content-Type": "image/png" }
+  }
+}
+
+// 3) POST /api/query (use markers + explicit references)
+{
+  "requestId": "req_0002",
+  "chatId": "7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1",
+  "agentKey": "agent_researcher",
+  "role": "user",
+  "message": "请总结 #{{f1:requirements.md}} 的关键需求，并结合 #{{i1:ui.png}} 指出协议中可能遗漏的字段。",
+  "references": [
+    {
+      "referenceId": "f1",
+      "type": "file",
+      "name": "requirements.md",
+      "mimeType": "text/markdown",
+      "sizeBytes": 48291,
+      "url": "https://files.example.com/chat/7b09.../f1",
+      "sha256": "b9c3...e21a",
+      "meta": { "origin": "upload", "textExcerpt": "## Requests\n- query: chatId, agent, content..." }
+    },
+    {
+      "referenceId": "i1",
+      "type": "image",
+      "name": "ui.png",
+      "mimeType": "image/png",
+      "sizeBytes": 245991,
+      "url": "https://files.example.com/chat/7b09.../i1",
+      "meta": { "origin": "upload", "caption": "协议图：Query/Upload/Viewport/Submit 四类请求" }
+    }
+  ],
+  "scene": { "url": "https://app.example.com/workspace/protocol" },
+  "stream": true
+}</code></pre>
+
+          <pre class="json-block"><code>// SSE (snippet)
+event: message
+data: {"type":"chat.start","chatId":"7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1","chatName":"Protocol Review","timestamp":1707000400}
+
+event: message
+data: {"type":"run.start","runId":"run_9001","chatId":"7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1","timestamp":1707000401}</code></pre>
+        </div>
+      </div>
+
+      <!-- Workspace selection -->
+      <div class="example-item">
+        <div class="example-summary">
+          <span class="tag-id">#5</span> 工作区 selection：仍用 type="file"，差异放 meta（filePath/range/textExcerpt）
+        </div>
+        <div class="example-content">
+          <pre class="json-block"><code>// POST /api/query
+{
+  "requestId": "req_0003",
+  "chatId": "c40a08d0-b61d-4be0-99b5-3a9e8c7466c2",
+  "agentKey": "agent_code_review",
+  "role": "user",
+  "message": "请审查我选中的代码片段（见 #{{f1:app/src/main.ts}}），指出潜在 bug、边界条件与改进建议。",
+  "references": [
+    {
+      "referenceId": "f1",
+      "type": "file",
+      "name": "app/src/main.ts",
+      "mimeType": "text/plain",
+      "url": "https://workspace.example.com/ws/proj/file/app%2Fsrc%2Fmain.ts?selection=120:1-180:1",
+      "meta": {
+        "origin": "workspace",
+        "filePath": "app/src/main.ts",
+        "range": { "startLine": 120, "startCol": 1, "endLine": 180, "endCol": 1 },
+        "textExcerpt": "function boot() {\n  // selected code here\n}"
+      }
+    }
+  ],
+  "params": { "switch": { "strictMode": true }, "select": { "severity": "high" } },
+  "scene": { "url": "https://app.example.com/ide/editor?file=app/src/main.ts" },
+  "stream": true
+}</code></pre>
+
+          <pre class="json-block"><code>// SSE (snippet)
+event: message
+data: {"type":"chat.start","chatId":"c40a08d0-b61d-4be0-99b5-3a9e8c7466c2","chatName":"Code Review / main.ts","timestamp":1707000500}
+
+event: message
+data: {"type":"run.start","runId":"run_cr_001","chatId":"c40a08d0-b61d-4be0-99b5-3a9e8c7466c2","timestamp":1707000501}</code></pre>
+        </div>
+      </div>
+
+      <!-- Image-centric with OCR -->
+      <div class="example-item">
+        <div class="example-summary">
+          <span class="tag-id">#6</span> 图片为主：带 OCR/caption（type="image"）
+        </div>
+        <div class="example-content">
+          <pre class="json-block"><code>// POST /api/query
+{
+  "requestId": "req_0004",
+  "chatId": "9d81c2c8-2c0c-4f7e-a2f0-5f5fd0a9b6b1",
+  "agentKey": "auto",
+  "role": "user",
+  "message": "请解释截图 #{{i1:billing-error.png}} 的报错原因，并给出排查步骤。",
+  "references": [
+    {
+      "referenceId": "i1",
+      "type": "image",
+      "name": "billing-error.png",
+      "mimeType": "image/png",
+      "sizeBytes": 188120,
+      "url": "https://files.example.com/chat/9d81.../i1",
+      "meta": {
+        "origin": "upload",
+        "caption": "支付页报错截图（包含错误码与时间戳）",
+        "ocrText": "Error: BILLING_403\nRequestId: abcd-1234\nTime: 2026-02-06 10:01:22"
+      }
+    }
+  ],
+  "scene": { "url": "https://app.example.com/billing/checkout" },
+  "stream": true
+}</code></pre>
+
+          <pre class="json-block"><code>// SSE (snippet)
+event: message
+data: {"type":"chat.start","chatId":"9d81c2c8-2c0c-4f7e-a2f0-5f5fd0a9b6b1","chatName":"Billing Error Triage","timestamp":1707000600}
+
+event: message
+data: {"type":"run.start","runId":"run_bill_001","chatId":"9d81c2c8-2c0c-4f7e-a2f0-5f5fd0a9b6b1","timestamp":1707000601}</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+	<script>
+		(function () {
+			const tabButtons = Array.from(
+				document.querySelectorAll(".tab-btn")
+			);
+			const panels = {
+				requests: document.getElementById("panel-requests"),
+				sse: document.getElementById("panel-sse"),
+				usecases: document.getElementById("panel-usecases"),
+			};
+
+			function setActiveTab(tabKey, opts = { focus: false }) {
+				Object.keys(panels).forEach((k) => {
+					panels[k].classList.toggle("active", k === tabKey);
+				});
+				tabButtons.forEach((btn) => {
+					const isActive = btn.dataset.tab === tabKey;
+					btn.setAttribute(
+						"aria-selected",
+						isActive ? "true" : "false"
+					);
+					if (isActive && opts.focus) btn.focus();
+				});
+			}
+
+			tabButtons.forEach((btn) => {
+				btn.addEventListener("click", () => {
+					const key = btn.dataset.tab;
+					setActiveTab(key, { focus: false });
+					// Optional: reflect in hash for deep-linking
+					history.replaceState(null, "", "#" + key);
+					window.scrollTo({ top: 0, behavior: "smooth" });
+				});
+			});
+
+			// Deep link: #requests / #sse / #usecases
+			const hash = (location.hash || "").replace("#", "").trim();
+			if (hash && panels[hash]) {
+				setActiveTab(hash, { focus: false });
+			} else {
+				// default is SSE (already active in markup)
+				setActiveTab("sse", { focus: false });
+			}
+
+			// If user clicks an anchor that points to SSE doc sections while another panel is active,
+			// switch to SSE first, then scroll.
+			document.addEventListener("click", (e) => {
+				const a = e.target.closest('a[href^="#"]');
+				if (!a) return;
+
+				const targetId = (a.getAttribute("href") || "").slice(1);
+				if (!targetId) return;
+
+				const looksLikeSseAnchor =
+					targetId.startsWith("doc-") ||
+					targetId === "doc-chat" ||
+					targetId === "doc-run";
+
+				if (!looksLikeSseAnchor) return;
+
+				// If SSE panel isn't active, switch then scroll.
+				if (!panels.sse.classList.contains("active")) {
+					e.preventDefault();
+					setActiveTab("sse", { focus: false });
+					history.replaceState(null, "", "#sse");
+
+					// Wait a tick so layout updates, then scroll to target.
+					setTimeout(() => {
+						const el = document.getElementById(targetId);
+						if (el)
+							el.scrollIntoView({
+								behavior: "smooth",
+								block: "start",
+							});
+						else location.hash = "#" + targetId;
+					}, 0);
+				}
+			});
+		})();
+	</script>
+</body>
+
+</html>

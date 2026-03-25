@@ -5,6 +5,7 @@ import com.linlay.agentplatform.config.ConfigDirectorySupport;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
+import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
@@ -26,13 +27,17 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.stream.Stream;
 
 @Component
 public class RuntimeContextPromptService {
 
     private static final int ALL_AGENTS_MAX_CHARS = 12_000;
+    private static final String SANDBOX_WORKSPACE_DIR = "/workspace";
+    private static final String SANDBOX_ROOT_DIR = "/root";
+    private static final String SANDBOX_SKILLS_DIR = "/skills";
+    private static final String SANDBOX_PAN_DIR = "/pan";
+    private static final String SANDBOX_AGENT_DIR = "/agent";
 
     private final Environment environment;
     private final RootProperties rootProperties;
@@ -120,7 +125,7 @@ public class RuntimeContextPromptService {
             switch (tag) {
                 case RuntimeContextTags.SYSTEM -> appendIfPresent(sections, buildSystemEnvironmentSection(runtimeContext));
                 case RuntimeContextTags.CONTEXT -> appendIfPresent(sections, buildContextSection(request, runtimeContext));
-                case RuntimeContextTags.OWNER -> appendIfPresent(sections, buildOwnerSection(runtimeContext.workspacePaths()));
+                case RuntimeContextTags.OWNER -> appendIfPresent(sections, buildOwnerSection(runtimeContext.localPaths()));
                 case RuntimeContextTags.AUTH -> appendIfPresent(sections, buildAuthIdentitySection(runtimeContext.authPrincipal()));
                 case RuntimeContextTags.SANDBOX -> appendIfPresent(sections, buildSandboxSection(runtimeContext.sandboxContext()));
                 case RuntimeContextTags.ALL_AGENTS -> appendIfPresent(sections, buildAllAgentsSection(runtimeContext.agentDigests()));
@@ -131,7 +136,7 @@ public class RuntimeContextPromptService {
         return sections.isEmpty() ? "" : String.join("\n\n", sections);
     }
 
-    public RuntimeRequestContext.WorkspacePaths resolveWorkspacePaths(String chatId) {
+    public RuntimeRequestContext.LocalPaths resolveLocalPaths(String chatId) {
         Path runtimeHome = resolveRuntimeHome();
         Path workingDirectory = Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
         Path rootDir = resolveRuntimePath(runtimeHome, rootProperties.getExternalDir(), "root");
@@ -144,7 +149,7 @@ public class RuntimeContextPromptService {
         Path attachmentsDir = StringUtils.hasText(chatId)
                 ? dataDir.resolve(chatId.trim()).toAbsolutePath().normalize()
                 : dataDir.toAbsolutePath().normalize();
-        return new RuntimeRequestContext.WorkspacePaths(
+        return new RuntimeRequestContext.LocalPaths(
                 runtimeHome.toString(),
                 workingDirectory.toString(),
                 rootDir.toString(),
@@ -155,6 +160,88 @@ public class RuntimeContextPromptService {
                 pathValue(schedulesDir),
                 ownerDir.toString(),
                 attachmentsDir.toString()
+        );
+    }
+
+    public RuntimeRequestContext.SandboxPaths resolveSandboxPaths(
+            AgentDefinition definition,
+            String chatId,
+            String defaultSandboxLevel
+    ) {
+        Path runtimeHome = resolveRuntimeHome();
+        Path rootDir = resolveRuntimePath(runtimeHome, rootProperties.getExternalDir(), "root");
+        Path panDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.pan.external-dir"), null);
+        Path skillsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.skills.external-dir"), null);
+        Path agentsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.agents.external-dir"), "agents");
+        Path ownerDir = resolveOwnerDir(runtimeHome);
+        Path teamsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.teams.external-dir"), null);
+        Path schedulesDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.schedule.external-dir"), null);
+        Path chatsDir = resolveRuntimePath(runtimeHome, chatWindowMemoryProperties.getDir(), "chats");
+        Path modelsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.models.external-dir"), null);
+        Path providersDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.providers.external-dir"), null);
+        Path mcpServersDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.mcp-servers.registry.external-dir"), null);
+        Path viewportServersDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.viewport-servers.registry.external-dir"), null);
+        Path toolsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.tools.external-dir"), null);
+        Path viewportsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.viewports.external-dir"), null);
+        SandboxLevel level = resolveSandboxLevel(definition, defaultSandboxLevel);
+        boolean hasAgentSelfDir = hasAgentSelfDir(agentsDir, definition == null ? null : definition.id());
+        boolean hasGlobalSkillsDir = skillsDir != null;
+        boolean hasSkillsDir = level == SandboxLevel.GLOBAL ? hasGlobalSkillsDir : (hasAgentSelfDir || hasGlobalSkillsDir);
+
+        String ownerMount = null;
+        String agentsMount = null;
+        String teamsMount = null;
+        String schedulesMount = null;
+        String chatsMount = null;
+        String modelsMount = null;
+        String providersMount = null;
+        String mcpServersMount = null;
+        String viewportServersMount = null;
+        String toolsMount = null;
+        String viewportsMount = null;
+
+        if (definition != null && definition.sandboxConfig() != null) {
+            for (AgentDefinition.ExtraMount extraMount : definition.sandboxConfig().extraMounts()) {
+                if (extraMount == null || !extraMount.isPlatform()) {
+                    continue;
+                }
+                String platform = extraMount.platform().trim().toLowerCase(Locale.ROOT);
+                switch (platform) {
+                    case "owner" -> ownerMount = ownerDir == null ? null : "/owner";
+                    case "agents" -> agentsMount = agentsDir == null ? null : "/agents";
+                    case "teams" -> teamsMount = teamsDir == null ? null : "/teams";
+                    case "schedules" -> schedulesMount = schedulesDir == null ? null : "/schedules";
+                    case "chats" -> chatsMount = chatsDir == null ? null : "/chats";
+                    case "models" -> modelsMount = modelsDir == null ? null : "/models";
+                    case "providers" -> providersMount = providersDir == null ? null : "/providers";
+                    case "mcp-servers" -> mcpServersMount = mcpServersDir == null ? null : "/mcp-servers";
+                    case "viewport-servers" -> viewportServersMount = viewportServersDir == null ? null : "/viewport-servers";
+                    case "tools" -> toolsMount = toolsDir == null ? null : "/tools";
+                    case "viewports" -> viewportsMount = viewportsDir == null ? null : "/viewports";
+                    default -> {
+                    }
+                }
+            }
+        }
+
+        return new RuntimeRequestContext.SandboxPaths(
+                resolveSandboxCwd(level, chatId),
+                SANDBOX_WORKSPACE_DIR,
+                rootDir == null ? null : SANDBOX_ROOT_DIR,
+                hasSkillsDir ? SANDBOX_SKILLS_DIR : null,
+                panDir == null ? null : SANDBOX_PAN_DIR,
+                hasAgentSelfDir ? SANDBOX_AGENT_DIR : null,
+                ownerMount,
+                agentsMount,
+                teamsMount,
+                schedulesMount,
+                chatsMount,
+                modelsMount,
+                providersMount,
+                mcpServersMount,
+                viewportServersMount,
+                toolsMount,
+                viewportsMount
         );
     }
 
@@ -170,9 +257,6 @@ public class RuntimeContextPromptService {
         lines.add("locale: " + locale.toLanguageTag());
         lines.add("current_date: " + LocalDate.now().toString());
         lines.add("current_datetime: " + ZonedDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
-        if (runtimeContext != null && runtimeContext.workspacePaths() != null && StringUtils.hasText(runtimeContext.workspacePaths().workingDirectory())) {
-            lines.add("runner_working_directory: " + runtimeContext.workspacePaths().workingDirectory());
-        }
         return String.join("\n", lines);
     }
 
@@ -180,17 +264,25 @@ public class RuntimeContextPromptService {
         List<String> lines = new ArrayList<>();
         lines.add("Runtime Context: Context");
         if (runtimeContext != null) {
-            RuntimeRequestContext.WorkspacePaths workspacePaths = runtimeContext.workspacePaths();
-            if (workspacePaths != null) {
-                appendKeyValue(lines, "runtime_home", workspacePaths.runtimeHome());
-                appendKeyValue(lines, "root_dir", workspacePaths.rootDir());
-                appendKeyValue(lines, "agents_dir", workspacePaths.agentsDir());
-                appendKeyValue(lines, "chats_dir", workspacePaths.chatsDir());
-                appendKeyValue(lines, "data_dir", workspacePaths.dataDir());
-                appendKeyValue(lines, "skills_market_dir", workspacePaths.skillsDir());
-                appendKeyValue(lines, "schedules_dir", workspacePaths.schedulesDir());
-                appendKeyValue(lines, "owner_dir", workspacePaths.ownerDir());
-                appendKeyValue(lines, "chat_attachments_dir", workspacePaths.chatAttachmentsDir());
+            RuntimeRequestContext.SandboxPaths sandboxPaths = runtimeContext.sandboxPaths();
+            if (sandboxPaths != null) {
+                appendKeyValue(lines, "sandbox_cwd", sandboxPaths.cwd());
+                appendKeyValue(lines, "sandbox_workspace_dir", sandboxPaths.workspaceDir());
+                appendKeyValue(lines, "sandbox_root_dir", sandboxPaths.rootDir());
+                appendKeyValue(lines, "sandbox_skills_dir", sandboxPaths.skillsDir());
+                appendKeyValue(lines, "sandbox_pan_dir", sandboxPaths.panDir());
+                appendKeyValue(lines, "sandbox_agent_dir", sandboxPaths.agentDir());
+                appendKeyValue(lines, "sandbox_owner_dir", sandboxPaths.ownerDir());
+                appendKeyValue(lines, "sandbox_agents_dir", sandboxPaths.agentsDir());
+                appendKeyValue(lines, "sandbox_teams_dir", sandboxPaths.teamsDir());
+                appendKeyValue(lines, "sandbox_schedules_dir", sandboxPaths.schedulesDir());
+                appendKeyValue(lines, "sandbox_chats_dir", sandboxPaths.chatsDir());
+                appendKeyValue(lines, "sandbox_models_dir", sandboxPaths.modelsDir());
+                appendKeyValue(lines, "sandbox_providers_dir", sandboxPaths.providersDir());
+                appendKeyValue(lines, "sandbox_mcp_servers_dir", sandboxPaths.mcpServersDir());
+                appendKeyValue(lines, "sandbox_viewport_servers_dir", sandboxPaths.viewportServersDir());
+                appendKeyValue(lines, "sandbox_tools_dir", sandboxPaths.toolsDir());
+                appendKeyValue(lines, "sandbox_viewports_dir", sandboxPaths.viewportsDir());
             }
         }
         appendKeyValue(lines, "chatId", request.chatId());
@@ -215,11 +307,11 @@ public class RuntimeContextPromptService {
         return String.join("\n", lines);
     }
 
-    private String buildOwnerSection(RuntimeRequestContext.WorkspacePaths workspacePaths) {
-        if (workspacePaths == null || !StringUtils.hasText(workspacePaths.ownerDir())) {
+    private String buildOwnerSection(RuntimeRequestContext.LocalPaths localPaths) {
+        if (localPaths == null || !StringUtils.hasText(localPaths.ownerDir())) {
             return "";
         }
-        Path ownerDir = Path.of(workspacePaths.ownerDir()).toAbsolutePath().normalize();
+        Path ownerDir = Path.of(localPaths.ownerDir()).toAbsolutePath().normalize();
         if (!Files.isDirectory(ownerDir)) {
             return "";
         }
@@ -400,6 +492,34 @@ public class RuntimeContextPromptService {
     private Path resolveOwnerDir(Path runtimeHome) {
         String configured = ownerProperties == null ? null : ownerProperties.getExternalDir();
         return resolveRuntimePath(runtimeHome, configured, "owner");
+    }
+
+    private SandboxLevel resolveSandboxLevel(AgentDefinition definition, String defaultSandboxLevel) {
+        if (definition != null && definition.sandboxConfig() != null && definition.sandboxConfig().level() != null) {
+            return definition.sandboxConfig().level();
+        }
+        if (!StringUtils.hasText(defaultSandboxLevel)) {
+            return SandboxLevel.RUN;
+        }
+        try {
+            return SandboxLevel.valueOf(defaultSandboxLevel.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            return SandboxLevel.RUN;
+        }
+    }
+
+    private boolean hasAgentSelfDir(Path agentsDir, String agentKey) {
+        if (agentsDir == null || !StringUtils.hasText(agentKey)) {
+            return false;
+        }
+        return Files.isDirectory(agentsDir.resolve(agentKey.trim()).toAbsolutePath().normalize());
+    }
+
+    private String resolveSandboxCwd(SandboxLevel level, String chatId) {
+        if (level == SandboxLevel.RUN || !StringUtils.hasText(chatId)) {
+            return SANDBOX_WORKSPACE_DIR;
+        }
+        return SANDBOX_WORKSPACE_DIR + "/" + chatId.trim();
     }
 
     private String pathValue(Path path) {
