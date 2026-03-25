@@ -788,12 +788,16 @@ class DefinitionDrivenAgentTest {
     @Test
     void shouldInjectRuntimeContextBeforeStageMarkdownAndPersistIntoSystemSnapshot() throws Exception {
         Path runtimeHome = Files.createTempDirectory("runtime-home");
+        Path externalOwner = Files.createTempDirectory("runtime-owner-external");
         Files.createDirectories(runtimeHome.resolve("configs"));
         Files.createDirectories(runtimeHome.resolve("owner"));
         Files.writeString(runtimeHome.resolve("owner").resolve("OWNER.md"), """
+                fallback owner
+                """);
+        Files.writeString(externalOwner.resolve("OWNER.md"), """
                 ---
-                name: Linlay
-                preferred_name: Linlay
+                name: External Linlay
+                preferred_name: External Linlay
                 language: zh-CN
                 timezone: Asia/Shanghai
                 style: concise
@@ -801,6 +805,11 @@ class DefinitionDrivenAgentTest {
 
                 # Working Preferences
                 - Prefer Chinese unless asked otherwise.
+                """);
+        Files.writeString(externalOwner.resolve("BOOTSTRAP.md"), """
+                # Bootstrap
+
+                Initialize external owner state.
                 """);
 
         Path agentDir = Files.createTempDirectory("oneshot-runtime-context-agent");
@@ -843,7 +852,13 @@ class DefinitionDrivenAgentTest {
         String originalUserDir = System.getProperty("user.dir");
         System.setProperty("user.dir", runtimeHome.toString());
         try {
-            RuntimeContextPromptService runtimeContextPromptService = runtimeContextPromptService();
+            RuntimeContextPromptService runtimeContextPromptService = runtimeContextPromptService(
+                    externalOwner.toString(),
+                    new RuntimeDirectoryHostPaths(
+                            Map.of("OWNER_DIR", externalOwner.toString()),
+                            RuntimeDirectoryHostPaths.SYSTEM_ENVIRONMENT_SOURCE
+                    )
+            );
             String chatId = UUID.randomUUID().toString();
             RuntimeRequestContext requestContext = new RuntimeRequestContext(
                     "runtimeContextOneshot",
@@ -895,8 +910,13 @@ class DefinitionDrivenAgentTest {
             String systemPrompt = captured.get().systemPrompt();
             assertThat(systemPrompt).contains("soul prompt");
             assertThat(systemPrompt).contains("Runtime Context: Context");
+            assertThat(systemPrompt).contains("owner_dir: " + externalOwner.toAbsolutePath().normalize());
             assertThat(systemPrompt).contains("Runtime Context: Owner");
             assertThat(systemPrompt).contains("--- file: OWNER.md");
+            assertThat(systemPrompt).contains("--- file: BOOTSTRAP.md");
+            assertThat(systemPrompt).contains("External Linlay");
+            assertThat(systemPrompt).contains("Initialize external owner state.");
+            assertThat(systemPrompt).doesNotContain("fallback owner");
             assertThat(systemPrompt).contains("Runtime Context: Auth Identity");
             assertThat(systemPrompt).contains("plain markdown");
             assertThat(systemPrompt).contains("Memory:\nmemory note");
@@ -911,6 +931,8 @@ class DefinitionDrivenAgentTest {
             assertThat(snapshot.messages).hasSize(1);
             assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Context");
             assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Owner");
+            assertThat(snapshot.messages.getFirst().content).contains("External Linlay");
+            assertThat(snapshot.messages.getFirst().content).doesNotContain("fallback owner");
         } finally {
             restoreUserDir(originalUserDir);
         }
@@ -2804,17 +2826,27 @@ class DefinitionDrivenAgentTest {
     }
 
     private RuntimeContextPromptService runtimeContextPromptService() {
+        return runtimeContextPromptService(new RuntimeDirectoryHostPaths(Map.of()));
+    }
+
+    private RuntimeContextPromptService runtimeContextPromptService(RuntimeDirectoryHostPaths hostPaths) {
+        return runtimeContextPromptService("owner", hostPaths);
+    }
+
+    private RuntimeContextPromptService runtimeContextPromptService(String ownerDir, RuntimeDirectoryHostPaths hostPaths) {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("agent.agents.external-dir", "agents")
                 .withProperty("agent.skills.external-dir", "skills-market")
                 .withProperty("agent.schedule.external-dir", "schedules");
         RootProperties rootProperties = new RootProperties();
         rootProperties.setExternalDir("root");
+        com.linlay.agentplatform.config.properties.OwnerProperties ownerProperties = new com.linlay.agentplatform.config.properties.OwnerProperties();
+        ownerProperties.setExternalDir(ownerDir);
         DataProperties dataProperties = new DataProperties();
         dataProperties.setExternalDir("data");
         ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
         memoryProperties.setDir("chats");
-        return new RuntimeContextPromptService(environment, rootProperties, dataProperties, memoryProperties);
+        return new RuntimeContextPromptService(environment, rootProperties, ownerProperties, dataProperties, memoryProperties, hostPaths);
     }
 
     private void restoreUserDir(String originalUserDir) {

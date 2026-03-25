@@ -1,7 +1,9 @@
 package com.linlay.agentplatform.agent;
 
+import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
 import com.linlay.agentplatform.config.ConfigDirectorySupport;
 import com.linlay.agentplatform.config.properties.DataProperties;
+import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.AgentRequest;
@@ -24,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Stream;
 
 @Component
@@ -33,6 +36,7 @@ public class RuntimeContextPromptService {
 
     private final Environment environment;
     private final RootProperties rootProperties;
+    private final OwnerProperties ownerProperties;
     private final DataProperties dataProperties;
     private final ChatWindowMemoryProperties chatWindowMemoryProperties;
 
@@ -40,11 +44,42 @@ public class RuntimeContextPromptService {
     public RuntimeContextPromptService(
             Environment environment,
             RootProperties rootProperties,
+            OwnerProperties ownerProperties,
             DataProperties dataProperties,
             ChatWindowMemoryProperties chatWindowMemoryProperties
     ) {
         this.environment = environment;
         this.rootProperties = rootProperties;
+        this.ownerProperties = ownerProperties == null ? new OwnerProperties() : ownerProperties;
+        this.dataProperties = dataProperties;
+        this.chatWindowMemoryProperties = chatWindowMemoryProperties;
+    }
+
+    public RuntimeContextPromptService(
+            Environment environment,
+            RootProperties rootProperties,
+            DataProperties dataProperties,
+            ChatWindowMemoryProperties chatWindowMemoryProperties,
+            RuntimeDirectoryHostPaths runtimeDirectoryHostPaths
+    ) {
+        this.environment = environment;
+        this.rootProperties = rootProperties;
+        this.ownerProperties = new OwnerProperties();
+        this.dataProperties = dataProperties;
+        this.chatWindowMemoryProperties = chatWindowMemoryProperties;
+    }
+
+    public RuntimeContextPromptService(
+            Environment environment,
+            RootProperties rootProperties,
+            OwnerProperties ownerProperties,
+            DataProperties dataProperties,
+            ChatWindowMemoryProperties chatWindowMemoryProperties,
+            RuntimeDirectoryHostPaths runtimeDirectoryHostPaths
+    ) {
+        this.environment = environment;
+        this.rootProperties = rootProperties;
+        this.ownerProperties = ownerProperties == null ? new OwnerProperties() : ownerProperties;
         this.dataProperties = dataProperties;
         this.chatWindowMemoryProperties = chatWindowMemoryProperties;
     }
@@ -54,11 +89,25 @@ public class RuntimeContextPromptService {
             RootProperties rootProperties,
             ChatWindowMemoryProperties chatWindowMemoryProperties
     ) {
-        this(environment, rootProperties, new DataProperties(), chatWindowMemoryProperties);
+        this(
+                environment,
+                rootProperties,
+                new OwnerProperties(),
+                new DataProperties(),
+                chatWindowMemoryProperties,
+                RuntimeDirectoryHostPaths.load(System.getenv())
+        );
     }
 
     public RuntimeContextPromptService() {
-        this(new StandardEnvironment(), new RootProperties(), new DataProperties(), new ChatWindowMemoryProperties());
+        this(
+                new StandardEnvironment(),
+                new RootProperties(),
+                new OwnerProperties(),
+                new DataProperties(),
+                new ChatWindowMemoryProperties(),
+                RuntimeDirectoryHostPaths.load(System.getenv())
+        );
     }
 
     public String buildPrompt(AgentDefinition definition, AgentRequest request) {
@@ -91,7 +140,7 @@ public class RuntimeContextPromptService {
         Path dataDir = resolveRuntimePath(runtimeHome, dataProperties.getExternalDir(), "data");
         Path skillsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.skills.external-dir"), null);
         Path schedulesDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.schedule.external-dir"), null);
-        Path ownerDir = runtimeHome.resolve("owner").toAbsolutePath().normalize();
+        Path ownerDir = resolveOwnerDir(runtimeHome);
         Path attachmentsDir = StringUtils.hasText(chatId)
                 ? dataDir.resolve(chatId.trim()).toAbsolutePath().normalize()
                 : dataDir.toAbsolutePath().normalize();
@@ -346,6 +395,11 @@ public class RuntimeContextPromptService {
             return path.normalize();
         }
         return runtimeHome.resolve(path).toAbsolutePath().normalize();
+    }
+
+    private Path resolveOwnerDir(Path runtimeHome) {
+        String configured = ownerProperties == null ? null : ownerProperties.getExternalDir();
+        return resolveRuntimePath(runtimeHome, configured, "owner");
     }
 
     private String pathValue(Path path) {

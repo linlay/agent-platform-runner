@@ -3,6 +3,7 @@ package com.linlay.agentplatform.config;
 import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.config.properties.AppAuthProperties;
 import com.linlay.agentplatform.config.properties.McpProperties;
+import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
@@ -34,13 +35,16 @@ class RunnerDirectoryPropertiesBindingTest {
         contextRunner
                 .withPropertyValues(
                         "agent.root.external-dir=/tmp/root",
-                        "agent.pan.external-dir=/tmp/pan"
+                        "agent.pan.external-dir=/tmp/pan",
+                        "agent.owner.external-dir=/tmp/owner"
                 )
                 .run(context -> {
                     RootProperties rootProperties = context.getBean(RootProperties.class);
                     PanProperties panProperties = context.getBean(PanProperties.class);
+                    OwnerProperties ownerProperties = context.getBean(OwnerProperties.class);
                     assertThat(rootProperties.getExternalDir()).isEqualTo("/tmp/root");
                     assertThat(panProperties.getExternalDir()).isEqualTo("/tmp/pan");
+                    assertThat(ownerProperties.getExternalDir()).isEqualTo("/tmp/owner");
                 });
     }
 
@@ -59,6 +63,7 @@ class RunnerDirectoryPropertiesBindingTest {
             assertThat(context.getBean(ViewportServerProperties.class).getRegistry().getExternalDir()).isEqualTo("runtime/registries/viewport-servers");
             assertThat(context.getBean(RootProperties.class).getExternalDir()).isEqualTo("runtime/root");
             assertThat(context.getBean(PanProperties.class).getExternalDir()).isEqualTo("runtime/pan");
+            assertThat(context.getBean(OwnerProperties.class).getExternalDir()).isEqualTo("runtime/owner");
             assertThat(context.getBean(ChatWindowMemoryProperties.class).getDir()).isEqualTo("runtime/chats");
         });
     }
@@ -103,6 +108,7 @@ class RunnerDirectoryPropertiesBindingTest {
             assertThat(context.getBean(ViewportServerProperties.class).getRegistry().getExternalDir()).isEqualTo("/opt/registries/viewport-servers");
             assertThat(context.getBean(RootProperties.class).getExternalDir()).isEqualTo("/opt/root");
             assertThat(context.getBean(PanProperties.class).getExternalDir()).isEqualTo("/opt/pan");
+            assertThat(context.getBean(OwnerProperties.class).getExternalDir()).isEqualTo("/opt/owner");
             assertThat(context.getBean(ChatWindowMemoryProperties.class).getDir()).isEqualTo("/opt/chats");
         }
     }
@@ -122,6 +128,7 @@ class RunnerDirectoryPropertiesBindingTest {
             ViewportServerProperties.class,
             RootProperties.class,
             PanProperties.class,
+            OwnerProperties.class,
             ChatWindowMemoryProperties.class
     })
     static class RunnerDirectoryConfiguration {

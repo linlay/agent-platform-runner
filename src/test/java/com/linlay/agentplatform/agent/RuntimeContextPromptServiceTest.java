@@ -7,8 +7,10 @@ import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
+import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
+import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
@@ -30,6 +32,59 @@ class RuntimeContextPromptServiceTest {
 
     @TempDir
     Path tempDir;
+
+    @Test
+    void shouldPreferOwnerDirFromHostPathsForContextAndOwnerSections() throws Exception {
+        Path runtimeHome = tempDir.resolve("runtime");
+        Path externalOwner = tempDir.resolve("external-owner");
+        Files.createDirectories(runtimeHome.resolve("configs"));
+        Files.createDirectories(runtimeHome.resolve("owner"));
+        Files.writeString(runtimeHome.resolve("owner").resolve("OWNER.md"), "fallback owner");
+        Files.createDirectories(externalOwner);
+        Files.writeString(externalOwner.resolve("OWNER.md"), """
+                ---
+                name: External Owner
+                ---
+
+                external owner body
+                """);
+        Files.writeString(externalOwner.resolve("BOOTSTRAP.md"), """
+                # Bootstrap
+
+                external bootstrap
+                """);
+
+        String originalUserDir = System.getProperty("user.dir");
+        System.setProperty("user.dir", runtimeHome.toString());
+        try {
+            RuntimeContextPromptService service = newService(
+                    externalOwner.toString(),
+                    null
+            );
+            RuntimeRequestContext.WorkspacePaths workspacePaths = service.resolveWorkspacePaths("chat-ext");
+            AgentRequest request = new AgentRequest(
+                    "hello",
+                    "chat-ext",
+                    "req-ext",
+                    "run-ext",
+                    Map.of(),
+                    new RuntimeRequestContext("demo-agent", null, "user", null, null, List.of(), null, workspacePaths, null, List.of())
+            );
+
+            String prompt = service.buildPrompt(definition(RuntimeContextTags.CONTEXT, RuntimeContextTags.OWNER), request);
+
+            assertThat(workspacePaths.ownerDir()).isEqualTo(externalOwner.toAbsolutePath().normalize().toString());
+            assertThat(prompt).contains("owner_dir: " + externalOwner.toAbsolutePath().normalize());
+            assertThat(prompt).contains("Runtime Context: Owner");
+            assertThat(prompt).contains("--- file: BOOTSTRAP.md");
+            assertThat(prompt).contains("--- file: OWNER.md");
+            assertThat(prompt).contains("External Owner");
+            assertThat(prompt).contains("external bootstrap");
+            assertThat(prompt).doesNotContain("fallback owner");
+        } finally {
+            restoreUserDir(originalUserDir);
+        }
+    }
 
     @Test
     void shouldRenderOwnerProfileSessionAndAuthSections() throws Exception {
@@ -57,7 +112,7 @@ class RuntimeContextPromptServiceTest {
         String originalUserDir = System.getProperty("user.dir");
         System.setProperty("user.dir", runtimeHome.toString());
         try {
-            RuntimeContextPromptService service = newService();
+            RuntimeContextPromptService service = newService(null);
             RuntimeRequestContext.WorkspacePaths workspacePaths = service.resolveWorkspacePaths("chat-1");
             AgentRequest request = new AgentRequest(
                     "hello",
@@ -156,7 +211,7 @@ class RuntimeContextPromptServiceTest {
         String originalUserDir = System.getProperty("user.dir");
         System.setProperty("user.dir", runtimeHome.toString());
         try {
-            RuntimeContextPromptService service = newService();
+            RuntimeContextPromptService service = newService(null);
             RuntimeRequestContext.WorkspacePaths workspacePaths = service.resolveWorkspacePaths("chat-2");
             AgentRequest request = new AgentRequest(
                     "hello",
@@ -167,6 +222,7 @@ class RuntimeContextPromptServiceTest {
                     new RuntimeRequestContext("demo-agent", null, "user", null, null, List.of(), null, workspacePaths, null, List.of())
             );
 
+            assertThat(workspacePaths.ownerDir()).isEqualTo(runtimeHome.resolve("owner").toAbsolutePath().normalize().toString());
             String missingOwnerPrompt = service.buildPrompt(definition(RuntimeContextTags.OWNER), request);
             assertThat(missingOwnerPrompt).isEmpty();
 
@@ -194,7 +250,7 @@ class RuntimeContextPromptServiceTest {
 
     @Test
     void shouldTruncateAllAgentsSectionWhenTooLarge() {
-        RuntimeContextPromptService service = newService();
+        RuntimeContextPromptService service = newService(null);
         List<RuntimeRequestContext.AgentDigest> digests = new java.util.ArrayList<>();
         for (int i = 0; i < 200; i++) {
             digests.add(new RuntimeRequestContext.AgentDigest(
@@ -226,17 +282,27 @@ class RuntimeContextPromptServiceTest {
     }
 
     private RuntimeContextPromptService newService() {
+        return newService(null);
+    }
+
+    private RuntimeContextPromptService newService(RuntimeDirectoryHostPaths hostPaths) {
+        return newService("owner", hostPaths);
+    }
+
+    private RuntimeContextPromptService newService(String ownerDir, RuntimeDirectoryHostPaths hostPaths) {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("agent.agents.external-dir", "agents")
                 .withProperty("agent.skills.external-dir", "skills-market")
                 .withProperty("agent.schedule.external-dir", "schedules");
         RootProperties rootProperties = new RootProperties();
         rootProperties.setExternalDir("root");
+        OwnerProperties ownerProperties = new OwnerProperties();
+        ownerProperties.setExternalDir(ownerDir);
         DataProperties dataProperties = new DataProperties();
         dataProperties.setExternalDir("data");
         ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
         memoryProperties.setDir("chats");
-        return new RuntimeContextPromptService(environment, rootProperties, dataProperties, memoryProperties);
+        return new RuntimeContextPromptService(environment, rootProperties, ownerProperties, dataProperties, memoryProperties, hostPaths);
     }
 
     private AgentDefinition definition(String... contextTags) {

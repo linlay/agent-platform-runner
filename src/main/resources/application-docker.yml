@@ -6,6 +6,8 @@ agent:
     external-dir: /opt/agents
   skills:
     external-dir: /opt/skills-market
+  owner:
+    external-dir: /opt/owner
   root:
     external-dir: /opt/root
   pan:

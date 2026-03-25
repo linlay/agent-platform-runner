@@ -7,6 +7,7 @@ import com.linlay.agentplatform.agent.runtime.MountDirectoryConfig;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.properties.McpProperties;
+import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
@@ -25,8 +26,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.util.StringUtils;
 
 @Configuration
@@ -72,7 +71,7 @@ public class ContainerHubFeatureConfiguration {
             ScheduleProperties scheduleProperties,
             McpProperties mcpProperties,
             ProviderProperties providerProperties,
-            Environment environment
+            OwnerProperties ownerProperties
     ) {
         RuntimeDirectoryHostPaths hostPaths = RuntimeDirectoryHostPaths.load(System.getenv());
         MountDirectoryConfig directories = new MountDirectoryConfig(
@@ -86,7 +85,7 @@ public class ContainerHubFeatureConfiguration {
                 viewportProperties == null ? null : viewportProperties.getExternalDir(),
                 teamProperties == null ? null : teamProperties.getExternalDir(),
                 scheduleProperties == null ? null : scheduleProperties.getExternalDir(),
-                resolveOwnerDir(environment, hostPaths)
+                ownerProperties == null ? null : ownerProperties.getExternalDir()
         );
         return new ContainerHubMountResolver(directories, hostPaths);
     }
@@ -149,11 +148,4 @@ public class ContainerHubFeatureConfiguration {
         return parent == null ? null : parent.toString();
     }
 
-    private String resolveOwnerDir(Environment environment, RuntimeDirectoryHostPaths hostPaths) {
-        if (environment != null && environment.acceptsProfiles(Profiles.of("docker"))) {
-            return "/opt/owner";
-        }
-        String configured = hostPaths.get("OWNER_DIR");
-        return StringUtils.hasText(configured) ? configured : "runtime/owner";
-    }
 }

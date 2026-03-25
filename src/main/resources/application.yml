@@ -16,6 +16,8 @@ agent:
     external-dir: ${SKILLS_MARKET_DIR:runtime/skills-market}
     refresh-interval-ms: ${AGENT_SKILLS_REFRESH_INTERVAL_MS:30000}
     max-prompt-chars: ${AGENT_SKILLS_MAX_PROMPT_CHARS:8000}
+  owner:
+    external-dir: ${OWNER_DIR:runtime/owner}
   root:
     external-dir: ${ROOT_DIR:runtime/root}
   pan:

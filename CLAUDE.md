@@ -285,13 +285,72 @@ contextConfig:
     - all-agents
 ```
 
-- `system`：注入 OS、Java 版本、时区、locale、当前日期时间等系统环境信息。
-- `context`：注入运行目录与当前会话上下文，包括 `runtime_home`、`root_dir`、`agents_dir`、`chats_dir`、`data_dir`、`chatId`、`requestId`、`runId`、`agentKey`、`teamId`、`role`、`chatName`、`scene`、`references`。
-- `owner`：注入 `owner/OWNER.md` 中的 frontmatter 与正文摘要（正文最大 4000 字符）。
-- `auth`：注入 JWT 主体信息，包括 `subject`、`deviceId`、`scope`、`issuedAt`、`expiresAt`。
-- `sandbox`：注入本地 `sandboxConfig` 摘要，并从 `agent-container-hub` 的 `GET /api/environments/{name}/agent-prompt` 拉取 environment prompt 原文拼入 system prompt。
-- `sandbox` 是强依赖：如果 environment prompt 缺失、为空或请求失败，请求直接失败，并输出带 `agentKey/chatId/runId/environmentId` 的日志。
-- `all-agents`：注入全部已注册 agent 的 YAML 风格头部摘要，只保留 `key/name/role/description/mode/modelKey/tools/skills/sandbox` 等高信号字段。
+支持 6 个 tag，不支持的 tag 在加载时被静默过滤。tag 名大小写不敏感，内部统一转为小写。tag 定义位于 `RuntimeContextTags.java`，运行时内容由 `RuntimeContextPromptService.buildPrompt()` 按声明顺序依次生成。
+
+**重要：tag 的存在与否与 `.env` 目录配置、Docker 容器挂载无关。** 例如，`owner` tag 不依赖 Container Hub 的 `/owner` 平台挂载是否配置；`context` tag 不依赖沙箱目录是否挂载。tag 读取的是 runner 进程本地可见的文件系统路径，Container Hub 挂载解析的是发给 Container Hub 的宿主机路径，两者通过不同管道消费同一组 `.env` 变量。
+
+### tag 详细说明
+
+**`system`** — 注入系统环境信息（`RuntimeContextPromptService.buildSystemEnvironmentSection()`）
+- 内容：OS 名称与版本、CPU 架构、Java 版本、时区、locale、当前日期、当前日期时间、runner 工作目录
+- 数据来源：`System.getProperty()`、`ZonedDateTime.now()`、`Locale.getDefault()`
+- 无外部依赖，始终可用
+
+**`context`** — 注入运行目录与当前会话上下文（`RuntimeContextPromptService.buildContextSection()`）
+- 工作区路径（来自 Spring 属性）：`runtime_home`、`root_dir`、`agents_dir`、`chats_dir`、`data_dir`、`skills_market_dir`、`schedules_dir`、`owner_dir`、`chat_attachments_dir`
+- 请求上下文（来自 `AgentRequest` / `RuntimeRequestContext`）：`chatId`、`requestId`、`runId`、`agentKey`、`teamId`、`role`、`chatName`、`scene`、`references`
+- 路径解析：通过 `resolveWorkspacePaths()` 从 Spring `Environment` 读取 `agent.agents.external-dir` 等属性，Docker 模式下显示容器内路径（`/opt/agents` 等），本地模式下显示真实路径
+
+**`owner`** — 注入 owner 目录下所有 Markdown 文件内容（`RuntimeContextPromptService.buildOwnerSection()`）
+- 递归遍历 owner 目录下所有 `.md`/`.markdown` 文件，按相对路径字母序排列
+- 每个文件以 `--- file: <相对路径>` 分隔，完整读取文件内容（无截断）
+- 不可读的文件输出 `[UNREADABLE: <相对路径>]`
+- owner 目录解析：通过 `OwnerProperties.getExternalDir()`（Spring 属性 `agent.owner.external-dir`），与其他目录路径解析方式一致
+- 目录不存在或无 Markdown 文件时返回空串，不报错
+
+**`auth`** — 注入 JWT 主体信息（`RuntimeContextPromptService.buildAuthIdentitySection()`）
+- 内容：`subject`、`deviceId`、`scope`、`issuedAt`、`expiresAt`
+- 数据来源：请求头中的 JWT token，由 `JwksJwtVerifier` 解析为 `JwtPrincipal`
+- 未认证（principal 为 null）时返回空串
+
+**`sandbox`** — 注入沙箱环境信息与 environment prompt（`SandboxContextResolver.resolve()`）
+- 元数据：`environmentId`（实际生效）、`configuredEnvironmentId`（agent 配置）、`defaultEnvironmentId`（全局默认）、`level`、`container_hub_enabled`、`uses_sandbox_bash`、`extraMounts`
+- environment prompt：从 Container Hub `GET /api/environments/{environmentId}/agent-prompt` 拉取原文
+- **强依赖**：非 `shell` 环境中，environment prompt 缺失、为空或请求失败时抛 `IllegalStateException`，请求直接失败
+- `shell` 环境允许 prompt 缺失或为空（日志记录但不报错）
+- Container Hub 不可用（`containerHubClient` 为 null）时直接失败
+
+**`all-agents`** — 注入全部已注册 agent 的摘要（`AgentQueryService.buildAllAgentDigests()` + `RuntimeContextPromptService.buildAllAgentsSection()`）
+- 字段：`key/name/role/description/mode/modelKey/tools/skills/sandbox(environmentId+level)`
+- 格式：YAML 风格文本块，agent 间以 `---` 分隔
+- 截断：总字符数超过 12,000 时停止添加，附加 `[TRUNCATED: all-agents exceeds max chars=12000, included=N/M]`
+- 按 agent key 字母序排列
+
+### tag 条件解析
+
+`sandbox` 和 `all-agents` 仅在 agent 声明了对应 tag 时才解析（通过 `requiresContextTag()` 判断，避免不必要的 HTTP 调用和注册表遍历）。`workspacePaths`（供 `system`、`context`、`owner` 使用）在每次请求中无条件构建。
+
+### tag 内容与路径来源关系
+
+| Tag | 路径/数据来源 | 与 `.env` `*_DIR` 的关系 |
+|-----|-------------|------------------------|
+| `system` | `System.getProperty()` | 无关 |
+| `context` | Spring 属性（`agent.*.external-dir`） | 间接：本地模式通过 `${*_DIR}` 占位符读取；Docker 模式被 `application-docker.yml` 字面量覆盖 |
+| `owner` | `OwnerProperties.getExternalDir()`（Spring 属性 `agent.owner.external-dir`） | 间接：与其他目录一致，本地通过 `${OWNER_DIR}` 占位符读取；Docker 模式被 `application-docker.yml` 覆盖为 `/opt/owner` |
+| `auth` | JWT token claims | 无关 |
+| `sandbox` | Container Hub HTTP API | 无关（读的是远端服务） |
+| `all-agents` | `AgentRegistry` 内存注册表 | 无关 |
+
+### 关键实现文件
+
+| 文件 | 职责 |
+|------|------|
+| `agent/RuntimeContextTags.java` | tag 常量定义、normalize/validate |
+| `agent/RuntimeContextPromptService.java` | 各 tag 内容生成、`resolveWorkspacePaths()`、`resolveOwnerDir()` |
+| `agent/runtime/SandboxContextResolver.java` | sandbox tag 专用：environment prompt 拉取与校验 |
+| `model/RuntimeRequestContext.java` | 数据载体：`WorkspacePaths`、`SandboxContext`、`AgentDigest` |
+| `service/AgentQueryService.java` | 组装 `RuntimeRequestContext`（`buildRuntimeRequestContext()`）、条件解析 |
+| `agent/AgentDefinitionLoader.java` | 加载 agent 定义时收集 `contextTags`（`collectContextTags()`） |
 
 **文件格式与优先级：**
 
@@ -698,6 +757,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `AGENT_AGENTS_REFRESH_INTERVAL_MS` | `agent.agents.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
 | `TEAMS_DIR` | `agent.teams.external-dir` | `runtime/teams` | Team 定义目录 |
 | `AGENT_TEAMS_REFRESH_INTERVAL_MS` | `agent.teams.refresh-interval-ms` | `30000` | Team 目录刷新间隔（ms） |
+| `OWNER_DIR` | `agent.owner.external-dir` | `runtime/owner` | Owner 目录，`owner` tag 从此目录读取 Markdown 文件 |
 | `REGISTRIES_DIR` | `agent.providers.external-dir` / `agent.models.external-dir` / `agent.mcp-servers.registry.external-dir` / `agent.viewport-servers.registry.external-dir` | `runtime/registries` | 动态 registry 根目录；子目录固定为 `providers`、`models`、`mcp-servers`、`viewport-servers`，模板建议放到独立的 `registries.example/*` |
 | `AGENT_PROVIDERS_REFRESH_INTERVAL_MS` | `agent.providers.refresh-interval-ms` | `30000` | Provider 目录刷新间隔（ms） |
 | `AGENT_MODELS_REFRESH_INTERVAL_MS` | `agent.models.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |
