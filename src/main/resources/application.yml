@@ -24,10 +24,10 @@ agent:
     external-dir: ${TEAMS_DIR:runtime/teams}
     refresh-interval-ms: ${AGENT_TEAMS_REFRESH_INTERVAL_MS:30000}
   providers:
-    external-dir: ${PROVIDERS_DIR:runtime/registries/providers}
+    external-dir: ${REGISTRIES_DIR:runtime/registries}/providers
     refresh-interval-ms: ${AGENT_PROVIDERS_REFRESH_INTERVAL_MS:30000}
   models:
-    external-dir: ${MODELS_DIR:runtime/registries/models}
+    external-dir: ${REGISTRIES_DIR:runtime/registries}/models
     refresh-interval-ms: ${AGENT_MODELS_REFRESH_INTERVAL_MS:30000}
   schedule:
     external-dir: ${SCHEDULES_DIR:runtime/schedules}
@@ -41,7 +41,7 @@ agent:
     retry: ${AGENT_MCP_SERVERS_RETRY:1}
     reconnect-interval-ms: ${AGENT_MCP_SERVERS_RECONNECT_INTERVAL_MS:60000}
     registry:
-      external-dir: ${MCP_SERVERS_DIR:runtime/registries/mcp-servers}
+      external-dir: ${REGISTRIES_DIR:runtime/registries}/mcp-servers
   viewport-servers:
     enabled: ${AGENT_VIEWPORT_SERVERS_ENABLED:true}
     protocol-version: ${AGENT_VIEWPORT_SERVERS_PROTOCOL_VERSION:2025-06}
@@ -49,7 +49,7 @@ agent:
     retry: ${AGENT_VIEWPORT_SERVERS_RETRY:1}
     reconnect-interval-ms: ${AGENT_VIEWPORT_SERVERS_RECONNECT_INTERVAL_MS:60000}
     registry:
-      external-dir: ${VIEWPORT_SERVERS_DIR:runtime/registries/viewport-servers}
+      external-dir: ${REGISTRIES_DIR:runtime/registries}/viewport-servers
   tools:
     frontend:
       submit-timeout-ms: ${AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS:300000}

@@ -141,6 +141,21 @@ class AgentRegistryTest {
     }
 
     @Test
+    void shouldStartWhenAgentsDirectoryContainsMismatchedAgentDirectory() throws Exception {
+        Path agentsDir = tempDir.resolve("agents");
+        Files.createDirectories(agentsDir);
+
+        writeOneshotAgent(agentsDir, "valid_agent", "Valid Agent", "valid", "_bash_", "valid prompt");
+        writeMismatchedDirectoryAgent(agentsDir, "action.demo", "demoAction", "mismatch prompt");
+
+        AgentRegistry registry = createRegistry(agentsDir);
+
+        assertThat(registry.listIds()).containsExactly("valid_agent");
+        assertThatThrownBy(() -> registry.get("demoAction"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void shouldIgnoreLegacyJsonAgents() throws Exception {
         Path agentsDir = tempDir.resolve("agents");
         Files.createDirectories(agentsDir);
@@ -404,6 +419,26 @@ class AgentRegistryTest {
         Path agentDir = agentsDir.resolve(key);
         Files.createDirectories(agentDir);
         Files.writeString(agentDir.resolve("agent.yml"), agentYaml);
+        Files.writeString(agentDir.resolve("AGENTS.md"), agentsPrompt);
+    }
+
+    private void writeMismatchedDirectoryAgent(Path agentsDir, String dirName, String key, String agentsPrompt) throws IOException {
+        Path agentDir = agentsDir.resolve(dirName);
+        Files.createDirectories(agentDir);
+        Files.writeString(agentDir.resolve("agent.yml"), """
+                key: %s
+                name: %s
+                role: Test Agent
+                description: mismatched directory
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - _bash_
+                  frontends: []
+                  actions: []
+                mode: ONESHOT
+                """.formatted(key, key));
         Files.writeString(agentDir.resolve("AGENTS.md"), agentsPrompt);
     }
 

@@ -12,23 +12,19 @@ import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.agent.runtime.LocalToolInvoker;
+import com.linlay.agentplatform.agent.runtime.MountDirectoryConfig;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
+import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.FrontendToolProperties;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
-import com.linlay.agentplatform.config.properties.McpProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
-import com.linlay.agentplatform.config.properties.ProviderProperties;
-import com.linlay.agentplatform.config.properties.ToolProperties;
-import com.linlay.agentplatform.config.properties.ViewportProperties;
-import com.linlay.agentplatform.config.properties.ViewportServerProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.memory.ChatMemoryTypes;
-import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
 import com.linlay.agentplatform.model.AgentRequest;
@@ -41,7 +37,6 @@ import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.skill.SkillProperties;
-import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.stream.model.StreamEvent;
 import com.linlay.agentplatform.stream.model.StreamInput;
@@ -97,7 +92,6 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import com.linlay.agentplatform.schedule.ScheduleProperties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -2847,19 +2841,20 @@ class DefinitionDrivenAgentTest {
         }
 
         return new ContainerHubMountResolver(
-                dataProperties,
-                rootProperties,
-                panProperties,
-                resolvedSkillProperties,
-                new ToolProperties(),
-                new AgentProperties(),
-                new ModelProperties(),
-                new ViewportProperties(),
-                new ViewportServerProperties(),
-                new TeamProperties(),
-                new ScheduleProperties(),
-                new McpProperties(),
-                new ProviderProperties()
+                new MountDirectoryConfig(
+                        dataProperties == null ? null : dataProperties.getExternalDir(),
+                        rootProperties.getExternalDir(),
+                        panProperties.getExternalDir(),
+                        resolvedSkillProperties.getExternalDir(),
+                        createTempMountDir("definition-agent-agents").toString(),
+                        null,
+                        createTempMountDir("definition-agent-registries").toString(),
+                        null,
+                        null,
+                        null,
+                        createTempMountDir("definition-agent-owner").toString()
+                ),
+                new RuntimeDirectoryHostPaths(Map.of())
         );
     }
 

@@ -169,8 +169,8 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
         if ("container-hub".equals(baseName(file)) && key.startsWith("mounts.")) {
             throw new IllegalStateException("Config file must not use deprecated key '" + key + "': " + file
                     + ". Move shared mount directories to runner-level config"
-                    + " (ROOT_DIR, PAN_DIR, AGENTS_DIR, MODELS_DIR, TEAMS_DIR, SCHEDULES_DIR, MCP_SERVERS_DIR,"
-                    + " PROVIDERS_DIR, SKILLS_MARKET_DIR, CHATS_DIR).");
+                    + " (ROOT_DIR, PAN_DIR, AGENTS_DIR, REGISTRIES_DIR, TEAMS_DIR, SCHEDULES_DIR,"
+                    + " SKILLS_MARKET_DIR, CHATS_DIR, OWNER_DIR).");
         }
         if (key.startsWith("agent.")) {
             throw new IllegalStateException("Config file must use flat keys only: " + file + " contains deprecated key '" + key + "'");

@@ -801,7 +801,7 @@ class ContainerHubMountResolverTest {
                 rootProperties(rootDir),
                 panProperties(panDir),
                 providerProperties(providersDir),
-                hostRuntimeDirOverrides(Map.of("PROVIDERS_DIR", "/host/providers"))
+                hostRuntimeDirOverrides(Map.of("REGISTRIES_DIR", "/host"))
         );
 
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(
@@ -887,33 +887,34 @@ class ContainerHubMountResolverTest {
         mcpProperties.getRegistry().setExternalDir(tempDir.resolve("mcp-servers").toString());
 
         return new ContainerHubMountResolver(
-                dataProperties,
-                rootProperties,
-                panProperties,
-                skillProperties,
-                toolProperties,
-                agentProperties,
-                modelProperties,
-                viewportProperties,
-                viewportServerProperties,
-                teamProperties,
-                scheduleProperties,
-                mcpProperties,
-                providerProperties,
+                new MountDirectoryConfig(
+                        dataProperties == null ? null : dataProperties.getExternalDir(),
+                        rootProperties == null ? null : rootProperties.getExternalDir(),
+                        panProperties == null ? null : panProperties.getExternalDir(),
+                        skillProperties == null ? null : skillProperties.getExternalDir(),
+                        agentProperties.getExternalDir(),
+                        toolProperties.getExternalDir(),
+                        registriesRoot(providerProperties),
+                        viewportProperties.getExternalDir(),
+                        teamProperties.getExternalDir(),
+                        scheduleProperties.getExternalDir(),
+                        tempDir.resolve("owner").toString()
+                ),
                 hostRuntimeDirOverrides
         );
     }
 
     private RuntimeDirectoryHostPaths hostRuntimeDirOverrides(Map<String, String> values) throws Exception {
-        Path file = tempDir.resolve("runner-host.env");
-        String body = values.entrySet().stream()
-                .map(entry -> entry.getKey() + "=" + entry.getValue())
-                .collect(Collectors.joining("\n", "", "\n"));
-        Files.writeString(file, body);
-        return RuntimeDirectoryHostPaths.load(Map.of(
-                RuntimeDirectoryHostPaths.HOST_DIRS_FILE_ENV,
-                file.toString()
-        ));
+        return new RuntimeDirectoryHostPaths(values, RuntimeDirectoryHostPaths.SYSTEM_ENVIRONMENT_SOURCE);
+    }
+
+    private String registriesRoot(ProviderProperties providerProperties) {
+        if (providerProperties == null || providerProperties.getExternalDir() == null) {
+            return tempDir.resolve("registries").toString();
+        }
+        Path providerDir = Path.of(providerProperties.getExternalDir()).normalize();
+        Path parent = providerDir.getParent();
+        return parent == null ? providerDir.toString() : parent.toString();
     }
 
     private DataProperties dataProperties(Path path) {

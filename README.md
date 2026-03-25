@@ -248,10 +248,7 @@ make run
 推荐把可配置运行时目录统一放到项目外，再通过 `.env` 指向它们。`configs/` 不是可配置目录，固定使用 runner 自带的 `./configs`（容器内固定挂载到 `/opt/configs`）。当前默认已经把 `providers/models/mcp-servers/viewport-servers` 这四类动态注册目录统一收口到 `registries/` 父目录下，与静态启动配置 `configs/` 区分开；若你需要保留模板文件，也建议放到单独的 `registries.example/` 下，避免运行时扫描到示例文件。例如代码仓库保留在当前工作区，而运行目录放在共享目录：
 
 ```bash
-PROVIDERS_DIR=/Users/you/runtime/runner/registries/providers
-MODELS_DIR=/Users/you/runtime/runner/registries/models
-MCP_SERVERS_DIR=/Users/you/runtime/runner/registries/mcp-servers
-VIEWPORT_SERVERS_DIR=/Users/you/runtime/runner/registries/viewport-servers
+REGISTRIES_DIR=/Users/you/runtime/runner/registries
 OWNER_DIR=/Users/you/runtime/runner/owner
 AGENTS_DIR=/Users/you/runtime/runner/agents
 TEAMS_DIR=/Users/you/runtime/runner/teams
@@ -277,10 +274,10 @@ docker compose up -d --build
 
 - `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`、`OWNER_DIR`、`AGENT_CONTAINER_HUB_BASE_URL`）；`SERVER_PORT` 主要用于本地非 Docker 运行。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
-- 运行时业务目录既可以保留在仓库内默认路径，也可以通过 `.env` 的 `*_DIR` 指向宿主机其他路径覆盖默认值；其中 `providers/models/mcp-servers/viewport-servers` 默认回落到 `./runtime/registries/*`，其余目录默认回落到 `./runtime/*`。
+- 运行时业务目录既可以保留在仓库内默认路径，也可以通过 `.env` 的 `*_DIR` 指向宿主机其他路径覆盖默认值；其中动态 registries 默认回落到 `REGISTRIES_DIR=./runtime/registries`，其余目录默认回落到 `./runtime/*`。
 - 若把这四类动态注册目录外置到共享根目录，保持使用 `registries/` 作为它们的父目录命名，并把模板放到独立的 `registries.example/`。
-- 本地 `make run` 会先加载 `.env`，因此 `*_DIR` 会直接作为应用读取目录生效；Docker Compose 继续复用同一份 `.env`，但这些 `*_DIR` 在容器里只用于宿主机 bind mount source。
-- `compose.yml` 会把根目录 `.env` 只读挂载到容器内 `/tmp/runner-host.env`，并通过 `SANDBOX_HOST_DIRS_FILE` 指向这份 mapping 文件；`sandbox_bash` 创建 container-hub session 时，会优先从这份文件读取宿主机路径作为 mount source，而不是使用容器内 `/opt/...` 路径。
+- 本地 `make run` 会先加载 `.env`，因此 `*_DIR` 会直接作为应用读取目录生效；Docker Compose 继续复用同一份 `.env`，同时把这些 `*_DIR` 暴露为容器环境变量并作为宿主机 bind mount source。
+- `sandbox_bash` 创建 container-hub session 时，会直接从当前进程环境变量读取宿主机 `*_DIR` 作为 mount source；若容器内 Spring 路径已固定成 `/opt/...`，但环境里缺少对应宿主机路径，runner 会直接报配置错误。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例；所有 `*_DIR` 都支持改成绝对宿主机路径。
 - `.env.example` 默认把 `AGENT_CONTAINER_HUB_BASE_URL` 指向 `http://host.docker.internal:11960`，用于容器内访问宿主机上的 Container Hub；compose 同时注入 `host.docker.internal:host-gateway` 以兼容 Linux Docker。
@@ -288,9 +285,9 @@ docker compose up -d --build
 - `compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（由 `docker` profile 固定，不依赖 `.env` 中的 `SERVER_PORT`）。
-- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`、`./.env -> /tmp/runner-host.env`，并映射这些可配置运行目录：`PROVIDERS_DIR`、`MODELS_DIR`、`MCP_SERVERS_DIR`、`VIEWPORT_SERVERS_DIR`、`OWNER_DIR`、`AGENTS_DIR`、`TEAMS_DIR`、`ROOT_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`PAN_DIR`、`SKILLS_MARKET_DIR`。
+- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`REGISTRIES_DIR`、`OWNER_DIR`、`AGENTS_DIR`、`TEAMS_DIR`、`ROOT_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`PAN_DIR`、`SKILLS_MARKET_DIR`。
 - Docker 容器内这些目录固定映射到 `/opt/*`，其中四类动态注册目录固定映射到 `/opt/registries/*`；`.env` 中的 `*_DIR` 不再直接决定容器内 Spring 绑定值。
-- 应用内部仍按 `AGENTS_DIR` 的父目录推导 owner 路径；`OWNER_DIR` 只是部署层的宿主机 bind mount 入口和 sandbox host mapping 键，不新增 Spring `external-dir` 配置键。
+- `/owner` 平台挂载显式使用 `OWNER_DIR`；Docker 下容器内固定校验 `/opt/owner`，同时把宿主机 `OWNER_DIR` 传给 Container Hub 作为 mount source。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
 ### 版本化离线 bundle（release 交付版）
@@ -314,7 +311,7 @@ ARCH=arm64 make release
 - release 会先在宿主机执行 `mvn -DskipTests clean package`，再构建只包含运行时的镜像
 - release bundle 内置 `images/agent-platform-runner.tar`、`compose.release.yml`、启动脚本、配置模板和 `.env.example`，不再预创建 `runtime/` 目录骨架
 - release bundle 继续依赖外部 Docker 网络 `zenmind-network`
-- `*_DIR` 仍默认指向 `./runtime/*`，若这些目录不存在，`./start.sh` 会按最终生效路径自动创建
+- `REGISTRIES_DIR` 默认指向 `./runtime/registries`，其余 `*_DIR` 仍默认指向 `./runtime/*`；若这些目录不存在，`./start.sh` 会按最终生效路径自动创建
 - release 默认依赖宿主机 Maven 配置、宿主机网络与宿主机代理；源码仓库里的 `docker compose up -d --build` 仍然可能走容器内构建
 - release 基础镜像默认是 `eclipse-temurin:21-jre-jammy`
 - 可通过 `RELEASE_BASE_IMAGE` 直接替换远端镜像地址
@@ -399,12 +396,12 @@ RELEASE_BASE_IMAGE=<candidate-image> ARCH=arm64 make release
 - 可先复制环境变量示例：`cp .env.example .env`，再按环境调整端口与认证开关。
 - 再按实际存在的模板复制需要的 `configs/*.example.yml` 与 `configs/**/*.example.*` 为真实配置文件。
 - 运行时固定读取 runner 的 `configs/`；Docker 镜像工作目录为 `/opt`，容器内固定使用 `/opt/configs`。`CONFIGS_DIR` 不受支持，设置后会直接启动失败。
-- 目录型变量统一使用 `*_DIR` 命名；默认值中 `providers/models/mcp-servers/viewport-servers` 统一归到 `runtime/registries/*`，其余运行目录保持 `runtime/*` 相对目录。
+- 目录型变量统一使用 `*_DIR` 命名；默认值中四类动态 registry 统一归到 `REGISTRIES_DIR=runtime/registries`，其余运行目录保持 `runtime/*` 相对目录。
 - `agent.cors.enabled` 在主配置中默认是 `false`，即默认不启用 CORS 过滤器。
 - `agent.cors.allowed-origin-patterns` 仅匹配请求头 `Origin`，当前服务不读取/校验 `Referer`。
-- provider 目录默认是项目根目录下的 `runtime/registries/providers/`（或 `PROVIDERS_DIR` 覆盖目录），支持热加载，且仅扫描 `.yml/.yaml`。
+- provider 目录默认是项目根目录下的 `runtime/registries/providers/`（或 `REGISTRIES_DIR/providers` 覆盖目录），支持热加载，且仅扫描 `.yml/.yaml`。
 - provider 文件契约是单文件单对象 flat schema：`key/baseUrl/apiKey/defaultModel/protocols.<PROTOCOL>.endpointPath`。
-- 实际模型调用统一使用 `runtime/registries/providers/*.yml`（或 `PROVIDERS_DIR` 覆盖目录）；provider 负责基础地址、鉴权和协议级 endpoint 配置。
+- 实际模型调用统一使用 `runtime/registries/providers/*.yml`（或 `REGISTRIES_DIR/providers` 覆盖目录）；provider 负责基础地址、鉴权和协议级 endpoint 配置。
 
 ### settings.xml 说明
 
@@ -457,9 +454,10 @@ AGENT_AUTH_JWKS_CACHE_SECONDS=300
 > 完整 schema 规范、配置规则和已移除字段列表见 [CLAUDE.md #Agent Definition 文件格式](./CLAUDE.md#agent-definition-文件格式)。
 
 - `agents/` 仅支持目录化 Agent：`agents/<key>/agent.yml`
+- 目录名与 `agent.yml` 内的 `key` 必须一致；若不一致，会记录 warning 并跳过该 Agent，不再导致服务启动失败
 - 前 4 行必须依次为 `key`、`name`、`role`、`description`，且都必须是单行 inline value，方便渐进式披露
 - 以 `key` 作为 agentId；若缺失 `key`，视为无效定义
-- `modelConfig.modelKey` 为必填，模型信息统一从 `runtime/registries/models/*.yml` / `runtime/registries/models/*.yaml`（或 `MODELS_DIR` 覆盖目录）解析
+- `modelConfig.modelKey` 为必填，模型信息统一从 `runtime/registries/models/*.yml` / `runtime/registries/models/*.yaml`（或 `REGISTRIES_DIR/models` 覆盖目录）解析
 - 服务启动时会先加载一次，并通过目录监听自动刷新
 - 可通过 `AGENTS_DIR` 指定目录
 - Agent 配置只支持 YAML；若目录内仍有旧 `*.json`，启动和 refresh 都会 fail-fast
@@ -664,12 +662,12 @@ contextConfig:
   - 目录结构：`registries/mcp-servers/<server-key>.yml`
   - 关键字段：`name`、`transport`、`url/baseUrl`、可选 `headers`
   - agent 通过 `toolConfig.backends` 引用同步后的 MCP 工具名，不直接写 server key
-  - 环境变量：`MCP_SERVERS_DIR`
+  - 环境变量：`REGISTRIES_DIR`（子目录 `mcp-servers/`）
 - `viewport-servers`:
   - 目录结构：`registries/viewport-servers/<server-key>.yml`
   - 关键字段：`name`、`transport`、`url/baseUrl`
   - 用于远端 viewport 注册与拉取，与本地 `viewports/` 并存；本地文件和远端注册表互不替代
-  - 环境变量：`VIEWPORT_SERVERS_DIR`
+  - 环境变量：`REGISTRIES_DIR`（子目录 `viewport-servers/`）
 
 ### /api/viewport 约定
 
@@ -732,7 +730,7 @@ default-environment-id: shell
 - `meta.sourceType` 在 `/api/tools` 与 `/api/tool?toolName=sandbox_bash` 中应表现为 `local`。
 - 建议通过 `.env` 中的 `AGENT_CONTAINER_HUB_BASE_URL` 配置 Container Hub 地址；容器化部署模板默认使用 `http://host.docker.internal:11960`。
 - `RUN` 级 sandbox 在创建 session 前会自动准备 `CHATS_DIR/<chatId>` 目录，并把它挂载到容器内的 `/workspace`。
-- sandbox mount source 会优先读取 `SANDBOX_HOST_DIRS_FILE` 指向的 mapping 文件；在 Docker Compose / release bundle 中，这通常是根目录 `.env` 被挂载后的 `/tmp/runner-host.env`。如果当前运行目录已被容器重写成 `/opt/...`，但 mapping 文件里没有对应的 `*_DIR`，runner 会直接报配置错误。
+- sandbox mount source 会优先读取当前进程环境变量里的 `*_DIR`；在 Docker Compose / release bundle 中，这些值由 `env_file: .env` 直接注入容器。如果当前运行目录已被容器重写成 `/opt/...`，但环境里没有对应的宿主机 `*_DIR`，runner 会直接报配置错误。
 - 当 Container Hub 运行在宿主机时，建议把 `.env` 中的 `*_DIR` 写成该宿主机可直接访问的真实路径。
 - `/root` 与 `/pan` 分别来自 runner 全局目录 `ROOT_DIR` 与 `PAN_DIR`；`configs/container-hub.yml` 不再单独配置挂载源目录。
 
@@ -838,11 +836,8 @@ for f in *.md; do echo "$f"; done
 |---------|-------|------|
 | `HOST_PORT` | `11949` | Docker Compose 宿主机暴露端口（映射到容器 `8080`） |
 | `SERVER_PORT` | `8080` | 应用 HTTP 监听端口（本地非 Docker 运行可覆盖；Docker `docker` profile 内固定 `8080`） |
-| `PROVIDERS_DIR` | `runtime/registries/providers` | 本地运行时的 Provider 定义目录；Docker 中仅作为宿主机挂载 source，容器内固定映射到 `/opt/registries/providers` |
-| `MODELS_DIR` | `runtime/registries/models` | 本地运行时的 Model 定义目录；Docker 中仅作为宿主机挂载 source，容器内固定映射到 `/opt/registries/models` |
-| `MCP_SERVERS_DIR` | `runtime/registries/mcp-servers` | 本地运行时的 MCP server 注册目录；Docker 中仅作为宿主机挂载 source，容器内固定映射到 `/opt/registries/mcp-servers` |
-| `VIEWPORT_SERVERS_DIR` | `runtime/registries/viewport-servers` | 本地运行时的 Viewport server 注册目录；Docker 中仅作为宿主机挂载 source，容器内固定映射到 `/opt/registries/viewport-servers` |
-| `OWNER_DIR` | `runtime/owner` | 本地运行时的 owner 目录；Docker 中仅作为宿主机挂载 source |
+| `REGISTRIES_DIR` | `runtime/registries` | 本地运行时的动态 registry 根目录；四类子目录固定为 `providers/`、`models/`、`mcp-servers/`、`viewport-servers/`，Docker 中映射到 `/opt/registries` |
+| `OWNER_DIR` | `runtime/owner` | 本地运行时的 owner 目录；Docker 中宿主机挂载 source 为 `OWNER_DIR`，容器内固定映射到 `/opt/owner` |
 | `AGENTS_DIR` | `runtime/agents` | 本地运行时的 Agent 定义目录；Docker 中仅作为宿主机挂载 source |
 | `TEAMS_DIR` | `runtime/teams` | 本地运行时的 Team 定义目录；Docker 中仅作为宿主机挂载 source |
 | `ROOT_DIR` | `runtime/root` | 本地运行时的 runner 根目录；Docker 中仅作为宿主机挂载 source |
@@ -903,13 +898,13 @@ for f in *.md; do echo "$f"; done
   - `AGENT_CONFIG_DIR` -> 固定 runner `configs/` 目录（不再支持覆盖）
   - `AGENT_AGENTS_EXTERNAL_DIR` -> `AGENTS_DIR`
   - `AGENT_TEAMS_EXTERNAL_DIR` -> `TEAMS_DIR`
-  - `AGENT_MODELS_EXTERNAL_DIR` -> `MODELS_DIR`
-  - `AGENT_PROVIDERS_EXTERNAL_DIR` -> `PROVIDERS_DIR`
+  - `AGENT_MODELS_EXTERNAL_DIR` -> `REGISTRIES_DIR/models`
+  - `AGENT_PROVIDERS_EXTERNAL_DIR` -> `REGISTRIES_DIR/providers`
   - `AGENT_TOOLS_EXTERNAL_DIR` -> 内置 classpath tools（不再支持外部目录）
   - `AGENT_SKILLS_EXTERNAL_DIR` -> `SKILLS_MARKET_DIR`
   - `AGENT_VIEWPORTS_EXTERNAL_DIR` -> 内置 classpath viewports（不再支持外部目录）
-  - `AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR` -> `MCP_SERVERS_DIR`
-  - `AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR` -> `VIEWPORT_SERVERS_DIR`
+  - `AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR` -> `REGISTRIES_DIR/mcp-servers`
+  - `AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR` -> `REGISTRIES_DIR/viewport-servers`
   - `AGENT_SCHEDULE_EXTERNAL_DIR` -> `SCHEDULES_DIR`
   - `AGENT_DATA_EXTERNAL_DIR` -> `DATA_DIR`
   - `MEMORY_CHATS_DIR` -> `CHATS_DIR`

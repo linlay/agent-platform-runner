@@ -698,12 +698,9 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `AGENT_AGENTS_REFRESH_INTERVAL_MS` | `agent.agents.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
 | `TEAMS_DIR` | `agent.teams.external-dir` | `runtime/teams` | Team 定义目录 |
 | `AGENT_TEAMS_REFRESH_INTERVAL_MS` | `agent.teams.refresh-interval-ms` | `30000` | Team 目录刷新间隔（ms） |
-| `PROVIDERS_DIR` | `agent.providers.external-dir` | `runtime/registries/providers` | Provider YAML 定义目录；默认归到 `registries/providers`，模板建议放到 `registries.example/providers` |
+| `REGISTRIES_DIR` | `agent.providers.external-dir` / `agent.models.external-dir` / `agent.mcp-servers.registry.external-dir` / `agent.viewport-servers.registry.external-dir` | `runtime/registries` | 动态 registry 根目录；子目录固定为 `providers`、`models`、`mcp-servers`、`viewport-servers`，模板建议放到独立的 `registries.example/*` |
 | `AGENT_PROVIDERS_REFRESH_INTERVAL_MS` | `agent.providers.refresh-interval-ms` | `30000` | Provider 目录刷新间隔（ms） |
-| `MODELS_DIR` | `agent.models.external-dir` | `runtime/registries/models` | Model YAML 定义目录；默认归到 `registries/models`，模板建议放到 `registries.example/models` |
 | `AGENT_MODELS_REFRESH_INTERVAL_MS` | `agent.models.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |
-| `MCP_SERVERS_DIR` | `agent.mcp-servers.registry.external-dir` | `runtime/registries/mcp-servers` | MCP server 注册目录；默认归到 `registries/mcp-servers`，模板建议放到 `registries.example/mcp-servers` |
-| `VIEWPORT_SERVERS_DIR` | `agent.viewport-servers.registry.external-dir` | `runtime/registries/viewport-servers` | Viewport server 注册目录；默认归到 `registries/viewport-servers`，模板建议放到 `registries.example/viewport-servers` |
 
 #### H2A / Tools / Skills / Schedule
 

@@ -148,11 +148,20 @@ public class AgentDefinitionLoader {
         }
         String dirName = agentDir.getFileName() == null ? "" : agentDir.getFileName().toString().trim();
         Optional<AgentDefinition> loaded = tryLoadDefinition(configFile, dirName, agentDir, false);
-        loaded.ifPresent(definition -> {
-            if (!dirName.equals(definition.id())) {
-                throw new IllegalStateException("Agent directory name must equal agent key: dir=" + dirName + ", key=" + definition.id() + ", path=" + agentDir);
-            }
-        });
+        if (loaded.isEmpty()) {
+            return Optional.empty();
+        }
+
+        AgentDefinition definition = loaded.get();
+        if (!dirName.equals(definition.id())) {
+            log.warn(
+                    "Skip agent because directory name must equal agent key: dir={}, key={}, path={}",
+                    dirName,
+                    definition.id(),
+                    agentDir
+            );
+            return Optional.empty();
+        }
         return loaded;
     }
 

@@ -87,8 +87,8 @@ ARCH=amd64 make release
 - 配置模板：`configs/*.example.yml`
 - 配置模板：`configs/**/*.example.*`
 - runner 默认使用 `local-public-key.pem` 作为本地公钥文件；若要切换为纯 JWKS 模式，请将 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=` 置空并同时配置完整的 JWKS 三元组
-- 运行时目录约定：由 `.env` 中的 `*_DIR` 指向宿主机路径，其中四类动态注册目录默认回落到 `./runtime/registries/providers`、`./runtime/registries/models`、`./runtime/registries/mcp-servers`、`./runtime/registries/viewport-servers`，其余目录默认回落到 `./runtime/owner`、`./runtime/agents`、`./runtime/teams`、`./runtime/root`、`./runtime/schedules`、`./runtime/chats`、`./runtime/pan`、`./runtime/skills-market`；所有这些 `*_DIR` 都可以改成绝对宿主机路径
-- release compose 会把根目录 `.env` 只读挂载到 `/tmp/runner-host.env`，并通过 `SANDBOX_HOST_DIRS_FILE` 指向这份 mapping 文件，供 runner 在创建 sandbox mount 时读取宿主机路径
+- 运行时目录约定：由 `.env` 中的 `*_DIR` 指向宿主机路径，其中动态注册目录统一收口到 `REGISTRIES_DIR=./runtime/registries`，其余目录默认回落到 `./runtime/owner`、`./runtime/agents`、`./runtime/teams`、`./runtime/root`、`./runtime/schedules`、`./runtime/chats`、`./runtime/pan`、`./runtime/skills-market`；所有这些 `*_DIR` 都可以改成绝对宿主机路径
+- release compose 通过 `env_file: .env` 直接把这些 `*_DIR` 暴露为容器环境变量，runner 会在创建 sandbox mount 时直接从进程环境读取宿主机路径
 - release compose 会显式设置 `SPRING_PROFILES_ACTIVE=docker`，应用在容器内固定读取 `/opt/agents`、`/opt/chats`、`/opt/root` 以及 `/opt/registries/{providers,models,mcp-servers,viewport-servers}` 等目录；`.env` 里的 `*_DIR` 只负责宿主机 bind mount source
 
 脚本会强校验版本格式：

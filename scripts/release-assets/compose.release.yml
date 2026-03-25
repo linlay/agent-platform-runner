@@ -13,28 +13,14 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SANDBOX_HOST_DIRS_FILE: /tmp/runner-host.env
     volumes:
       - type: bind
         source: ./configs
         target: /opt/configs
         read_only: true
       - type: bind
-        source: ./.env
-        target: /tmp/runner-host.env
-        read_only: true
-      - type: bind
-        source: ${PROVIDERS_DIR:-./runtime/registries/providers}
-        target: /opt/registries/providers
-      - type: bind
-        source: ${MODELS_DIR:-./runtime/registries/models}
-        target: /opt/registries/models
-      - type: bind
-        source: ${MCP_SERVERS_DIR:-./runtime/registries/mcp-servers}
-        target: /opt/registries/mcp-servers
-      - type: bind
-        source: ${VIEWPORT_SERVERS_DIR:-./runtime/registries/viewport-servers}
-        target: /opt/registries/viewport-servers
+        source: ${REGISTRIES_DIR:-./runtime/registries}
+        target: /opt/registries
       - type: bind
         source: ${OWNER_DIR:-./runtime/owner}
         target: /opt/owner

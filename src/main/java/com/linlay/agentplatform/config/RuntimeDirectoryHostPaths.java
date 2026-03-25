@@ -14,20 +14,24 @@ public final class RuntimeDirectoryHostPaths {
 
     public static final String HOST_DIRS_FILE_ENV = "SANDBOX_HOST_DIRS_FILE";
     public static final String DEFAULT_HOST_DIRS_FILE = "/tmp/runner-host.env";
+    public static final String SYSTEM_ENVIRONMENT_SOURCE = "system environment";
 
     private static final Set<String> RUNTIME_DIR_KEYS = Set.of(
             "AGENTS_DIR",
             "OWNER_DIR",
             "TEAMS_DIR",
-            "MODELS_DIR",
-            "PROVIDERS_DIR",
-            "MCP_SERVERS_DIR",
-            "VIEWPORT_SERVERS_DIR",
+            "REGISTRIES_DIR",
             "SKILLS_MARKET_DIR",
             "SCHEDULES_DIR",
             "CHATS_DIR",
             "ROOT_DIR",
             "PAN_DIR"
+    );
+    private static final Map<String, String> LEGACY_REGISTRY_CHILDREN = Map.of(
+            "PROVIDERS_DIR", "providers",
+            "MODELS_DIR", "models",
+            "MCP_SERVERS_DIR", "mcp-servers",
+            "VIEWPORT_SERVERS_DIR", "viewport-servers"
     );
 
     private final Map<String, String> values;
@@ -43,6 +47,28 @@ public final class RuntimeDirectoryHostPaths {
     }
 
     public static RuntimeDirectoryHostPaths load(Map<String, String> environment) {
+        Map<String, String> fromEnvironment = readFromEnvironment(environment);
+        if (!fromEnvironment.isEmpty()) {
+            return new RuntimeDirectoryHostPaths(fromEnvironment, SYSTEM_ENVIRONMENT_SOURCE);
+        }
+        return loadFromFile(environment);
+    }
+
+    private static Map<String, String> readFromEnvironment(Map<String, String> environment) {
+        if (environment == null) {
+            return Map.of();
+        }
+        LinkedHashMap<String, String> values = new LinkedHashMap<>();
+        for (String key : RUNTIME_DIR_KEYS) {
+            String value = environment.get(key);
+            if (StringUtils.hasText(value)) {
+                values.put(key, value.trim());
+            }
+        }
+        return values.isEmpty() ? Map.of() : Map.copyOf(values);
+    }
+
+    private static RuntimeDirectoryHostPaths loadFromFile(Map<String, String> environment) {
         String sourcePath = DEFAULT_HOST_DIRS_FILE;
         if (environment != null) {
             String configured = environment.get(HOST_DIRS_FILE_ENV);
@@ -77,7 +103,7 @@ public final class RuntimeDirectoryHostPaths {
         } catch (IOException ex) {
             throw new IllegalStateException("Failed to read runtime directory host paths from " + file, ex);
         }
-        return Map.copyOf(values);
+        return normalizeLegacyRegistries(values);
     }
 
     private static void parseLine(Map<String, String> values, String rawLine) {
@@ -96,13 +122,56 @@ public final class RuntimeDirectoryHostPaths {
             return;
         }
         String key = line.substring(0, equals).trim();
-        if (!RUNTIME_DIR_KEYS.contains(key)) {
+        if (!RUNTIME_DIR_KEYS.contains(key) && !LEGACY_REGISTRY_CHILDREN.containsKey(key)) {
             return;
         }
         String value = stripMatchingQuotes(line.substring(equals + 1).trim());
         if (StringUtils.hasText(value)) {
             values.put(key, value.trim());
         }
+    }
+
+    private static Map<String, String> normalizeLegacyRegistries(Map<String, String> values) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, String> normalized = new LinkedHashMap<>();
+        values.forEach((key, value) -> {
+            if (!LEGACY_REGISTRY_CHILDREN.containsKey(key)) {
+                normalized.put(key, value);
+            }
+        });
+        if (!normalized.containsKey("REGISTRIES_DIR")) {
+            String registriesDir = deriveRegistriesDir(values);
+            if (StringUtils.hasText(registriesDir)) {
+                normalized.put("REGISTRIES_DIR", registriesDir);
+            }
+        }
+        return Map.copyOf(normalized);
+    }
+
+    private static String deriveRegistriesDir(Map<String, String> values) {
+        Path parent = null;
+        for (Map.Entry<String, String> entry : LEGACY_REGISTRY_CHILDREN.entrySet()) {
+            String configured = values.get(entry.getKey());
+            if (!StringUtils.hasText(configured)) {
+                return null;
+            }
+            Path path = Path.of(configured.trim()).normalize();
+            Path fileName = path.getFileName();
+            Path currentParent = path.getParent();
+            if (fileName == null || currentParent == null || !entry.getValue().equals(fileName.toString())) {
+                return null;
+            }
+            if (parent == null) {
+                parent = currentParent;
+                continue;
+            }
+            if (!parent.equals(currentParent)) {
+                return null;
+            }
+        }
+        return parent == null ? null : parent.toString();
     }
 
     private static String stripBom(String value) {

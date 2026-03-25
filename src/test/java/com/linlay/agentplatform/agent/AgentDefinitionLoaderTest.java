@@ -656,6 +656,39 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldSkipDirectoryAgentWhenDirectoryNameDoesNotMatchKey() throws IOException {
+        Path validDir = tempDir.resolve("valid_agent");
+        Files.createDirectories(validDir);
+        Files.writeString(validDir.resolve("agent.yml"), """
+                key: valid_agent
+                name: Valid Agent
+                role: Valid Agent
+                description: valid
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                """);
+        Files.writeString(validDir.resolve("AGENTS.md"), "valid prompt");
+
+        Path mismatchedDir = tempDir.resolve("action.demo");
+        Files.createDirectories(mismatchedDir);
+        Files.writeString(mismatchedDir.resolve("agent.yml"), """
+                key: demoAction
+                name: Demo Action
+                role: Demo Action
+                description: mismatch
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                """);
+        Files.writeString(mismatchedDir.resolve("AGENTS.md"), "mismatched prompt");
+
+        Map<String, AgentDefinition> byId = loadById();
+
+        assertThat(byId).containsOnlyKeys("valid_agent");
+    }
+
+    @Test
     void shouldPreferYmlWhenBasenameConflictsAcrossYamlExtensions() throws IOException {
         writeYaml("conflict_agent.yml", """
                 key: conflict_agent

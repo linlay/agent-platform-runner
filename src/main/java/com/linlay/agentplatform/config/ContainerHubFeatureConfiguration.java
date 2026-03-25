@@ -3,6 +3,7 @@ package com.linlay.agentplatform.config;
 import com.linlay.agentplatform.agent.AgentProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
+import com.linlay.agentplatform.agent.runtime.MountDirectoryConfig;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.properties.McpProperties;
@@ -24,6 +25,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
+import org.springframework.util.StringUtils;
 
 @Configuration
 @ConditionalOnProperty(prefix = "agent.tools.container-hub", name = "enabled", havingValue = "true")
@@ -67,25 +71,24 @@ public class ContainerHubFeatureConfiguration {
             TeamProperties teamProperties,
             ScheduleProperties scheduleProperties,
             McpProperties mcpProperties,
-            ProviderProperties providerProperties
+            ProviderProperties providerProperties,
+            Environment environment
     ) {
         RuntimeDirectoryHostPaths hostPaths = RuntimeDirectoryHostPaths.load(System.getenv());
-        return new ContainerHubMountResolver(
-                chatWindowMemoryProperties,
-                rootProperties,
-                panProperties,
-                skillProperties,
-                agentProperties,
-                toolProperties,
-                modelProperties,
-                viewportProperties,
-                viewportServerProperties,
-                teamProperties,
-                scheduleProperties,
-                mcpProperties,
-                providerProperties,
-                hostPaths
+        MountDirectoryConfig directories = new MountDirectoryConfig(
+                chatWindowMemoryProperties == null ? null : chatWindowMemoryProperties.getDir(),
+                rootProperties == null ? null : rootProperties.getExternalDir(),
+                panProperties == null ? null : panProperties.getExternalDir(),
+                skillProperties == null ? null : skillProperties.getExternalDir(),
+                agentProperties == null ? null : agentProperties.getExternalDir(),
+                toolProperties == null ? null : toolProperties.getExternalDir(),
+                resolveRegistriesDir(modelProperties, providerProperties, mcpProperties, viewportServerProperties),
+                viewportProperties == null ? null : viewportProperties.getExternalDir(),
+                teamProperties == null ? null : teamProperties.getExternalDir(),
+                scheduleProperties == null ? null : scheduleProperties.getExternalDir(),
+                resolveOwnerDir(environment, hostPaths)
         );
+        return new ContainerHubMountResolver(directories, hostPaths);
     }
 
     @Bean
@@ -95,5 +98,62 @@ public class ContainerHubFeatureConfiguration {
             ContainerHubMountResolver containerHubMountResolver
     ) {
         return new ContainerHubSandboxService(properties, containerHubClient, containerHubMountResolver);
+    }
+
+    private String resolveRegistriesDir(
+            ModelProperties modelProperties,
+            ProviderProperties providerProperties,
+            McpProperties mcpProperties,
+            ViewportServerProperties viewportServerProperties
+    ) {
+        String modelsDir = modelProperties == null ? null : modelProperties.getExternalDir();
+        String providersDir = providerProperties == null ? null : providerProperties.getExternalDir();
+        String mcpServersDir = mcpProperties == null || mcpProperties.getRegistry() == null
+                ? null
+                : mcpProperties.getRegistry().getExternalDir();
+        String viewportServersDir = viewportServerProperties == null || viewportServerProperties.getRegistry() == null
+                ? null
+                : viewportServerProperties.getRegistry().getExternalDir();
+        return commonRegistriesDir(modelsDir, providersDir, mcpServersDir, viewportServersDir);
+    }
+
+    private String commonRegistriesDir(String modelsDir, String providersDir, String mcpServersDir, String viewportServersDir) {
+        return findCommonParent(modelsDir, "models", providersDir, "providers", mcpServersDir, "mcp-servers", viewportServersDir, "viewport-servers");
+    }
+
+    private String findCommonParent(String... values) {
+        if (values == null || values.length == 0 || values.length % 2 != 0) {
+            return null;
+        }
+        java.nio.file.Path parent = null;
+        for (int i = 0; i < values.length; i += 2) {
+            String pathValue = values[i];
+            String childName = values[i + 1];
+            if (!StringUtils.hasText(pathValue)) {
+                return null;
+            }
+            java.nio.file.Path path = java.nio.file.Path.of(pathValue.trim()).normalize();
+            java.nio.file.Path fileName = path.getFileName();
+            java.nio.file.Path currentParent = path.getParent();
+            if (fileName == null || currentParent == null || !childName.equals(fileName.toString())) {
+                return null;
+            }
+            if (parent == null) {
+                parent = currentParent;
+                continue;
+            }
+            if (!parent.equals(currentParent)) {
+                return null;
+            }
+        }
+        return parent == null ? null : parent.toString();
+    }
+
+    private String resolveOwnerDir(Environment environment, RuntimeDirectoryHostPaths hostPaths) {
+        if (environment != null && environment.acceptsProfiles(Profiles.of("docker"))) {
+            return "/opt/owner";
+        }
+        String configured = hostPaths.get("OWNER_DIR");
+        return StringUtils.hasText(configured) ? configured : "runtime/owner";
     }
 }

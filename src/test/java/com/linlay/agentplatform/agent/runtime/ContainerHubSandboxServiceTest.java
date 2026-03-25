@@ -15,18 +15,11 @@ import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.McpProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
-import com.linlay.agentplatform.config.properties.ProviderProperties;
 import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
-import com.linlay.agentplatform.config.properties.ToolProperties;
-import com.linlay.agentplatform.config.properties.ViewportProperties;
-import com.linlay.agentplatform.config.properties.ViewportServerProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.ChatMessage;
-import com.linlay.agentplatform.model.ModelProperties;
-import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
-import com.linlay.agentplatform.team.TeamProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
 import org.junit.jupiter.api.Test;
 
@@ -35,7 +28,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -517,6 +509,11 @@ class ContainerHubSandboxServiceTest {
             AgentProperties agentProperties,
             RuntimeDirectoryHostPaths hostRuntimeDirOverrides
     ) {
+        DataProperties resolvedDataProperties = dataProperties == null ? new DataProperties() : dataProperties;
+        if (dataProperties == null) {
+            resolvedDataProperties.setExternalDir(createTempMountDir("container-hub-data").toString());
+        }
+
         RootProperties resolvedRootProperties = rootProperties == null ? new RootProperties() : rootProperties;
         if (rootProperties == null) {
             resolvedRootProperties.setExternalDir(createTempMountDir("container-hub-root").toString());
@@ -538,33 +535,25 @@ class ContainerHubSandboxServiceTest {
         }
 
         return new ContainerHubMountResolver(
-                dataProperties,
-                resolvedRootProperties,
-                resolvedPanProperties,
-                resolvedSkillProperties,
-                new ToolProperties(),
-                resolvedAgentProperties,
-                new ModelProperties(),
-                new ViewportProperties(),
-                new ViewportServerProperties(),
-                new TeamProperties(),
-                new ScheduleProperties(),
-                new McpProperties(),
-                new ProviderProperties(),
+                new MountDirectoryConfig(
+                        resolvedDataProperties.getExternalDir(),
+                        resolvedRootProperties.getExternalDir(),
+                        resolvedPanProperties.getExternalDir(),
+                        resolvedSkillProperties.getExternalDir(),
+                        resolvedAgentProperties.getExternalDir(),
+                        null,
+                        createTempMountDir("container-hub-registries").toString(),
+                        null,
+                        null,
+                        null,
+                        createTempMountDir("container-hub-owner").toString()
+                ),
                 hostRuntimeDirOverrides
         );
     }
 
     private RuntimeDirectoryHostPaths hostRuntimeDirOverrides(Map<String, String> values) throws Exception {
-        Path file = java.nio.file.Files.createTempFile("runner-host", ".env");
-        String body = values.entrySet().stream()
-                .map(entry -> entry.getKey() + "=" + entry.getValue())
-                .collect(Collectors.joining("\n", "", "\n"));
-        Files.writeString(file, body);
-        return RuntimeDirectoryHostPaths.load(Map.of(
-                RuntimeDirectoryHostPaths.HOST_DIRS_FILE_ENV,
-                file.toString()
-        ));
+        return new RuntimeDirectoryHostPaths(values, RuntimeDirectoryHostPaths.SYSTEM_ENVIRONMENT_SOURCE);
     }
 
     private AgentDefinition definitionWithLevel(SandboxLevel level) {
