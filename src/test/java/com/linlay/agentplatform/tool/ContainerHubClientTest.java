@@ -1,8 +1,13 @@
 package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
@@ -25,12 +30,13 @@ import java.util.concurrent.Executor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@ExtendWith(OutputCaptureExtension.class)
 class ContainerHubClientTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void shouldLoadEnvironmentAgentPrompt() {
+    void shouldLoadEnvironmentAgentPrompt(CapturedOutput output) {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.register("/api/environments/daily-office/agent-prompt", request -> new StubHttpResponse(request, 200, """
                 {"environment_name":"daily-office","has_prompt":true,"prompt":"hello sandbox","updated_at":"2026-03-22T10:15:30Z"}
@@ -45,10 +51,16 @@ class ContainerHubClientTest {
         assertThat(result.environmentName()).isEqualTo("daily-office");
         assertThat(result.prompt()).isEqualTo("hello sandbox");
         assertThat(result.updatedAt()).isEqualTo(Instant.parse("2026-03-22T10:15:30Z"));
+        assertThat(output.getAll()).contains("container-hub.request operation=container_hub_get_environment_agent_prompt");
+        assertThat(output.getAll()).contains("method=GET");
+        assertThat(output.getAll()).contains("url=http://container-hub.test/api/environments/daily-office/agent-prompt");
+        assertThat(output.getAll()).contains("container-hub.response operation=container_hub_get_environment_agent_prompt");
+        assertThat(output.getAll()).contains("status=200");
+        assertThat(output.getAll()).contains("\"has_prompt\":true");
     }
 
     @Test
-    void shouldSurfaceEnvironmentAgentPromptErrors() {
+    void shouldSurfaceEnvironmentAgentPromptErrors(CapturedOutput output) {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.register("/api/environments/daily-office/agent-prompt", request -> new StubHttpResponse(request, 503, """
                 {"error":"hub unavailable"}
@@ -61,6 +73,9 @@ class ContainerHubClientTest {
         assertThat(result.ok()).isFalse();
         assertThat(result.hasPrompt()).isFalse();
         assertThat(result.error()).contains("hub unavailable");
+        assertThat(output.getAll()).contains("container-hub.response operation=container_hub_get_environment_agent_prompt");
+        assertThat(output.getAll()).contains("status=503");
+        assertThat(output.getAll()).contains("hub unavailable");
     }
 
     @Test
@@ -71,6 +86,55 @@ class ContainerHubClientTest {
 
         assertThat(result.ok()).isFalse();
         assertThat(result.error()).contains("environment name is required");
+    }
+
+    @Test
+    void shouldLogCreateSessionRequestAndMaskSensitiveValues(CapturedOutput output) {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.register("/api/sessions/create", request -> new StubHttpResponse(request, 200, """
+                {"ok":true,"session_id":"run-chat-1","cwd":"/workspace"}
+                """));
+
+        ContainerHubToolProperties properties = properties("http://container-hub.test");
+        properties.setAuthToken("super-secret-token");
+        ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
+
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("session_id", "run-chat-1");
+        payload.put("environment_name", "shell");
+        payload.put("token", "payload-secret");
+
+        JsonNode response = client.createSession(payload);
+
+        assertThat(response.path("ok").asBoolean()).isTrue();
+        assertThat(output.getAll()).contains("container-hub.request operation=container_hub_create_session");
+        assertThat(output.getAll()).contains("method=POST");
+        assertThat(output.getAll()).contains("url=http://container-hub.test/api/sessions/create");
+        assertThat(output.getAll()).contains("authPresent=true");
+        assertThat(output.getAll()).contains("\"token\":\"***\"");
+        assertThat(output.getAll()).contains("container-hub.response operation=container_hub_create_session");
+        assertThat(output.getAll()).contains("\"session_id\":\"run-chat-1\"");
+        assertThat(output.getAll()).doesNotContain("super-secret-token");
+        assertThat(output.getAll()).doesNotContain("payload-secret");
+    }
+
+    @Test
+    void shouldLogTransportErrors(CapturedOutput output) {
+        ContainerHubToolProperties properties = properties("http://container-hub.test");
+        properties.setAuthToken("super-secret-token");
+        ContainerHubClient client = new ContainerHubClient(properties, objectMapper, new RecordingHttpClient());
+
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("session_id", "run-chat-1");
+        payload.put("environment_name", "shell");
+
+        JsonNode response = client.createSession(payload);
+
+        assertThat(response.path("ok").asBoolean()).isFalse();
+        assertThat(response.path("error").asText()).contains("No handler for path /api/sessions/create");
+        assertThat(output.getAll()).contains("container-hub.error operation=container_hub_create_session");
+        assertThat(output.getAll()).contains("url=http://container-hub.test/api/sessions/create");
+        assertThat(output.getAll()).doesNotContain("super-secret-token");
     }
 
     private ContainerHubToolProperties properties(String baseUrl) {

@@ -1,8 +1,5 @@
 package com.linlay.agentplatform.agent;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.linlay.agentplatform.config.ConfigDirectorySupport;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
@@ -24,19 +21,15 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.stream.Stream;
 
 @Component
 public class RuntimeContextPromptService {
 
-    private static final int OWNER_BODY_MAX_CHARS = 4_000;
     private static final int ALL_AGENTS_MAX_CHARS = 12_000;
-    private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
-    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
-    };
 
     private final Environment environment;
     private final RootProperties rootProperties;
@@ -78,7 +71,7 @@ public class RuntimeContextPromptService {
             switch (tag) {
                 case RuntimeContextTags.SYSTEM -> appendIfPresent(sections, buildSystemEnvironmentSection(runtimeContext));
                 case RuntimeContextTags.CONTEXT -> appendIfPresent(sections, buildContextSection(request, runtimeContext));
-                case RuntimeContextTags.OWNER -> appendIfPresent(sections, buildOwnerProfileSection(runtimeContext.workspacePaths()));
+                case RuntimeContextTags.OWNER -> appendIfPresent(sections, buildOwnerSection(runtimeContext.workspacePaths()));
                 case RuntimeContextTags.AUTH -> appendIfPresent(sections, buildAuthIdentitySection(runtimeContext.authPrincipal()));
                 case RuntimeContextTags.SANDBOX -> appendIfPresent(sections, buildSandboxSection(runtimeContext.sandboxContext()));
                 case RuntimeContextTags.ALL_AGENTS -> appendIfPresent(sections, buildAllAgentsSection(runtimeContext.agentDigests()));
@@ -173,38 +166,30 @@ public class RuntimeContextPromptService {
         return String.join("\n", lines);
     }
 
-    private String buildOwnerProfileSection(RuntimeRequestContext.WorkspacePaths workspacePaths) {
+    private String buildOwnerSection(RuntimeRequestContext.WorkspacePaths workspacePaths) {
         if (workspacePaths == null || !StringUtils.hasText(workspacePaths.ownerDir())) {
             return "";
         }
-        Path ownerFile = Path.of(workspacePaths.ownerDir(), "OWNER.md");
-        if (!Files.isRegularFile(ownerFile)) {
+        Path ownerDir = Path.of(workspacePaths.ownerDir()).toAbsolutePath().normalize();
+        if (!Files.isDirectory(ownerDir)) {
             return "";
         }
-        try {
-            String raw = Files.readString(ownerFile);
-            if (!StringUtils.hasText(raw)) {
-                return "";
-            }
-            OwnerProfile ownerProfile = parseOwnerProfile(raw);
-            if (!ownerProfile.hasContent()) {
-                return "";
-            }
-            List<String> lines = new ArrayList<>();
-            lines.add("Runtime Context: Owner Profile");
-            appendKeyValue(lines, "name", ownerProfile.headerValue("name"));
-            appendKeyValue(lines, "preferred_name", ownerProfile.headerValue("preferred_name"));
-            appendKeyValue(lines, "language", ownerProfile.headerValue("language"));
-            appendKeyValue(lines, "timezone", ownerProfile.headerValue("timezone"));
-            appendKeyValue(lines, "style", ownerProfile.headerValue("style"));
-            if (StringUtils.hasText(ownerProfile.body())) {
-                lines.add("owner_notes:");
-                lines.add(ownerProfile.body());
-            }
-            return String.join("\n", lines);
-        } catch (IOException ignored) {
+        List<Path> markdownFiles = collectOwnerMarkdownFiles(ownerDir);
+        if (markdownFiles.isEmpty()) {
             return "";
         }
+        List<String> lines = new ArrayList<>();
+        lines.add("Runtime Context: Owner");
+        for (Path file : markdownFiles) {
+            Path relativePath = ownerDir.relativize(file);
+            lines.add("--- file: " + normalizeRelativePath(relativePath));
+            try {
+                lines.add(Files.readString(file));
+            } catch (IOException ignored) {
+                lines.add("[UNREADABLE: " + normalizeRelativePath(relativePath) + "]");
+            }
+        }
+        return String.join("\n", lines);
     }
 
     private String buildAuthIdentitySection(JwksJwtVerifier.JwtPrincipal principal) {
@@ -315,48 +300,31 @@ public class RuntimeContextPromptService {
         return lines.isEmpty() ? "" : String.join("\n", lines);
     }
 
-    private OwnerProfile parseOwnerProfile(String raw) throws IOException {
-        String trimmed = raw.trim();
-        if (!trimmed.startsWith("---")) {
-            return new OwnerProfile(Map.of(), trimBody(trimmed));
+    private List<Path> collectOwnerMarkdownFiles(Path ownerDir) {
+        try (Stream<Path> stream = Files.walk(ownerDir)) {
+            return stream
+                    .filter(Files::isRegularFile)
+                    .filter(this::isOwnerMarkdownFile)
+                    .sorted(Comparator.comparing(path -> normalizeRelativePath(ownerDir.relativize(path))))
+                    .toList();
+        } catch (IOException ignored) {
+            return List.of();
         }
-        int bodyStart = findFrontmatterEnd(trimmed);
-        if (bodyStart < 0) {
-            return new OwnerProfile(Map.of(), trimBody(trimmed));
-        }
-        String frontmatterRaw = trimmed.substring(3, bodyStart).trim();
-        String bodyRaw = trimmed.substring(bodyStart + 4).trim();
-        Map<String, Object> header = frontmatterRaw.isBlank()
-                ? Map.of()
-                : YAML_MAPPER.readValue(frontmatterRaw, MAP_TYPE);
-        Map<String, String> normalized = new LinkedHashMap<>();
-        for (String key : List.of("name", "preferred_name", "language", "timezone", "style")) {
-            Object value = header.get(key);
-            if (value != null && StringUtils.hasText(String.valueOf(value))) {
-                normalized.put(key, String.valueOf(value).trim());
-            }
-        }
-        return new OwnerProfile(Map.copyOf(normalized), trimBody(bodyRaw));
     }
 
-    private int findFrontmatterEnd(String content) {
-        int start = content.indexOf("\n---");
-        if (start < 0) {
-            return -1;
+    private boolean isOwnerMarkdownFile(Path path) {
+        if (path == null || path.getFileName() == null) {
+            return false;
         }
-        return start + 1;
+        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        return name.endsWith(".md") || name.endsWith(".markdown");
     }
 
-    private String trimBody(String bodyRaw) {
-        if (!StringUtils.hasText(bodyRaw)) {
+    private String normalizeRelativePath(Path relativePath) {
+        if (relativePath == null) {
             return "";
         }
-        String body = bodyRaw.trim();
-        if (body.length() <= OWNER_BODY_MAX_CHARS) {
-            return body;
-        }
-        return body.substring(0, OWNER_BODY_MAX_CHARS)
-                + "\n\n[TRUNCATED: owner/OWNER.md exceeds max chars=" + OWNER_BODY_MAX_CHARS + "]";
+        return relativePath.toString().replace('\\', '/');
     }
 
     private Path resolveRuntimeHome() {
@@ -464,15 +432,5 @@ public class RuntimeContextPromptService {
 
     private String valueOrUnknown(String value) {
         return StringUtils.hasText(value) ? value.trim() : "unknown";
-    }
-
-    private record OwnerProfile(Map<String, String> header, String body) {
-        String headerValue(String key) {
-            return header == null ? null : header.get(key);
-        }
-
-        boolean hasContent() {
-            return (header != null && !header.isEmpty()) || StringUtils.hasText(body);
-        }
     }
 }

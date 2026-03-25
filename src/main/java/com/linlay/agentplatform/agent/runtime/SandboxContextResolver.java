@@ -17,6 +17,7 @@ import java.util.Locale;
 public class SandboxContextResolver {
 
     private static final Logger log = LoggerFactory.getLogger(SandboxContextResolver.class);
+    private static final String OPTIONAL_PROMPT_ENVIRONMENT = "shell";
 
     private final ContainerHubClient containerHubClient;
     private final ContainerHubToolProperties containerHubToolProperties;
@@ -116,6 +117,25 @@ public class SandboxContextResolver {
             throw new IllegalStateException("sandbox context failed to load environment prompt for '" + environmentId + "': " + result.error());
         }
         if (!result.hasPrompt()) {
+            if (isOptionalPromptEnvironment(environmentId)) {
+                log.info(
+                        "Sandbox agent prompt accepted without content: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
+                        agentKey,
+                        chatId,
+                        runId,
+                        teamId,
+                        normalizeNullable(chatName),
+                        environmentId,
+                        "shell_prompt_optional"
+                );
+                return new ContainerHubClient.EnvironmentAgentPromptResult(
+                        result.environmentName(),
+                        false,
+                        "",
+                        result.updatedAt(),
+                        null
+                );
+            }
             log.warn(
                     "Sandbox agent prompt missing: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
                     agentKey,
@@ -129,6 +149,25 @@ public class SandboxContextResolver {
             throw new IllegalStateException("sandbox context requires a non-empty environment prompt for '" + environmentId + "'");
         }
         if (!StringUtils.hasText(result.prompt())) {
+            if (isOptionalPromptEnvironment(environmentId)) {
+                log.info(
+                        "Sandbox agent prompt accepted without content: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
+                        agentKey,
+                        chatId,
+                        runId,
+                        teamId,
+                        normalizeNullable(chatName),
+                        environmentId,
+                        "shell_prompt_optional"
+                );
+                return new ContainerHubClient.EnvironmentAgentPromptResult(
+                        result.environmentName(),
+                        result.hasPrompt(),
+                        "",
+                        result.updatedAt(),
+                        null
+                );
+            }
             log.warn(
                     "Sandbox agent prompt blank: agentKey={}, chatId={}, runId={}, teamId={}, chatName={}, environmentId={}, reason={}",
                     agentKey,
@@ -142,6 +181,10 @@ public class SandboxContextResolver {
             throw new IllegalStateException("sandbox context requires a non-blank environment prompt for '" + environmentId + "'");
         }
         return result;
+    }
+
+    private boolean isOptionalPromptEnvironment(String environmentId) {
+        return OPTIONAL_PROMPT_ENVIRONMENT.equalsIgnoreCase(normalizeNullable(environmentId));
     }
 
     private String resolveSandboxLevel(AgentDefinition definition) {

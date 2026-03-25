@@ -48,6 +48,11 @@ class RuntimeContextPromptServiceTest {
                 # Working Preferences
                 - Prefer Chinese unless asked otherwise.
                 """);
+        Files.writeString(runtimeHome.resolve("owner").resolve("BOOTSTRAP.md"), """
+                # Bootstrap
+
+                Initialize owner state.
+                """);
 
         String originalUserDir = System.getProperty("user.dir");
         System.setProperty("user.dir", runtimeHome.toString());
@@ -124,9 +129,11 @@ class RuntimeContextPromptServiceTest {
             assertThat(prompt).contains("chatId: chat-1");
             assertThat(prompt).contains("chatName: Demo Chat");
             assertThat(prompt).contains("references: 1 item(s): notes.md (file)");
-            assertThat(prompt).contains("Runtime Context: Owner Profile");
+            assertThat(prompt).contains("Runtime Context: Owner");
+            assertThat(prompt).contains("--- file: BOOTSTRAP.md");
+            assertThat(prompt).contains("--- file: OWNER.md");
             assertThat(prompt).contains("name: Linlay");
-            assertThat(prompt).contains("owner_notes:");
+            assertThat(prompt).contains("# Working Preferences");
             assertThat(prompt).contains("Runtime Context: Auth Identity");
             assertThat(prompt).contains("subject: user-1");
             assertThat(prompt).contains("Runtime Context: Sandbox");
@@ -141,9 +148,10 @@ class RuntimeContextPromptServiceTest {
     }
 
     @Test
-    void shouldTrimLargeOwnerBodyAndOmitMissingOwnerFile() throws Exception {
+    void shouldRenderAllOwnerMarkdownFilesInDeterministicOrder() throws Exception {
         Path runtimeHome = tempDir.resolve("runtime");
         Files.createDirectories(runtimeHome.resolve("configs"));
+        Files.createDirectories(runtimeHome.resolve("owner").resolve("nested"));
 
         String originalUserDir = System.getProperty("user.dir");
         System.setProperty("user.dir", runtimeHome.toString());
@@ -162,19 +170,23 @@ class RuntimeContextPromptServiceTest {
             String missingOwnerPrompt = service.buildPrompt(definition(RuntimeContextTags.OWNER), request);
             assertThat(missingOwnerPrompt).isEmpty();
 
-            Files.createDirectories(runtimeHome.resolve("owner"));
-            Files.writeString(runtimeHome.resolve("owner").resolve("OWNER.md"), """
-                    ---
-                    name: Linlay
-                    ---
-
-                    %s
-                    """.formatted("x".repeat(4_200)));
+            Files.writeString(runtimeHome.resolve("owner").resolve("z-last.md"), "last file");
+            Files.writeString(runtimeHome.resolve("owner").resolve("nested").resolve("a-first.markdown"), "nested file");
+            Files.writeString(runtimeHome.resolve("owner").resolve("OWNER.md"), "owner file");
+            Files.writeString(runtimeHome.resolve("owner").resolve("notes.txt"), "ignore me");
 
             String prompt = service.buildPrompt(definition(RuntimeContextTags.OWNER), request);
-            assertThat(prompt).contains("Runtime Context: Owner Profile");
-            assertThat(prompt).contains("name: Linlay");
-            assertThat(prompt).contains("[TRUNCATED: owner/OWNER.md exceeds max chars=4000]");
+            assertThat(prompt).contains("Runtime Context: Owner");
+            assertThat(prompt).contains("--- file: OWNER.md");
+            assertThat(prompt).contains("--- file: nested/a-first.markdown");
+            assertThat(prompt).contains("--- file: z-last.md");
+            assertThat(prompt).doesNotContain("ignore me");
+
+            int ownerIndex = prompt.indexOf("--- file: OWNER.md");
+            int nestedIndex = prompt.indexOf("--- file: nested/a-first.markdown");
+            int lastIndex = prompt.indexOf("--- file: z-last.md");
+            assertThat(ownerIndex).isLessThan(nestedIndex);
+            assertThat(nestedIndex).isLessThan(lastIndex);
         } finally {
             restoreUserDir(originalUserDir);
         }

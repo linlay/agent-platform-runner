@@ -895,7 +895,8 @@ class DefinitionDrivenAgentTest {
             String systemPrompt = captured.get().systemPrompt();
             assertThat(systemPrompt).contains("soul prompt");
             assertThat(systemPrompt).contains("Runtime Context: Context");
-            assertThat(systemPrompt).contains("Runtime Context: Owner Profile");
+            assertThat(systemPrompt).contains("Runtime Context: Owner");
+            assertThat(systemPrompt).contains("--- file: OWNER.md");
             assertThat(systemPrompt).contains("Runtime Context: Auth Identity");
             assertThat(systemPrompt).contains("plain markdown");
             assertThat(systemPrompt).contains("Memory:\nmemory note");
@@ -909,7 +910,7 @@ class DefinitionDrivenAgentTest {
             assertThat(snapshot).isNotNull();
             assertThat(snapshot.messages).hasSize(1);
             assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Context");
-            assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Owner Profile");
+            assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Owner");
         } finally {
             restoreUserDir(originalUserDir);
         }
