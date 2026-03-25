@@ -2,11 +2,11 @@ package com.linlay.agentplatform.controller;
 
 import com.linlay.agentplatform.config.properties.ChatImageTokenProperties;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
 import com.linlay.agentplatform.model.api.ApiResponse;
 import com.linlay.agentplatform.security.ChatImageTokenService;
 import com.linlay.agentplatform.security.ChatImageTokenService.VerifyResult;
 import com.linlay.agentplatform.service.chat.ChatAssetAccessService;
+import com.linlay.agentplatform.service.chat.ChatDataPathService;
 import com.linlay.agentplatform.util.DataFilePathNormalizer;
 import com.linlay.agentplatform.util.LoggingSanitizer;
 import org.slf4j.Logger;
@@ -63,20 +63,20 @@ public class DataFileController {
     private final LoggingAgentProperties loggingAgentProperties;
 
     public DataFileController(
-            ChatWindowMemoryProperties properties,
+            ChatDataPathService chatDataPathService,
             ChatImageTokenProperties chatImageTokenProperties,
             ChatImageTokenService chatImageTokenService,
             ChatAssetAccessService chatAssetAccessService,
             LoggingAgentProperties loggingAgentProperties
     ) {
-        this.dataDir = Path.of(properties.getDir()).toAbsolutePath().normalize();
+        this.dataDir = chatDataPathService.dataDir();
         this.chatImageTokenService = chatImageTokenService;
         this.chatAssetAccessService = chatAssetAccessService;
         this.dataTokenValidationEnabled = chatImageTokenProperties.isDataTokenValidationEnabled();
         this.loggingAgentProperties = loggingAgentProperties;
     }
 
-    @GetMapping("/api/data")
+    @GetMapping("/api/resource")
     public Mono<ResponseEntity<?>> serveFile(
             @RequestParam("file") String file,
             @RequestParam(value = "download", required = false, defaultValue = "false") boolean download,
@@ -185,7 +185,7 @@ public class DataFileController {
             return;
         }
         log.warn(
-                "api.data.forbidden reason={}, file={}, errorCode={}",
+                "api.resource.forbidden reason={}, file={}, errorCode={}",
                 LoggingSanitizer.sanitizeText(reason),
                 LoggingSanitizer.sanitizeText(filename),
                 LoggingSanitizer.sanitizeText(errorCode)

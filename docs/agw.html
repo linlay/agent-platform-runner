@@ -638,7 +638,7 @@
 
 			<div class="callout">
 				<strong>引用（References）与文本标记（Markers）：</strong><br />
-				1) 所有引用统一放入 <span class="field-key">references</span> 数组，并用短 ID：<span class="field-key">referenceId</span>
+				1) 所有引用统一放入 <span class="field-key">references</span> 数组，并用短 ID：<span class="field-key">id</span>
 				进行关联。<br />
 				2) 在 <span class="field-key">message</span> 中嵌入标记：<span class="field-key">#{{refid:name}}</span>，例如：<br />
 				<span class="field-key">"请总结 #{{f1:requirements.md}} 并解释 #{{i1:ui.png}} 中的流程"</span><br />
@@ -665,7 +665,7 @@
 							<div class="event-name">Reference</div>
 						</th>
 						<td>
-							<div class="event-desc">统一引用对象：附件、工作区文件、selection、截图等都用它表达；通过 referenceId 与文本标记/显式 referenceIds 关联</div>
+							<div class="event-desc">统一引用对象：附件、工作区文件、selection、截图等都用它表达；通过 <span class="field-key">reference.id</span> 与文本标记/显式 references 关联</div>
 							<ul class="field-list">
 								<li><span class="field-key">id</span>: string（短 ID；本 chat 内唯一）例：<span class="field-key">"f1"</span> / <span
 										class="field-key">"i1"</span></li>
@@ -750,7 +750,7 @@
 							<div class="event-name">UploadRequest</div>
 						</th>
 						<td>
-							<div class="event-desc">获取上传 URL；上传完成后即可作为 Reference 参与 query（referenceId 要短且 chat 内唯一）。API: <code>POST /api/upload</code></div>
+							<div class="event-desc">获取上传 URL；上传完成后即可作为 Reference 参与 query（<span class="field-key">reference.id</span> 要短且 chat 内唯一）。API: <code>POST /api/upload</code></div>
 							<ul class="field-list">
 								<li><span class="field-key">requestId</span>: string（前端生成，用于幂等/重试）</li>
 								<li><span class="field-key">chatId</span>: string(UUID)｜可选；缺省则网关创建 chat</li>
@@ -768,15 +768,15 @@
 							<div class="event-name">UploadResponse</div>
 						</th>
 						<td>
-							<div class="event-desc">返回上传信息与引用信息；前端把 reference 保存到本地引用池，并在 query 时通过 #{{refid:name}} 或 referenceIds 使用</div>
+							<div class="event-desc">返回上传信息与引用信息；JSON 响应外层仍为统一的 <code>ApiResponse&lt;UploadResponse&gt;</code>。前端把 reference 保存到本地引用池，并在 query 时通过 #{{refid:name}} 或 references 使用</div>
 							<ul class="field-list">
 								<li><span class="field-key">requestId</span>: string</li>
 								<li><span class="field-key">chatId</span>: string(UUID)</li>
-								<li><span class="field-key">reference</span>: Reference（必填；包含短 referenceId 与可访问 url）</li>
+								<li><span class="field-key">reference</span>: Reference（必填；包含短 <span class="field-key">id</span> 与可访问 url）</li>
 								<li><span class="field-key">upload</span>: object（必填）
 									<ul class="field-list">
-										<li><span class="field-key">url</span>: string（必填；上传 URL）</li>
-										<li><span class="field-key">method</span>: "PUT" | "POST"</li>
+										<li><span class="field-key">url</span>: string（必填；本地上传 URL，当前形态为 <code>PUT /api/upload/{chatId}/{referenceId}</code>）</li>
+										<li><span class="field-key">method</span>: "PUT"</li>
 										<li><span class="field-key">headers</span>: object｜可选</li>
 									</ul>
 								</li>
@@ -876,11 +876,11 @@
 							<div class="event-name">ResourceRequest</div>
 						</th>
 						<td>
-							<div class="event-desc">获取资源（含附件/图片）。用于在渲染或二次下载时取回资源元信息或可访问 URL。API: <code>GET /api/resource</code></div>
+							<div class="event-desc">获取资源（含附件/图片）。当前接口直接返回文件内容而非 JSON 包装。API: <code>GET /api/resource</code></div>
 							<ul class="field-list">
-								<li><span class="field-key">chatId</span>: string(UUID)</li>
-								<li><span class="field-key">referenceId</span>: string（必填；短 ID，来自 Reference.referenceId）</li>
-								<li><span class="field-key">disposition</span>: "inline" | "attachment"｜可选（下载/预览）</li>
+								<li><span class="field-key">file</span>: string（必填；相对 data 根目录的文件路径，兼容 <code>/data/...</code> 形式）</li>
+								<li><span class="field-key">download</span>: boolean｜可选（<code>true</code> 时强制下载）</li>
+								<li><span class="field-key">t</span>: string｜可选（chat image token）</li>
 							</ul>
 						</td>
 					</tr>
@@ -890,12 +890,11 @@
 							<div class="event-name">ResourceResponse</div>
 						</th>
 						<td>
-							<div class="event-desc">返回资源的统一引用信息（可直接复用 Reference 模型）</div>
+							<div class="event-desc">成功时直接返回资源二进制流，失败时返回统一 <code>ApiResponse.failure</code></div>
 							<ul class="field-list">
-								<li><span class="field-key">chatId</span>: string(UUID)</li>
-								<li><span class="field-key">reference</span>: Reference（必填）</li>
-								<li><span class="field-key">downloadUrl</span>: string｜可选（若与 reference.url 不同，可提供临时下载地址）</li>
-								<li><span class="field-key">expiresAt</span>: number(timestamp)｜可选</li>
+								<li><span class="field-key">Content-Type</span>: 由文件名推断 MIME</li>
+								<li><span class="field-key">Content-Disposition</span>: 图片默认 <code>inline</code>，其余默认 <code>attachment</code></li>
+								<li><span class="field-key">Cache-Control</span>: <code>private, no-store</code></li>
 							</ul>
 						</td>
 					</tr>
@@ -2281,19 +2280,19 @@ data: {"type":"run.complete","runId":"r_01","timestamp":1707000223}</code></pre>
   "requestId": "req_up_0001",
   "chatId": "7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1",
   "reference": {
-    "referenceId": "f1",
+    "id": "f1",
     "type": "file",
     "name": "requirements.md",
     "mimeType": "text/markdown",
     "sizeBytes": 48291,
-    "url": "https://files.example.com/chat/7b09.../f1",
+    "url": "/api/resource?file=7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1%2Fuploads%2Ff1-requirements.md",
     "sha256": "b9c3...e21a",
     "meta": { "origin": "upload" }
   },
   "upload": {
-    "url": "https://upload.example.com/presigned/abc",
+    "url": "/api/upload/7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1/f1",
     "method": "PUT",
-    "headers": { "Content-Type": "text/markdown" }
+    "headers": {}
   }
 }
 
@@ -2312,18 +2311,18 @@ data: {"type":"run.complete","runId":"r_01","timestamp":1707000223}</code></pre>
   "requestId": "req_up_0002",
   "chatId": "7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1",
   "reference": {
-    "referenceId": "i1",
+    "id": "i1",
     "type": "image",
     "name": "ui.png",
     "mimeType": "image/png",
     "sizeBytes": 245991,
-    "url": "https://files.example.com/chat/7b09.../i1",
+    "url": "/api/resource?file=7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1%2Fuploads%2Fi1-ui.png",
     "meta": { "origin": "upload", "caption": "当前网关协议草图截图" }
   },
   "upload": {
-    "url": "https://upload.example.com/presigned/def",
+    "url": "/api/upload/7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1/i1",
     "method": "PUT",
-    "headers": { "Content-Type": "image/png" }
+    "headers": {}
   }
 }
 
@@ -2336,22 +2335,22 @@ data: {"type":"run.complete","runId":"r_01","timestamp":1707000223}</code></pre>
   "message": "请总结 #{{f1:requirements.md}} 的关键需求，并结合 #{{i1:ui.png}} 指出协议中可能遗漏的字段。",
   "references": [
     {
-      "referenceId": "f1",
+      "id": "f1",
       "type": "file",
       "name": "requirements.md",
       "mimeType": "text/markdown",
       "sizeBytes": 48291,
-      "url": "https://files.example.com/chat/7b09.../f1",
+      "url": "/api/resource?file=7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1%2Fuploads%2Ff1-requirements.md",
       "sha256": "b9c3...e21a",
       "meta": { "origin": "upload", "textExcerpt": "## Requests\n- query: chatId, agent, content..." }
     },
     {
-      "referenceId": "i1",
+      "id": "i1",
       "type": "image",
       "name": "ui.png",
       "mimeType": "image/png",
       "sizeBytes": 245991,
-      "url": "https://files.example.com/chat/7b09.../i1",
+      "url": "/api/resource?file=7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1%2Fuploads%2Fi1-ui.png",
       "meta": { "origin": "upload", "caption": "协议图：Query/Upload/Viewport/Submit 四类请求" }
     }
   ],
@@ -2383,7 +2382,7 @@ data: {"type":"run.start","runId":"run_9001","chatId":"7b09c3b3-8e6a-4df2-a7c4-3
   "message": "请审查我选中的代码片段（见 #{{f1:app/src/main.ts}}），指出潜在 bug、边界条件与改进建议。",
   "references": [
     {
-      "referenceId": "f1",
+      "id": "f1",
       "type": "file",
       "name": "app/src/main.ts",
       "mimeType": "text/plain",
@@ -2425,7 +2424,7 @@ data: {"type":"run.start","runId":"run_cr_001","chatId":"c40a08d0-b61d-4be0-99b5
   "message": "请解释截图 #{{i1:billing-error.png}} 的报错原因，并给出排查步骤。",
   "references": [
     {
-      "referenceId": "i1",
+      "id": "i1",
       "type": "image",
       "name": "billing-error.png",
       "mimeType": "image/png",

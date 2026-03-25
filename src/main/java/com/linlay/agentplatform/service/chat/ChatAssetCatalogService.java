@@ -13,10 +13,12 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 @Service
@@ -50,10 +52,43 @@ public class ChatAssetCatalogService {
         }
 
         List<QueryRequest.Reference> references = new ArrayList<>();
+        Set<String> manifestRelativePaths = new LinkedHashSet<>();
+        for (ChatUploadManifestStore.StoredUpload upload : ChatUploadManifestStore.list(chatDir)) {
+            if (!ChatUploadManifestStore.STATUS_COMPLETED.equals(upload.status())) {
+                continue;
+            }
+            if (!shouldExpose(upload.relativePath())) {
+                continue;
+            }
+            Path assetPath = ChatUploadManifestStore.resolveAssetPath(chatDir, upload);
+            if (!assetPath.startsWith(chatDir) || !Files.isRegularFile(assetPath, LinkOption.NOFOLLOW_LINKS)) {
+                continue;
+            }
+            manifestRelativePaths.add(upload.relativePath());
+            references.add(new QueryRequest.Reference(
+                    upload.referenceId(),
+                    upload.type(),
+                    upload.name(),
+                    upload.mimeType(),
+                    upload.sizeBytes(),
+                    chatDataPathService.toAssetUrl(normalizedChatId, upload.relativePath()),
+                    upload.sha256(),
+                    Map.of(
+                            "origin", "upload",
+                            "relativePath", upload.relativePath()
+                    )
+            ));
+        }
         try (Stream<Path> stream = Files.walk(chatDir)) {
             stream.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
                     .sorted()
-                    .forEach(path -> toReference(normalizedChatId, chatDir, path).ifPresent(references::add));
+                    .forEach(path -> {
+                        String relativePath = chatDir.relativize(path).toString().replace('\\', '/');
+                        if (manifestRelativePaths.contains(relativePath)) {
+                            return;
+                        }
+                        toReference(normalizedChatId, chatDir, path).ifPresent(references::add);
+                    });
         } catch (IOException ex) {
             return List.of();
         }

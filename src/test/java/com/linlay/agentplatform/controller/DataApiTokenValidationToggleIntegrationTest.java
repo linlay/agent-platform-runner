@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.controller;
 
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.stream.model.LlmDelta;
@@ -56,6 +56,7 @@ import java.util.Date;
                 "agent.chat-image-token.data-token-validation-enabled=false",
                 "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-chats-${random.uuid}",
                 "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-chats-db-${random.uuid}/chats.db",
+                "agent.data.external-dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-assets-${random.uuid}",
                 "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-skills-${random.uuid}",
                 "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-schedules-${random.uuid}"
         }
@@ -70,7 +71,7 @@ class DataApiTokenValidationToggleIntegrationTest {
     @Autowired
     private WebTestClient webTestClient;
     @Autowired
-    private ChatWindowMemoryProperties chatWindowMemoryProperties;
+    private DataProperties dataProperties;
 
     @TestConfiguration
     static class TestLlmServiceConfig {
@@ -126,16 +127,16 @@ class DataApiTokenValidationToggleIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        Files.createDirectories(Path.of(chatWindowMemoryProperties.getDir()));
+        Files.createDirectories(Path.of(dataProperties.getExternalDir()));
     }
 
     @Test
     void dataApiShouldAllowAccessWithoutAuthorizationWhenValidationDisabled() throws Exception {
-        Files.write(Path.of(chatWindowMemoryProperties.getDir()).resolve("sample_photo.jpg"), createMinimalPng());
+        Files.write(Path.of(dataProperties.getExternalDir()).resolve("sample_photo.jpg"), createMinimalPng());
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", "sample_photo.jpg")
                         .build())
                 .exchange()
@@ -146,11 +147,11 @@ class DataApiTokenValidationToggleIntegrationTest {
 
     @Test
     void dataApiShouldIgnoreInvalidTokenQueryWhenValidationDisabled() throws Exception {
-        Files.write(Path.of(chatWindowMemoryProperties.getDir()).resolve("sample_photo.jpg"), createMinimalPng());
+        Files.write(Path.of(dataProperties.getExternalDir()).resolve("sample_photo.jpg"), createMinimalPng());
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", "sample_photo.jpg")
                         .queryParam("t", "invalid-token")
                         .build())
@@ -162,12 +163,12 @@ class DataApiTokenValidationToggleIntegrationTest {
 
     @Test
     void dataApiShouldStillAllowBearerCompatibilityWhenValidationDisabled() throws Exception {
-        Files.write(Path.of(chatWindowMemoryProperties.getDir()).resolve("sample_photo.jpg"), createMinimalPng());
+        Files.write(Path.of(dataProperties.getExternalDir()).resolve("sample_photo.jpg"), createMinimalPng());
         String authToken = issueAuthToken("user-data-token-toggle");
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", "sample_photo.jpg")
                         .build())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + authToken)

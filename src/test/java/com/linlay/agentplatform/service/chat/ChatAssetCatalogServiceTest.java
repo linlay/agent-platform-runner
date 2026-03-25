@@ -35,14 +35,44 @@ class ChatAssetCatalogServiceTest {
                 .containsExactlyInAnyOrder("image", "audio", "video");
         assertThat(references).extracting(QueryRequest.Reference::url)
                 .containsExactlyInAnyOrder(
-                        "/data/" + chatId + "/a.png",
-                        "/data/" + chatId + "/b.mp3",
-                        "/data/" + chatId + "/sub/c.mp4"
+                        "/api/resource?file=" + chatId + "%2Fa.png",
+                        "/api/resource?file=" + chatId + "%2Fb.mp3",
+                        "/api/resource?file=" + chatId + "%2Fsub%2Fc.mp4"
                 );
         assertThat(references).allSatisfy(reference ->
                 assertThat(reference.meta()).containsKey("relativePath"));
         assertThat(references).extracting(reference -> reference.meta().get("relativePath"))
                 .containsExactlyInAnyOrder("a.png", "b.mp3", "sub/c.mp4");
+    }
+
+    @Test
+    void shouldPreferCompletedUploadManifestReferenceIds() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174011";
+        Path chatDir = tempDir.resolve(chatId);
+        Files.createDirectories(chatDir.resolve("uploads"));
+        Files.writeString(chatDir.resolve("uploads").resolve("f1-plan.txt"), "hello");
+        ChatUploadManifestStore.write(chatDir, new ChatUploadManifestStore.StoredUpload(
+                "req-1",
+                chatId,
+                "f1",
+                "file",
+                "plan.txt",
+                5L,
+                "text/plain",
+                null,
+                "uploads/f1-plan.txt",
+                ChatUploadManifestStore.STATUS_COMPLETED,
+                1L,
+                2L
+        ));
+
+        ChatAssetCatalogService service = newService();
+        List<QueryRequest.Reference> references = service.listAssets(chatId);
+
+        assertThat(references).hasSize(1);
+        assertThat(references.getFirst().id()).isEqualTo("f1");
+        assertThat(references.getFirst().url()).isEqualTo("/api/resource?file=" + chatId + "%2Fuploads%2Ff1-plan.txt");
+        assertThat(references.getFirst().meta()).containsEntry("origin", "upload");
     }
 
     private ChatAssetCatalogService newService() {

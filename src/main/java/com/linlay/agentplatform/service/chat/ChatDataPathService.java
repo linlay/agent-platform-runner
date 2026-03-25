@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.UUID;
 
@@ -80,7 +82,9 @@ public class ChatDataPathService {
     }
 
     public String toAssetUrl(String chatId, String relativePath) {
-        return "/data/" + toChatAssetPath(chatId, relativePath);
+        String file = toChatAssetPath(chatId, relativePath);
+        String encoded = URLEncoder.encode(file, StandardCharsets.UTF_8).replace("+", "%20");
+        return "/api/resource?file=" + encoded;
     }
 
     public String normalizeRelativePath(String relativePath) {

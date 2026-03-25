@@ -215,7 +215,7 @@ class AgentQueryServiceTest {
                 "cover.png",
                 "image/png",
                 1L,
-                "/data/" + chatId + "/cover.png",
+                "/api/resource?file=" + chatId + "%2Fcover.png",
                 null,
                 Map.of("relativePath", "cover.png")
         );

@@ -100,7 +100,7 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 7. **三种 Agent 执行模式** — `OneshotMode`、`ReactMode`、`PlanExecuteMode` 三种模式由 `sealed` 层级统一抽象。
 8. **Backend / Frontend / Action 多类型工具系统** — 同一 Function Calling 协议下走不同执行路径，支撑后端调用、前端渲染和即时动作。
 9. **MCP Server 集成与可用性管理** — 目录式注册、协议版本管理、可用性 gate、自动重连、依赖传播刷新。
-10. **JWT + Chat Image Token 双层鉴权** — `/api/*` 走 JWT，`/api/data` 支持 HMAC-SHA256 签名的 chat image token 与密钥轮换。
+10. **JWT + Chat Image Token 双层鉴权** — `/api/*` 走 JWT，`/api/resource` 支持 HMAC-SHA256 签名的 chat image token 与密钥轮换。
 11. **Budget / Compute Policy 资源限制** — `RunSpec + Budget + ComputePolicy` 在 run / model / tool 三层限制调用量与超时。
 12. **Bash 工具安全模型** — 白名单命令、路径白名单、按命令分级路径校验、shell 特性开关、git 参数特化解析。
 13. **Schedule / Cron 定时编排** — YAML 定义 + Spring `CronTrigger` + 增量 reconcile，每次触发都走标准 `QueryRequest` 链路。
@@ -122,7 +122,7 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 | `skill` | `SkillRegistryService`、`SkillDescriptor`、`SkillProperties`、运行时 prompt 注入 |
 | `schedule` | Schedule 注册、增量 reconcile、Cron dispatch |
 | `security` | `ApiJwtAuthWebFilter`、`ChatImageTokenService`、JWT/JWKS 本地与远程校验 |
-| `controller` | REST API：`/api/agents`、`/api/teams`、`/api/skills`、`/api/tools`、`/api/tool`、`/api/chats`、`/api/chat`、`/api/query`、`/api/submit`、`/api/steer`、`/api/interrupt`、`/api/viewport`、`/api/data` |
+| `controller` | REST API：`/api/agents`、`/api/teams`、`/api/skills`、`/api/tools`、`/api/tool`、`/api/chats`、`/api/chat`、`/api/query`、`/api/upload`、`/api/submit`、`/api/steer`、`/api/interrupt`、`/api/viewport`、`/api/resource` |
 | `memory` | Chat Memory V3.1 JSONL 增量存储与回放，滑动窗口默认 `k=20` |
 
 ### 关键设计
@@ -238,11 +238,12 @@ plain:
 - `GET /api/chats`：返回会话索引摘要，支持按 `agentKey` 与 `lastRunId` 增量查询。
 - `GET /api/chat?chatId=...`：返回稳定结构 `chatId/chatName/events/references`；`includeRawMessages=true` 时额外返回 `rawMessages`。
 - `POST /api/query`：启动一次 run；默认返回 SSE。
+- `POST /api/upload`：申请本地上传位，请求体字段为 `requestId/chatId?/type/name/sizeBytes/mimeType/sha256?`，响应外层为 `ApiResponse<UploadResponse>`，其中短引用 ID 固定放在 `reference.id`。
 - `POST /api/submit`：提交 frontend tool 的人机参数，请求体固定为 `runId + toolId + params`。
 - `POST /api/steer`：运行中追加用户引导，请求体为 `SteerRequest`；当 run 仍处于活跃状态时会写入 steer 队列并在下一个模型回合前注入。
 - `POST /api/interrupt`：运行中断，请求体为 `InterruptRequest`；成功后触发 `run.cancel`，并取消待处理 steer / frontend submit。
 - `GET /api/viewport?viewportKey=...`：返回 viewport 内容；本地未命中时可回退到 viewport server。
-- `GET /api/data?...`：提供静态文件访问，支持 chat image token 校验。
+- `GET /api/resource?...`：提供静态文件访问，支持 chat image token 校验。
 - `/api/tool` 未命中 `toolName`、`kind` 非法时均返回 HTTP `400`（`ApiResponse.failure`）。
 
 ### 模式配置块
@@ -819,7 +820,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `CHAT_IMAGE_TOKEN_SECRET` | `agent.chat-image-token.secret` | （空） | 图片令牌签名密钥（为空则 token 机制禁用） |
 | `CHAT_IMAGE_TOKEN_PREVIOUS_SECRETS` | `agent.chat-image-token.previous-secrets` | （空） | 历史密钥列表（逗号分隔），用于密钥轮换验证 |
 | `CHAT_IMAGE_TOKEN_TTL_SECONDS` | `agent.chat-image-token.ttl-seconds` | `86400` | 图片令牌过期秒数 |
-| `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `agent.chat-image-token.data-token-validation-enabled` | `true` | `/api/data` 的 `t` 参数校验开关 |
+| `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `agent.chat-image-token.data-token-validation-enabled` | `true` | `/api/resource` 的 `t` 参数校验开关 |
 | `CHATS_DIR` | `memory.chats.dir` | `runtime/chats` | 聊天记忆目录 |
 | `MEMORY_CHATS_K` | `memory.chats.k` | `20` | 滑动窗口大小（按 run） |
 | `MEMORY_CHATS_CHARSET` | `memory.chats.charset` | `UTF-8` | 记忆文件编码 |

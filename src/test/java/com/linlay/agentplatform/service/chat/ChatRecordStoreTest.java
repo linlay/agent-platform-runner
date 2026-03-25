@@ -336,7 +336,7 @@ class ChatRecordStoreTest {
 
         assertThat(detail.references()).isNotNull();
         assertThat(detail.references()).extracting(reference -> reference.url())
-                .contains("/data/" + chatId + "/cover.png");
+                .contains("/api/resource?file=" + chatId + "%2Fcover.png");
     }
 
     @Test

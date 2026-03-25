@@ -196,30 +196,60 @@ curl -X POST "$BASE_URL/api/interrupt" \
 
 ```bash
 # 浏览器直接展示图片
-curl "$BASE_URL/api/data?file=sample_diagram.png" \
+curl "$BASE_URL/api/resource?file=sample_diagram.png" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   --output sample_diagram.png
 ```
 
 ```bash
 # 浏览器直接展示图片（file 使用编码后的 /data 路径）
-curl "$BASE_URL/api/data?file=%2Fdata%2Fsample_photo.jpg" \
+curl "$BASE_URL/api/resource?file=%2Fdata%2Fsample_photo.jpg" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   --output sample_photo.jpg
 ```
 
 ```bash
 # 强制下载图片（?download=true）
-curl "$BASE_URL/api/data?file=%2Fdata%2Fsample_photo.jpg&download=true" \
+curl "$BASE_URL/api/resource?file=%2Fdata%2Fsample_photo.jpg&download=true" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   --output sample_photo.jpg
 ```
 
 ```bash
 # 下载 CSV 数据表
-curl "$BASE_URL/api/data?file=sample_data.csv" \
+curl "$BASE_URL/api/resource?file=sample_data.csv" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   --output sample_data.csv
+```
+
+```bash
+# 1) 申请上传位
+curl -X POST "$BASE_URL/api/upload" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requestId": "req-upload-001",
+    "chatId": "123e4567-e89b-12d3-a456-426614174000",
+    "type": "file",
+    "name": "requirements.md",
+    "sizeBytes": 12,
+    "mimeType": "text/markdown"
+  }'
+```
+
+```bash
+# 2) 使用上一步响应里的 upload.url 执行二进制 PUT
+curl -X PUT "$BASE_URL/api/upload/<CHAT_ID>/<REFERENCE_ID>" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @requirements.md
+```
+
+```bash
+# 3) 上传成功后可直接通过 reference.url 下载
+curl "$BASE_URL/api/resource?file=<ENCODED_FILE_PATH>" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  --output requirements.md
 ```
 
 ```bash

@@ -113,7 +113,7 @@ agent:
     secret: ${CHAT_IMAGE_TOKEN_SECRET:}
     previous-secrets: ${CHAT_IMAGE_TOKEN_PREVIOUS_SECRETS:}
     ttl-seconds: ${CHAT_IMAGE_TOKEN_TTL_SECONDS:86400}
-    # when true, GET /api/data?t=... performs token validation and may return 403 if token is invalid/expired
+    # when true, GET /api/resource?t=... performs token validation and may return 403 if token is invalid/expired
     data-token-validation-enabled: ${CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED:true}
 
 memory:

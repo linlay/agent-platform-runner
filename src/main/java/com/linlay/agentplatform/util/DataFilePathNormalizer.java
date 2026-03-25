@@ -9,7 +9,7 @@ import java.util.Locale;
 
 public final class DataFilePathNormalizer {
 
-    private static final String DATA_API_PATH = "/api/data";
+    private static final String[] RESOURCE_API_PATHS = {"/api/resource", "/api/data"};
 
     private DataFilePathNormalizer() {
     }
@@ -93,28 +93,30 @@ public final class DataFilePathNormalizer {
         if (hashIndex >= 0) {
             candidate = candidate.substring(0, hashIndex);
         }
-        int pathIndex = candidate.indexOf(DATA_API_PATH);
-        if (pathIndex < 0) {
-            return null;
-        }
-        String pathAndQuery = candidate.substring(pathIndex);
-        int queryIndex = pathAndQuery.indexOf('?');
-        if (queryIndex < 0) {
-            return null;
-        }
-        String query = pathAndQuery.substring(queryIndex + 1);
-        for (String segment : query.split("&")) {
-            if (!StringUtils.hasText(segment)) {
+        for (String apiPath : RESOURCE_API_PATHS) {
+            int pathIndex = candidate.indexOf(apiPath);
+            if (pathIndex < 0) {
                 continue;
             }
-            int separator = segment.indexOf('=');
-            String rawKey = separator >= 0 ? segment.substring(0, separator) : segment;
-            String rawValue = separator >= 0 ? segment.substring(separator + 1) : "";
-            String key = decode(rawKey);
-            if (!"file".equals(key)) {
+            String pathAndQuery = candidate.substring(pathIndex);
+            int queryIndex = pathAndQuery.indexOf('?');
+            if (queryIndex < 0) {
                 continue;
             }
-            return decode(rawValue);
+            String query = pathAndQuery.substring(queryIndex + 1);
+            for (String segment : query.split("&")) {
+                if (!StringUtils.hasText(segment)) {
+                    continue;
+                }
+                int separator = segment.indexOf('=');
+                String rawKey = separator >= 0 ? segment.substring(0, separator) : segment;
+                String rawValue = separator >= 0 ? segment.substring(separator + 1) : "";
+                String key = decode(rawKey);
+                if (!"file".equals(key)) {
+                    continue;
+                }
+                return decode(rawValue);
+            }
         }
         return null;
     }

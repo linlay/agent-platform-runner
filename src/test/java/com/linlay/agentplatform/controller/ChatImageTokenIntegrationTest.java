@@ -266,7 +266,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", "sample_photo.jpg")
                         .queryParam("t", chatImageToken)
                         .build())
@@ -288,7 +288,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", "/data/" + chatId + "/cover.png")
                         .queryParam("t", chatImageToken)
                         .build())
@@ -304,7 +304,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", "sample_photo.jpg")
                         .queryParam("t", "invalid-token")
                         .build())
@@ -329,7 +329,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", "sample_photo.jpg")
                         .queryParam("t", expiredToken)
                         .build())
@@ -353,7 +353,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", "other_photo.jpg")
                         .queryParam("t", chatImageToken)
                         .build())
@@ -375,7 +375,7 @@ class ChatImageTokenIntegrationTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", "missing.jpg")
                         .queryParam("t", chatImageToken)
                         .build())
@@ -390,7 +390,7 @@ class ChatImageTokenIntegrationTest {
         String authToken = issueAuthToken("user-auth-compat");
 
         webTestClient.get()
-                .uri(UriComponentsBuilder.fromPath("/api/data")
+                .uri(UriComponentsBuilder.fromPath("/api/resource")
                         .queryParam("file", "sample_photo.jpg")
                         .build()
                         .toUriString())
@@ -507,16 +507,12 @@ class ChatImageTokenIntegrationTest {
     }
 
     private void writeImageFile(String filename) throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         Files.createDirectories(dataDir);
         Files.write(dataDir.resolve(filename), createMinimalPng());
     }
 
     private void writeChatScopedAsset(String chatId, String filename) throws Exception {
-        Path chatMemoryDir = Path.of(chatWindowMemoryProperties.getDir()).resolve(chatId);
-        Files.createDirectories(chatMemoryDir);
-        Files.write(chatMemoryDir.resolve(filename), createMinimalPng());
-
         Path chatDataDir = Path.of(dataProperties.getExternalDir()).resolve(chatId);
         Files.createDirectories(chatDataDir);
         Files.write(chatDataDir.resolve(filename), createMinimalPng());

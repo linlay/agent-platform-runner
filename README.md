@@ -15,7 +15,9 @@
 - `POST /api/read`: 标记单个会话已读
 - `GET /api/chat?chatId=...`: 会话详情（默认返回快照事件流）
 - `GET /api/chat?chatId=...&includeRawMessages=true`: 会话详情（附带原始 `rawMessages`）
-- `GET /api/data?file={filename}&download=true|false`: 静态文件服务（图片 inline / 附件 download）
+- `GET /api/resource?file={filename}&download=true|false`: 静态文件服务（图片 inline / 附件 download）
+- `POST /api/upload`: 申请本地上传位，返回 `ApiResponse<UploadResponse>` 与 `PUT` 上传地址
+- `PUT /api/upload/{chatId}/{referenceId}`: 上传二进制文件到预留地址
 - `GET /api/viewport?viewportKey=...`: 获取工具/动作视图内容
 - `POST /api/query`: 提问接口（默认返回标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
 - `POST /api/submit`: Human-in-the-loop 提交接口
@@ -860,7 +862,7 @@ for f in *.md; do echo "$f"; done
 | `AGENT_BASH_MAX_COMMAND_CHARS` | `16000` | Bash 命令最大字符数 |
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `300000` | 前端工具提交超时 |
 | `AGENT_AUTH_ENABLED` | `true` | JWT 认证开关 |
-| `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/data` 的 `t` 参数校验开关（关闭后忽略 `t`） |
+| `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/resource` 的 `t` 参数校验开关（关闭后忽略 `t`） |
 | `MEMORY_CHATS_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `CHATS_DIR` 解析） |
 | `MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `true` | sqlite 索引 schema 不兼容时是否自动备份并重建 |
 | `MEMORY_CHATS_K` | `20` | 滑动窗口大小 |
@@ -909,9 +911,9 @@ for f in *.md; do echo "$f"; done
   - `AGENT_DATA_EXTERNAL_DIR` -> `DATA_DIR`
   - `MEMORY_CHATS_DIR` -> `CHATS_DIR`
 
-## 静态文件服务（Data）
+## 静态资源服务（Resource）
 
-`data/` 目录用于存放图片、PDF、CSV 等静态文件，通过 `/api/data?file={filename}` 端点提供访问。
+`data/` 目录用于存放图片、PDF、CSV 等静态文件，通过 `/api/resource?file={filename}` 端点提供访问。
 
 - 支持子目录，适合容器环境挂载。
 - 默认目录 `data/`，可通过 `DATA_DIR` 环境变量覆盖。
@@ -923,11 +925,22 @@ for f in *.md; do echo "$f"; done
 - 安全防护：拒绝路径穿越（`..`）、反斜杠（`\`）和符号链接。
 - 可选 `t` 参数用于 chat image token 校验；开关为 `agent.chat-image-token.data-token-validation-enabled`。
 - 当 `agent.chat-image-token.data-token-validation-enabled=true`（默认）时：
-  - 可通过 `t` 绕过 `/api/data` 的 Bearer JWT 要求，并按 chat image token 校验访问范围。
+  - 可通过 `t` 绕过 `/api/resource` 的 Bearer JWT 要求，并按 chat image token 校验访问范围。
   - 不带 `t` 时，若开启了 `agent.auth.enabled=true`，则仍需 `Authorization: Bearer ...`。
 - 当 `agent.chat-image-token.data-token-validation-enabled=false` 时：
-  - `GET /api/data` 直接放行，不再要求 chat image token，也不再要求 Bearer JWT。
+  - `GET /api/resource` 直接放行，不再要求 chat image token，也不再要求 Bearer JWT。
   - 该模式适合本地调试或可信内网环境，生产环境建议保持开启。
+
+## 本地上传接口
+
+`POST /api/upload` 用于申请上传位，响应外层仍为统一的 `ApiResponse<T>`：
+
+- 请求字段：`requestId`, `chatId?`, `type`, `name`, `sizeBytes`, `mimeType`, `sha256?`
+- 响应字段：`requestId`, `chatId`, `reference`, `upload`, `expiresAt?`
+- `reference.id` 为 chat 内短 ID：文件使用 `f1/f2/...`，图片使用 `i1/i2/...`
+- `reference.url` 直接返回 `/api/resource?file=...`
+- `upload.url` 为网关本地 `PUT /api/upload/{chatId}/{referenceId}`
+- 相同 `chatId + requestId` 重试时会返回同一份上传预留；若同 `requestId` 负载不同则返回 `409`
 
 ### Content-Disposition 规则
 
@@ -948,7 +961,7 @@ for f in *.md; do echo "$f"; done
 - 平台本地图片展示示例：
   - `![描述](sample_diagram.png)`
   - `![描述](/data/sample_photo.jpg)`
-- 强制下载图片（`file` 需要 encode）：`[文件名](/api/data?file=%2Fdata%2Fsample_photo.jpg&download=true)`
+- 强制下载图片（`file` 需要 encode）：`[文件名](/api/resource?file=%2Fdata%2Fsample_photo.jpg&download=true)`
 
 内置示例文件：
 

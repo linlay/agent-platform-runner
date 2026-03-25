@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.controller;
 
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.testsupport.StubLlmService;
@@ -39,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.auth.enabled=false",
                 "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-test-data-chats-${random.uuid}",
                 "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-test-data-chats-db-${random.uuid}/chats.db",
+                "agent.data.external-dir=${java.io.tmpdir}/agent-platform-runner-test-data-assets-${random.uuid}",
                 "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-test-data-skills-${random.uuid}",
                 "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-test-data-schedules-${random.uuid}"
         }
@@ -51,7 +52,7 @@ class DataFileControllerTest {
     private WebTestClient webTestClient;
 
     @Autowired
-    private ChatWindowMemoryProperties chatWindowMemoryProperties;
+    private DataProperties dataProperties;
 
     @TestConfiguration
     static class TestLlmServiceConfig {
@@ -79,19 +80,19 @@ class DataFileControllerTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         Files.createDirectories(dataDir);
     }
 
     @Test
     void shouldServePngImageInline() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         // Minimal 1x1 PNG
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("aaa.jpg"), png);
 
         webTestClient.get()
-                .uri(dataApiUri("aaa.jpg"))
+                .uri(resourceApiUri("aaa.jpg"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/jpeg")
@@ -101,12 +102,12 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageFromDataPrefixedPath() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("sample_photo.jpg"), png);
 
         webTestClient.get()
-                .uri(dataApiUri("/data/sample_photo.jpg"))
+                .uri(resourceApiUri("/data/sample_photo.jpg"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/jpeg")
@@ -116,12 +117,12 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageWithEncodedFileParam() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("encoded_photo.jpg"), png);
 
         webTestClient.get()
-                .uri(dataApiUri("/data/encoded_photo.jpg"))
+                .uri(resourceApiUri("/data/encoded_photo.jpg"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/jpeg");
@@ -129,11 +130,11 @@ class DataFileControllerTest {
 
     @Test
     void shouldServePdfAsAttachment() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         Files.writeString(dataDir.resolve("report.pdf"), "%PDF-1.4 minimal");
 
         webTestClient.get()
-                .uri(dataApiUri("report.pdf"))
+                .uri(resourceApiUri("report.pdf"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "application/pdf")
@@ -144,7 +145,7 @@ class DataFileControllerTest {
     @Test
     void shouldReturn404WhenFileNotFound() {
         webTestClient.get()
-                .uri(dataApiUri("nonexistent.txt"))
+                .uri(resourceApiUri("nonexistent.txt"))
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectBody()
@@ -155,7 +156,7 @@ class DataFileControllerTest {
     @Test
     void shouldReturn400ForPathTraversal() {
         webTestClient.get()
-                .uri(dataApiUri("../application.yml"))
+                .uri(resourceApiUri("../application.yml"))
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -165,7 +166,7 @@ class DataFileControllerTest {
     @Test
     void shouldReturn400ForFilenameThatIsDotDot() {
         webTestClient.get()
-                .uri(dataApiUri(".."))
+                .uri(resourceApiUri(".."))
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -174,13 +175,13 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageFromSubDirectoryPath() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.createDirectories(dataDir.resolve("sub"));
         Files.write(dataDir.resolve("sub").resolve("a.png"), png);
 
         webTestClient.get()
-                .uri(dataApiUri("/data/sub/a.png"))
+                .uri(resourceApiUri("/data/sub/a.png"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/png")
@@ -193,14 +194,14 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeChatScopedAssetFromDataPrefixedPath() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         String chatId = "123e4567-e89b-12d3-a456-426614174999";
         byte[] png = createMinimalPng();
         Files.createDirectories(dataDir.resolve(chatId));
         Files.write(dataDir.resolve(chatId).resolve("cover.png"), png);
 
         webTestClient.get()
-                .uri(dataApiUri("/data/" + chatId + "/cover.png"))
+                .uri(resourceApiUri("/data/" + chatId + "/cover.png"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "image/png");
@@ -209,7 +210,7 @@ class DataFileControllerTest {
     @Test
     void shouldReturn400WhenFileParamIsEmpty() {
         webTestClient.get()
-                .uri(dataApiUri(""))
+                .uri(resourceApiUri(""))
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -219,7 +220,7 @@ class DataFileControllerTest {
     @Test
     void shouldReturn400WhenFileParamEscapesWithEncodedTraversal() {
         webTestClient.get()
-                .uri("/api/data?file=..%2Fa.png")
+                .uri("/api/resource?file=..%2Fa.png")
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
@@ -228,13 +229,13 @@ class DataFileControllerTest {
 
     @Test
     void shouldForceDownloadWhenParameterIsTrue() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("sample_photo.jpg"), png);
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", "sample_photo.jpg")
                         .queryParam("download", "true")
                         .build())
@@ -246,14 +247,14 @@ class DataFileControllerTest {
 
     @Test
     void shouldUseBasenameForDownloadFromChatScopedPath() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         String chatId = "123e4567-e89b-12d3-a456-426614174999";
         Files.createDirectories(dataDir.resolve(chatId));
         Files.writeString(dataDir.resolve(chatId).resolve("report.pdf"), "%PDF-1.4 minimal");
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", chatId + "/report.pdf")
                         .queryParam("download", "true")
                         .build())
@@ -269,7 +270,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldUseBasenameForUtf8DownloadFilename() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         String chatId = "c90deaa2-553d-4f44-b250-4ced63a1f5da";
         String filename = "美悦界一品牌管理 （上海）有限公司 _发票金额283.99元.pdf";
         Files.createDirectories(dataDir.resolve(chatId));
@@ -277,7 +278,7 @@ class DataFileControllerTest {
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
-                        .path("/api/data")
+                        .path("/api/resource")
                         .queryParam("file", chatId + "/" + filename)
                         .queryParam("download", "true")
                         .build())
@@ -292,11 +293,11 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeCsvAsAttachment() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         Files.writeString(dataDir.resolve("data.csv"), "name,value\nfoo,1\nbar,2\n");
 
         webTestClient.get()
-                .uri(dataApiUri("data.csv"))
+                .uri(resourceApiUri("data.csv"))
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "text/csv")
@@ -306,19 +307,31 @@ class DataFileControllerTest {
 
     @Test
     void shouldReturn404ForLegacyApiPath() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("legacy_image.png"), png);
 
         webTestClient.get()
-                .uri("/api/data/legacy_image.png")
+                .uri("/api/resource/legacy_image.png")
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
+    void shouldReturn404ForRemovedDataApiEndpoint() throws Exception {
+        Path dataDir = Path.of(dataProperties.getExternalDir());
+        byte[] png = createMinimalPng();
+        Files.write(dataDir.resolve("legacy_api_image.png"), png);
+
+        webTestClient.get()
+                .uri("/api/data?file=legacy_api_image.png")
                 .exchange()
                 .expectStatus().isNotFound();
     }
 
     @Test
     void shouldReturn404ForDeprecatedDataPath() throws Exception {
-        Path dataDir = Path.of(chatWindowMemoryProperties.getDir());
+        Path dataDir = Path.of(dataProperties.getExternalDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("legacy_path_image.png"), png);
 
@@ -328,8 +341,8 @@ class DataFileControllerTest {
                 .expectStatus().isNotFound();
     }
 
-    private String dataApiUri(String file) {
-        return UriComponentsBuilder.fromPath("/api/data")
+    private String resourceApiUri(String file) {
+        return UriComponentsBuilder.fromPath("/api/resource")
                 .queryParam("file", file)
                 .build()
                 .encode()

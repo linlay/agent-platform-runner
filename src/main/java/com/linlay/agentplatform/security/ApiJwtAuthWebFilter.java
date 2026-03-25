@@ -95,7 +95,7 @@ public class ApiJwtAuthWebFilter implements WebFilter {
             return false;
         }
         String path = exchange.getRequest().getPath().value();
-        if (!"/api/data".equals(path)) {
+        if (!"/api/resource".equals(path)) {
             return false;
         }
         if (!chatImageTokenProperties.isDataTokenValidationEnabled()) {
