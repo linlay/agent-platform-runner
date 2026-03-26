@@ -11,6 +11,7 @@ import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.MountAccessMode;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.util.RuntimeCatalogNaming;
 import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
@@ -41,6 +42,7 @@ public class AgentDefinitionLoader {
 
     private static final Logger log = LoggerFactory.getLogger(AgentDefinitionLoader.class);
     private static final String DEFAULT_SKILL_TOOL = "sandbox_bash";
+    private static final List<String> DEFAULT_MEMORY_TOOLS = List.of("_memory_write_", "_memory_read_", "_memory_search_");
     private static final Set<String> DEFAULT_SANDBOX_MOUNT_DESTINATIONS = Set.of(
             "/workspace",
             "/root",
@@ -53,19 +55,22 @@ public class AgentDefinitionLoader {
     private final AgentProperties properties;
     private final ModelRegistryService modelRegistryService;
     private final AgentSkillSyncService agentSkillSyncService;
+    private final AgentMemoryProperties agentMemoryProperties;
 
     @Autowired
     public AgentDefinitionLoader(
             ObjectMapper objectMapper,
             AgentProperties properties,
             ModelRegistryService modelRegistryService,
-            AgentSkillSyncService agentSkillSyncService
+            AgentSkillSyncService agentSkillSyncService,
+            AgentMemoryProperties agentMemoryProperties
     ) {
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
         this.properties = properties;
         this.modelRegistryService = modelRegistryService;
         this.agentSkillSyncService = agentSkillSyncService;
+        this.agentMemoryProperties = agentMemoryProperties == null ? new AgentMemoryProperties() : agentMemoryProperties;
     }
 
     AgentDefinitionLoader(
@@ -73,7 +78,25 @@ public class AgentDefinitionLoader {
             AgentProperties properties,
             ModelRegistryService modelRegistryService
     ) {
-        this(objectMapper, properties, modelRegistryService, null);
+        this(objectMapper, properties, modelRegistryService, null, new AgentMemoryProperties());
+    }
+
+    AgentDefinitionLoader(
+            ObjectMapper objectMapper,
+            AgentProperties properties,
+            ModelRegistryService modelRegistryService,
+            AgentSkillSyncService agentSkillSyncService
+    ) {
+        this(objectMapper, properties, modelRegistryService, agentSkillSyncService, new AgentMemoryProperties());
+    }
+
+    AgentDefinitionLoader(
+            ObjectMapper objectMapper,
+            AgentProperties properties,
+            ModelRegistryService modelRegistryService,
+            AgentMemoryProperties agentMemoryProperties
+    ) {
+        this(objectMapper, properties, modelRegistryService, null, agentMemoryProperties);
     }
 
     public List<AgentDefinition> loadAll() {
@@ -226,7 +249,14 @@ public class AgentDefinitionLoader {
             AgentPromptFiles promptFiles = loadPromptFiles(agentDir, config, mode);
             List<String> perAgentSkills = scanPerAgentSkillIds(agentDir == null ? null : agentDir.resolve("skills"));
 
-            AgentMode agentMode = AgentModeFactory.create(mode, config, file, promptFiles, this::resolveModelByKey);
+            AgentMode agentMode = AgentModeFactory.create(
+                    mode,
+                    config,
+                    file,
+                    promptFiles,
+                    this::resolveModelByKey,
+                    isMemoryToolEnabled()
+            );
             RunSpec runSpec = agentMode.defaultRunSpec(config);
 
             return Optional.of(new AgentDefinition(
@@ -538,6 +568,7 @@ public class AgentDefinitionLoader {
             merged.add(PlanToolConstants.PLAN_UPDATE_TASK_TOOL);
         }
         addImplicitSkillTools(merged, config);
+        addImplicitMemoryTools(merged, config);
         return merged.stream().distinct().toList();
     }
 
@@ -609,10 +640,25 @@ public class AgentDefinitionLoader {
         tools.add(DEFAULT_SKILL_TOOL);
     }
 
+    private void addImplicitMemoryTools(List<String> tools, AgentConfigFile config) {
+        if (tools == null || !isMemoryToolEnabled() || !hasMemoryContextTag(config)) {
+            return;
+        }
+        tools.addAll(DEFAULT_MEMORY_TOOLS);
+    }
+
     private boolean hasDeclaredSkills(AgentConfigFile config) {
         return config != null
                 && config.getSkillConfig() != null
                 && normalizeNames(config.getSkillConfig().getSkills()).stream().findAny().isPresent();
+    }
+
+    private boolean hasMemoryContextTag(AgentConfigFile config) {
+        return collectContextTags(config).contains(RuntimeContextTags.MEMORY);
+    }
+
+    private boolean isMemoryToolEnabled() {
+        return agentMemoryProperties == null || agentMemoryProperties.isEnabled();
     }
 
     private Optional<ModelDefinition> resolvePrimaryModel(AgentConfigFile config) {

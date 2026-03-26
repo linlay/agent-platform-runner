@@ -10,6 +10,7 @@ import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
@@ -18,8 +19,11 @@ import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.security.JwksJwtVerifier;
+import com.linlay.agentplatform.service.memory.AgentMemoryStore;
+import com.linlay.agentplatform.service.memory.MemoryRecord;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.mock.env.MockEnvironment;
 
 import java.nio.file.Files;
@@ -29,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RuntimeContextPromptServiceTest {
 
@@ -346,6 +352,57 @@ class RuntimeContextPromptServiceTest {
         }
     }
 
+    @Test
+    void shouldRenderAgentMemorySectionFromRelevantSearch() {
+        AgentMemoryStore store = mock(AgentMemoryStore.class);
+        AgentMemoryProperties agentMemoryProperties = new AgentMemoryProperties();
+        agentMemoryProperties.setContextTopN(2);
+        RuntimeContextPromptService service = newService("owner", null, store, agentMemoryProperties);
+        when(store.topRelevant("context-agent", tempDir.resolve("agent"), "remember", 2)).thenReturn(List.of(
+                new MemoryRecord("mem_1", "context-agent", "alpha memory", "fact", 9, List.of("alpha"), false, 1L, 1L, 0, null)
+        ));
+
+        AgentRequest request = new AgentRequest(
+                "remember",
+                "chat-memory",
+                "req-memory",
+                "run-memory",
+                Map.of(),
+                new RuntimeRequestContext("demo-agent", null, "user", null, null, List.of(), null, service.resolveLocalPaths("chat-memory"), null, null, List.of())
+        );
+
+        String prompt = service.buildPrompt(definition(RuntimeContextTags.MEMORY), request);
+
+        assertThat(prompt).contains("Runtime Context: Agent Memory");
+        assertThat(prompt).contains("id: mem_1");
+        assertThat(prompt).contains("content: alpha memory");
+    }
+
+    @Test
+    void shouldTruncateAgentMemorySection() {
+        AgentMemoryStore store = mock(AgentMemoryStore.class);
+        AgentMemoryProperties agentMemoryProperties = new AgentMemoryProperties();
+        agentMemoryProperties.setContextTopN(1);
+        agentMemoryProperties.setContextMaxChars(80);
+        RuntimeContextPromptService service = newService("owner", null, store, agentMemoryProperties);
+        when(store.list("context-agent", tempDir.resolve("agent"), null, 1, "importance")).thenReturn(List.of(
+                new MemoryRecord("mem_1", "context-agent", "x".repeat(200), "fact", 9, List.of(), false, 1L, 1L, 0, null)
+        ));
+
+        AgentRequest request = new AgentRequest(
+                "",
+                "chat-memory",
+                "req-memory",
+                "run-memory",
+                Map.of(),
+                new RuntimeRequestContext("demo-agent", null, "user", null, null, List.of(), null, service.resolveLocalPaths("chat-memory"), null, null, List.of())
+        );
+
+        String prompt = service.buildPrompt(definition(RuntimeContextTags.MEMORY), request);
+
+        assertThat(prompt).contains("[TRUNCATED: agent-memory exceeds max chars=80]");
+    }
+
     private RuntimeContextPromptService newService() {
         return newService(null);
     }
@@ -355,6 +412,15 @@ class RuntimeContextPromptServiceTest {
     }
 
     private RuntimeContextPromptService newService(String ownerDir, RuntimeDirectoryHostPaths hostPaths) {
+        return newService(ownerDir, hostPaths, null, null);
+    }
+
+    private RuntimeContextPromptService newService(
+            String ownerDir,
+            RuntimeDirectoryHostPaths hostPaths,
+            AgentMemoryStore agentMemoryStore,
+            AgentMemoryProperties agentMemoryProperties
+    ) {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("agent.agents.external-dir", "agents")
                 .withProperty("agent.pan.external-dir", "pan")
@@ -369,7 +435,22 @@ class RuntimeContextPromptServiceTest {
         dataProperties.setExternalDir("data");
         ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
         memoryProperties.setDir("chats");
-        return new RuntimeContextPromptService(environment, rootProperties, ownerProperties, dataProperties, memoryProperties, hostPaths);
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        if (agentMemoryStore != null) {
+            beanFactory.addBean("agentMemoryStore", agentMemoryStore);
+        }
+        if (agentMemoryProperties != null) {
+            beanFactory.addBean("agentMemoryProperties", agentMemoryProperties);
+        }
+        return new RuntimeContextPromptService(
+                environment,
+                rootProperties,
+                ownerProperties,
+                dataProperties,
+                memoryProperties,
+                beanFactory.getBeanProvider(AgentMemoryStore.class),
+                beanFactory.getBeanProvider(AgentMemoryProperties.class)
+        );
     }
 
     private AgentDefinition definition(String... contextTags) {

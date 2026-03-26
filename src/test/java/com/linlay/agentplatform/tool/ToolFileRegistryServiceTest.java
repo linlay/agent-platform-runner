@@ -190,6 +190,15 @@ class ToolFileRegistryServiceTest {
         assertThat(service.find("_plan_get_tasks_"))
                 .map(ToolDescriptor::clientVisible)
                 .contains(false);
+        assertThat(service.find("_memory_write_"))
+                .map(ToolDescriptor::clientVisible)
+                .contains(false);
+        assertThat(service.find("_memory_read_"))
+                .map(ToolDescriptor::clientVisible)
+                .contains(false);
+        assertThat(service.find("_memory_search_"))
+                .map(ToolDescriptor::clientVisible)
+                .contains(false);
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.MountAccessMode;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.testsupport.TestCatalogFixtures;
 import com.linlay.agentplatform.testsupport.TestModelRegistryServices;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
@@ -989,6 +990,79 @@ class AgentDefinitionLoaderTest {
         assertThat(mode.executeStage().tools()).containsExactlyInAnyOrder("_plan_update_task_", "sandbox_bash");
         assertThat(mode.summaryStage().tools()).containsExactlyInAnyOrder("datetime", "sandbox_bash");
         assertThat(definition.tools()).contains("sandbox_bash", "_plan_add_tasks_", "_plan_update_task_");
+    }
+
+    @Test
+    void shouldInjectMemoryToolsWhenMemoryContextTagDeclared() throws IOException {
+        writeYaml("memory_stage_injection.yml", """
+                key: memory_stage_injection
+                name: Memory Stage Injection
+                role: Memory Stage Injection
+                description: memory stage injection
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - datetime
+                contextConfig:
+                  tags:
+                    - memory
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: plan stage
+                  execute:
+                    systemPrompt: execute stage
+                    toolConfig: null
+                  summary:
+                    systemPrompt: summary stage
+                """);
+
+        AgentDefinition definition = loadById().get("memory_stage_injection");
+
+        assertThat(definition.tools()).contains("_memory_write_", "_memory_read_", "_memory_search_");
+        PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
+        assertThat(mode.planStage().tools()).contains("_memory_write_", "_memory_read_", "_memory_search_");
+        assertThat(mode.executeStage().tools()).contains("_memory_write_", "_memory_read_", "_memory_search_");
+        assertThat(mode.summaryStage().tools()).contains("_memory_write_", "_memory_read_", "_memory_search_");
+    }
+
+    @Test
+    void shouldSkipMemoryToolInjectionWhenMemoryFeatureDisabled() throws IOException {
+        writeYaml("memory_disabled.yml", """
+                key: memory_disabled
+                name: Memory Disabled
+                role: Memory Disabled
+                description: memory disabled
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                contextConfig:
+                  tags:
+                    - memory
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test
+                """);
+
+        AgentMemoryProperties memoryProperties = new AgentMemoryProperties();
+        memoryProperties.setEnabled(false);
+        AgentProperties properties = new AgentProperties();
+        properties.setExternalDir(tempDir.toString());
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(
+                new ObjectMapper(),
+                properties,
+                TestModelRegistryServices.standardRegistry(),
+                memoryProperties
+        );
+
+        AgentDefinition definition = loader.loadAll().stream()
+                .filter(candidate -> "memory_disabled".equals(candidate.id()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(definition.tools()).doesNotContain("_memory_write_", "_memory_read_", "_memory_search_");
+        OneshotMode mode = (OneshotMode) definition.agentMode();
+        assertThat(mode.stage().tools()).doesNotContain("_memory_write_", "_memory_read_", "_memory_search_");
     }
 
     @Test

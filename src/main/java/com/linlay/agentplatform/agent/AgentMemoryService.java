@@ -35,6 +35,28 @@ public class AgentMemoryService {
         write(agentMemoryPath(agentDir), content);
     }
 
+    public void appendMemoryEntry(Path agentDir, String content) {
+        Path path = agentMemoryPath(agentDir);
+        if (path == null || !StringUtils.hasText(content)) {
+            return;
+        }
+        try {
+            Files.createDirectories(path.getParent());
+            String normalized = content.trim();
+            String prefix = Files.isRegularFile(path) && StringUtils.hasText(Files.readString(path)) ? "\n\n" : "";
+            Files.writeString(
+                    path,
+                    prefix + normalized,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND,
+                    StandardOpenOption.WRITE
+            );
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to append agent memory file: " + path, ex);
+        }
+    }
+
     public void writeDailySummary(Path agentDir, LocalDate date, String content) {
         if (agentDir == null || date == null) {
             return;

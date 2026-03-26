@@ -2,6 +2,7 @@ package com.linlay.agentplatform.agent.mode;
 
 import com.linlay.agentplatform.agent.AgentConfigFile;
 import com.linlay.agentplatform.agent.AgentPromptFiles;
+import com.linlay.agentplatform.agent.RuntimeContextTags;
 import com.linlay.agentplatform.agent.config.AgentModelConfig;
 import com.linlay.agentplatform.agent.config.AgentRuntimePromptsConfig;
 import com.linlay.agentplatform.agent.config.AgentToolConfig;
@@ -23,6 +24,7 @@ import java.util.function.Function;
 public final class AgentModeFactory {
 
     private static final String DEFAULT_SKILL_TOOL = "sandbox_bash";
+    private static final List<String> DEFAULT_MEMORY_TOOLS = List.of("_memory_write_", "_memory_read_", "_memory_search_");
 
     private AgentModeFactory() {
     }
@@ -32,7 +34,8 @@ public final class AgentModeFactory {
             AgentConfigFile config,
             Path file,
             AgentPromptFiles promptFiles,
-            Function<String, ModelDefinition> modelResolver
+            Function<String, ModelDefinition> modelResolver,
+            boolean memoryToolsEnabled
     ) {
         AgentRuntimePromptsConfig runtimePromptsConfig = config == null ? null : config.getRuntimePrompts();
         SkillAppend skillAppend = buildSkillAppend(runtimePromptsConfig);
@@ -46,7 +49,8 @@ public final class AgentModeFactory {
                         config == null ? null : config.getPlain(),
                         List.of(),
                         promptFiles == null ? null : promptFiles.plainStageContent(),
-                        modelResolver
+                        modelResolver,
+                        memoryToolsEnabled
                 );
                 if (isBlank(stage.primaryPrompt())) {
                     throw new IllegalArgumentException("AGENTS.md is required for ONESHOT agents: " + file);
@@ -60,7 +64,8 @@ public final class AgentModeFactory {
                         react,
                         List.of(),
                         promptFiles == null ? null : promptFiles.reactStageContent(),
-                        modelResolver
+                        modelResolver,
+                        memoryToolsEnabled
                 );
                 if (isBlank(stage.primaryPrompt())) {
                     throw new IllegalArgumentException("AGENTS.md is required for REACT agents: " + file);
@@ -77,21 +82,24 @@ public final class AgentModeFactory {
                         pe == null ? null : pe.getPlan(),
                         List.of(PlanToolConstants.PLAN_ADD_TASKS_TOOL),
                         promptFiles == null ? null : promptFiles.planStageContent(),
-                        modelResolver
+                        modelResolver,
+                        memoryToolsEnabled
                 );
                 StageSettings executeStage = stageSettings(
                         config,
                         pe == null ? null : pe.getExecute(),
                         List.of(PlanToolConstants.PLAN_UPDATE_TASK_TOOL),
                         promptFiles == null ? null : promptFiles.executeStageContent(),
-                        modelResolver
+                        modelResolver,
+                        memoryToolsEnabled
                 );
                 StageSettings summaryStage = stageSettings(
                         config,
                         pe == null ? null : pe.getSummary(),
                         List.of(),
                         promptFiles == null ? null : promptFiles.summaryStageContent(),
-                        modelResolver
+                        modelResolver,
+                        memoryToolsEnabled
                 );
                 if (isBlank(planStage.primaryPrompt())
                         || isBlank(executeStage.primaryPrompt())
@@ -175,7 +183,8 @@ public final class AgentModeFactory {
             AgentConfigFile.StageConfig stage,
             List<String> requiredTools,
             String instructionsPrompt,
-            Function<String, ModelDefinition> modelResolver
+            Function<String, ModelDefinition> modelResolver,
+            boolean memoryToolsEnabled
     ) {
         AgentModelConfig resolvedModelConfig = resolveModelConfig(config, stage);
         if (resolvedModelConfig == null || !StringUtils.hasText(resolvedModelConfig.getModelKey())) {
@@ -194,7 +203,7 @@ public final class AgentModeFactory {
         ComputePolicy reasoningEffort = resolvedReasoning != null && resolvedReasoning.getEffort() != null
                 ? resolvedReasoning.getEffort()
                 : ComputePolicy.MEDIUM;
-        List<String> tools = resolveTools(config, stage, requiredTools);
+        List<String> tools = resolveTools(config, stage, requiredTools, memoryToolsEnabled);
 
         return new StageSettings(
                 normalize(stage == null ? null : stage.getSystemPrompt()),
@@ -221,20 +230,21 @@ public final class AgentModeFactory {
     private static List<String> resolveTools(
             AgentConfigFile config,
             AgentConfigFile.StageConfig stage,
-            List<String> requiredTools
+            List<String> requiredTools,
+            boolean memoryToolsEnabled
     ) {
         AgentToolConfig top = config == null ? null : config.getToolConfig();
         List<String> resolved;
         if (stage == null || !stage.isToolConfigProvided()) {
             resolved = normalizeTools(top);
-            return addImplicitSkillTools(config, mergeRequiredTools(resolved, requiredTools));
+            return addImplicitMemoryTools(config, addImplicitSkillTools(config, mergeRequiredTools(resolved, requiredTools)), memoryToolsEnabled);
         }
         if (stage.isToolConfigExplicitNull()) {
             resolved = List.of();
-            return addImplicitSkillTools(config, mergeRequiredTools(resolved, requiredTools));
+            return addImplicitMemoryTools(config, addImplicitSkillTools(config, mergeRequiredTools(resolved, requiredTools)), memoryToolsEnabled);
         }
         resolved = normalizeTools(stage.getToolConfig());
-        return addImplicitSkillTools(config, mergeRequiredTools(resolved, requiredTools));
+        return addImplicitMemoryTools(config, addImplicitSkillTools(config, mergeRequiredTools(resolved, requiredTools)), memoryToolsEnabled);
     }
 
     private static List<String> normalizeTools(AgentToolConfig toolConfig) {
@@ -273,6 +283,25 @@ public final class AgentModeFactory {
                 && config.getSkillConfig().getSkills().stream()
                 .map(StringHelpers::nullable)
                 .anyMatch(value -> value != null && !value.isBlank());
+    }
+
+    private static List<String> addImplicitMemoryTools(AgentConfigFile config, List<String> tools, boolean memoryToolsEnabled) {
+        if (!memoryToolsEnabled || !hasMemoryContextTag(config)) {
+            return tools == null ? List.of() : List.copyOf(tools);
+        }
+        List<String> merged = new ArrayList<>(tools == null ? List.of() : tools);
+        merged.addAll(DEFAULT_MEMORY_TOOLS);
+        return merged.stream().distinct().toList();
+    }
+
+    private static boolean hasMemoryContextTag(AgentConfigFile config) {
+        return config != null
+                && config.getContextConfig() != null
+                && config.getContextConfig().getTags() != null
+                && config.getContextConfig().getTags().stream()
+                .map(StringHelpers::nullable)
+                .map(value -> value == null ? null : value.trim().toLowerCase(Locale.ROOT))
+                .anyMatch(RuntimeContextTags.MEMORY::equals);
     }
 
     private static void addTools(List<String> tools, List<String> rawTools) {

@@ -15,6 +15,7 @@ public final class RuntimeContextTags {
     public static final String AUTH = "auth";
     public static final String SANDBOX = "sandbox";
     public static final String ALL_AGENTS = "all-agents";
+    public static final String MEMORY = "memory";
 
     private static final Set<String> SUPPORTED = Set.of(
             SYSTEM,
@@ -22,7 +23,8 @@ public final class RuntimeContextTags {
             OWNER,
             AUTH,
             SANDBOX,
-            ALL_AGENTS
+            ALL_AGENTS,
+            MEMORY
     );
 
     private RuntimeContextTags() {

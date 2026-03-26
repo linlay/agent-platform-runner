@@ -1,7 +1,8 @@
 package com.linlay.agentplatform.agent;
 
-import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
 import com.linlay.agentplatform.config.ConfigDirectorySupport;
+import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
@@ -11,7 +12,10 @@ import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.security.JwksJwtVerifier;
+import com.linlay.agentplatform.service.memory.AgentMemoryStore;
+import com.linlay.agentplatform.service.memory.MemoryRecord;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.stereotype.Component;
@@ -44,6 +48,8 @@ public class RuntimeContextPromptService {
     private final OwnerProperties ownerProperties;
     private final DataProperties dataProperties;
     private final ChatWindowMemoryProperties chatWindowMemoryProperties;
+    private final AgentMemoryStore agentMemoryStore;
+    private final AgentMemoryProperties agentMemoryProperties;
 
     @Autowired
     public RuntimeContextPromptService(
@@ -51,13 +57,19 @@ public class RuntimeContextPromptService {
             RootProperties rootProperties,
             OwnerProperties ownerProperties,
             DataProperties dataProperties,
-            ChatWindowMemoryProperties chatWindowMemoryProperties
+            ChatWindowMemoryProperties chatWindowMemoryProperties,
+            ObjectProvider<AgentMemoryStore> agentMemoryStoreProvider,
+            ObjectProvider<AgentMemoryProperties> agentMemoryPropertiesProvider
     ) {
         this.environment = environment;
         this.rootProperties = rootProperties;
         this.ownerProperties = ownerProperties == null ? new OwnerProperties() : ownerProperties;
         this.dataProperties = dataProperties;
         this.chatWindowMemoryProperties = chatWindowMemoryProperties;
+        this.agentMemoryStore = agentMemoryStoreProvider == null ? null : agentMemoryStoreProvider.getIfAvailable();
+        this.agentMemoryProperties = agentMemoryPropertiesProvider == null
+                ? null
+                : agentMemoryPropertiesProvider.getIfAvailable();
     }
 
     public RuntimeContextPromptService(
@@ -72,6 +84,8 @@ public class RuntimeContextPromptService {
         this.ownerProperties = new OwnerProperties();
         this.dataProperties = dataProperties;
         this.chatWindowMemoryProperties = chatWindowMemoryProperties;
+        this.agentMemoryStore = null;
+        this.agentMemoryProperties = null;
     }
 
     public RuntimeContextPromptService(
@@ -87,6 +101,8 @@ public class RuntimeContextPromptService {
         this.ownerProperties = ownerProperties == null ? new OwnerProperties() : ownerProperties;
         this.dataProperties = dataProperties;
         this.chatWindowMemoryProperties = chatWindowMemoryProperties;
+        this.agentMemoryStore = null;
+        this.agentMemoryProperties = null;
     }
 
     public RuntimeContextPromptService(
@@ -129,6 +145,7 @@ public class RuntimeContextPromptService {
                 case RuntimeContextTags.AUTH -> appendIfPresent(sections, buildAuthIdentitySection(runtimeContext.authPrincipal()));
                 case RuntimeContextTags.SANDBOX -> appendIfPresent(sections, buildSandboxSection(runtimeContext.sandboxContext()));
                 case RuntimeContextTags.ALL_AGENTS -> appendIfPresent(sections, buildAllAgentsSection(runtimeContext.agentDigests()));
+                case RuntimeContextTags.MEMORY -> appendIfPresent(sections, buildAgentMemorySection(definition, request));
                 default -> {
                 }
             }
@@ -422,6 +439,40 @@ public class RuntimeContextPromptService {
         return builder.toString();
     }
 
+    private String buildAgentMemorySection(AgentDefinition definition, AgentRequest request) {
+        if (definition == null || agentMemoryStore == null || agentMemoryProperties == null || !agentMemoryProperties.isEnabled()) {
+            return "";
+        }
+        List<MemoryRecord> memories = StringUtils.hasText(request.message())
+                ? agentMemoryStore.topRelevant(definition.id(), definition.agentDir(), request.message(), agentMemoryProperties.getContextTopN())
+                : agentMemoryStore.list(
+                definition.id(),
+                definition.agentDir(),
+                null,
+                agentMemoryProperties.getContextTopN(),
+                "importance"
+        );
+        if (memories.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder("Runtime Context: Agent Memory\n");
+        boolean first = true;
+        for (MemoryRecord memory : memories) {
+            if (!first) {
+                builder.append("---\n");
+            }
+            first = false;
+            builder.append("id: ").append(memory.id()).append('\n');
+            builder.append("category: ").append(memory.category()).append('\n');
+            builder.append("importance: ").append(memory.importance()).append('\n');
+            if (!memory.tags().isEmpty()) {
+                builder.append("tags: ").append(String.join(", ", memory.tags())).append('\n');
+            }
+            builder.append("content: ").append(memory.content()).append('\n');
+        }
+        return truncate(builder.toString().trim(), agentMemoryProperties.getContextMaxChars(), "agent-memory");
+    }
+
     private String formatAgentDigest(RuntimeRequestContext.AgentDigest agentDigest) {
         List<String> lines = new ArrayList<>();
         appendKeyValue(lines, "key", agentDigest.key());
@@ -466,6 +517,15 @@ public class RuntimeContextPromptService {
             return "";
         }
         return relativePath.toString().replace('\\', '/');
+    }
+
+    private String truncate(String content, int maxChars, String label) {
+        if (!StringUtils.hasText(content) || maxChars <= 0 || content.length() <= maxChars) {
+            return content;
+        }
+        String suffix = "\n[TRUNCATED: " + label + " exceeds max chars=" + maxChars + "]";
+        int end = Math.max(0, maxChars - suffix.length());
+        return content.substring(0, end) + suffix;
     }
 
     private Path resolveRuntimeHome() {

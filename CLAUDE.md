@@ -159,7 +159,7 @@ toolConfig:
 skillConfig:
   skills: ["docx", "screenshot"]
 contextConfig:
-  tags: ["system", "context", "owner", "auth"]
+  tags: ["system", "context", "owner", "auth", "memory"]
 mode: ONESHOT
 toolChoice: AUTO
 budget:
@@ -284,9 +284,10 @@ contextConfig:
     - auth
     - sandbox
     - all-agents
+    - memory
 ```
 
-支持 6 个 tag，不支持的 tag 在加载时被静默过滤。tag 名大小写不敏感，内部统一转为小写。tag 定义位于 `RuntimeContextTags.java`，运行时内容由 `RuntimeContextPromptService.buildPrompt()` 按声明顺序依次生成。
+支持 7 个 tag，不支持的 tag 在加载时被静默过滤。tag 名大小写不敏感，内部统一转为小写。tag 定义位于 `RuntimeContextTags.java`，运行时内容由 `RuntimeContextPromptService.buildPrompt()` 按声明顺序依次生成。
 
 **重要：tag 的存在与否与 `.env` 目录配置、Docker 容器挂载无关。** 例如，`owner` tag 不依赖 Container Hub 的 `/owner` 平台挂载是否配置；`context` tag 不依赖沙箱目录是否挂载。tag 读取的是 runner 进程本地可见的文件系统路径，Container Hub 挂载解析的是发给 Container Hub 的宿主机路径，两者通过不同管道消费同一组 `.env` 变量。
 
@@ -327,9 +328,16 @@ contextConfig:
 - 截断：总字符数超过 12,000 时停止添加，附加 `[TRUNCATED: all-agents exceeds max chars=12000, included=N/M]`
 - 按 agent key 字母序排列
 
+**`memory`** — 注入 agent SQLite memory 摘要（`RuntimeContextPromptService.buildAgentMemorySection()` + `AgentMemoryStore`）
+- 有 `request.message()` 时按语义相关性取 `contextTopN`
+- 无 `request.message()` 时按 `importance desc` 取 `contextTopN`
+- 格式：`Runtime Context: Agent Memory`，每条包含 `id/category/importance/tags/content`
+- 总字符数超过 `agent.memory.agent-memory.context-max-chars` 时截断，并附带 `[TRUNCATED: agent-memory exceeds max chars=...]`
+- memory 功能关闭或无数据时返回空串，不影响 agent 运行
+
 ### tag 条件解析
 
-`sandbox` 和 `all-agents` 仅在 agent 声明了对应 tag 时才解析（通过 `requiresContextTag()` 判断，避免不必要的 HTTP 调用和注册表遍历）。`workspacePaths`（供 `system`、`context`、`owner` 使用）在每次请求中无条件构建。
+`sandbox`、`all-agents` 和 `memory` 仅在 agent 声明了对应 tag 时才解析（通过 `requiresContextTag()` 判断，避免不必要的 HTTP 调用和注册表遍历）。`workspacePaths`（供 `system`、`context`、`owner` 使用）在每次请求中无条件构建。
 
 ### tag 内容与路径来源关系
 
@@ -341,6 +349,7 @@ contextConfig:
 | `auth` | JWT token claims | 无关 |
 | `sandbox` | Container Hub HTTP API | 无关（读的是远端服务） |
 | `all-agents` | `AgentRegistry` 内存注册表 | 无关 |
+| `memory` | `AgentMemoryStore`（agent 专属 SQLite） | 间接：受 `agent.memory.agent-memory.*` 与 `agent.agents.external-dir` 影响 |
 
 ### 关键实现文件
 
@@ -348,6 +357,7 @@ contextConfig:
 |------|------|
 | `agent/RuntimeContextTags.java` | tag 常量定义、normalize/validate |
 | `agent/RuntimeContextPromptService.java` | 各 tag 内容生成、`resolveWorkspacePaths()`、`resolveOwnerDir()` |
+| `service/memory/AgentMemoryStore.java` | agent 记忆 SQLite/FTS5/向量混合检索 |
 | `agent/runtime/SandboxContextResolver.java` | sandbox tag 专用：environment prompt 拉取与校验 |
 | `model/RuntimeRequestContext.java` | 数据载体：`WorkspacePaths`、`SandboxContext`、`AgentDigest` |
 | `service/AgentQueryService.java` | 组装 `RuntimeRequestContext`（`buildRuntimeRequestContext()`）、条件解析 |
@@ -428,6 +438,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - 各 stage 可通过自身 `toolConfig` 覆盖：缺失则继承顶层，显式 `null` 则清空。
 - `PLAN_EXECUTE` 强制工具（`_plan_add_tasks_` / `_plan_update_task_`）不受 `toolConfig: null` 影响。
 - 若配置了 `skillConfig.skills`，运行时会自动附带 `sandbox_bash`；该隐式工具不受 `toolConfig: null` 影响。
+- 若 `contextConfig.tags` 包含 `memory` 且 memory 功能开启，运行时会自动附带 `_memory_write_`、`_memory_read_`、`_memory_search_`；该隐式工具同样不受 `toolConfig: null` 影响。
 
 ### 前端 tool 提交协议
 
@@ -447,7 +458,24 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `sandbox_bash`：在 Container Hub 沙箱环境中执行命令，受 `sandboxConfig` 与 `agent.tools.container-hub.*` 控制。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
+- `_memory_write_`：写入 agent 持久化记忆，支持 `content/category/importance/tags`；同步最佳努力生成 embedding，失败时自动降级为 FTS-only。
+- `_memory_read_`：读取 agent 持久化记忆；支持按 `id` 精确读取或按 `category/limit/sort(recent|importance)` 列表读取。
+- `_memory_search_`：搜索 agent 持久化记忆；优先走 FTS5，embedding 可用时做向量+FTS 混合排序，返回 `score` 与 `matchType`。
 - `confirm_dialog`：前端确认对话框工具，声明位于 `src/main/resources/tools/confirm_dialog.yml`。
+
+## Agent Memory 系统
+
+- 现有文件型 `memory/memory.md` 仍保留，继续通过 `ExecutionContext.memoryPrompt` 注入，位置在 `AGENTS*.md` 之后、YAML stage prompt 之前。
+- 新增 SQLite agent memory：
+  - 目录化 agent：`<agentDir>/<db-file-name>`，默认 `memory.db`
+  - 扁平 agent：`<agent.agents.external-dir>/<agentKey>/<db-file-name>`
+- schema：单表 `MEMORIES` + `MEMORIES_FTS`（FTS5 外部内容模式）+ 触发器自动同步。
+- 查询策略：
+  - FTS5 BM25 候选
+  - embedding provider 可用时追加余弦相似度候选
+  - 两路分数做 min-max 归一化后按 `hybrid-vector-weight` / `hybrid-fts-weight` 融合
+- `dual-write-markdown=true` 且 agent 为目录化布局时，`_memory_write_` 会将新记忆追加写入 `memory/memory.md`；扁平 agent 不做 markdown 双写。
+- embedding 依赖 OpenAI-compatible `/v1/embeddings`；provider 缺失、超时、维度不匹配或请求失败时自动退化为 FTS-only，不阻断工具调用。
 
 ### 工具参数模板
 
@@ -827,6 +855,18 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `MEMORY_CHATS_ACTION_TOOLS` | `memory.chats.action-tools` | （空） | action 工具白名单 |
 | `MEMORY_CHATS_INDEX_SQLITE_FILE` | `memory.chats.index.sqlite-file` | `chats.db` | SQLite 聊天索引文件名 |
 | `MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `memory.chats.index.auto-rebuild-on-incompatible-schema` | `true` | 索引 schema 不兼容时是否自动重建 |
+| `AGENT_MEMORY_ENABLED` | `agent.memory.agent-memory.enabled` | `true` | Agent Memory 总开关 |
+| `AGENT_MEMORY_DB_FILE_NAME` | `agent.memory.agent-memory.db-file-name` | `memory.db` | Agent Memory SQLite 文件名 |
+| `AGENT_MEMORY_CONTEXT_TOP_N` | `agent.memory.agent-memory.context-top-n` | `5` | `memory` tag 默认注入条数 |
+| `AGENT_MEMORY_CONTEXT_MAX_CHARS` | `agent.memory.agent-memory.context-max-chars` | `4000` | `memory` tag 最大字符数 |
+| `AGENT_MEMORY_SEARCH_DEFAULT_LIMIT` | `agent.memory.agent-memory.search-default-limit` | `10` | memory tool 默认 limit |
+| `AGENT_MEMORY_HYBRID_VECTOR_WEIGHT` | `agent.memory.agent-memory.hybrid-vector-weight` | `0.7` | 混合检索向量分数权重 |
+| `AGENT_MEMORY_HYBRID_FTS_WEIGHT` | `agent.memory.agent-memory.hybrid-fts-weight` | `0.3` | 混合检索 FTS 分数权重 |
+| `AGENT_MEMORY_DUAL_WRITE_MARKDOWN` | `agent.memory.agent-memory.dual-write-markdown` | `true` | 是否将新记忆追加写入 `memory/memory.md` |
+| `AGENT_MEMORY_EMBEDDING_PROVIDER_KEY` | `agent.memory.agent-memory.embedding-provider-key` | （空） | embedding provider key |
+| `AGENT_MEMORY_EMBEDDING_MODEL` | `agent.memory.agent-memory.embedding-model` | （空） | embedding model |
+| `AGENT_MEMORY_EMBEDDING_DIMENSION` | `agent.memory.agent-memory.embedding-dimension` | `1024` | embedding 维度 |
+| `AGENT_MEMORY_EMBEDDING_TIMEOUT_MS` | `agent.memory.agent-memory.embedding-timeout-ms` | `15000` | embedding HTTP 超时（ms） |
 | `LOGGING_AGENT_LLM_INTERACTION_ENABLED` | `logging.agent.llm.interaction.enabled` | `true` | LLM 交互日志开关 |
 | `LOGGING_AGENT_LLM_INTERACTION_MASK_SENSITIVE` | `logging.agent.llm.interaction.mask-sensitive` | `true` | 日志脱敏开关 |
 
