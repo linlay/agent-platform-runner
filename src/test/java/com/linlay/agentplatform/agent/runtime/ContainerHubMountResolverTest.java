@@ -245,12 +245,13 @@ class ContainerHubMountResolverTest {
                         new AgentDefinition.ExtraMount("viewports", null, null, MountAccessMode.RO),
                         new AgentDefinition.ExtraMount("viewport-servers", null, null, MountAccessMode.RW),
                         new AgentDefinition.ExtraMount("chats", null, null, MountAccessMode.RO),
+                        new AgentDefinition.ExtraMount("skills-market", null, null, MountAccessMode.RO),
                         new AgentDefinition.ExtraMount("owner", null, null, MountAccessMode.RO)
                 )
         );
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .contains("/models", "/tools", "/viewports", "/viewport-servers", "/chats", "/owner");
+                .contains("/models", "/tools", "/viewports", "/viewport-servers", "/chats", "/skills-market", "/owner");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(
                         modelsDir.toAbsolutePath().normalize().toString(),
@@ -258,6 +259,7 @@ class ContainerHubMountResolverTest {
                         viewportsDir.toAbsolutePath().normalize().toString(),
                         viewportServersDir.toAbsolutePath().normalize().toString(),
                         dataDir.toAbsolutePath().normalize().toString(),
+                        skillsDir.toAbsolutePath().normalize().toString(),
                         ownerDir.toAbsolutePath().normalize().toString()
                 );
         assertThat(mounts).filteredOn(mount -> "/models".equals(mount.containerPath()))
@@ -268,10 +270,125 @@ class ContainerHubMountResolverTest {
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(false);
+        assertThat(mounts).filteredOn(mount -> "/skills-market".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(true);
         assertThat(mounts).filteredOn(mount -> "/owner".equals(mount.containerPath()))
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(true);
+    }
+
+    @Test
+    void shouldExposeGlobalSkillsMarketAlongsideAgentLocalSkills() throws Exception {
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
+        Path skillsMarketDir = Files.createDirectories(tempDir.resolve("skills-market"));
+        Path panDir = Files.createDirectories(tempDir.resolve("pan"));
+        Path dataDir = Files.createDirectories(tempDir.resolve("data"));
+        Path agentsDir = Files.createDirectories(tempDir.resolve("agents"));
+        Path agentDir = Files.createDirectories(agentsDir.resolve("atlas"));
+        Path agentSkillsDir = Files.createDirectories(agentDir.resolve("skills"));
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(dataDir),
+                skillProperties(skillsMarketDir),
+                rootProperties(rootDir),
+                panProperties(panDir),
+                providerProperties(tempDir.resolve("providers"))
+        );
+
+        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(
+                SandboxLevel.RUN,
+                "chat",
+                "atlas",
+                List.of(new AgentDefinition.ExtraMount("skills-market", null, null, MountAccessMode.RO))
+        );
+
+        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(agentSkillsDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).filteredOn(mount -> "/skills-market".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(skillsMarketDir.toAbsolutePath().normalize().toString());
+    }
+
+    @Test
+    void shouldExposeGlobalSkillsMarketWhenAgentLocalSkillsFallbackIsUsed() throws Exception {
+        Path hostChatsDir = Files.createDirectories(tempDir.resolve("host-chats"));
+        Path hostRootDir = Files.createDirectories(tempDir.resolve("host-root"));
+        Path hostPanDir = Files.createDirectories(tempDir.resolve("host-pan"));
+        Path hostSkillsDir = Files.createDirectories(tempDir.resolve("host-skills"));
+        Path hostAgentsDir = Files.createDirectories(tempDir.resolve("host-agents"));
+        Path accessChatsDir = Files.createDirectories(tempDir.resolve("access-chats"));
+        Path accessRootDir = Files.createDirectories(tempDir.resolve("access-root"));
+        Path accessPanDir = Files.createDirectories(tempDir.resolve("access-pan"));
+        Path accessSkillsDir = Files.createDirectories(tempDir.resolve("access-skills"));
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(accessChatsDir),
+                skillProperties(accessSkillsDir),
+                rootProperties(accessRootDir),
+                panProperties(accessPanDir),
+                providerProperties(tempDir.resolve("providers")),
+                hostRuntimeDirOverrides(Map.of(
+                        "CHATS_DIR", hostChatsDir.toString(),
+                        "ROOT_DIR", hostRootDir.toString(),
+                        "PAN_DIR", hostPanDir.toString(),
+                        "SKILLS_MARKET_DIR", hostSkillsDir.toString(),
+                        "AGENTS_DIR", hostAgentsDir.toString()
+                ))
+        );
+
+        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(
+                SandboxLevel.AGENT,
+                "chat-missing-agent",
+                "atlas",
+                List.of(new AgentDefinition.ExtraMount("skills-market", null, null, MountAccessMode.RO))
+        );
+
+        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(hostSkillsDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).filteredOn(mount -> "/skills-market".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(hostSkillsDir.toAbsolutePath().normalize().toString());
+    }
+
+    @Test
+    void shouldFailWhenSkillsMarketPlatformMountSourceDoesNotExist() throws Exception {
+        Path rootDir = Files.createDirectories(tempDir.resolve("root"));
+        Path skillsDir = tempDir.resolve("missing-skills-market");
+        Path panDir = Files.createDirectories(tempDir.resolve("pan"));
+        Path dataDir = Files.createDirectories(tempDir.resolve("data"));
+        Path agentsDir = Files.createDirectories(tempDir.resolve("agents"));
+        Files.createDirectories(agentsDir.resolve("atlas").resolve("skills"));
+
+        ContainerHubMountResolver resolver = containerHubMountResolver(
+                new ContainerHubToolProperties(),
+                dataProperties(dataDir),
+                skillProperties(skillsDir),
+                rootProperties(rootDir),
+                panProperties(panDir),
+                providerProperties(tempDir.resolve("providers"))
+        );
+
+        assertThatThrownBy(() -> resolver.resolve(
+                SandboxLevel.RUN,
+                "chat",
+                "atlas",
+                List.of(new AgentDefinition.ExtraMount("skills-market", null, null, MountAccessMode.RO))
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("extra-mount:skills-market")
+                .hasMessageContaining("source does not exist")
+                .hasMessageContaining("containerPath=/skills-market");
     }
 
     @Test

@@ -274,6 +274,8 @@ class AgentDefinitionLoaderTest {
                   extraMounts:
                     - platform: models
                       mode: ro
+                    - platform: skills-market
+                      mode: ro
                     - source: /tmp/datasets
                       destination: /datasets
                       mode: rw
@@ -292,6 +294,7 @@ class AgentDefinitionLoaderTest {
         assertThat(definition).isNotNull();
         assertThat(definition.sandboxConfig().extraMounts()).containsExactly(
                 new AgentDefinition.ExtraMount("models", null, null, MountAccessMode.RO),
+                new AgentDefinition.ExtraMount("skills-market", null, null, MountAccessMode.RO),
                 new AgentDefinition.ExtraMount(null, "/tmp/datasets", "/datasets", MountAccessMode.RW),
                 new AgentDefinition.ExtraMount(null, null, "/skills", MountAccessMode.RW)
         );

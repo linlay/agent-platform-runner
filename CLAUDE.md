@@ -611,7 +611,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 |-----------|-------------|-------------------------|----------|----------|--------------------------|
 | `/workspace` | `{chatDataDir}/{chatId}` | `{chatDataDir}` | 默认挂载 | `rw` | `memory.chats.dir` |
 | `/root` | `{rootDir}` | `{rootDir}` | 默认挂载 | `rw` | `agent.root.external-dir` |
-| `/skills` | `{skillsDir}` | `{skillsDir}` | 默认挂载 | `ro` | `agent.skills.external-dir` |
+| `/skills` | `{agentsDir}/{agentKey}/skills`（若存在，否则 `{skillsDir}`） | `{agentsDir}/{agentKey}/skills`（若存在，否则 `{skillsDir}`） | 默认挂载 | `ro` | `agent.skills.external-dir` |
 | `/pan` | `{panDir}` | `{panDir}` | 默认挂载 | `rw` | `agent.pan.external-dir` |
 | `/agent` | `{agentsDir}/{agentKey}` | `{agentsDir}/{agentKey}` | 默认挂载；仅目录化 agent 存在时挂载 | `ro` | `agent.agents.external-dir` |
 | `/tools` | `{toolsDir}` | `{toolsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.tools.external-dir` |
@@ -624,6 +624,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 | `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.mcp-servers.registry.external-dir` |
 | `/providers` | `{providersDir}` | `{providersDir}` | `extraMounts` 按需；敏感目录 | 显式 `mode` | `agent.providers.external-dir` |
 | `/chats` | `{chatDataDir}` | `{chatDataDir}` | `extraMounts` 按需 | 显式 `mode` | `memory.chats.dir` |
+| `/skills-market` | `{skillsDir}` | `{skillsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.skills.external-dir` |
 | `/owner` | `{agentsDir}/../owner` | `{agentsDir}/../owner` | `extraMounts` 按需 | 显式 `mode` | `agent.agents.external-dir` 的父目录 |
 
 ### Agent Definition 中的 sandboxConfig

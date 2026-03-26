@@ -83,6 +83,7 @@ public record RuntimeRequestContext(
             String workspaceDir,
             String rootDir,
             String skillsDir,
+            String skillsMarketDir,
             String panDir,
             String agentDir,
             String ownerDir,

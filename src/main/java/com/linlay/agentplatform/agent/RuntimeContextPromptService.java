@@ -40,6 +40,7 @@ public class RuntimeContextPromptService {
     private static final String SANDBOX_WORKSPACE_DIR = "/workspace";
     private static final String SANDBOX_ROOT_DIR = "/root";
     private static final String SANDBOX_SKILLS_DIR = "/skills";
+    private static final String SANDBOX_SKILLS_MARKET_DIR = "/skills-market";
     private static final String SANDBOX_PAN_DIR = "/pan";
     private static final String SANDBOX_AGENT_DIR = "/agent";
 
@@ -204,6 +205,7 @@ public class RuntimeContextPromptService {
         boolean hasAgentSelfDir = hasAgentSelfDir(agentsDir, definition == null ? null : definition.id());
         boolean hasGlobalSkillsDir = skillsDir != null;
         boolean hasSkillsDir = level == SandboxLevel.GLOBAL ? hasGlobalSkillsDir : (hasAgentSelfDir || hasGlobalSkillsDir);
+        String skillsMarketMount = null;
 
         String ownerMount = null;
         String agentsMount = null;
@@ -224,6 +226,7 @@ public class RuntimeContextPromptService {
                 }
                 String platform = extraMount.platform().trim().toLowerCase(Locale.ROOT);
                 switch (platform) {
+                    case "skills-market" -> skillsMarketMount = skillsDir == null ? null : SANDBOX_SKILLS_MARKET_DIR;
                     case "owner" -> ownerMount = ownerDir == null ? null : "/owner";
                     case "agents" -> agentsMount = agentsDir == null ? null : "/agents";
                     case "teams" -> teamsMount = teamsDir == null ? null : "/teams";
@@ -246,6 +249,7 @@ public class RuntimeContextPromptService {
                 SANDBOX_WORKSPACE_DIR,
                 rootDir == null ? null : SANDBOX_ROOT_DIR,
                 hasSkillsDir ? SANDBOX_SKILLS_DIR : null,
+                skillsMarketMount,
                 panDir == null ? null : SANDBOX_PAN_DIR,
                 hasAgentSelfDir ? SANDBOX_AGENT_DIR : null,
                 ownerMount,
@@ -287,6 +291,7 @@ public class RuntimeContextPromptService {
                 appendKeyValue(lines, "sandbox_workspace_dir", sandboxPaths.workspaceDir());
                 appendKeyValue(lines, "sandbox_root_dir", sandboxPaths.rootDir());
                 appendKeyValue(lines, "sandbox_skills_dir", sandboxPaths.skillsDir());
+                appendKeyValue(lines, "sandbox_skills_market_dir", sandboxPaths.skillsMarketDir());
                 appendKeyValue(lines, "sandbox_pan_dir", sandboxPaths.panDir());
                 appendKeyValue(lines, "sandbox_agent_dir", sandboxPaths.agentDir());
                 appendKeyValue(lines, "sandbox_owner_dir", sandboxPaths.ownerDir());

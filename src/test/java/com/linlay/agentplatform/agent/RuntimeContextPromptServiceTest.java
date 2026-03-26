@@ -139,9 +139,10 @@ class RuntimeContextPromptServiceTest {
                     new AgentDefinition.SandboxConfig(
                             "daily-office",
                             SandboxLevel.RUN,
-                            List.of(
+                        List.of(
                                     new AgentDefinition.ExtraMount("owner", null, null, MountAccessMode.RO),
-                                    new AgentDefinition.ExtraMount("providers", null, null, MountAccessMode.RO)
+                                    new AgentDefinition.ExtraMount("providers", null, null, MountAccessMode.RO),
+                                    new AgentDefinition.ExtraMount("skills-market", null, null, MountAccessMode.RO)
                             )
                     ),
                     RuntimeContextTags.SYSTEM,
@@ -176,7 +177,7 @@ class RuntimeContextPromptServiceTest {
                                     "RUN",
                                     true,
                                     true,
-                                    List.of("platform:tools (ro)", "destination:/skills (rw)"),
+                                    List.of("platform:tools (ro)", "platform:skills-market (ro)", "destination:/skills (rw)"),
                                     "You are running inside the `daily-office` environment."
                             ),
                             List.of(
@@ -214,6 +215,7 @@ class RuntimeContextPromptServiceTest {
             assertThat(prompt).contains("sandbox_workspace_dir: /workspace");
             assertThat(prompt).contains("sandbox_root_dir: /root");
             assertThat(prompt).contains("sandbox_skills_dir: /skills");
+            assertThat(prompt).contains("sandbox_skills_market_dir: /skills-market");
             assertThat(prompt).contains("sandbox_pan_dir: /pan");
             assertThat(prompt).contains("sandbox_agent_dir: /agent");
             assertThat(prompt).contains("sandbox_owner_dir: /owner");
@@ -232,6 +234,7 @@ class RuntimeContextPromptServiceTest {
             assertThat(prompt).contains("Runtime Context: Sandbox");
             assertThat(prompt).contains("environmentId: daily-office");
             assertThat(prompt).contains("environment_prompt:");
+            assertThat(prompt).contains("- platform:skills-market (ro)");
             assertThat(prompt).contains("Runtime Context: All Agents");
             assertThat(prompt).contains("key: commander");
             assertThat(prompt).contains("sandbox:");

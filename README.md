@@ -739,6 +739,7 @@ default-environment-id: shell
 挂载模式规则：
 
 - 基础挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 默认自动存在，不需要在 `agent.yml` 中声明。
+- 对目录化 agent，`/skills` 在 `RUN/AGENT` 级别优先挂载 `agents/<agentKey>/skills`；只有本地 skills 不存在时才回落到共享 `skills-market`。
 - 默认模式为：`/workspace=rw`、`/root=rw`、`/skills=ro`、`/pan=rw`、`/agent=ro`。
 - 若需要修改基础挂载模式，继续使用 `sandboxConfig.extraMounts`，仅声明 `destination + mode` 即可覆盖默认模式。
 - 所有可选平台挂载和自定义挂载都必须显式声明 `mode: ro|rw`。
@@ -756,6 +757,8 @@ sandboxConfig:
       mode: rw
     - platform: chats
       mode: ro
+    - platform: skills-market
+      mode: ro
     - platform: owner
       mode: rw
     - source: /abs/host/path
@@ -770,7 +773,8 @@ sandboxConfig:
 说明：
 
 - `platform: tools/models/...` 表示恢复按需平台目录挂载，同时必须写 `mode`。
-- 现支持的额外平台简写包括：`models`、`tools`、`agents`、`viewports`、`viewport-servers`、`teams`、`schedules`、`mcp-servers`、`providers`、`chats`、`owner`。
+- 现支持的额外平台简写包括：`models`、`tools`、`agents`、`viewports`、`viewport-servers`、`teams`、`schedules`、`mcp-servers`、`providers`、`chats`、`skills-market`、`owner`。
+- `platform: skills-market` 会把共享 market 显式挂载到容器内 `/skills-market`，与默认 `/skills` 的 agent 本地 skills 语义区分开。
 - `source + destination + mode` 表示新增一个自定义宿主目录挂载。
 - `destination: /skills` 或 `destination: /agent` 这类写法表示覆盖默认基础挂载模式，不新增第二个挂载。
 

@@ -56,6 +56,7 @@ class AgentCatalogControllerUnitTest {
                         SandboxLevel.RUN,
                         List.of(
                                 new AgentDefinition.ExtraMount("tools", null, null, MountAccessMode.RO),
+                                new AgentDefinition.ExtraMount("skills-market", null, null, MountAccessMode.RO),
                                 new AgentDefinition.ExtraMount(null, null, "/skills", MountAccessMode.RW)
                         )
                 ),
@@ -113,7 +114,11 @@ class AgentCatalogControllerUnitTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> extraMounts = (List<Map<String, Object>>) sandbox.get("extraMounts");
 
-        assertThat(extraMounts).containsExactly(expectedExtraMount("tools", null, null, "ro"), expectedExtraMount(null, null, "/skills", "rw"));
+        assertThat(extraMounts).containsExactly(
+                expectedExtraMount("tools", null, null, "ro"),
+                expectedExtraMount("skills-market", null, null, "ro"),
+                expectedExtraMount(null, null, "/skills", "rw")
+        );
     }
 
     private Map<String, Object> expectedExtraMount(String platform, String source, String destination, String mode) {

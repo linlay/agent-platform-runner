@@ -22,6 +22,7 @@ public class ContainerHubMountResolver {
     static final String WORKSPACE_PATH = "/workspace";
     static final String ROOT_PATH = "/root";
     static final String SKILLS_PATH = "/skills";
+    static final String SKILLS_MARKET_PATH = "/skills-market";
     static final String PAN_PATH = "/pan";
     static final String AGENT_PATH = "/agent";
     private static final MountDirectoryConfig EMPTY_DIRECTORIES = new MountDirectoryConfig(
@@ -136,6 +137,10 @@ public class ContainerHubMountResolver {
 
     private ResolvedPath resolveGlobalSkillsDir() {
         return resolveHostBackedDirectory("SKILLS_MARKET_DIR", directories.skillsDir(), "skills-dir");
+    }
+
+    private ResolvedPath resolveSkillsMarketDir() {
+        return resolveHostBackedDirectory("SKILLS_MARKET_DIR", directories.skillsDir(), "skills-market-dir");
     }
 
     private ResolvedPath resolveSkillsDir(SandboxLevel level, String agentKey) {
@@ -361,6 +366,7 @@ public class ContainerHubMountResolver {
                 Map.entry("mcp-servers", new PlatformMountDef(this::resolveMcpServersDir, "/mcp-servers", MountSourceType.DIRECTORY)),
                 Map.entry("providers", new PlatformMountDef(this::resolveProvidersDir, "/providers", MountSourceType.DIRECTORY)),
                 Map.entry("chats", new PlatformMountDef(this::resolveChatsDir, "/chats", MountSourceType.DIRECTORY)),
+                Map.entry("skills-market", new PlatformMountDef(this::resolveSkillsMarketDir, SKILLS_MARKET_PATH, MountSourceType.DIRECTORY)),
                 Map.entry("owner", new PlatformMountDef(this::resolveOwnerDirPath, "/owner", MountSourceType.DIRECTORY))
         );
     }
