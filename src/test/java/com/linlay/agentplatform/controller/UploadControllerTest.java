@@ -2,7 +2,7 @@ package com.linlay.agentplatform.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.properties.DataProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.testsupport.StubLlmService;
@@ -42,7 +42,6 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.auth.enabled=false",
                 "chat.storage.dir=${java.io.tmpdir}/agent-platform-runner-upload-chats-${random.uuid}",
                 "chat.storage.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-upload-chats-db-${random.uuid}/chats.db",
-                "agent.data.external-dir=${java.io.tmpdir}/agent-platform-runner-upload-assets-${random.uuid}",
                 "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-upload-skills-${random.uuid}",
                 "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-upload-schedules-${random.uuid}"
         }
@@ -55,7 +54,7 @@ class UploadControllerTest {
     private WebTestClient webTestClient;
 
     @Autowired
-    private DataProperties dataProperties;
+    private ChatStorageProperties chatStorageProperties;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -85,23 +84,25 @@ class UploadControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        Files.createDirectories(Path.of(dataProperties.getExternalDir()));
+        Files.createDirectories(Path.of(chatStorageProperties.getDir()));
     }
 
     @Test
     void postUploadShouldCreateReservationAndPersistBinary() throws Exception {
+        String chatId = UUID.randomUUID().toString();
         EntityExchangeResult<byte[]> reserveResult = webTestClient.post()
                 .uri("/api/upload")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
                         {
                           "requestId": "req-upload-1",
+                          "chatId": "%s",
                           "type": "file",
                           "name": "notes.txt",
                           "sizeBytes": 11,
                           "mimeType": "text/plain"
                         }
-                        """)
+                        """.formatted(chatId))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -112,13 +113,13 @@ class UploadControllerTest {
                 .returnResult();
 
         JsonNode data = responseData(reserveResult);
-        String chatId = data.path("chatId").asText();
+        String responseChatId = data.path("chatId").asText();
         String uploadUrl = data.path("upload").path("url").asText();
         String resourceUrl = data.path("reference").path("url").asText();
 
-        assertThat(UUID.fromString(chatId)).isNotNull();
+        assertThat(responseChatId).isEqualTo(chatId);
         assertThat(uploadUrl).isEqualTo("/api/upload/" + chatId + "/f1");
-        assertThat(resourceUrl).isEqualTo("/api/resource?file=" + chatId + "%2Fuploads%2Ff1-notes.txt");
+        assertThat(resourceUrl).isEqualTo("/api/resource?file=" + chatId + "%2Fuploads%2Fnotes.txt");
 
         webTestClient.put()
                 .uri(uploadUrl)
@@ -134,6 +135,60 @@ class UploadControllerTest {
                 .expectHeader().valueEquals(HttpHeaders.CONTENT_TYPE, "text/plain")
                 .expectBody(byte[].class)
                 .value(bytes -> assertThat(new String(bytes, StandardCharsets.UTF_8)).isEqualTo("hello world"));
+
+        Path assetPath = Path.of(chatStorageProperties.getDir()).resolve(chatId).resolve("uploads").resolve("notes.txt");
+        assertThat(Files.readString(assetPath, StandardCharsets.UTF_8)).isEqualTo("hello world");
+    }
+
+    @Test
+    void postUploadShouldRequireChatId() {
+        webTestClient.post()
+                .uri("/api/upload")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {
+                          "requestId": "req-upload-no-chat",
+                          "type": "file",
+                          "name": "notes.txt",
+                          "sizeBytes": 11,
+                          "mimeType": "text/plain"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(400);
+    }
+
+    @Test
+    void postUploadShouldKeepOriginalFilenameAndAppendSuffixForConflicts() throws Exception {
+        String chatId = UUID.randomUUID().toString();
+
+        JsonNode firstData = responseData(reserveUpload(chatId, "req-upload-name-1", "image", "t.png", 3, "image/png", null));
+        JsonNode secondData = responseData(reserveUpload(chatId, "req-upload-name-2", "image", "t.png", 3, "image/png", null));
+
+        assertThat(firstData.path("reference").path("url").asText())
+                .isEqualTo("/api/resource?file=" + chatId + "%2Fuploads%2Ft.png");
+        assertThat(secondData.path("reference").path("url").asText())
+                .isEqualTo("/api/resource?file=" + chatId + "%2Fuploads%2Ft%20%282%29.png");
+
+        webTestClient.put()
+                .uri(firstData.path("upload").path("url").asText())
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .bodyValue(new byte[]{1, 2, 3})
+                .exchange()
+                .expectStatus().isNoContent();
+
+        webTestClient.put()
+                .uri(secondData.path("upload").path("url").asText())
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .bodyValue(new byte[]{4, 5, 6})
+                .exchange()
+                .expectStatus().isNoContent();
+
+        Path uploadsDir = Path.of(chatStorageProperties.getDir()).resolve(chatId).resolve("uploads");
+        assertThat(Files.exists(uploadsDir.resolve("t.png"))).isTrue();
+        assertThat(Files.exists(uploadsDir.resolve("t (2).png"))).isTrue();
     }
 
     @Test
@@ -182,7 +237,7 @@ class UploadControllerTest {
                 .exchange()
                 .expectStatus().isBadRequest();
 
-        Path assetPath = Path.of(dataProperties.getExternalDir()).resolve(chatId).resolve("uploads").resolve("f1-greeting.txt");
+        Path assetPath = Path.of(chatStorageProperties.getDir()).resolve(chatId).resolve("uploads").resolve("greeting.txt");
         assertThat(Files.exists(assetPath)).isFalse();
     }
 
@@ -207,7 +262,7 @@ class UploadControllerTest {
                 .exchange()
                 .expectStatus().isBadRequest();
 
-        Path assetPath = Path.of(dataProperties.getExternalDir()).resolve(chatId).resolve("uploads").resolve("f1-checksum.txt");
+        Path assetPath = Path.of(chatStorageProperties.getDir()).resolve(chatId).resolve("uploads").resolve("checksum.txt");
         assertThat(Files.exists(assetPath)).isFalse();
     }
 

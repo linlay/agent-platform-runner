@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.service.chat;
 
-import com.linlay.agentplatform.config.properties.DataProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -37,8 +37,8 @@ class ChatDataPathServiceTest {
     }
 
     private ChatDataPathService newService() {
-        DataProperties dataProperties = new DataProperties();
-        dataProperties.setExternalDir(tempDir.toString());
-        return new ChatDataPathService(dataProperties);
+        ChatStorageProperties chatStorageProperties = new ChatStorageProperties();
+        chatStorageProperties.setDir(tempDir.toString());
+        return new ChatDataPathService(chatStorageProperties);
     }
 }

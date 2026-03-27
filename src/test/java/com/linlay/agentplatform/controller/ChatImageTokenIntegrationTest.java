@@ -2,7 +2,6 @@ package com.linlay.agentplatform.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.service.chat.ChatRecordStore;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
@@ -86,7 +85,6 @@ class ChatImageTokenIntegrationTest {
 
     private static final String CHAT_IMAGE_SECRET = "chat-image-token-secret-for-tests";
     private static final String ISSUER = "https://auth.example.local";
-    private static final Path TEST_DATA_DIR = prepareDataDir();
     private static final Path TEST_PROVIDERS_DIR = prepareProvidersDir();
 
     private static RSAKey rsaKey;
@@ -96,8 +94,6 @@ class ChatImageTokenIntegrationTest {
     private WebTestClient webTestClient;
     @Autowired
     private ChatStorageProperties chatWindowMemoryProperties;
-    @Autowired
-    private DataProperties dataProperties;
     @Autowired
     private ChatRecordStore chatRecordStore;
 
@@ -125,15 +121,6 @@ class ChatImageTokenIntegrationTest {
                 }
             };
         }
-
-        @Bean
-        @Primary
-        DataProperties dataProperties() {
-            DataProperties properties = new DataProperties();
-            properties.setExternalDir(TEST_DATA_DIR.toString());
-            return properties;
-        }
-
     }
 
     @BeforeAll
@@ -189,24 +176,15 @@ class ChatImageTokenIntegrationTest {
         }
     }
 
-    private static Path prepareDataDir() {
-        try {
-            return Files.createTempDirectory("agent-platform-runner-chat-image-token-data-");
-        } catch (java.io.IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-    }
-
     @BeforeEach
     void setUp() throws IOException {
         Files.createDirectories(Path.of(chatWindowMemoryProperties.getDir()));
-        Files.createDirectories(Path.of(dataProperties.getExternalDir()));
     }
 
     @Test
     void chatApiShouldReturnChatImageTokenWhenAuthorized() throws Exception {
         String chatId = UUID.randomUUID().toString();
-        seedChatWithImageContent(chatId, "![sample](sample_photo.jpg)");
+        seedChatWithImageContent(chatId, "![sample](" + chatScopedPath(chatId, "sample_photo.jpg") + ")");
 
         String authToken = issueAuthToken("user-chat-api");
 
@@ -258,8 +236,8 @@ class ChatImageTokenIntegrationTest {
     void dataApiShouldServeImageWithValidChatImageTokenWithoutAuthorizationHeader() throws Exception {
         String chatId = UUID.randomUUID().toString();
         String userId = "user-image-ok";
-        seedChatWithImageContent(chatId, "![sample](sample_photo.jpg)");
-        writeImageFile("sample_photo.jpg");
+        seedChatWithImageContent(chatId, "![sample](" + chatScopedPath(chatId, "sample_photo.jpg") + ")");
+        writeChatScopedAsset(chatId, "sample_photo.jpg");
 
         String authToken = issueAuthToken(userId);
         String chatImageToken = fetchChatImageToken(chatId, authToken);
@@ -267,7 +245,7 @@ class ChatImageTokenIntegrationTest {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/resource")
-                        .queryParam("file", "sample_photo.jpg")
+                        .queryParam("file", chatScopedPath(chatId, "sample_photo.jpg"))
                         .queryParam("t", chatImageToken)
                         .build())
                 .exchange()
@@ -289,7 +267,7 @@ class ChatImageTokenIntegrationTest {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/resource")
-                        .queryParam("file", "/data/" + chatId + "/cover.png")
+                        .queryParam("file", chatScopedPath(chatId, "cover.png"))
                         .queryParam("t", chatImageToken)
                         .build())
                 .exchange()
@@ -300,12 +278,13 @@ class ChatImageTokenIntegrationTest {
 
     @Test
     void dataApiShouldReturn403ForInvalidToken() throws Exception {
-        writeImageFile("sample_photo.jpg");
+        String chatId = UUID.randomUUID().toString();
+        writeChatScopedAsset(chatId, "sample_photo.jpg");
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/resource")
-                        .queryParam("file", "sample_photo.jpg")
+                        .queryParam("file", chatScopedPath(chatId, "sample_photo.jpg"))
                         .queryParam("t", "invalid-token")
                         .build())
                 .exchange()
@@ -318,8 +297,8 @@ class ChatImageTokenIntegrationTest {
     @Test
     void dataApiShouldReturn403ForExpiredToken() throws Exception {
         String chatId = UUID.randomUUID().toString();
-        seedChatWithImageContent(chatId, "![sample](sample_photo.jpg)");
-        writeImageFile("sample_photo.jpg");
+        seedChatWithImageContent(chatId, "![sample](" + chatScopedPath(chatId, "sample_photo.jpg") + ")");
+        writeChatScopedAsset(chatId, "sample_photo.jpg");
 
         String expiredToken = issueChatImageToken(
                 "user-expired",
@@ -330,7 +309,7 @@ class ChatImageTokenIntegrationTest {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/resource")
-                        .queryParam("file", "sample_photo.jpg")
+                        .queryParam("file", chatScopedPath(chatId, "sample_photo.jpg"))
                         .queryParam("t", expiredToken)
                         .build())
                 .exchange()
@@ -343,10 +322,11 @@ class ChatImageTokenIntegrationTest {
     @Test
     void dataApiShouldReturn403ForFileOutsideChatAssets() throws Exception {
         String chatId = UUID.randomUUID().toString();
+        String otherChatId = UUID.randomUUID().toString();
         String userId = "user-asset-scope";
-        seedChatWithImageContent(chatId, "![sample](sample_photo.jpg)");
-        writeImageFile("sample_photo.jpg");
-        writeImageFile("other_photo.jpg");
+        seedChatWithImageContent(chatId, "![sample](" + chatScopedPath(chatId, "sample_photo.jpg") + ")");
+        writeChatScopedAsset(chatId, "sample_photo.jpg");
+        writeChatScopedAsset(otherChatId, "other_photo.jpg");
 
         String authToken = issueAuthToken(userId);
         String chatImageToken = fetchChatImageToken(chatId, authToken);
@@ -354,7 +334,7 @@ class ChatImageTokenIntegrationTest {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/resource")
-                        .queryParam("file", "other_photo.jpg")
+                        .queryParam("file", chatScopedPath(otherChatId, "other_photo.jpg"))
                         .queryParam("t", chatImageToken)
                         .build())
                 .exchange()
@@ -368,7 +348,7 @@ class ChatImageTokenIntegrationTest {
     void dataApiShouldReturn404WhenFileNotFoundWithValidToken() throws Exception {
         String chatId = UUID.randomUUID().toString();
         String userId = "user-404";
-        seedChatWithImageContent(chatId, "![sample](missing.jpg)");
+        seedChatWithImageContent(chatId, "![sample](" + chatScopedPath(chatId, "missing.jpg") + ")");
 
         String authToken = issueAuthToken(userId);
         String chatImageToken = fetchChatImageToken(chatId, authToken);
@@ -376,7 +356,7 @@ class ChatImageTokenIntegrationTest {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/resource")
-                        .queryParam("file", "missing.jpg")
+                        .queryParam("file", chatScopedPath(chatId, "missing.jpg"))
                         .queryParam("t", chatImageToken)
                         .build())
                 .exchange()
@@ -386,12 +366,13 @@ class ChatImageTokenIntegrationTest {
 
     @Test
     void dataApiShouldKeepAuthorizationCompatibilityWithoutTokenQueryParam() throws Exception {
-        writeImageFile("sample_photo.jpg");
+        String chatId = UUID.randomUUID().toString();
+        writeChatScopedAsset(chatId, "sample_photo.jpg");
         String authToken = issueAuthToken("user-auth-compat");
 
         webTestClient.get()
                 .uri(UriComponentsBuilder.fromPath("/api/resource")
-                        .queryParam("file", "sample_photo.jpg")
+                        .queryParam("file", chatScopedPath(chatId, "sample_photo.jpg"))
                         .build()
                         .toUriString())
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + authToken)
@@ -506,16 +487,14 @@ class ChatImageTokenIntegrationTest {
         return digest.digest(raw.getBytes(StandardCharsets.UTF_8));
     }
 
-    private void writeImageFile(String filename) throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
-        Files.createDirectories(dataDir);
-        Files.write(dataDir.resolve(filename), createMinimalPng());
-    }
-
     private void writeChatScopedAsset(String chatId, String filename) throws Exception {
-        Path chatDataDir = Path.of(dataProperties.getExternalDir()).resolve(chatId);
+        Path chatDataDir = Path.of(chatWindowMemoryProperties.getDir()).resolve(chatId);
         Files.createDirectories(chatDataDir);
         Files.write(chatDataDir.resolve(filename), createMinimalPng());
+    }
+
+    private String chatScopedPath(String chatId, String filename) {
+        return chatId + "/" + filename;
     }
 
     private byte[] createMinimalPng() {

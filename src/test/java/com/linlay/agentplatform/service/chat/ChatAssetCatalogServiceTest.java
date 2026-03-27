@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.service.chat;
 
-import com.linlay.agentplatform.config.properties.DataProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -50,7 +50,7 @@ class ChatAssetCatalogServiceTest {
         String chatId = "123e4567-e89b-12d3-a456-426614174011";
         Path chatDir = tempDir.resolve(chatId);
         Files.createDirectories(chatDir.resolve("uploads"));
-        Files.writeString(chatDir.resolve("uploads").resolve("f1-plan.txt"), "hello");
+        Files.writeString(chatDir.resolve("uploads").resolve("plan.txt"), "hello");
         ChatUploadManifestStore.write(chatDir, new ChatUploadManifestStore.StoredUpload(
                 "req-1",
                 chatId,
@@ -60,7 +60,7 @@ class ChatAssetCatalogServiceTest {
                 5L,
                 "text/plain",
                 null,
-                "uploads/f1-plan.txt",
+                "uploads/plan.txt",
                 ChatUploadManifestStore.STATUS_COMPLETED,
                 1L,
                 2L
@@ -71,13 +71,13 @@ class ChatAssetCatalogServiceTest {
 
         assertThat(references).hasSize(1);
         assertThat(references.getFirst().id()).isEqualTo("f1");
-        assertThat(references.getFirst().url()).isEqualTo("/api/resource?file=" + chatId + "%2Fuploads%2Ff1-plan.txt");
+        assertThat(references.getFirst().url()).isEqualTo("/api/resource?file=" + chatId + "%2Fuploads%2Fplan.txt");
         assertThat(references.getFirst().meta()).containsEntry("origin", "upload");
     }
 
     private ChatAssetCatalogService newService() {
-        DataProperties dataProperties = new DataProperties();
-        dataProperties.setExternalDir(tempDir.toString());
-        return new ChatAssetCatalogService(new ChatDataPathService(dataProperties));
+        ChatStorageProperties chatStorageProperties = new ChatStorageProperties();
+        chatStorageProperties.setDir(tempDir.toString());
+        return new ChatAssetCatalogService(new ChatDataPathService(chatStorageProperties));
     }
 }

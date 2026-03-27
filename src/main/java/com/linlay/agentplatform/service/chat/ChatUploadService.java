@@ -15,11 +15,13 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.text.Normalizer;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Stream;
 
 @Service
 public class ChatUploadService {
@@ -33,9 +35,7 @@ public class ChatUploadService {
 
     public UploadResponse reserve(UploadRequest request) {
         validateType(request.type());
-        String chatId = StringUtils.hasText(request.chatId())
-                ? chatDataPathService.normalizeChatId(request.chatId())
-                : UUID.randomUUID().toString();
+        String chatId = chatDataPathService.normalizeChatId(request.chatId());
         long sizeBytes = request.sizeBytes() == null ? 0L : request.sizeBytes();
         String requestId = request.requestId().trim();
         String type = request.type().trim().toLowerCase(Locale.ROOT);
@@ -55,7 +55,7 @@ public class ChatUploadService {
             }
 
             String referenceId = nextReferenceId(chatDir, type);
-            String relativePath = "uploads/" + referenceId + "-" + sanitizeFilename(name, type);
+            String relativePath = resolveRelativeUploadPath(chatDir, name, type);
             long now = Instant.now().toEpochMilli();
             ChatUploadManifestStore.StoredUpload stored = new ChatUploadManifestStore.StoredUpload(
                     requestId,
@@ -202,6 +202,64 @@ public class ChatUploadService {
             return Integer.parseInt(referenceId.substring(1));
         } catch (Exception ex) {
             return 0;
+        }
+    }
+
+    private String resolveRelativeUploadPath(Path chatDir, String rawName, String type) {
+        String filename = sanitizeFilename(rawName, type);
+        String resolved = uniquifyFilename(filename, usedUploadFilenames(chatDir));
+        return "uploads/" + resolved;
+    }
+
+    private Set<String> usedUploadFilenames(Path chatDir) {
+        Set<String> names = new HashSet<>();
+        for (ChatUploadManifestStore.StoredUpload upload : ChatUploadManifestStore.list(chatDir)) {
+            if (!StringUtils.hasText(upload.relativePath())) {
+                continue;
+            }
+            try {
+                String normalized = chatDataPathService.normalizeRelativePath(upload.relativePath());
+                Path relative = Path.of(normalized);
+                if (relative.getNameCount() >= 2 && "uploads".equals(relative.getName(0).toString())) {
+                    names.add(relative.getFileName().toString());
+                }
+            } catch (IllegalArgumentException ignored) {
+                // ignore malformed historical manifest entries
+            }
+        }
+        Path uploadsDir = chatDir.resolve("uploads");
+        if (!Files.isDirectory(uploadsDir)) {
+            return names;
+        }
+        try (Stream<Path> stream = Files.list(uploadsDir)) {
+            stream.filter(path -> Files.isRegularFile(path))
+                    .map(path -> path.getFileName().toString())
+                    .filter(StringUtils::hasText)
+                    .forEach(names::add);
+        } catch (Exception ignored) {
+            // fall back to manifest-derived names only
+        }
+        return names;
+    }
+
+    private String uniquifyFilename(String filename, Set<String> usedNames) {
+        if (!usedNames.contains(filename)) {
+            return filename;
+        }
+        String extension = "";
+        String basename = filename;
+        int dotIndex = filename.lastIndexOf('.');
+        if (dotIndex > 0) {
+            basename = filename.substring(0, dotIndex);
+            extension = filename.substring(dotIndex);
+        }
+        int suffix = 2;
+        while (true) {
+            String candidate = basename + " (" + suffix + ")" + extension;
+            if (!usedNames.contains(candidate)) {
+                return candidate;
+            }
+            suffix++;
         }
     }
 

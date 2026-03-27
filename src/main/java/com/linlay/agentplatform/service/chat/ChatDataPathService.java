@@ -1,10 +1,8 @@
 package com.linlay.agentplatform.service.chat;
 
-import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.util.DataFilePathNormalizer;
 import com.linlay.agentplatform.util.StringHelpers;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -20,11 +18,6 @@ public class ChatDataPathService {
 
     public ChatDataPathService(ChatStorageProperties properties) {
         this.dataDir = Path.of(properties.getDir()).toAbsolutePath().normalize();
-    }
-
-    @Autowired
-    public ChatDataPathService(DataProperties properties) {
-        this.dataDir = Path.of(properties.getExternalDir()).toAbsolutePath().normalize();
     }
 
     public Path dataDir() {

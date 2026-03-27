@@ -1,7 +1,6 @@
 package com.linlay.agentplatform.service.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;
@@ -327,11 +326,10 @@ class ChatRecordStoreTest {
         Path chatDir = tempDir.resolve("chats");
         writeIndex(chatDir, chatId, "资产会话", 1707000200000L, 1707000200000L);
 
-        Path dataDir = tempDir.resolve("data");
-        Files.createDirectories(dataDir.resolve(chatId));
-        Files.write(dataDir.resolve(chatId).resolve("cover.png"), new byte[]{1});
+        Files.createDirectories(chatDir.resolve(chatId));
+        Files.write(chatDir.resolve(chatId).resolve("cover.png"), new byte[]{1});
 
-        ChatRecordStore store = newStore(null, dataDir);
+        ChatRecordStore store = newStore();
         ChatDetailResponse detail = store.loadChat(chatId, false);
 
         assertThat(detail.references()).isNotNull();
@@ -750,23 +748,15 @@ class ChatRecordStoreTest {
     }
 
     private ChatRecordStore newStore() {
-        return newStore(null, null);
+        return newStore(null);
     }
 
     private ChatRecordStore newStore(ToolRegistry toolRegistry) {
-        return newStore(toolRegistry, null);
-    }
-
-    private ChatRecordStore newStore(ToolRegistry toolRegistry, Path dataDir) {
         ChatStorageProperties properties = new ChatStorageProperties();
         properties.setDir(tempDir.resolve("chats").toString());
         properties.getIndex().setSqliteFile(tempDir.resolve("chats").resolve("chats.db").toString());
-        ChatAssetCatalogService chatAssetCatalogService = null;
-        if (dataDir != null) {
-            DataProperties dataProperties = new DataProperties();
-            dataProperties.setExternalDir(dataDir.toString());
-            chatAssetCatalogService = new ChatAssetCatalogService(new ChatDataPathService(dataProperties));
-        }
+        ChatAssetCatalogService chatAssetCatalogService =
+                new ChatAssetCatalogService(new ChatDataPathService(properties));
         ChatRecordStore store = new ChatRecordStore(objectMapper, properties, toolRegistry, chatAssetCatalogService);
         store.initializeDatabase();
         return store;

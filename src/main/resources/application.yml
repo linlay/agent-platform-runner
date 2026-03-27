@@ -130,8 +130,8 @@ agent:
     # when true, GET /api/resource?t=... performs token validation and may return 403 if token is invalid/expired
     data-token-validation-enabled: ${CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED:true}
 
-memory:
-  chats:
+chat:
+  storage:
     dir: ${CHATS_DIR:runtime/chats}
     k: ${CHAT_STORAGE_K:20}
     charset: ${CHAT_STORAGE_CHARSET:UTF-8}

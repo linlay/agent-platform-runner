@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.controller;
 
-import com.linlay.agentplatform.config.properties.DataProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.testsupport.StubLlmService;
@@ -39,7 +39,6 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.auth.enabled=false",
                 "chat.storage.dir=${java.io.tmpdir}/agent-platform-runner-test-data-chats-${random.uuid}",
                 "chat.storage.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-test-data-chats-db-${random.uuid}/chats.db",
-                "agent.data.external-dir=${java.io.tmpdir}/agent-platform-runner-test-data-assets-${random.uuid}",
                 "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-test-data-skills-${random.uuid}",
                 "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-test-data-schedules-${random.uuid}"
         }
@@ -52,7 +51,7 @@ class DataFileControllerTest {
     private WebTestClient webTestClient;
 
     @Autowired
-    private DataProperties dataProperties;
+    private ChatStorageProperties chatStorageProperties;
 
     @TestConfiguration
     static class TestLlmServiceConfig {
@@ -80,13 +79,13 @@ class DataFileControllerTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         Files.createDirectories(dataDir);
     }
 
     @Test
     void shouldServePngImageInline() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         // Minimal 1x1 PNG
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("aaa.jpg"), png);
@@ -102,7 +101,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageFromDataPrefixedPath() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("sample_photo.jpg"), png);
 
@@ -117,7 +116,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageWithEncodedFileParam() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("encoded_photo.jpg"), png);
 
@@ -130,7 +129,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServePdfAsAttachment() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         Files.writeString(dataDir.resolve("report.pdf"), "%PDF-1.4 minimal");
 
         webTestClient.get()
@@ -175,7 +174,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeImageFromSubDirectoryPath() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         byte[] png = createMinimalPng();
         Files.createDirectories(dataDir.resolve("sub"));
         Files.write(dataDir.resolve("sub").resolve("a.png"), png);
@@ -194,7 +193,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeChatScopedAssetFromDataPrefixedPath() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         String chatId = "123e4567-e89b-12d3-a456-426614174999";
         byte[] png = createMinimalPng();
         Files.createDirectories(dataDir.resolve(chatId));
@@ -229,7 +228,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldForceDownloadWhenParameterIsTrue() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("sample_photo.jpg"), png);
 
@@ -247,7 +246,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldUseBasenameForDownloadFromChatScopedPath() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         String chatId = "123e4567-e89b-12d3-a456-426614174999";
         Files.createDirectories(dataDir.resolve(chatId));
         Files.writeString(dataDir.resolve(chatId).resolve("report.pdf"), "%PDF-1.4 minimal");
@@ -270,7 +269,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldUseBasenameForUtf8DownloadFilename() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         String chatId = "c90deaa2-553d-4f44-b250-4ced63a1f5da";
         String filename = "美悦界一品牌管理 （上海）有限公司 _发票金额283.99元.pdf";
         Files.createDirectories(dataDir.resolve(chatId));
@@ -293,7 +292,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldServeCsvAsAttachment() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         Files.writeString(dataDir.resolve("data.csv"), "name,value\nfoo,1\nbar,2\n");
 
         webTestClient.get()
@@ -307,7 +306,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldReturn404ForLegacyApiPath() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("legacy_image.png"), png);
 
@@ -319,7 +318,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldReturn404ForRemovedDataApiEndpoint() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("legacy_api_image.png"), png);
 
@@ -331,7 +330,7 @@ class DataFileControllerTest {
 
     @Test
     void shouldReturn404ForDeprecatedDataPath() throws Exception {
-        Path dataDir = Path.of(dataProperties.getExternalDir());
+        Path dataDir = Path.of(chatStorageProperties.getDir());
         byte[] png = createMinimalPng();
         Files.write(dataDir.resolve("legacy_path_image.png"), png);
 
