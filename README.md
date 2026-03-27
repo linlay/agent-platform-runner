@@ -16,8 +16,7 @@
 - `GET /api/chat?chatId=...`: 会话详情（默认返回快照事件流）
 - `GET /api/chat?chatId=...&includeRawMessages=true`: 会话详情（附带原始 `rawMessages`）
 - `GET /api/resource?file={filename}&download=true|false`: 静态文件服务（图片 inline / 附件 download）
-- `POST /api/upload`: 申请本地上传位，返回 `ApiResponse<UploadResponse>` 与 `PUT` 上传地址
-- `PUT /api/upload/{chatId}/{referenceId}`: 上传二进制文件到预留地址
+- `POST /api/upload`: 本地文件一步上传（`multipart/form-data`），返回 `ApiResponse<UploadResponse>`
 - `GET /api/viewport?viewportKey=...`: 获取工具/动作视图内容
 - `POST /api/query`: 提问接口（默认返回标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
 - `POST /api/submit`: Human-in-the-loop 提交接口
@@ -944,15 +943,16 @@ for f in *.md; do echo "$f"; done
 
 ## 本地上传接口
 
-`POST /api/upload` 用于申请上传位，响应外层仍为统一的 `ApiResponse<T>`：
+`POST /api/upload` 使用 `multipart/form-data` 直接完成本地文件上传，响应外层仍为统一的 `ApiResponse<T>`：
 
-- 请求字段：`requestId`, `chatId?`, `type`, `name`, `sizeBytes`, `mimeType`, `sha256?`
+- 必填表单字段：`requestId`, `file`
+- 可选表单字段：`chatId`, `sha256`
 - `chatId` 为空时，后端会先生成新的 chatId，并立即创建一个空 chat；后续 upload/query 应复用这个 chatId
-- 响应字段：`requestId`, `chatId`, `reference`, `upload`, `expiresAt?`
-- `reference.id` 为 chat 内短 ID：文件使用 `f1/f2/...`，图片使用 `i1/i2/...`
-- `reference.url` 直接返回 `/api/resource?file=...`
-- `upload.url` 为网关本地 `PUT /api/upload/{chatId}/{referenceId}`
-- 相同 `chatId + requestId` 重试时会返回同一份上传预留；若同 `requestId` 负载不同则返回 `409`
+- 响应字段：`requestId`, `chatId`, `upload`
+- `upload.id` 为 chat 内短 ID，采用 `r01/r02/...` 递增格式
+- `upload.type` 由后端根据文件 MIME 推断：`image/*` 为 `image`，其余为 `file`
+- `upload.url` 直接返回 `/api/resource?file=...`
+- 相同 `chatId + requestId` 重试且文件内容一致时返回同一份结果；若同 `requestId` 负载不同则返回 `409`
 
 ### Content-Disposition 规则
 

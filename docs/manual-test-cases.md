@@ -223,30 +223,16 @@ curl "$BASE_URL/api/resource?file=sample_data.csv" \
 ```
 
 ```bash
-# 1) 申请上传位
+# 1) 一步上传本地文件
 curl -X POST "$BASE_URL/api/upload" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "requestId": "req-upload-001",
-    "chatId": "123e4567-e89b-12d3-a456-426614174000",
-    "type": "file",
-    "name": "requirements.md",
-    "sizeBytes": 12,
-    "mimeType": "text/markdown"
-  }'
+  -F requestId=req-upload-001 \
+  -F chatId=123e4567-e89b-12d3-a456-426614174000 \
+  -F "file=@requirements.md;type=text/markdown"
 ```
 
 ```bash
-# 2) 使用上一步响应里的 upload.url 执行二进制 PUT
-curl -X PUT "$BASE_URL/api/upload/<CHAT_ID>/<REFERENCE_ID>" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/octet-stream" \
-  --data-binary @requirements.md
-```
-
-```bash
-# 3) 上传成功后可直接通过 reference.url 下载
+# 2) 上传成功后可直接通过 upload.url 下载
 curl "$BASE_URL/api/resource?file=<ENCODED_FILE_PATH>" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   --output requirements.md

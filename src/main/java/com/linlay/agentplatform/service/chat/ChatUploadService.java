@@ -1,20 +1,25 @@
 package com.linlay.agentplatform.service.chat;
 
-import com.linlay.agentplatform.model.api.QueryRequest;
-import com.linlay.agentplatform.model.api.UploadRequest;
 import com.linlay.agentplatform.model.api.UploadResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.multipart.FilePart;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
+import java.net.URLConnection;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.text.Normalizer;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -27,6 +32,8 @@ import java.util.stream.Stream;
 @Service
 public class ChatUploadService {
 
+    private static final Map<String, String> EXTRA_MIME_TYPES = createExtraMimeTypes();
+
     private final ChatDataPathService chatDataPathService;
     private final ChatRecordStore chatRecordStore;
     private final ConcurrentMap<String, Object> chatLocks = new ConcurrentHashMap<>();
@@ -36,105 +43,84 @@ public class ChatUploadService {
         this.chatRecordStore = chatRecordStore;
     }
 
-    public UploadResponse reserve(UploadRequest request) {
-        validateType(request.type());
-        String chatId = StringUtils.hasText(request.chatId())
-                ? chatDataPathService.normalizeChatId(request.chatId())
+    public Mono<UploadResponse> upload(String requestId, String chatId, String sha256, FilePart filePart) {
+        if (filePart == null) {
+            return Mono.error(new IllegalArgumentException("file is required"));
+        }
+        return DataBufferUtils.join(filePart.content())
+                .map(dataBuffer -> {
+                    byte[] bytes = new byte[dataBuffer.readableByteCount()];
+                    dataBuffer.read(bytes);
+                    DataBufferUtils.release(dataBuffer);
+                    return bytes;
+                })
+                .defaultIfEmpty(new byte[0])
+                .flatMap(bytes -> Mono.fromCallable(() -> uploadBytes(requestId, chatId, sha256, filePart, bytes))
+                        .subscribeOn(Schedulers.boundedElastic()));
+    }
+
+    private UploadResponse uploadBytes(String rawRequestId, String rawChatId, String rawSha256, FilePart filePart, byte[] bytes) {
+        String requestId = requireRequestId(rawRequestId);
+        String chatId = StringUtils.hasText(rawChatId)
+                ? chatDataPathService.normalizeChatId(rawChatId)
                 : UUID.randomUUID().toString();
-        long sizeBytes = request.sizeBytes() == null ? 0L : request.sizeBytes();
-        String requestId = request.requestId().trim();
-        String type = request.type().trim().toLowerCase(Locale.ROOT);
-        String name = request.name().trim();
-        String mimeType = request.mimeType().trim();
-        String sha256 = ChatUploadManifestStore.normalizeSha256(request.sha256());
+        String sha256 = ChatUploadManifestStore.normalizeSha256(rawSha256);
+        String originalName = originalFilename(filePart.filename());
+        String mimeType = resolveMimeType(originalName, filePart.headers().getContentType());
+        String type = classifyType(mimeType);
+        long sizeBytes = bytes.length;
+        String actualSha256 = sha256Hex(bytes);
+        if (StringUtils.hasText(sha256) && !sha256.equalsIgnoreCase(actualSha256)) {
+            throw new IllegalArgumentException("upload.sha256 does not match payload digest");
+        }
 
         synchronized (lockFor(chatId)) {
             Path chatDir = ensureChatDir(chatId);
             ensureChatRecord(chatId);
+
             ChatUploadManifestStore.StoredUpload existing = ChatUploadManifestStore.findByRequestId(chatDir, requestId)
                     .orElse(null);
             if (existing != null) {
-                if (!ChatUploadManifestStore.matchesRequest(existing, type, name, sizeBytes, mimeType, sha256)) {
+                if (!matchesUpload(existing, type, originalName, sizeBytes, mimeType, actualSha256)) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "requestId already exists with different payload");
                 }
-                return toUploadResponse(existing);
+                Path existingPath = ChatUploadManifestStore.resolveAssetPath(chatDir, existing);
+                if (existingPath.startsWith(chatDir) && Files.isRegularFile(existingPath)) {
+                    return toUploadResponse(existing);
+                }
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "requestId already exists with missing upload content");
             }
 
-            String referenceId = nextReferenceId(chatDir, type);
-            String relativePath = resolveRelativeUploadPath(chatDir, name, type);
-            long now = Instant.now().toEpochMilli();
-            ChatUploadManifestStore.StoredUpload stored = new ChatUploadManifestStore.StoredUpload(
-                    requestId,
-                    chatId,
-                    referenceId,
-                    type,
-                    name,
-                    sizeBytes,
-                    mimeType,
-                    sha256,
-                    relativePath,
-                    ChatUploadManifestStore.STATUS_PENDING,
-                    now,
-                    null
-            );
-            writeManifest(chatDir, stored);
-            return toUploadResponse(stored);
-        }
-    }
-
-    private void ensureChatRecord(String chatId) {
-        if (chatRecordStore == null) {
-            return;
-        }
-        chatRecordStore.ensureChat(chatId, null, null, null, null);
-    }
-
-    public void store(String rawChatId, String referenceId, byte[] bytes) {
-        String chatId = chatDataPathService.normalizeChatId(rawChatId);
-        validateReferenceId(referenceId);
-        byte[] payload = bytes == null ? new byte[0] : bytes;
-
-        synchronized (lockFor(chatId)) {
-            Path chatDir = ensureChatDir(chatId);
-            ChatUploadManifestStore.StoredUpload stored = ChatUploadManifestStore.load(chatDir, referenceId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Upload reservation not found"));
-            if (ChatUploadManifestStore.STATUS_COMPLETED.equals(stored.status())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Upload already completed");
-            }
-            if (payload.length != stored.sizeBytes()) {
-                throw new IllegalArgumentException("upload.sizeBytes does not match payload length");
-            }
-            String actualSha256 = sha256Hex(payload);
-            if (StringUtils.hasText(stored.sha256()) && !stored.sha256().equalsIgnoreCase(actualSha256)) {
-                throw new IllegalArgumentException("upload.sha256 does not match payload digest");
-            }
-
-            Path assetPath = ChatUploadManifestStore.resolveAssetPath(chatDir, stored);
+            String referenceId = nextReferenceId(chatDir);
+            String relativePath = resolveRelativeUploadPath(chatDir, originalName, type);
+            Path assetPath = chatDir.resolve(relativePath).normalize();
             if (!assetPath.startsWith(chatDir)) {
                 throw new IllegalArgumentException("upload target path is invalid");
             }
             Path tempPath = assetPath.resolveSibling(assetPath.getFileName() + ".uploading");
+            long now = Instant.now().toEpochMilli();
             try {
                 if (assetPath.getParent() != null) {
                     Files.createDirectories(assetPath.getParent());
                 }
-                Files.write(tempPath, payload);
+                Files.write(tempPath, bytes);
                 moveReplacing(tempPath, assetPath);
-                ChatUploadManifestStore.StoredUpload completed = new ChatUploadManifestStore.StoredUpload(
-                        stored.requestId(),
-                        stored.chatId(),
-                        stored.referenceId(),
-                        stored.type(),
-                        stored.name(),
-                        stored.sizeBytes(),
-                        stored.mimeType(),
-                        stored.sha256(),
-                        stored.relativePath(),
+                ChatUploadManifestStore.StoredUpload stored = new ChatUploadManifestStore.StoredUpload(
+                        requestId,
+                        chatId,
+                        referenceId,
+                        type,
+                        originalName,
+                        sizeBytes,
+                        mimeType,
+                        actualSha256,
+                        relativePath,
                         ChatUploadManifestStore.STATUS_COMPLETED,
-                        stored.createdAt(),
-                        Instant.now().toEpochMilli()
+                        now,
+                        now
                 );
-                writeManifest(chatDir, completed);
+                writeManifest(chatDir, stored);
+                return toUploadResponse(stored);
             } catch (Exception ex) {
                 try {
                     Files.deleteIfExists(tempPath);
@@ -153,31 +139,27 @@ public class ChatUploadService {
     }
 
     private UploadResponse toUploadResponse(ChatUploadManifestStore.StoredUpload stored) {
-        QueryRequest.Reference reference = new QueryRequest.Reference(
+        UploadResponse.UploadTicket upload = new UploadResponse.UploadTicket(
                 stored.referenceId(),
                 stored.type(),
                 stored.name(),
                 stored.mimeType(),
                 stored.sizeBytes(),
                 chatDataPathService.toAssetUrl(stored.chatId(), stored.relativePath()),
-                stored.sha256(),
-                Map.of(
-                        "origin", "upload",
-                        "relativePath", stored.relativePath()
-                )
-        );
-        UploadResponse.UploadTarget uploadTarget = new UploadResponse.UploadTarget(
-                "/api/upload/" + stored.chatId() + "/" + stored.referenceId(),
-                "PUT",
-                null
+                stored.sha256()
         );
         return new UploadResponse(
                 stored.requestId(),
                 stored.chatId(),
-                reference,
-                uploadTarget,
-                null
+                upload
         );
+    }
+
+    private void ensureChatRecord(String chatId) {
+        if (chatRecordStore == null) {
+            return;
+        }
+        chatRecordStore.ensureChat(chatId, null, null, null, null);
     }
 
     private Path ensureChatDir(String chatId) {
@@ -198,16 +180,38 @@ public class ChatUploadService {
         }
     }
 
-    private String nextReferenceId(Path chatDir, String type) {
-        String prefix = "image".equals(type) ? "i" : "f";
+    private String requireRequestId(String rawRequestId) {
+        if (!StringUtils.hasText(rawRequestId)) {
+            throw new IllegalArgumentException("requestId is required");
+        }
+        return rawRequestId.trim();
+    }
+
+    private boolean matchesUpload(
+            ChatUploadManifestStore.StoredUpload upload,
+            String type,
+            String name,
+            long sizeBytes,
+            String mimeType,
+            String actualSha256
+    ) {
+        return upload != null
+                && type.equals(upload.type())
+                && name.equals(upload.name())
+                && sizeBytes == upload.sizeBytes()
+                && mimeType.equals(upload.mimeType())
+                && actualSha256.equalsIgnoreCase(ChatUploadManifestStore.normalizeSha256(upload.sha256()));
+    }
+
+    private String nextReferenceId(Path chatDir) {
         int maxIndex = ChatUploadManifestStore.list(chatDir).stream()
                 .map(ChatUploadManifestStore.StoredUpload::referenceId)
                 .filter(StringUtils::hasText)
-                .filter(id -> id.startsWith(prefix))
+                .filter(id -> id.matches("r\\d+"))
                 .mapToInt(this::parseReferenceIndex)
                 .max()
                 .orElse(0);
-        return prefix + (maxIndex + 1);
+        return "r" + String.format(Locale.ROOT, "%02d", maxIndex + 1);
     }
 
     private int parseReferenceIndex(String referenceId) {
@@ -218,10 +222,9 @@ public class ChatUploadService {
         }
     }
 
-    private String resolveRelativeUploadPath(Path chatDir, String rawName, String type) {
-        String filename = sanitizeFilename(rawName, type);
-        String resolved = uniquifyFilename(filename, usedUploadFilenames(chatDir));
-        return "uploads/" + resolved;
+    private String resolveRelativeUploadPath(Path chatDir, String originalName, String type) {
+        String filename = sanitizeFilename(originalName, type);
+        return uniquifyFilename(filename, usedUploadFilenames(chatDir));
     }
 
     private Set<String> usedUploadFilenames(Path chatDir) {
@@ -233,12 +236,20 @@ public class ChatUploadService {
             try {
                 String normalized = chatDataPathService.normalizeRelativePath(upload.relativePath());
                 Path relative = Path.of(normalized);
-                if (relative.getNameCount() >= 2 && "uploads".equals(relative.getName(0).toString())) {
+                if (relative.getFileName() != null) {
                     names.add(relative.getFileName().toString());
                 }
             } catch (IllegalArgumentException ignored) {
                 // ignore malformed historical manifest entries
             }
+        }
+        try (Stream<Path> stream = Files.list(chatDir)) {
+            stream.filter(path -> Files.isRegularFile(path))
+                    .map(path -> path.getFileName().toString())
+                    .filter(name -> StringUtils.hasText(name) && !name.startsWith("."))
+                    .forEach(names::add);
+        } catch (Exception ignored) {
+            // fall back to manifest-derived names only
         }
         Path uploadsDir = chatDir.resolve("uploads");
         if (!Files.isDirectory(uploadsDir)) {
@@ -250,7 +261,7 @@ public class ChatUploadService {
                     .filter(StringUtils::hasText)
                     .forEach(names::add);
         } catch (Exception ignored) {
-            // fall back to manifest-derived names only
+            // fall back to already-collected names
         }
         return names;
     }
@@ -276,24 +287,7 @@ public class ChatUploadService {
         }
     }
 
-    private Object lockFor(String chatId) {
-        return chatLocks.computeIfAbsent(chatId, ignored -> new Object());
-    }
-
-    private void validateType(String rawType) {
-        String type = rawType == null ? "" : rawType.trim().toLowerCase(Locale.ROOT);
-        if (!"file".equals(type) && !"image".equals(type)) {
-            throw new IllegalArgumentException("type must be one of: file, image");
-        }
-    }
-
-    private void validateReferenceId(String referenceId) {
-        if (!StringUtils.hasText(referenceId) || !referenceId.matches("[fi]\\d+")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "referenceId is invalid");
-        }
-    }
-
-    private String sanitizeFilename(String rawName, String type) {
+    private String originalFilename(String rawName) {
         String candidate = rawName == null ? "" : rawName.trim().replace('\\', '/');
         int slashIndex = candidate.lastIndexOf('/');
         if (slashIndex >= 0) {
@@ -301,12 +295,39 @@ public class ChatUploadService {
         }
         candidate = Normalizer.normalize(candidate, Normalizer.Form.NFKC)
                 .replaceAll("[\\p{Cntrl}]+", " ")
+                .trim();
+        return candidate;
+    }
+
+    private String sanitizeFilename(String rawName, String type) {
+        String candidate = originalFilename(rawName)
                 .replaceAll("[^\\p{L}\\p{N}._()\\- ]", "_")
                 .trim();
         if (!StringUtils.hasText(candidate) || ".".equals(candidate) || "..".equals(candidate)) {
             return "image".equals(type) ? "upload-image" : "upload-file";
         }
         return candidate;
+    }
+
+    private String resolveMimeType(String filename, MediaType contentType) {
+        if (contentType != null) {
+            return contentType.toString();
+        }
+        int dotIndex = filename == null ? -1 : filename.lastIndexOf('.');
+        if (dotIndex >= 0) {
+            String ext = filename.substring(dotIndex).toLowerCase(Locale.ROOT);
+            String extra = EXTRA_MIME_TYPES.get(ext);
+            if (extra != null) {
+                return extra;
+            }
+        }
+        String guessed = URLConnection.guessContentTypeFromName(filename);
+        return StringUtils.hasText(guessed) ? guessed : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+    }
+
+    private String classifyType(String mimeType) {
+        String normalized = mimeType == null ? "" : mimeType.toLowerCase(Locale.ROOT);
+        return normalized.startsWith("image/") ? "image" : "file";
     }
 
     private String sha256Hex(byte[] payload) {
@@ -323,11 +344,28 @@ public class ChatUploadService {
         }
     }
 
+    private Object lockFor(String chatId) {
+        return chatLocks.computeIfAbsent(chatId, ignored -> new Object());
+    }
+
     private void moveReplacing(Path source, Path target) throws Exception {
         try {
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException ex) {
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
         }
+    }
+
+    private static Map<String, String> createExtraMimeTypes() {
+        Map<String, String> extraMimeTypes = new HashMap<>();
+        extraMimeTypes.put(".svg", "image/svg+xml");
+        extraMimeTypes.put(".webp", "image/webp");
+        extraMimeTypes.put(".avif", "image/avif");
+        extraMimeTypes.put(".txt", "text/plain");
+        extraMimeTypes.put(".md", "text/markdown");
+        extraMimeTypes.put(".csv", "text/csv");
+        extraMimeTypes.put(".json", "application/json");
+        extraMimeTypes.put(".pdf", "application/pdf");
+        return Map.copyOf(extraMimeTypes);
     }
 }

@@ -1,18 +1,18 @@
 package com.linlay.agentplatform.model.api;
 
-import java.util.Map;
-
 public record UploadResponse(
         String requestId,
         String chatId,
-        QueryRequest.Reference reference,
-        UploadTarget upload,
-        Long expiresAt
+        UploadTicket upload
 ) {
-    public record UploadTarget(
+    public record UploadTicket(
+            String id,
+            String type,
+            String name,
+            String mimeType,
+            Long sizeBytes,
             String url,
-            String method,
-            Map<String, String> headers
+            String sha256
     ) {
     }
 }
