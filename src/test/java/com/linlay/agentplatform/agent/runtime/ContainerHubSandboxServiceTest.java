@@ -282,7 +282,8 @@ class ContainerHubSandboxServiceTest {
         ExecutionContext context = createContext(definitionWithLevel(SandboxLevel.RUN));
         assertThatThrownBy(() -> service.openIfNeeded(context))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("container-hub sandbox create failed");
+                .hasMessageContaining("container-hub sandbox create failed")
+                .hasMessageContaining("sandbox unavailable");
     }
 
     @Test
