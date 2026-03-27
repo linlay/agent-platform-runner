@@ -141,8 +141,8 @@ class UploadControllerTest {
     }
 
     @Test
-    void postUploadShouldRequireChatId() {
-        webTestClient.post()
+    void postUploadShouldGenerateChatIdWhenMissing() throws Exception {
+        EntityExchangeResult<byte[]> reserveResult = webTestClient.post()
                 .uri("/api/upload")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
@@ -155,9 +155,75 @@ class UploadControllerTest {
                         }
                         """)
                 .exchange()
-                .expectStatus().isBadRequest()
+                .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.code").isEqualTo(400);
+                .jsonPath("$.code").isEqualTo(0)
+                .returnResult();
+
+        JsonNode data = responseData(reserveResult);
+        String chatId = data.path("chatId").asText();
+
+        assertThat(UUID.fromString(chatId)).isNotNull();
+        assertThat(data.path("upload").path("url").asText()).isEqualTo("/api/upload/" + chatId + "/f1");
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/chat").queryParam("chatId", chatId).build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.chatId").isEqualTo(chatId)
+                .jsonPath("$.data.chatName").isEqualTo("新对话");
+    }
+
+    @Test
+    void postUploadShouldReuseGeneratedChatIdAcrossFollowupUpload() throws Exception {
+        JsonNode firstData = responseData(webTestClient.post()
+                .uri("/api/upload")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("""
+                        {
+                          "requestId": "req-upload-generated-1",
+                          "type": "image",
+                          "name": "first.png",
+                          "sizeBytes": 3,
+                          "mimeType": "image/png"
+                        }
+                        """)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .returnResult());
+        String chatId = firstData.path("chatId").asText();
+
+        JsonNode secondData = responseData(reserveUpload(
+                chatId,
+                "req-upload-generated-2",
+                "image",
+                "second.png",
+                3,
+                "image/png",
+                null
+        ));
+
+        assertThat(secondData.path("chatId").asText()).isEqualTo(chatId);
+
+        webTestClient.put()
+                .uri(firstData.path("upload").path("url").asText())
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .bodyValue(new byte[]{1, 2, 3})
+                .exchange()
+                .expectStatus().isNoContent();
+
+        webTestClient.put()
+                .uri(secondData.path("upload").path("url").asText())
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .bodyValue(new byte[]{4, 5, 6})
+                .exchange()
+                .expectStatus().isNoContent();
+
+        Path uploadsDir = Path.of(chatStorageProperties.getDir()).resolve(chatId).resolve("uploads");
+        assertThat(Files.exists(uploadsDir.resolve("first.png"))).isTrue();
+        assertThat(Files.exists(uploadsDir.resolve("second.png"))).isTrue();
     }
 
     @Test

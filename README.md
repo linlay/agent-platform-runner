@@ -947,6 +947,7 @@ for f in *.md; do echo "$f"; done
 `POST /api/upload` 用于申请上传位，响应外层仍为统一的 `ApiResponse<T>`：
 
 - 请求字段：`requestId`, `chatId?`, `type`, `name`, `sizeBytes`, `mimeType`, `sha256?`
+- `chatId` 为空时，后端会先生成新的 chatId，并立即创建一个空 chat；后续 upload/query 应复用这个 chatId
 - 响应字段：`requestId`, `chatId`, `reference`, `upload`, `expiresAt?`
 - `reference.id` 为 chat 内短 ID：文件使用 `f1/f2/...`，图片使用 `i1/i2/...`
 - `reference.url` 直接返回 `/api/resource?file=...`

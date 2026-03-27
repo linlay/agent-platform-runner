@@ -7,7 +7,6 @@ import jakarta.validation.constraints.PositiveOrZero;
 public record UploadRequest(
         @NotBlank
         String requestId,
-        @NotBlank
         String chatId,
         @NotBlank
         String type,

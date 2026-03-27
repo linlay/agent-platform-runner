@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Stream;
@@ -27,15 +28,19 @@ import java.util.stream.Stream;
 public class ChatUploadService {
 
     private final ChatDataPathService chatDataPathService;
+    private final ChatRecordStore chatRecordStore;
     private final ConcurrentMap<String, Object> chatLocks = new ConcurrentHashMap<>();
 
-    public ChatUploadService(ChatDataPathService chatDataPathService) {
+    public ChatUploadService(ChatDataPathService chatDataPathService, ChatRecordStore chatRecordStore) {
         this.chatDataPathService = chatDataPathService;
+        this.chatRecordStore = chatRecordStore;
     }
 
     public UploadResponse reserve(UploadRequest request) {
         validateType(request.type());
-        String chatId = chatDataPathService.normalizeChatId(request.chatId());
+        String chatId = StringUtils.hasText(request.chatId())
+                ? chatDataPathService.normalizeChatId(request.chatId())
+                : UUID.randomUUID().toString();
         long sizeBytes = request.sizeBytes() == null ? 0L : request.sizeBytes();
         String requestId = request.requestId().trim();
         String type = request.type().trim().toLowerCase(Locale.ROOT);
@@ -45,6 +50,7 @@ public class ChatUploadService {
 
         synchronized (lockFor(chatId)) {
             Path chatDir = ensureChatDir(chatId);
+            ensureChatRecord(chatId);
             ChatUploadManifestStore.StoredUpload existing = ChatUploadManifestStore.findByRequestId(chatDir, requestId)
                     .orElse(null);
             if (existing != null) {
@@ -74,6 +80,13 @@ public class ChatUploadService {
             writeManifest(chatDir, stored);
             return toUploadResponse(stored);
         }
+    }
+
+    private void ensureChatRecord(String chatId) {
+        if (chatRecordStore == null) {
+            return;
+        }
+        chatRecordStore.ensureChat(chatId, null, null, null, null);
     }
 
     public void store(String rawChatId, String referenceId, byte[] bytes) {

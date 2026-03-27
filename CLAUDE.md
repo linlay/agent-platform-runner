@@ -242,7 +242,7 @@ plain:
 - `GET /api/chats`：返回会话索引摘要，支持按 `agentKey` 与 `lastRunId` 增量查询。
 - `GET /api/chat?chatId=...`：返回稳定结构 `chatId/chatName/events/references`；`includeRawMessages=true` 时额外返回 `rawMessages`。
 - `POST /api/query`：启动一次 run；默认返回 SSE。
-- `POST /api/upload`：申请本地上传位，请求体字段为 `requestId/chatId?/type/name/sizeBytes/mimeType/sha256?`，响应外层为 `ApiResponse<UploadResponse>`，其中短引用 ID 固定放在 `reference.id`。
+- `POST /api/upload`：申请本地上传位，请求体字段为 `requestId/chatId?/type/name/sizeBytes/mimeType/sha256?`，响应外层为 `ApiResponse<UploadResponse>`；若未传 `chatId`，后端会先生成 chatId 并创建空 chat，其中短引用 ID 固定放在 `reference.id`。
 - `POST /api/submit`：提交 frontend tool 的人机参数，请求体固定为 `runId + toolId + params`。
 - `POST /api/steer`：运行中追加用户引导，请求体为 `SteerRequest`；当 run 仍处于活跃状态时会写入 steer 队列并在下一个模型回合前注入。
 - `POST /api/interrupt`：运行中断，请求体为 `InterruptRequest`；成功后触发 `run.cancel`，并取消待处理 steer / frontend submit。

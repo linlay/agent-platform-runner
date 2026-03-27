@@ -475,8 +475,8 @@ final class ChatIndexRepository {
     private void validateChatBinding(String agentKey, String teamId) {
         boolean hasAgentKey = StringUtils.hasText(agentKey);
         boolean hasTeamId = StringUtils.hasText(teamId);
-        if (hasAgentKey == hasTeamId) {
-            throw new IllegalArgumentException("Exactly one of agentKey or teamId must be provided");
+        if (hasAgentKey && hasTeamId) {
+            throw new IllegalArgumentException("At most one of agentKey or teamId may be provided");
         }
     }
 

@@ -747,6 +747,22 @@ class ChatRecordStoreTest {
                 .isInstanceOf(ChatNotFoundException.class);
     }
 
+    @Test
+    void ensureChatShouldAllowUnboundPlaceholderAndBindOnFirstMessage() {
+        String chatId = "123e4567-e89b-12d3-a456-426614174098";
+        ChatRecordStore store = newStore();
+
+        ChatRecordStore.ChatSummary placeholder = store.ensureChat(chatId, null, null, null, null);
+        assertThat(placeholder.created()).isTrue();
+        assertThat(placeholder.agentKey()).isNull();
+        assertThat(placeholder.teamId()).isNull();
+
+        ChatRecordStore.ChatSummary bound = store.ensureChat(chatId, "demo", "Demo Agent", null, "hello");
+        assertThat(bound.created()).isFalse();
+        assertThat(bound.agentKey()).isEqualTo("demo");
+        assertThat(store.findBoundAgentKey(chatId)).contains("demo");
+    }
+
     private ChatRecordStore newStore() {
         return newStore(null);
     }
