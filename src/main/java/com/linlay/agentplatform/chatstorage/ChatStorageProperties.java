@@ -1,9 +1,9 @@
-package com.linlay.agentplatform.memory;
+package com.linlay.agentplatform.chatstorage;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "memory.chats")
-public class ChatWindowMemoryProperties {
+@ConfigurationProperties(prefix = "chat.storage")
+public class ChatStorageProperties {
 
     private String dir = "runtime/chats";
     private int k = 20;

@@ -1,4 +1,4 @@
-package com.linlay.agentplatform.memory;
+package com.linlay.agentplatform.chatstorage;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,15 +25,15 @@ import java.util.Objects;
 import java.util.Set;
 
 @Service
-public class ChatWindowMemoryStore {
+public class ChatStorageStore {
 
-    private static final Logger log = LoggerFactory.getLogger(ChatWindowMemoryStore.class);
+    private static final Logger log = LoggerFactory.getLogger(ChatStorageStore.class);
 
     private final ObjectMapper objectMapper;
-    private final ChatWindowMemoryProperties properties;
+    private final ChatStorageProperties properties;
     private final StoredMessageConverter storedMessageConverter;
 
-    public ChatWindowMemoryStore(ObjectMapper objectMapper, ChatWindowMemoryProperties properties) {
+    public ChatStorageStore(ObjectMapper objectMapper, ChatStorageProperties properties) {
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.storedMessageConverter = new StoredMessageConverter(objectMapper, properties);
@@ -65,7 +65,7 @@ public class ChatWindowMemoryStore {
                 if (step.messages() == null) {
                     continue;
                 }
-                for (ChatMemoryTypes.StoredMessage stored : step.messages()) {
+                for (ChatStorageTypes.StoredMessage stored : step.messages()) {
                     ChatMessage converted = storedMessageConverter.toChatMessage(stored);
                     if (converted != null) {
                         messages.add(converted);
@@ -82,7 +82,7 @@ public class ChatWindowMemoryStore {
         }
 
         long now = System.currentTimeMillis();
-        ChatMemoryTypes.QueryLine line = new ChatMemoryTypes.QueryLine();
+        ChatStorageTypes.QueryLine line = new ChatStorageTypes.QueryLine();
         line.chatId = chatId;
         line.runId = normalizeRunId(runId);
         line.updatedAt = now;
@@ -97,19 +97,19 @@ public class ChatWindowMemoryStore {
             String stage,
             int seq,
             String taskId,
-            ChatMemoryTypes.SystemSnapshot system,
-            ChatMemoryTypes.PlanState plan,
-            List<ChatMemoryTypes.RunMessage> runMessages
+            ChatStorageTypes.SystemSnapshot system,
+            ChatStorageTypes.PlanState plan,
+            List<ChatStorageTypes.RunMessage> runMessages
     ) {
         if (!isValidChatId(chatId) || runMessages == null || runMessages.isEmpty()) {
             return;
         }
 
         String normalizedRunId = normalizeRunId(runId);
-        ChatMemoryTypes.SystemSnapshot normalizedSystem = storedMessageConverter.normalizeSystemSnapshot(system);
+        ChatStorageTypes.SystemSnapshot normalizedSystem = storedMessageConverter.normalizeSystemSnapshot(system);
         Set<String> runtimeActionTools = storedMessageConverter.extractActionToolNames(normalizedSystem);
         TextBlockSequenceState sequenceState = nextTextBlockSequenceState(chatId, normalizedRunId);
-        List<ChatMemoryTypes.StoredMessage> storedMessages = storedMessageConverter.convertRunMessages(
+        List<ChatStorageTypes.StoredMessage> storedMessages = storedMessageConverter.convertRunMessages(
                 normalizedRunId,
                 runMessages,
                 runtimeActionTools,
@@ -119,7 +119,7 @@ public class ChatWindowMemoryStore {
             return;
         }
 
-        ChatMemoryTypes.StepLine line = new ChatMemoryTypes.StepLine();
+        ChatStorageTypes.StepLine line = new ChatStorageTypes.StepLine();
         line.chatId = chatId;
         line.runId = normalizedRunId;
         line.stage = hasText(stage) ? stage.trim() : "oneshot";
@@ -132,14 +132,14 @@ public class ChatWindowMemoryStore {
         appendLine(chatId, line);
     }
 
-    public ChatMemoryTypes.PlanState loadLatestPlanState(String chatId) {
+    public ChatStorageTypes.PlanState loadLatestPlanState(String chatId) {
         if (!isValidChatId(chatId)) {
             return null;
         }
         List<ParsedLine> lines = readAllParsedLines(chatId);
         for (int i = lines.size() - 1; i >= 0; i--) {
             if (lines.get(i) instanceof ParsedStepLine step && step.plan() != null) {
-                ChatMemoryTypes.PlanState normalized = storedMessageConverter.normalizePlanState(step.plan());
+                ChatStorageTypes.PlanState normalized = storedMessageConverter.normalizePlanState(step.plan());
                 if (normalized != null && normalized.tasks != null && !normalized.tasks.isEmpty()) {
                     return normalized;
                 }
@@ -148,7 +148,7 @@ public class ChatWindowMemoryStore {
         return null;
     }
 
-    public ChatMemoryTypes.SystemSnapshot loadLatestSystemSnapshot(String chatId) {
+    public ChatStorageTypes.SystemSnapshot loadLatestSystemSnapshot(String chatId) {
         if (!isValidChatId(chatId)) {
             return null;
         }
@@ -212,11 +212,11 @@ public class ChatWindowMemoryStore {
                     StandardOpenOption.WRITE
             );
         } catch (IOException ex) {
-            throw new IllegalStateException("Cannot trim memory for chatId=" + chatId, ex);
+            throw new IllegalStateException("Cannot trim chat storage for chatId=" + chatId, ex);
         }
     }
 
-    public boolean isSameSystem(ChatMemoryTypes.SystemSnapshot left, ChatMemoryTypes.SystemSnapshot right) {
+    public boolean isSameSystem(ChatStorageTypes.SystemSnapshot left, ChatStorageTypes.SystemSnapshot right) {
         if (left == null || right == null) {
             return false;
         }
@@ -244,7 +244,7 @@ public class ChatWindowMemoryStore {
             }
             return List.copyOf(lines);
         } catch (Exception ex) {
-            log.warn("Cannot read memory file for chatId={}, fallback to empty history", chatId, ex);
+            log.warn("Cannot read chat storage file for chatId={}, fallback to empty history", chatId, ex);
             return List.of();
         }
     }
@@ -293,23 +293,23 @@ public class ChatWindowMemoryStore {
                     : null;
             long updatedAt = node.path("updatedAt").asLong(0);
 
-            ChatMemoryTypes.SystemSnapshot system = null;
+            ChatStorageTypes.SystemSnapshot system = null;
             if (node.has("system") && !node.get("system").isNull()) {
-                system = objectMapper.treeToValue(node.get("system"), ChatMemoryTypes.SystemSnapshot.class);
+                system = objectMapper.treeToValue(node.get("system"), ChatStorageTypes.SystemSnapshot.class);
             }
 
             JsonNode planNode = null;
             if (node.has("plan") && !node.get("plan").isNull()) {
                 planNode = node.get("plan");
             }
-            ChatMemoryTypes.PlanState plan = planNode == null
+            ChatStorageTypes.PlanState plan = planNode == null
                     ? null
-                    : objectMapper.treeToValue(planNode, ChatMemoryTypes.PlanState.class);
+                    : objectMapper.treeToValue(planNode, ChatStorageTypes.PlanState.class);
 
-            List<ChatMemoryTypes.StoredMessage> messages = new ArrayList<>();
+            List<ChatStorageTypes.StoredMessage> messages = new ArrayList<>();
             if (node.has("messages") && node.get("messages").isArray()) {
                 for (JsonNode msgNode : node.get("messages")) {
-                    ChatMemoryTypes.StoredMessage msg = objectMapper.treeToValue(msgNode, ChatMemoryTypes.StoredMessage.class);
+                    ChatStorageTypes.StoredMessage msg = objectMapper.treeToValue(msgNode, ChatStorageTypes.StoredMessage.class);
                     if (msg != null) {
                         messages.add(msg);
                     }
@@ -348,7 +348,7 @@ public class ChatWindowMemoryStore {
                     StandardOpenOption.WRITE
             );
         } catch (IOException ex) {
-            throw new IllegalStateException("Cannot append memory line for chatId=" + chatId, ex);
+            throw new IllegalStateException("Cannot append chat storage line for chatId=" + chatId, ex);
         }
     }
 
@@ -395,7 +395,7 @@ public class ChatWindowMemoryStore {
             if (!(line instanceof ParsedStepLine step) || !Objects.equals(runId, step.runId()) || step.messages() == null) {
                 continue;
             }
-            for (ChatMemoryTypes.StoredMessage message : step.messages()) {
+            for (ChatStorageTypes.StoredMessage message : step.messages()) {
                 if (message == null) {
                     continue;
                 }

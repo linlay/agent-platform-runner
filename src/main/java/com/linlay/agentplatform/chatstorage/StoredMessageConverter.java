@@ -1,4 +1,4 @@
-package com.linlay.agentplatform.memory;
+package com.linlay.agentplatform.chatstorage;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.model.AgentDelta;
@@ -16,35 +16,35 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Extracted ChatWindowMemoryStore conversion and normalization helpers.
+ * Extracted ChatStorageStore conversion and normalization helpers.
  */
 final class StoredMessageConverter {
 
     private final ObjectMapper objectMapper;
-    private final ChatWindowMemoryProperties properties;
+    private final ChatStorageProperties properties;
 
-    StoredMessageConverter(ObjectMapper objectMapper, ChatWindowMemoryProperties properties) {
+    StoredMessageConverter(ObjectMapper objectMapper, ChatStorageProperties properties) {
         this.objectMapper = objectMapper;
         this.properties = properties;
     }
 
-    List<ChatMemoryTypes.StoredMessage> convertRunMessages(
+    List<ChatStorageTypes.StoredMessage> convertRunMessages(
             String runId,
-            List<ChatMemoryTypes.RunMessage> runMessages,
+            List<ChatStorageTypes.RunMessage> runMessages,
             Set<String> runtimeActionTools,
             TextBlockSequenceState sequenceState
     ) {
         Map<String, ToolIdentity> toolIdentityByCallId = new LinkedHashMap<>();
-        List<ChatMemoryTypes.StoredMessage> storedMessages = new ArrayList<>();
+        List<ChatStorageTypes.StoredMessage> storedMessages = new ArrayList<>();
         int reasoningSeq = sequenceState == null ? 1 : Math.max(1, sequenceState.nextReasoningSeq());
         int contentSeq = sequenceState == null ? 1 : Math.max(1, sequenceState.nextContentSeq());
         long tsCursor = System.currentTimeMillis();
-        for (ChatMemoryTypes.RunMessage message : runMessages) {
+        for (ChatStorageTypes.RunMessage message : runMessages) {
             if (message == null || !StringUtils.hasText(message.kind())) {
                 continue;
             }
             long ts = message.ts() == null ? tsCursor++ : message.ts();
-            ChatMemoryTypes.StoredMessage converted = switch (message.kind().trim().toLowerCase(Locale.ROOT)) {
+            ChatStorageTypes.StoredMessage converted = switch (message.kind().trim().toLowerCase(Locale.ROOT)) {
                 case "user_content" -> toUserStoredMessage(message, ts);
                 case "assistant_reasoning" -> toAssistantReasoningMessage(runId, message, ts, reasoningSeq++);
                 case "assistant_content" -> toAssistantContentMessage(runId, message, ts, contentSeq++);
@@ -59,7 +59,7 @@ final class StoredMessageConverter {
         return storedMessages;
     }
 
-    ChatMessage toChatMessage(ChatMemoryTypes.StoredMessage message) {
+    ChatMessage toChatMessage(ChatStorageTypes.StoredMessage message) {
         if (message == null || !hasText(message.role)) {
             return null;
         }
@@ -73,11 +73,11 @@ final class StoredMessageConverter {
         };
     }
 
-    ChatMemoryTypes.SystemSnapshot normalizeSystemSnapshot(ChatMemoryTypes.SystemSnapshot source) {
+    ChatStorageTypes.SystemSnapshot normalizeSystemSnapshot(ChatStorageTypes.SystemSnapshot source) {
         if (source == null) {
             return null;
         }
-        ChatMemoryTypes.SystemSnapshot normalized = objectMapper.convertValue(source, ChatMemoryTypes.SystemSnapshot.class);
+        ChatStorageTypes.SystemSnapshot normalized = objectMapper.convertValue(source, ChatStorageTypes.SystemSnapshot.class);
         if (normalized == null) {
             return null;
         }
@@ -93,20 +93,20 @@ final class StoredMessageConverter {
         return normalized;
     }
 
-    ChatMemoryTypes.PlanState normalizePlanState(ChatMemoryTypes.PlanState source) {
+    ChatStorageTypes.PlanState normalizePlanState(ChatStorageTypes.PlanState source) {
         if (source == null) {
             return null;
         }
-        ChatMemoryTypes.PlanState normalized = objectMapper.convertValue(source, ChatMemoryTypes.PlanState.class);
+        ChatStorageTypes.PlanState normalized = objectMapper.convertValue(source, ChatStorageTypes.PlanState.class);
         if (normalized == null || !hasText(normalized.planId) || normalized.tasks == null || normalized.tasks.isEmpty()) {
             return null;
         }
-        List<ChatMemoryTypes.PlanTaskState> tasks = new ArrayList<>();
-        for (ChatMemoryTypes.PlanTaskState task : normalized.tasks) {
+        List<ChatStorageTypes.PlanTaskState> tasks = new ArrayList<>();
+        for (ChatStorageTypes.PlanTaskState task : normalized.tasks) {
             if (task == null || !hasText(task.taskId) || !hasText(task.description)) {
                 continue;
             }
-            ChatMemoryTypes.PlanTaskState item = new ChatMemoryTypes.PlanTaskState();
+            ChatStorageTypes.PlanTaskState item = new ChatStorageTypes.PlanTaskState();
             item.taskId = task.taskId.trim();
             item.description = task.description.trim();
             item.status = normalizeStatus(task.status);
@@ -115,18 +115,18 @@ final class StoredMessageConverter {
         if (tasks.isEmpty()) {
             return null;
         }
-        ChatMemoryTypes.PlanState state = new ChatMemoryTypes.PlanState();
+        ChatStorageTypes.PlanState state = new ChatStorageTypes.PlanState();
         state.planId = normalized.planId.trim();
         state.tasks = List.copyOf(tasks);
         return state;
     }
 
-    Set<String> extractActionToolNames(ChatMemoryTypes.SystemSnapshot systemSnapshot) {
+    Set<String> extractActionToolNames(ChatStorageTypes.SystemSnapshot systemSnapshot) {
         if (systemSnapshot == null || systemSnapshot.tools == null || systemSnapshot.tools.isEmpty()) {
             return Set.of();
         }
         Set<String> names = new HashSet<>();
-        for (ChatMemoryTypes.SystemToolSnapshot tool : systemSnapshot.tools) {
+        for (ChatStorageTypes.SystemToolSnapshot tool : systemSnapshot.tools) {
             if (tool == null || !hasText(tool.type) || !hasText(tool.name)) {
                 continue;
             }
@@ -138,27 +138,27 @@ final class StoredMessageConverter {
         return Set.copyOf(names);
     }
 
-    private ChatMemoryTypes.StoredMessage toUserStoredMessage(ChatMemoryTypes.RunMessage message, long ts) {
+    private ChatStorageTypes.StoredMessage toUserStoredMessage(ChatStorageTypes.RunMessage message, long ts) {
         if (!StringUtils.hasText(message.text())) {
             return null;
         }
-        ChatMemoryTypes.StoredMessage stored = new ChatMemoryTypes.StoredMessage();
+        ChatStorageTypes.StoredMessage stored = new ChatStorageTypes.StoredMessage();
         stored.role = "user";
         stored.content = textContent(message.text());
         stored.ts = ts;
         return stored;
     }
 
-    private ChatMemoryTypes.StoredMessage toAssistantReasoningMessage(
+    private ChatStorageTypes.StoredMessage toAssistantReasoningMessage(
             String runId,
-            ChatMemoryTypes.RunMessage message,
+            ChatStorageTypes.RunMessage message,
             long ts,
             int sequence
     ) {
         if (!StringUtils.hasText(message.text())) {
             return null;
         }
-        ChatMemoryTypes.StoredMessage stored = new ChatMemoryTypes.StoredMessage();
+        ChatStorageTypes.StoredMessage stored = new ChatStorageTypes.StoredMessage();
         stored.role = "assistant";
         stored.reasoningContent = textContent(message.text());
         stored.ts = ts;
@@ -171,16 +171,16 @@ final class StoredMessageConverter {
         return stored;
     }
 
-    private ChatMemoryTypes.StoredMessage toAssistantContentMessage(
+    private ChatStorageTypes.StoredMessage toAssistantContentMessage(
             String runId,
-            ChatMemoryTypes.RunMessage message,
+            ChatStorageTypes.RunMessage message,
             long ts,
             int sequence
     ) {
         if (!StringUtils.hasText(message.text())) {
             return null;
         }
-        ChatMemoryTypes.StoredMessage stored = new ChatMemoryTypes.StoredMessage();
+        ChatStorageTypes.StoredMessage stored = new ChatStorageTypes.StoredMessage();
         stored.role = "assistant";
         stored.content = textContent(message.text());
         stored.ts = ts;
@@ -193,8 +193,8 @@ final class StoredMessageConverter {
         return stored;
     }
 
-    private ChatMemoryTypes.StoredMessage toAssistantToolCallMessage(
-            ChatMemoryTypes.RunMessage message,
+    private ChatStorageTypes.StoredMessage toAssistantToolCallMessage(
+            ChatStorageTypes.RunMessage message,
             long ts,
             Map<String, ToolIdentity> toolIdentityByCallId,
             Set<String> runtimeActionTools
@@ -210,15 +210,15 @@ final class StoredMessageConverter {
                 key -> createToolIdentity(toolCallId, toolName, message.toolCallType(), runtimeActionTools)
         );
 
-        ChatMemoryTypes.StoredToolCall toolCall = new ChatMemoryTypes.StoredToolCall();
+        ChatStorageTypes.StoredToolCall toolCall = new ChatStorageTypes.StoredToolCall();
         toolCall.id = toolCallId;
         toolCall.type = hasText(message.toolCallType()) ? message.toolCallType().trim() : "function";
-        ChatMemoryTypes.FunctionCall function = new ChatMemoryTypes.FunctionCall();
+        ChatStorageTypes.FunctionCall function = new ChatStorageTypes.FunctionCall();
         function.name = toolName;
         function.arguments = message.toolArgs().trim();
         toolCall.function = function;
 
-        ChatMemoryTypes.StoredMessage stored = new ChatMemoryTypes.StoredMessage();
+        ChatStorageTypes.StoredMessage stored = new ChatStorageTypes.StoredMessage();
         stored.role = "assistant";
         stored.toolCalls = List.of(toolCall);
         stored.ts = ts;
@@ -233,8 +233,8 @@ final class StoredMessageConverter {
         return stored;
     }
 
-    private ChatMemoryTypes.StoredMessage toToolResultMessage(
-            ChatMemoryTypes.RunMessage message,
+    private ChatStorageTypes.StoredMessage toToolResultMessage(
+            ChatStorageTypes.RunMessage message,
             long ts,
             Map<String, ToolIdentity> toolIdentityByCallId,
             Set<String> runtimeActionTools
@@ -250,7 +250,7 @@ final class StoredMessageConverter {
                 key -> createToolIdentity(toolCallId, toolName, null, runtimeActionTools)
         );
 
-        ChatMemoryTypes.StoredMessage stored = new ChatMemoryTypes.StoredMessage();
+        ChatStorageTypes.StoredMessage stored = new ChatStorageTypes.StoredMessage();
         stored.role = "tool";
         stored.name = toolName;
         stored.toolCallId = toolCallId;
@@ -265,20 +265,20 @@ final class StoredMessageConverter {
         return stored;
     }
 
-    private ChatMessage toUserMsg(ChatMemoryTypes.StoredMessage message) {
+    private ChatMessage toUserMsg(ChatStorageTypes.StoredMessage message) {
         String text = textFromContentParts(message.content);
         return hasText(text) ? new ChatMessage.UserMsg(text) : null;
     }
 
-    private ChatMessage toSystemMsg(ChatMemoryTypes.StoredMessage message) {
+    private ChatMessage toSystemMsg(ChatStorageTypes.StoredMessage message) {
         String text = textFromContentParts(message.content);
         return hasText(text) ? new ChatMessage.SystemMsg(text) : null;
     }
 
-    private ChatMessage toAssistantMsg(ChatMemoryTypes.StoredMessage message) {
+    private ChatMessage toAssistantMsg(ChatStorageTypes.StoredMessage message) {
         if (message.toolCalls != null && !message.toolCalls.isEmpty()) {
             List<ChatMessage.AssistantMsg.ToolCall> toolCalls = new ArrayList<>();
-            for (ChatMemoryTypes.StoredToolCall toolCall : message.toolCalls) {
+            for (ChatStorageTypes.StoredToolCall toolCall : message.toolCalls) {
                 if (toolCall == null || toolCall.function == null || !hasText(toolCall.id) || !hasText(toolCall.function.name)) {
                     continue;
                 }
@@ -306,7 +306,7 @@ final class StoredMessageConverter {
         return hasText(text) ? new ChatMessage.AssistantMsg(text) : null;
     }
 
-    private ChatMessage toToolMsg(ChatMemoryTypes.StoredMessage message) {
+    private ChatMessage toToolMsg(ChatStorageTypes.StoredMessage message) {
         if (!hasText(message.toolCallId) || !hasText(message.name)) {
             return null;
         }
@@ -319,16 +319,16 @@ final class StoredMessageConverter {
         return new ChatMessage.ToolResultMsg(List.of(toolResponse));
     }
 
-    private List<ChatMemoryTypes.SystemMessageSnapshot> normalizeSystemMessages(List<ChatMemoryTypes.SystemMessageSnapshot> messages) {
+    private List<ChatStorageTypes.SystemMessageSnapshot> normalizeSystemMessages(List<ChatStorageTypes.SystemMessageSnapshot> messages) {
         if (messages == null || messages.isEmpty()) {
             return null;
         }
-        List<ChatMemoryTypes.SystemMessageSnapshot> normalized = new ArrayList<>();
-        for (ChatMemoryTypes.SystemMessageSnapshot message : messages) {
+        List<ChatStorageTypes.SystemMessageSnapshot> normalized = new ArrayList<>();
+        for (ChatStorageTypes.SystemMessageSnapshot message : messages) {
             if (message == null || !hasText(message.role) || !hasText(message.content)) {
                 continue;
             }
-            ChatMemoryTypes.SystemMessageSnapshot item = new ChatMemoryTypes.SystemMessageSnapshot();
+            ChatStorageTypes.SystemMessageSnapshot item = new ChatStorageTypes.SystemMessageSnapshot();
             item.role = message.role.trim();
             item.content = message.content;
             normalized.add(item);
@@ -336,16 +336,16 @@ final class StoredMessageConverter {
         return normalized.isEmpty() ? null : List.copyOf(normalized);
     }
 
-    private List<ChatMemoryTypes.SystemToolSnapshot> normalizeSystemTools(List<ChatMemoryTypes.SystemToolSnapshot> tools) {
+    private List<ChatStorageTypes.SystemToolSnapshot> normalizeSystemTools(List<ChatStorageTypes.SystemToolSnapshot> tools) {
         if (tools == null || tools.isEmpty()) {
             return null;
         }
-        List<ChatMemoryTypes.SystemToolSnapshot> normalized = new ArrayList<>();
-        for (ChatMemoryTypes.SystemToolSnapshot tool : tools) {
+        List<ChatStorageTypes.SystemToolSnapshot> normalized = new ArrayList<>();
+        for (ChatStorageTypes.SystemToolSnapshot tool : tools) {
             if (tool == null || !hasText(tool.type) || !hasText(tool.name)) {
                 continue;
             }
-            ChatMemoryTypes.SystemToolSnapshot item = new ChatMemoryTypes.SystemToolSnapshot();
+            ChatStorageTypes.SystemToolSnapshot item = new ChatStorageTypes.SystemToolSnapshot();
             item.type = tool.type.trim();
             item.name = tool.name.trim();
             item.description = nullable(tool.description);
@@ -398,22 +398,22 @@ final class StoredMessageConverter {
         return rawType.trim().toLowerCase(Locale.ROOT);
     }
 
-    private List<ChatMemoryTypes.ContentPart> textContent(String text) {
+    private List<ChatStorageTypes.ContentPart> textContent(String text) {
         if (!hasText(text)) {
             return null;
         }
-        ChatMemoryTypes.ContentPart part = new ChatMemoryTypes.ContentPart();
+        ChatStorageTypes.ContentPart part = new ChatStorageTypes.ContentPart();
         part.type = "text";
         part.text = text;
         return List.of(part);
     }
 
-    private String textFromContentParts(List<ChatMemoryTypes.ContentPart> contentParts) {
+    private String textFromContentParts(List<ChatStorageTypes.ContentPart> contentParts) {
         if (contentParts == null || contentParts.isEmpty()) {
             return "";
         }
         StringBuilder sb = new StringBuilder();
-        for (ChatMemoryTypes.ContentPart contentPart : contentParts) {
+        for (ChatStorageTypes.ContentPart contentPart : contentParts) {
             if (contentPart == null || !hasText(contentPart.text)) {
                 continue;
             }

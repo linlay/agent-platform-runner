@@ -3,7 +3,7 @@ package com.linlay.agentplatform.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.properties.DataProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.service.chat.ChatRecordStore;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
@@ -74,8 +74,8 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.auth.issuer=https://auth.example.local",
                 "agent.chat-image-token.secret=chat-image-token-secret-for-tests",
                 "agent.chat-image-token.ttl-seconds=86400",
-                "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-${random.uuid}",
-                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-db-${random.uuid}/chats.db",
+                "chat.storage.dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-${random.uuid}",
+                "chat.storage.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-chat-image-token-chats-db-${random.uuid}/chats.db",
                 "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-skills-${random.uuid}",
                 "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-chat-image-token-schedules-${random.uuid}"
         }
@@ -95,7 +95,7 @@ class ChatImageTokenIntegrationTest {
     @Autowired
     private WebTestClient webTestClient;
     @Autowired
-    private ChatWindowMemoryProperties chatWindowMemoryProperties;
+    private ChatStorageProperties chatWindowMemoryProperties;
     @Autowired
     private DataProperties dataProperties;
     @Autowired

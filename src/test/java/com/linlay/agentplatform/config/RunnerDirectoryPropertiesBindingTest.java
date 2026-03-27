@@ -10,7 +10,7 @@ import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.config.properties.ToolProperties;
 import com.linlay.agentplatform.config.properties.ViewportProperties;
 import com.linlay.agentplatform.config.properties.ViewportServerProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
@@ -64,7 +64,7 @@ class RunnerDirectoryPropertiesBindingTest {
             assertThat(context.getBean(RootProperties.class).getExternalDir()).isEqualTo("runtime/root");
             assertThat(context.getBean(PanProperties.class).getExternalDir()).isEqualTo("runtime/pan");
             assertThat(context.getBean(OwnerProperties.class).getExternalDir()).isEqualTo("runtime/owner");
-            assertThat(context.getBean(ChatWindowMemoryProperties.class).getDir()).isEqualTo("runtime/chats");
+            assertThat(context.getBean(ChatStorageProperties.class).getDir()).isEqualTo("runtime/chats");
         });
     }
 
@@ -109,7 +109,7 @@ class RunnerDirectoryPropertiesBindingTest {
             assertThat(context.getBean(RootProperties.class).getExternalDir()).isEqualTo("/opt/root");
             assertThat(context.getBean(PanProperties.class).getExternalDir()).isEqualTo("/opt/pan");
             assertThat(context.getBean(OwnerProperties.class).getExternalDir()).isEqualTo("/opt/owner");
-            assertThat(context.getBean(ChatWindowMemoryProperties.class).getDir()).isEqualTo("/opt/chats");
+            assertThat(context.getBean(ChatStorageProperties.class).getDir()).isEqualTo("/opt/chats");
         }
     }
 
@@ -129,7 +129,7 @@ class RunnerDirectoryPropertiesBindingTest {
             RootProperties.class,
             PanProperties.class,
             OwnerProperties.class,
-            ChatWindowMemoryProperties.class
+            ChatStorageProperties.class
     })
     static class RunnerDirectoryConfiguration {
     }

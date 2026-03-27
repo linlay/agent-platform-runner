@@ -2,7 +2,7 @@ package com.linlay.agentplatform.service.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.properties.DataProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;
 import com.linlay.agentplatform.model.api.QueryRequest;
@@ -424,7 +424,7 @@ class ChatRecordStoreTest {
 
     @Test
     void initializeDatabaseShouldPlaceRelativeSqliteFileUnderChatDir() {
-        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        ChatStorageProperties properties = new ChatStorageProperties();
         Path chatDir = tempDir.resolve("chats");
         properties.setDir(chatDir.toString());
         properties.getIndex().setSqliteFile("chats.db");
@@ -457,7 +457,7 @@ class ChatRecordStoreTest {
                     """);
         }
 
-        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        ChatStorageProperties properties = new ChatStorageProperties();
         properties.setDir(chatDir.toString());
         properties.getIndex().setSqliteFile(dbPath.toString());
         ChatRecordStore store = new ChatRecordStore(objectMapper, properties);
@@ -494,7 +494,7 @@ class ChatRecordStoreTest {
                     """);
         }
 
-        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        ChatStorageProperties properties = new ChatStorageProperties();
         properties.setDir(chatDir.toString());
         properties.getIndex().setSqliteFile(dbPath.toString());
         properties.getIndex().setAutoRebuildOnIncompatibleSchema(false);
@@ -758,7 +758,7 @@ class ChatRecordStoreTest {
     }
 
     private ChatRecordStore newStore(ToolRegistry toolRegistry, Path dataDir) {
-        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        ChatStorageProperties properties = new ChatStorageProperties();
         properties.setDir(tempDir.resolve("chats").toString());
         properties.getIndex().setSqliteFile(tempDir.resolve("chats").resolve("chats.db").toString());
         ChatAssetCatalogService chatAssetCatalogService = null;

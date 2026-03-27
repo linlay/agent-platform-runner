@@ -5,8 +5,8 @@ import com.linlay.agentplatform.agent.runtime.LocalToolInvoker;
 import com.linlay.agentplatform.agent.runtime.McpToolInvoker;
 import com.linlay.agentplatform.agent.runtime.ToolInvokerRouter;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmService;
@@ -49,9 +49,9 @@ class AgentRegistryTest {
         LlmService llmService = new StubLlmService() {
         };
         ToolRegistry toolRegistry = new ToolRegistry(List.of(TestSystemBashFactory.defaultBash()));
-        ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
+        ChatStorageProperties memoryProperties = new ChatStorageProperties();
         memoryProperties.setDir(tempDir.resolve("chats").toString());
-        ChatWindowMemoryStore memoryStore = new ChatWindowMemoryStore(new ObjectMapper(), memoryProperties);
+        ChatStorageStore memoryStore = new ChatStorageStore(new ObjectMapper(), memoryProperties);
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         ToolInvokerRouter toolInvokerRouter = new ToolInvokerRouter(
                 toolRegistry,
@@ -320,9 +320,9 @@ class AgentRegistryTest {
         LlmService llmService = new StubLlmService() {
         };
         ToolRegistry toolRegistry = new ToolRegistry(List.of(TestSystemBashFactory.defaultBash()));
-        ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
+        ChatStorageProperties memoryProperties = new ChatStorageProperties();
         memoryProperties.setDir(tempDir.resolve("chats").toString());
-        ChatWindowMemoryStore memoryStore = new ChatWindowMemoryStore(new ObjectMapper(), memoryProperties);
+        ChatStorageStore memoryStore = new ChatStorageStore(new ObjectMapper(), memoryProperties);
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         ToolInvokerRouter toolInvokerRouter = new ToolInvokerRouter(
                 toolRegistry,

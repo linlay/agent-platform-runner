@@ -1,4 +1,4 @@
-package com.linlay.agentplatform.memory;
+package com.linlay.agentplatform.chatstorage;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class ChatWindowMemoryPropertiesBindingTest {
+class ChatStoragePropertiesBindingTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(ConfigurationPropertiesAutoConfiguration.class))
@@ -19,18 +19,18 @@ class ChatWindowMemoryPropertiesBindingTest {
     void shouldBindAutoRebuildSwitch() {
         contextRunner
                 .withPropertyValues(
-                        "memory.chats.index.sqlite-file=custom.db",
-                        "memory.chats.index.auto-rebuild-on-incompatible-schema=false"
+                        "chat.storage.index.sqlite-file=custom.db",
+                        "chat.storage.index.auto-rebuild-on-incompatible-schema=false"
                 )
                 .run(context -> {
-                    ChatWindowMemoryProperties properties = context.getBean(ChatWindowMemoryProperties.class);
+                    ChatStorageProperties properties = context.getBean(ChatStorageProperties.class);
                     assertThat(properties.getIndex().getSqliteFile()).isEqualTo("custom.db");
                     assertThat(properties.getIndex().isAutoRebuildOnIncompatibleSchema()).isFalse();
                 });
     }
 
     @Configuration
-    @EnableConfigurationProperties(ChatWindowMemoryProperties.class)
+    @EnableConfigurationProperties(ChatStorageProperties.class)
     static class TestConfig {
     }
 }

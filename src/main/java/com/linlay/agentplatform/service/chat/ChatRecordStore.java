@@ -2,9 +2,9 @@ package com.linlay.agentplatform.service.chat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.memory.ChatMemoryTypes;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;
@@ -44,21 +44,21 @@ public class ChatRecordStore {
     private static final Logger log = LoggerFactory.getLogger(ChatRecordStore.class);
 
     private final ObjectMapper objectMapper;
-    private final ChatWindowMemoryProperties properties;
+    private final ChatStorageProperties properties;
     private final ChatAssetCatalogService chatAssetCatalogService;
     private final Object lock = new Object();
     private final ChatIndexRepository chatIndexRepository;
     private final ChatHistoryFileReader chatHistoryFileReader;
     private final ChatEventSnapshotBuilder chatEventSnapshotBuilder;
 
-    public ChatRecordStore(ObjectMapper objectMapper, ChatWindowMemoryProperties properties) {
+    public ChatRecordStore(ObjectMapper objectMapper, ChatStorageProperties properties) {
         this(objectMapper, properties, null, null);
     }
 
     @Autowired
     public ChatRecordStore(
             ObjectMapper objectMapper,
-            ChatWindowMemoryProperties properties,
+            ChatStorageProperties properties,
             ToolRegistry toolRegistry,
             ChatAssetCatalogService chatAssetCatalogService
     ) {
@@ -70,7 +70,7 @@ public class ChatRecordStore {
         this.chatEventSnapshotBuilder = new ChatEventSnapshotBuilder(objectMapper, toolRegistry);
     }
 
-    public ChatRecordStore(ObjectMapper objectMapper, ChatWindowMemoryProperties properties, ToolRegistry toolRegistry) {
+    public ChatRecordStore(ObjectMapper objectMapper, ChatStorageProperties properties, ToolRegistry toolRegistry) {
         this(objectMapper, properties, toolRegistry, null);
     }
 
@@ -212,7 +212,7 @@ public class ChatRecordStore {
         );
 
         for (ChatHistoryRunSnapshot run : content.runs) {
-            for (ChatMemoryTypes.StoredMessage message : run.messages()) {
+            for (ChatStorageTypes.StoredMessage message : run.messages()) {
                 Map<String, Object> raw = toRawMessageMap(run.runId(), message);
                 if (!raw.isEmpty()) {
                     content.rawMessages.add(raw);
@@ -255,7 +255,7 @@ public class ChatRecordStore {
     }
 
     private Map<String, Object> planUpdatePayload(
-            ChatMemoryTypes.PlanState planState,
+            ChatStorageTypes.PlanState planState,
             String chatId
     ) {
         if (planState == null
@@ -266,7 +266,7 @@ public class ChatRecordStore {
         }
 
         List<Map<String, Object>> plan = new ArrayList<>();
-        for (ChatMemoryTypes.PlanTaskState task : planState.tasks) {
+        for (ChatStorageTypes.PlanTaskState task : planState.tasks) {
             if (task == null || !StringUtils.hasText(task.taskId) || !StringUtils.hasText(task.description)) {
                 continue;
             }
@@ -291,7 +291,7 @@ public class ChatRecordStore {
         return AgentDelta.normalizePlanTaskStatus(raw);
     }
 
-    private Map<String, Object> toRawMessageMap(String runId, ChatMemoryTypes.StoredMessage message) {
+    private Map<String, Object> toRawMessageMap(String runId, ChatStorageTypes.StoredMessage message) {
         if (message == null || !StringUtils.hasText(message.role)) {
             return Map.of();
         }

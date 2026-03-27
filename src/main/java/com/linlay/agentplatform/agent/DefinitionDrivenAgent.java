@@ -18,8 +18,8 @@ import com.linlay.agentplatform.agent.runtime.ToolInvoker;
 import com.linlay.agentplatform.agent.runtime.TurnTraceWriter;
 import com.linlay.agentplatform.agent.mode.OrchestratorServices;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
-import com.linlay.agentplatform.memory.ChatMemoryTypes;
-import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
+import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
@@ -55,7 +55,7 @@ public class DefinitionDrivenAgent implements Agent {
     private static final Logger log = LoggerFactory.getLogger(DefinitionDrivenAgent.class);
 
     private final AgentDefinition definition;
-    private final ChatWindowMemoryStore chatWindowMemoryStore;
+    private final ChatStorageStore chatWindowMemoryStore;
     private final ToolRegistry toolRegistry;
     private final ToolFileRegistryService toolFileRegistryService;
     private final Map<String, BaseTool> configuredToolsByName;
@@ -79,7 +79,7 @@ public class DefinitionDrivenAgent implements Agent {
             ToolRegistry toolRegistry,
             ToolFileRegistryService toolFileRegistryService,
             ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
+            ChatStorageStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             AgentMemoryService agentMemoryService,
@@ -132,7 +132,7 @@ public class DefinitionDrivenAgent implements Agent {
             LlmService llmService,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
+            ChatStorageStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
@@ -161,7 +161,7 @@ public class DefinitionDrivenAgent implements Agent {
             LlmService llmService,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
+            ChatStorageStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
@@ -269,8 +269,8 @@ public class DefinitionDrivenAgent implements Agent {
 
         return Flux.defer(() -> {
                     List<ChatMessage> historyMessages = loadHistoryMessages(request.chatId());
-                    ChatMemoryTypes.PlanState latestPlanState = loadLatestPlanState(request.chatId());
-                    ChatMemoryTypes.SystemSnapshot latestSystem = loadLatestSystemSnapshot(request.chatId());
+                    ChatStorageTypes.PlanState latestPlanState = loadLatestPlanState(request.chatId());
+                    ChatStorageTypes.SystemSnapshot latestSystem = loadLatestSystemSnapshot(request.chatId());
                     String runId = resolveRunId(request);
                     RunControl runControl = activeRunService == null
                             ? new RunControl()
@@ -463,7 +463,7 @@ public class DefinitionDrivenAgent implements Agent {
         }
     }
 
-    private ChatMemoryTypes.PlanState loadLatestPlanState(String chatId) {
+    private ChatStorageTypes.PlanState loadLatestPlanState(String chatId) {
         if (chatWindowMemoryStore == null || !StringUtils.hasText(chatId)) {
             return null;
         }
@@ -475,7 +475,7 @@ public class DefinitionDrivenAgent implements Agent {
         }
     }
 
-    private ChatMemoryTypes.SystemSnapshot loadLatestSystemSnapshot(String chatId) {
+    private ChatStorageTypes.SystemSnapshot loadLatestSystemSnapshot(String chatId) {
         if (chatWindowMemoryStore == null || !StringUtils.hasText(chatId)) {
             return null;
         }
@@ -487,12 +487,12 @@ public class DefinitionDrivenAgent implements Agent {
         }
     }
 
-    private List<AgentDelta.PlanTask> toPlanTasks(List<ChatMemoryTypes.PlanTaskState> snapshotTasks) {
+    private List<AgentDelta.PlanTask> toPlanTasks(List<ChatStorageTypes.PlanTaskState> snapshotTasks) {
         if (snapshotTasks == null || snapshotTasks.isEmpty()) {
             return List.of();
         }
         List<AgentDelta.PlanTask> tasks = new ArrayList<>();
-        for (ChatMemoryTypes.PlanTaskState task : snapshotTasks) {
+        for (ChatStorageTypes.PlanTaskState task : snapshotTasks) {
             if (task == null || !StringUtils.hasText(task.taskId) || !StringUtils.hasText(task.description)) {
                 continue;
             }
@@ -520,23 +520,23 @@ public class DefinitionDrivenAgent implements Agent {
         return RunIdGenerator.nextRunId();
     }
 
-    private ChatMemoryTypes.SystemSnapshot buildSystemSnapshot(AgentRequest request, ExecutionContext context) {
-        ChatMemoryTypes.SystemSnapshot snapshot = new ChatMemoryTypes.SystemSnapshot();
+    private ChatStorageTypes.SystemSnapshot buildSystemSnapshot(AgentRequest request, ExecutionContext context) {
+        ChatStorageTypes.SystemSnapshot snapshot = new ChatStorageTypes.SystemSnapshot();
         snapshot.model = model();
 
         String snapshotPrompt = buildSnapshotSystemPrompt(context);
         if (StringUtils.hasText(snapshotPrompt)) {
-            ChatMemoryTypes.SystemMessageSnapshot systemMessage = new ChatMemoryTypes.SystemMessageSnapshot();
+            ChatStorageTypes.SystemMessageSnapshot systemMessage = new ChatStorageTypes.SystemMessageSnapshot();
             systemMessage.role = "system";
             systemMessage.content = snapshotPrompt;
             snapshot.messages = List.of(systemMessage);
         }
 
         if (!configuredToolsByName.isEmpty()) {
-            List<ChatMemoryTypes.SystemToolSnapshot> tools = configuredToolsByName.values().stream()
+            List<ChatStorageTypes.SystemToolSnapshot> tools = configuredToolsByName.values().stream()
                     .sorted(java.util.Comparator.comparing(BaseTool::name))
                     .map(tool -> {
-                        ChatMemoryTypes.SystemToolSnapshot item = new ChatMemoryTypes.SystemToolSnapshot();
+                        ChatStorageTypes.SystemToolSnapshot item = new ChatStorageTypes.SystemToolSnapshot();
                         ToolDescriptor descriptor = resolveToolDescriptor(tool.name());
                         item.type = descriptor == null
                                 ? toolRegistry.toolCallType(tool.name())

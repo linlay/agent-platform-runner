@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.service.chat;
 
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.api.ChatSummaryResponse;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
@@ -58,10 +58,10 @@ final class ChatIndexRepository {
               ON CHATS(LAST_RUN_ID_)
             """;
 
-    private final ChatWindowMemoryProperties properties;
+    private final ChatStorageProperties properties;
     private final Object lock;
 
-    ChatIndexRepository(ChatWindowMemoryProperties properties, Object lock) {
+    ChatIndexRepository(ChatStorageProperties properties, Object lock) {
         this.properties = properties;
         this.lock = lock;
     }
@@ -382,7 +382,7 @@ final class ChatIndexRepository {
     }
 
     private boolean isAutoRebuildOnIncompatibleSchema() {
-        ChatWindowMemoryProperties.IndexProperties index = properties.getIndex();
+        ChatStorageProperties.IndexProperties index = properties.getIndex();
         return index == null || index.isAutoRebuildOnIncompatibleSchema();
     }
 
@@ -391,7 +391,7 @@ final class ChatIndexRepository {
     }
 
     private Path resolveSqlitePath() {
-        ChatWindowMemoryProperties.IndexProperties index = properties.getIndex();
+        ChatStorageProperties.IndexProperties index = properties.getIndex();
         String configured = index == null ? null : index.getSqliteFile();
         if (!StringUtils.hasText(configured)) {
             configured = "chats.db";

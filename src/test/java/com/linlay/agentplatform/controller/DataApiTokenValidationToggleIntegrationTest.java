@@ -54,8 +54,8 @@ import java.util.Date;
                 "agent.auth.issuer=https://auth.example.local",
                 "agent.chat-image-token.secret=chat-image-token-secret-for-tests",
                 "agent.chat-image-token.data-token-validation-enabled=false",
-                "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-chats-${random.uuid}",
-                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-chats-db-${random.uuid}/chats.db",
+                "chat.storage.dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-chats-${random.uuid}",
+                "chat.storage.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-chats-db-${random.uuid}/chats.db",
                 "agent.data.external-dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-assets-${random.uuid}",
                 "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-skills-${random.uuid}",
                 "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-schedules-${random.uuid}"

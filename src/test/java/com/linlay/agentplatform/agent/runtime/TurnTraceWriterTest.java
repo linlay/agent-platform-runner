@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.agent.runtime;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.ChatMessage;
@@ -22,10 +22,10 @@ class TurnTraceWriterTest {
 
     @Test
     void shouldPersistConsumedSteerAsUserMessageInStepHistory() {
-        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        ChatStorageProperties properties = new ChatStorageProperties();
         properties.setDir(tempDir.resolve("chats").toString());
         properties.setK(20);
-        ChatWindowMemoryStore store = new ChatWindowMemoryStore(new ObjectMapper(), properties);
+        ChatStorageStore store = new ChatStorageStore(new ObjectMapper(), properties);
 
         String chatId = "123e4567-e89b-12d3-a456-426614174188";
         String runId = "run_trace_1";

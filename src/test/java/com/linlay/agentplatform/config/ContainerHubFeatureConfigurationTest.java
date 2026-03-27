@@ -14,7 +14,7 @@ import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.config.properties.ToolProperties;
 import com.linlay.agentplatform.config.properties.ViewportProperties;
 import com.linlay.agentplatform.config.properties.ViewportServerProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
@@ -66,7 +66,7 @@ class ContainerHubFeatureConfigurationTest {
     @EnableConfigurationProperties({
             ContainerHubToolProperties.class,
             DataProperties.class,
-            ChatWindowMemoryProperties.class,
+            ChatStorageProperties.class,
             RootProperties.class,
             PanProperties.class,
             SkillProperties.class,

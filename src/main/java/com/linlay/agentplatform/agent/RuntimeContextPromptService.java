@@ -7,7 +7,7 @@ import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
 import com.linlay.agentplatform.model.api.QueryRequest;
@@ -48,7 +48,7 @@ public class RuntimeContextPromptService {
     private final RootProperties rootProperties;
     private final OwnerProperties ownerProperties;
     private final DataProperties dataProperties;
-    private final ChatWindowMemoryProperties chatWindowMemoryProperties;
+    private final ChatStorageProperties chatWindowMemoryProperties;
     private final AgentMemoryStore agentMemoryStore;
     private final AgentMemoryProperties agentMemoryProperties;
 
@@ -58,7 +58,7 @@ public class RuntimeContextPromptService {
             RootProperties rootProperties,
             OwnerProperties ownerProperties,
             DataProperties dataProperties,
-            ChatWindowMemoryProperties chatWindowMemoryProperties,
+            ChatStorageProperties chatWindowMemoryProperties,
             ObjectProvider<AgentMemoryStore> agentMemoryStoreProvider,
             ObjectProvider<AgentMemoryProperties> agentMemoryPropertiesProvider
     ) {
@@ -77,7 +77,7 @@ public class RuntimeContextPromptService {
             Environment environment,
             RootProperties rootProperties,
             DataProperties dataProperties,
-            ChatWindowMemoryProperties chatWindowMemoryProperties,
+            ChatStorageProperties chatWindowMemoryProperties,
             RuntimeDirectoryHostPaths runtimeDirectoryHostPaths
     ) {
         this.environment = environment;
@@ -94,7 +94,7 @@ public class RuntimeContextPromptService {
             RootProperties rootProperties,
             OwnerProperties ownerProperties,
             DataProperties dataProperties,
-            ChatWindowMemoryProperties chatWindowMemoryProperties,
+            ChatStorageProperties chatWindowMemoryProperties,
             RuntimeDirectoryHostPaths runtimeDirectoryHostPaths
     ) {
         this.environment = environment;
@@ -109,7 +109,7 @@ public class RuntimeContextPromptService {
     public RuntimeContextPromptService(
             Environment environment,
             RootProperties rootProperties,
-            ChatWindowMemoryProperties chatWindowMemoryProperties
+            ChatStorageProperties chatWindowMemoryProperties
     ) {
         this(
                 environment,
@@ -127,7 +127,7 @@ public class RuntimeContextPromptService {
                 new RootProperties(),
                 new OwnerProperties(),
                 new DataProperties(),
-                new ChatWindowMemoryProperties(),
+                new ChatStorageProperties(),
                 RuntimeDirectoryHostPaths.load(System.getenv())
         );
     }

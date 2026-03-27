@@ -37,8 +37,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
         "agent.providers.siliconflow.default-model=test-siliconflow-model",
         "agent.auth.enabled=true",
         "agent.auth.issuer=https://auth.example.local",
-        "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-auth-local-fallback-test-chats-${random.uuid}",
-        "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-auth-local-fallback-test-chats-db-${random.uuid}/chats.db",
+        "chat.storage.dir=${java.io.tmpdir}/agent-platform-runner-auth-local-fallback-test-chats-${random.uuid}",
+        "chat.storage.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-auth-local-fallback-test-chats-db-${random.uuid}/chats.db",
         "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-auth-local-fallback-test-skills-${random.uuid}",
         "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-auth-local-fallback-test-schedules-${random.uuid}"
     }

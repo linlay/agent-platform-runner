@@ -133,12 +133,12 @@ agent:
 memory:
   chats:
     dir: ${CHATS_DIR:runtime/chats}
-    k: ${MEMORY_CHATS_K:20}
-    charset: ${MEMORY_CHATS_CHARSET:UTF-8}
-    action-tools: ${MEMORY_CHATS_ACTION_TOOLS:}
+    k: ${CHAT_STORAGE_K:20}
+    charset: ${CHAT_STORAGE_CHARSET:UTF-8}
+    action-tools: ${CHAT_STORAGE_ACTION_TOOLS:}
     index:
-      sqlite-file: ${MEMORY_CHATS_INDEX_SQLITE_FILE:chats.db}
-      auto-rebuild-on-incompatible-schema: ${MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA:true}
+      sqlite-file: ${CHAT_STORAGE_INDEX_SQLITE_FILE:chats.db}
+      auto-rebuild-on-incompatible-schema: ${CHAT_STORAGE_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA:true}
 
 logging:
   pattern:

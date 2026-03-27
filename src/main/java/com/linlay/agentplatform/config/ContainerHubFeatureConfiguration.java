@@ -14,7 +14,7 @@ import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.config.properties.ToolProperties;
 import com.linlay.agentplatform.config.properties.ViewportProperties;
 import com.linlay.agentplatform.config.properties.ViewportServerProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
@@ -58,7 +58,7 @@ public class ContainerHubFeatureConfiguration {
 
     @Bean
     public ContainerHubMountResolver containerHubMountResolver(
-            ChatWindowMemoryProperties chatWindowMemoryProperties,
+            ChatStorageProperties chatWindowMemoryProperties,
             RootProperties rootProperties,
             PanProperties panProperties,
             SkillProperties skillProperties,

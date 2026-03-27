@@ -27,6 +27,6 @@ agent:
     registry:
       external-dir: /opt/registries/viewport-servers
 
-memory:
-  chats:
+chat:
+  storage:
     dir: /opt/chats

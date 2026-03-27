@@ -93,7 +93,7 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 3. **System Prompt 多层合并管线** — `SOUL.md → Runtime Context → AGENTS.md / AGENTS.<stage>.md → memory → YAML prompt → skills/tool appendix` 的分层提示词体系，支持通过 `contextConfig.tags` 按需注入运行时上下文。
 4. **Container Hub 三级沙箱生命周期** — `RUN / AGENT / GLOBAL` 三级复用与销毁策略，配合引用计数、空闲驱逐和平台目录挂载策略。
 5. **SSE 事件契约** — 围绕 Event Model v2 的统一事件字段、业务语义和历史回放约束。
-6. **Chat Memory V3.1** — JSONL 增量落盘、按 run 滑动窗口、`_msgId` 关联多消息拆分、真实 `_usage` 透传、reasoning 不回放。
+6. **Chat Storage V3.1** — JSONL 增量落盘、按 run 滑动窗口、`_msgId` 关联多消息拆分、真实 `_usage` 透传、reasoning 不回放。
 
 #### 七项重要技术
 
@@ -123,7 +123,11 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 | `schedule` | Schedule 注册、增量 reconcile、Cron dispatch |
 | `security` | `ApiJwtAuthWebFilter`、`ChatImageTokenService`、JWT/JWKS 本地与远程校验 |
 | `controller` | REST API：`/api/agents`、`/api/teams`、`/api/skills`、`/api/tools`、`/api/tool`、`/api/chats`、`/api/chat`、`/api/query`、`/api/upload`、`/api/submit`、`/api/steer`、`/api/interrupt`、`/api/viewport`、`/api/resource` |
-| `memory` | Chat Memory V3.1 JSONL 增量存储与回放，滑动窗口默认 `k=20` |
+| `chatstorage` | Chat Storage V3.1：JSONL 增量落盘与回放、滑动窗口（默认 `k=20`）、`StoredMessage` 转换 |
+| `service/memory` | Agent Memory 系统：按 agent 的 SQLite + FTS5 + 可选 embedding 混合检索持久化记忆 |
+| `service/embedding` | Embedding 服务：OpenAI-compatible `/v1/embeddings`，为 Agent Memory 提供向量化 |
+| `config` | 应用配置：`RuntimeDirectoryHostPaths`、`ConfigDirectorySupport`、`@ConfigurationProperties` 子包 |
+| `config/boot` | `ConfigDirectoryEnvironmentPostProcessor`：启动期外部配置目录加载 |
 
 ### 关键设计
 
@@ -609,7 +613,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 
 | 容器内路径 | RUN 宿主路径 | AGENT / GLOBAL 宿主路径 | 默认策略 | 默认模式 | 配置键（为空时 fallback） |
 |-----------|-------------|-------------------------|----------|----------|--------------------------|
-| `/workspace` | `{chatDataDir}/{chatId}` | `{chatDataDir}` | 默认挂载 | `rw` | `memory.chats.dir` |
+| `/workspace` | `{chatDataDir}/{chatId}` | `{chatDataDir}` | 默认挂载 | `rw` | `chat.storage.dir` |
 | `/root` | `{rootDir}` | `{rootDir}` | 默认挂载 | `rw` | `agent.root.external-dir` |
 | `/skills` | `{agentsDir}/{agentKey}/skills`（若存在，否则 `{skillsDir}`） | `{agentsDir}/{agentKey}/skills`（若存在，否则 `{skillsDir}`） | 默认挂载 | `ro` | `agent.skills.external-dir` |
 | `/pan` | `{panDir}` | `{panDir}` | 默认挂载 | `rw` | `agent.pan.external-dir` |
@@ -623,7 +627,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 | `/schedules` | `{schedulesDir}` | `{schedulesDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.schedule.external-dir` |
 | `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.mcp-servers.registry.external-dir` |
 | `/providers` | `{providersDir}` | `{providersDir}` | `extraMounts` 按需；敏感目录 | 显式 `mode` | `agent.providers.external-dir` |
-| `/chats` | `{chatDataDir}` | `{chatDataDir}` | `extraMounts` 按需 | 显式 `mode` | `memory.chats.dir` |
+| `/chats` | `{chatDataDir}` | `{chatDataDir}` | `extraMounts` 按需 | 显式 `mode` | `chat.storage.dir` |
 | `/skills-market` | `{skillsDir}` | `{skillsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.skills.external-dir` |
 | `/owner` | `{agentsDir}/../owner` | `{agentsDir}/../owner` | `extraMounts` 按需 | 显式 `mode` | `agent.agents.external-dir` 的父目录 |
 
@@ -698,7 +702,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `/api/query` 在流式输出结束时追加传输层终止帧 `data:[DONE]`；该 sentinel 不属于 Event Model v2 业务事件，也不写入 chat 历史事件。
 - `RenderQueue` 只影响传输 flush 行为，不改变上述业务事件类型与字段契约。
 
-## Chat Memory V3.1（JSONL）
+## Chat Storage V3.1（JSONL）
 
 以下为 V3 格式基础 + V3.1 增量改进的完整规范。
 
@@ -715,8 +719,8 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
   - `role=assistant`：三种快照形态之一：`content[]` / `reasoning_content[]` / `tool_calls[]`
   - `role=tool`：`name` + `tool_call_id` + `content[]` + `ts`
 - assistant / tool 扩展字段支持：`_reasoningId`、`_contentId`、`_msgId`、`_toolId`、`_actionId`、`_timing`、`_usage`。
-- action / tool 判定：通过 `memory.chats.action-tools` 白名单；命中写 `_actionId`，否则写 `_toolId`。
-- memory 回放约束：`reasoning_content` **不回传**给下一轮模型上下文。
+- action / tool 判定：通过 `chat.storage.action-tools` 白名单；命中写 `_actionId`，否则写 `_toolId`。
+- chat storage 回放约束：`reasoning_content` **不回传**给下一轮模型上下文。
 - 滑动窗口：`k=20` 单位仍然是 **run**；`trimToWindow` 按 `runId` 分组，保留最近 `k` 个 run 的所有行。
 
 ### V3.1 增量改进
@@ -850,12 +854,12 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `CHAT_IMAGE_TOKEN_PREVIOUS_SECRETS` | `agent.chat-image-token.previous-secrets` | （空） | 历史密钥列表（逗号分隔），用于密钥轮换验证 |
 | `CHAT_IMAGE_TOKEN_TTL_SECONDS` | `agent.chat-image-token.ttl-seconds` | `86400` | 图片令牌过期秒数 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `agent.chat-image-token.data-token-validation-enabled` | `true` | `/api/resource` 的 `t` 参数校验开关 |
-| `CHATS_DIR` | `memory.chats.dir` | `runtime/chats` | 聊天记忆目录 |
-| `MEMORY_CHATS_K` | `memory.chats.k` | `20` | 滑动窗口大小（按 run） |
-| `MEMORY_CHATS_CHARSET` | `memory.chats.charset` | `UTF-8` | 记忆文件编码 |
-| `MEMORY_CHATS_ACTION_TOOLS` | `memory.chats.action-tools` | （空） | action 工具白名单 |
-| `MEMORY_CHATS_INDEX_SQLITE_FILE` | `memory.chats.index.sqlite-file` | `chats.db` | SQLite 聊天索引文件名 |
-| `MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `memory.chats.index.auto-rebuild-on-incompatible-schema` | `true` | 索引 schema 不兼容时是否自动重建 |
+| `CHATS_DIR` | `chat.storage.dir` | `runtime/chats` | 聊天存储目录 |
+| `CHAT_STORAGE_K` | `chat.storage.k` | `20` | 滑动窗口大小（按 run） |
+| `CHAT_STORAGE_CHARSET` | `chat.storage.charset` | `UTF-8` | 聊天存储文件编码 |
+| `CHAT_STORAGE_ACTION_TOOLS` | `chat.storage.action-tools` | （空） | action 工具白名单 |
+| `CHAT_STORAGE_INDEX_SQLITE_FILE` | `chat.storage.index.sqlite-file` | `chats.db` | SQLite 聊天索引文件名 |
+| `CHAT_STORAGE_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `chat.storage.index.auto-rebuild-on-incompatible-schema` | `true` | 索引 schema 不兼容时是否自动重建 |
 | `AGENT_MEMORY_ENABLED` | `agent.memory.agent-memory.enabled` | `true` | Agent Memory 总开关 |
 | `AGENT_MEMORY_DB_FILE_NAME` | `agent.memory.agent-memory.db-file-name` | `memory.db` | Agent Memory SQLite 文件名 |
 | `AGENT_MEMORY_CONTEXT_TOP_N` | `agent.memory.agent-memory.context-top-n` | `5` | `memory` tag 默认注入条数 |
@@ -875,8 +879,9 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 
 迁移说明（Breaking Change）：
 
-- 旧键已禁用：`agent.catalog.*`、`agent.viewport.*`、`agent.capability.*`、`agent.skill.*`、`agent.team.*`、`agent.model.*`、`agent.mcp.*`、`memory.chat.*`。
-- 旧环境变量已禁用：`AGENT_CONFIG_DIR`、`AGENT_AGENTS_EXTERNAL_DIR`、`AGENT_TEAMS_EXTERNAL_DIR`、`AGENT_MODELS_EXTERNAL_DIR`、`AGENT_PROVIDERS_EXTERNAL_DIR`、`AGENT_TOOLS_EXTERNAL_DIR`、`AGENT_SKILLS_EXTERNAL_DIR`、`AGENT_VIEWPORTS_EXTERNAL_DIR`、`AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_SCHEDULE_EXTERNAL_DIR`、`AGENT_DATA_EXTERNAL_DIR`、`MEMORY_CHATS_DIR` 等。
+- 旧键已禁用：`agent.catalog.*`、`agent.viewport.*`、`agent.capability.*`、`agent.skill.*`、`agent.team.*`、`agent.model.*`、`agent.mcp.*`、`memory.chat.*`、`memory.chats.*`。
+- 旧环境变量已禁用：`AGENT_CONFIG_DIR`、`AGENT_AGENTS_EXTERNAL_DIR`、`AGENT_TEAMS_EXTERNAL_DIR`、`AGENT_MODELS_EXTERNAL_DIR`、`AGENT_PROVIDERS_EXTERNAL_DIR`、`AGENT_TOOLS_EXTERNAL_DIR`、`AGENT_SKILLS_EXTERNAL_DIR`、`AGENT_VIEWPORTS_EXTERNAL_DIR`、`AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_SCHEDULE_EXTERNAL_DIR`、`AGENT_DATA_EXTERNAL_DIR`、`MEMORY_CHATS_K`、`MEMORY_CHATS_CHARSET`、`MEMORY_CHATS_ACTION_TOOLS`、`MEMORY_CHATS_INDEX_SQLITE_FILE`、`MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` 等。
+- `CHATS_DIR` 保留不变。
 - 当前文档仅记录 `application.yml` 中实际使用的键；历史目录类兼容变量不再作为公开 contract。
 
 ### CORS（主配置默认）

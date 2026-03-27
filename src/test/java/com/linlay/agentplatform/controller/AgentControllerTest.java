@@ -3,7 +3,7 @@ package com.linlay.agentplatform.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.service.AgentQueryService;
@@ -78,8 +78,8 @@ import static org.mockito.Mockito.when;
                 "agent.providers.siliconflow.api-key=test-siliconflow-key",
                 "agent.providers.siliconflow.default-model=test-siliconflow-model",
                 "agent.auth.enabled=false",
-                "memory.chats.dir=${java.io.tmpdir}/agent-platform-runner-test-chats-${random.uuid}",
-                "memory.chats.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-test-chats-db-${random.uuid}/chats.db",
+                "chat.storage.dir=${java.io.tmpdir}/agent-platform-runner-test-chats-${random.uuid}",
+                "chat.storage.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-test-chats-db-${random.uuid}/chats.db",
                 "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-test-skills-${random.uuid}",
                 "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-test-schedules-${random.uuid}",
                 "agent.mcp-servers.enabled=true",
@@ -97,7 +97,7 @@ class AgentControllerTest {
     @Autowired
     private FrontendSubmitCoordinator frontendSubmitCoordinator;
     @Autowired
-    private ChatWindowMemoryProperties chatWindowMemoryProperties;
+    private ChatStorageProperties chatWindowMemoryProperties;
     @Autowired
     private ChatRecordStore chatRecordStore;
     @Autowired

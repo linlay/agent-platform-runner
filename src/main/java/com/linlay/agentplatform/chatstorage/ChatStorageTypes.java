@@ -1,4 +1,4 @@
-package com.linlay.agentplatform.memory;
+package com.linlay.agentplatform.chatstorage;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -11,11 +11,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Extracted persistent chat memory DTOs shared by storage, replay, and tests.
+ * Extracted persistent chat storage DTOs shared by storage, replay, and tests.
  */
-public final class ChatMemoryTypes {
+public final class ChatStorageTypes {
 
-    private ChatMemoryTypes() {
+    private ChatStorageTypes() {
     }
 
     public record RunMessage(
@@ -245,6 +245,10 @@ public final class ChatMemoryTypes {
         public String id;
         public String type;
         public FunctionCall function;
+        /**
+         * V3 backward compat only: new writes go to outer StoredMessage._toolId/_actionId.
+         * Retained for deserialization of legacy V3 JSONL data.
+         */
         @JsonProperty("_toolId")
         public String toolId;
         @JsonProperty("_actionId")
@@ -278,9 +282,9 @@ record ParsedStepLine(
         int seq,
         String taskId,
         long updatedAt,
-        ChatMemoryTypes.SystemSnapshot system,
-        ChatMemoryTypes.PlanState plan,
-        List<ChatMemoryTypes.StoredMessage> messages
+        ChatStorageTypes.SystemSnapshot system,
+        ChatStorageTypes.PlanState plan,
+        List<ChatStorageTypes.StoredMessage> messages
 ) implements ParsedLine {
 }
 

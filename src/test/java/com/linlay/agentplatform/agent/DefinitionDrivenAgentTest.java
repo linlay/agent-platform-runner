@@ -24,9 +24,9 @@ import com.linlay.agentplatform.config.properties.FrontendToolProperties;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
-import com.linlay.agentplatform.memory.ChatMemoryTypes;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
@@ -845,9 +845,9 @@ class DefinitionDrivenAgentTest {
                 agentDir
         );
 
-        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        ChatStorageProperties properties = new ChatStorageProperties();
         properties.setDir(runtimeHome.resolve("chats").toString());
-        ChatWindowMemoryStore chatWindowMemoryStore = new ChatWindowMemoryStore(objectMapper, properties);
+        ChatStorageStore chatWindowMemoryStore = new ChatStorageStore(objectMapper, properties);
 
         String originalUserDir = System.getProperty("user.dir");
         System.setProperty("user.dir", runtimeHome.toString());
@@ -932,7 +932,7 @@ class DefinitionDrivenAgentTest {
             assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("Memory:\nmemory note"));
             assertThat(systemPrompt.indexOf("Memory:\nmemory note")).isLessThan(systemPrompt.indexOf("yaml prompt"));
 
-            ChatMemoryTypes.SystemSnapshot snapshot = chatWindowMemoryStore.loadLatestSystemSnapshot(chatId);
+            ChatStorageTypes.SystemSnapshot snapshot = chatWindowMemoryStore.loadLatestSystemSnapshot(chatId);
             assertThat(snapshot).isNotNull();
             assertThat(snapshot.messages).hasSize(1);
             assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Context");
@@ -1068,10 +1068,10 @@ class DefinitionDrivenAgentTest {
     @Test
     void memoryTextBlockIdsShouldMatchSseAcrossExecuteStepsAndSummary() throws Exception {
         Path memoryDir = Files.createTempDirectory("chat-memory-ids");
-        ChatWindowMemoryProperties properties = new ChatWindowMemoryProperties();
+        ChatStorageProperties properties = new ChatStorageProperties();
         properties.setDir(memoryDir.toString());
         properties.setK(20);
-        ChatWindowMemoryStore memoryStore = new ChatWindowMemoryStore(objectMapper, properties);
+        ChatStorageStore memoryStore = new ChatStorageStore(objectMapper, properties);
         String chatId = UUID.randomUUID().toString();
         String runId = "run_trace_ids";
 
@@ -2646,7 +2646,7 @@ class DefinitionDrivenAgentTest {
             LlmService llmService,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
+            ChatStorageStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator
     ) {
         return createAgent(
@@ -2669,7 +2669,7 @@ class DefinitionDrivenAgentTest {
             LlmService llmService,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
+            ChatStorageStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService
     ) {
@@ -2693,7 +2693,7 @@ class DefinitionDrivenAgentTest {
             LlmService llmService,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
+            ChatStorageStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties
@@ -2718,7 +2718,7 @@ class DefinitionDrivenAgentTest {
             LlmService llmService,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
+            ChatStorageStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
@@ -2745,7 +2745,7 @@ class DefinitionDrivenAgentTest {
             LlmService llmService,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
+            ChatStorageStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
@@ -2774,7 +2774,7 @@ class DefinitionDrivenAgentTest {
             LlmService llmService,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
+            ChatStorageStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
@@ -2851,7 +2851,7 @@ class DefinitionDrivenAgentTest {
         ownerProperties.setExternalDir(ownerDir);
         DataProperties dataProperties = new DataProperties();
         dataProperties.setExternalDir("data");
-        ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
+        ChatStorageProperties memoryProperties = new ChatStorageProperties();
         memoryProperties.setDir("chats");
         return new RuntimeContextPromptService(environment, rootProperties, ownerProperties, dataProperties, memoryProperties, hostPaths);
     }

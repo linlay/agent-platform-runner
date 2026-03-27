@@ -14,7 +14,7 @@ import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
 import com.linlay.agentplatform.model.api.QueryRequest;
@@ -436,7 +436,7 @@ class RuntimeContextPromptServiceTest {
         ownerProperties.setExternalDir(ownerDir);
         DataProperties dataProperties = new DataProperties();
         dataProperties.setExternalDir("data");
-        ChatWindowMemoryProperties memoryProperties = new ChatWindowMemoryProperties();
+        ChatStorageProperties memoryProperties = new ChatStorageProperties();
         memoryProperties.setDir("chats");
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         if (agentMemoryStore != null) {

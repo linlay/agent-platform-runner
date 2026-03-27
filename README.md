@@ -848,7 +848,7 @@ for f in *.md; do echo "$f"; done
 | `TEAMS_DIR` | `runtime/teams` | 本地运行时的 Team 定义目录；Docker 中仅作为宿主机挂载 source |
 | `ROOT_DIR` | `runtime/root` | 本地运行时的 runner 根目录；Docker 中仅作为宿主机挂载 source |
 | `SCHEDULES_DIR` | `runtime/schedules` | 本地运行时的 Schedule 目录；Docker 中仅作为宿主机挂载 source |
-| `CHATS_DIR` | `runtime/chats` | 本地运行时的聊天记忆目录；Docker 中仅作为宿主机挂载 source |
+| `CHATS_DIR` | `runtime/chats` | 本地运行时的聊天存储目录；Docker 中仅作为宿主机挂载 source |
 | `PAN_DIR` | `runtime/pan` | 本地运行时的 pan 目录；Docker 中仅作为宿主机挂载 source |
 | `SKILLS_MARKET_DIR` | `runtime/skills-market` | 本地运行时的 Skill market 目录；Docker 中仅作为宿主机挂载 source |
 | `DATA_DIR` | `data` | 静态文件目录 |
@@ -867,9 +867,9 @@ for f in *.md; do echo "$f"; done
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `300000` | 前端工具提交超时 |
 | `AGENT_AUTH_ENABLED` | `true` | JWT 认证开关 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/resource` 的 `t` 参数校验开关（关闭后忽略 `t`） |
-| `MEMORY_CHATS_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `CHATS_DIR` 解析） |
-| `MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `true` | sqlite 索引 schema 不兼容时是否自动备份并重建 |
-| `MEMORY_CHATS_K` | `20` | 滑动窗口大小 |
+| `CHAT_STORAGE_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `CHATS_DIR` 解析） |
+| `CHAT_STORAGE_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `true` | sqlite 索引 schema 不兼容时是否自动备份并重建 |
+| `CHAT_STORAGE_K` | `20` | 滑动窗口大小 |
 | `LOGGING_AGENT_REQUEST_ENABLED` | `true` | API 请求摘要日志开关（不记录 header） |
 | `LOGGING_AGENT_AUTH_ENABLED` | `true` | 认证失败原因日志开关（401/403） |
 | `LOGGING_AGENT_EXCEPTION_ENABLED` | `true` | 统一异常日志开关 |
@@ -899,7 +899,8 @@ for f in *.md; do echo "$f"; done
   - `agent.team.*` -> `agent.teams.*`
   - `agent.model.*` -> `agent.models.*`
   - `agent.mcp.*` -> `agent.mcp-servers.*`
-  - `memory.chat.*` -> `memory.chats.*`
+  - `memory.chat.*` -> `chat.storage.*`
+  - `memory.chats.*` -> `chat.storage.*`
 - 关键环境变量迁移：
   - `AGENT_CONFIG_DIR` -> 固定 runner `configs/` 目录（不再支持覆盖）
   - `AGENT_AGENTS_EXTERNAL_DIR` -> `AGENTS_DIR`
@@ -914,6 +915,12 @@ for f in *.md; do echo "$f"; done
   - `AGENT_SCHEDULE_EXTERNAL_DIR` -> `SCHEDULES_DIR`
   - `AGENT_DATA_EXTERNAL_DIR` -> `DATA_DIR`
   - `MEMORY_CHATS_DIR` -> `CHATS_DIR`
+  - `MEMORY_CHATS_K` -> `CHAT_STORAGE_K`
+  - `MEMORY_CHATS_CHARSET` -> `CHAT_STORAGE_CHARSET`
+  - `MEMORY_CHATS_ACTION_TOOLS` -> `CHAT_STORAGE_ACTION_TOOLS`
+  - `MEMORY_CHATS_INDEX_SQLITE_FILE` -> `CHAT_STORAGE_INDEX_SQLITE_FILE`
+  - `MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` -> `CHAT_STORAGE_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA`
+- `CHATS_DIR` 保留不变。
 
 ## 静态资源服务（Resource）
 

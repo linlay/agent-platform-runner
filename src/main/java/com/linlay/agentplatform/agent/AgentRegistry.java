@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.agent.runtime.ToolInvokerRouter;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
-import com.linlay.agentplatform.memory.ChatWindowMemoryStore;
+import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmService;
@@ -38,7 +38,7 @@ public class AgentRegistry {
     private final LlmService llmService;
     private final ToolRegistry toolRegistry;
     private final ObjectMapper objectMapper;
-    private final ChatWindowMemoryStore chatWindowMemoryStore;
+    private final ChatStorageStore chatWindowMemoryStore;
     private final FrontendSubmitCoordinator frontendSubmitCoordinator;
     private final SkillRegistryService skillRegistryService;
     private final ToolFileRegistryService toolFileRegistryService;
@@ -61,7 +61,7 @@ public class AgentRegistry {
             LlmService llmService,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
+            ChatStorageStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             ToolFileRegistryService toolFileRegistryService,
@@ -94,7 +94,7 @@ public class AgentRegistry {
             LlmService llmService,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
-            ChatWindowMemoryStore chatWindowMemoryStore,
+            ChatStorageStore chatWindowMemoryStore,
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,

@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.service.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.memory.ChatMemoryTypes;
+import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.springframework.util.StringUtils;
@@ -90,7 +90,7 @@ final class ChatEventSnapshotBuilder {
                 timestampCursor = persistedTs;
             }
 
-            for (ChatMemoryTypes.StoredMessage message : run.messages()) {
+            for (ChatStorageTypes.StoredMessage message : run.messages()) {
                 if (message == null || !StringUtils.hasText(message.role)) {
                     continue;
                 }
@@ -131,7 +131,7 @@ final class ChatEventSnapshotBuilder {
                         }
                     }
                     if (message.toolCalls != null && !message.toolCalls.isEmpty()) {
-                        for (ChatMemoryTypes.StoredToolCall toolCall : message.toolCalls) {
+                        for (ChatStorageTypes.StoredToolCall toolCall : message.toolCalls) {
                             if (toolCall == null || toolCall.function == null || !StringUtils.hasText(toolCall.function.name)) {
                                 continue;
                             }
@@ -265,8 +265,8 @@ final class ChatEventSnapshotBuilder {
 
     private IdBinding resolveBindingForAssistantToolCall(
             String runId,
-            ChatMemoryTypes.StoredMessage message,
-            ChatMemoryTypes.StoredToolCall toolCall,
+            ChatStorageTypes.StoredMessage message,
+            ChatStorageTypes.StoredToolCall toolCall,
             int toolIndex,
             int actionIndex
     ) {
@@ -298,7 +298,7 @@ final class ChatEventSnapshotBuilder {
 
     private IdBinding resolveBindingForToolResult(
             String runId,
-            ChatMemoryTypes.StoredMessage message,
+            ChatStorageTypes.StoredMessage message,
             int toolIndex,
             int actionIndex
     ) {
@@ -339,11 +339,11 @@ final class ChatEventSnapshotBuilder {
         return StringUtils.hasText(description) ? description.trim() : null;
     }
 
-    private String firstUserText(List<ChatMemoryTypes.StoredMessage> messages) {
+    private String firstUserText(List<ChatStorageTypes.StoredMessage> messages) {
         if (messages == null || messages.isEmpty()) {
             return "";
         }
-        for (ChatMemoryTypes.StoredMessage message : messages) {
+        for (ChatStorageTypes.StoredMessage message : messages) {
             if (message == null || !"user".equalsIgnoreCase(message.role)) {
                 continue;
             }
@@ -355,12 +355,12 @@ final class ChatEventSnapshotBuilder {
         return "";
     }
 
-    private String textFromContent(List<ChatMemoryTypes.ContentPart> contentParts) {
+    private String textFromContent(List<ChatStorageTypes.ContentPart> contentParts) {
         if (contentParts == null || contentParts.isEmpty()) {
             return "";
         }
         StringBuilder text = new StringBuilder();
-        for (ChatMemoryTypes.ContentPart contentPart : contentParts) {
+        for (ChatStorageTypes.ContentPart contentPart : contentParts) {
             if (contentPart == null || !StringUtils.hasText(contentPart.text)) {
                 continue;
             }
@@ -371,7 +371,7 @@ final class ChatEventSnapshotBuilder {
 
     private long resolveRunStartTimestamp(ChatHistoryRunSnapshot run) {
         long earliest = Long.MAX_VALUE;
-        for (ChatMemoryTypes.StoredMessage message : run.messages()) {
+        for (ChatStorageTypes.StoredMessage message : run.messages()) {
             if (message != null && message.ts != null && message.ts > 0 && message.ts < earliest) {
                 earliest = message.ts;
             }
@@ -387,7 +387,7 @@ final class ChatEventSnapshotBuilder {
 
     private long resolveRunEndTimestamp(ChatHistoryRunSnapshot run, long fallbackStart) {
         long latest = Long.MIN_VALUE;
-        for (ChatMemoryTypes.StoredMessage message : run.messages()) {
+        for (ChatStorageTypes.StoredMessage message : run.messages()) {
             if (message != null && message.ts != null && message.ts > 0 && message.ts > latest) {
                 latest = message.ts;
             }
@@ -401,7 +401,7 @@ final class ChatEventSnapshotBuilder {
         return fallbackStart;
     }
 
-    private long resolveMessageTimestamp(ChatMemoryTypes.StoredMessage message, long fallback) {
+    private long resolveMessageTimestamp(ChatStorageTypes.StoredMessage message, long fallback) {
         if (message != null && message.ts != null && message.ts > 0) {
             return message.ts;
         }
@@ -427,7 +427,7 @@ final class ChatEventSnapshotBuilder {
     }
 
     private Map<String, Object> planUpdatePayload(
-            ChatMemoryTypes.PlanState planState,
+            ChatStorageTypes.PlanState planState,
             String chatId
     ) {
         if (planState == null
@@ -438,7 +438,7 @@ final class ChatEventSnapshotBuilder {
         }
 
         List<Map<String, Object>> plan = new ArrayList<>();
-        for (ChatMemoryTypes.PlanTaskState task : planState.tasks) {
+        for (ChatStorageTypes.PlanTaskState task : planState.tasks) {
             if (task == null || !StringUtils.hasText(task.taskId) || !StringUtils.hasText(task.description)) {
                 continue;
             }
