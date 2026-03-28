@@ -1,0 +1,361 @@
+package com.linlay.agentplatform.controller;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.agent.AgentProperties;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
+import com.linlay.agentplatform.config.properties.RootProperties;
+import com.linlay.agentplatform.service.llm.LlmCallSpec;
+import com.linlay.agentplatform.service.llm.LlmService;
+import com.linlay.agentplatform.testsupport.StubLlmService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.MOCK,
+        properties = {
+                "agent.providers.bailian.base-url=https://example.com/v1",
+                "agent.providers.bailian.api-key=test-bailian-key",
+                "agent.providers.bailian.default-model=test-bailian-model",
+                "agent.providers.babelark.base-url=https://example.com/v1",
+                "agent.providers.babelark.api-key=test-babelark-key",
+                "agent.providers.babelark.default-model=test-babelark-model",
+                "agent.providers.siliconflow.base-url=https://example.com/v1",
+                "agent.providers.siliconflow.api-key=test-siliconflow-key",
+                "agent.providers.siliconflow.default-model=test-siliconflow-model",
+                "agent.auth.enabled=false",
+                "chat.storage.dir=${java.io.tmpdir}/agent-platform-runner-memory-chats-${random.uuid}",
+                "chat.storage.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-memory-db-${random.uuid}/chats.db",
+                "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-memory-skills-${random.uuid}",
+                "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-memory-schedules-${random.uuid}",
+                "agent.root.external-dir=${java.io.tmpdir}/agent-platform-runner-memory-root-${random.uuid}"
+        }
+)
+@AutoConfigureWebTestClient
+@Import(MemoryControllerTest.TestLlmServiceConfig.class)
+class MemoryControllerTest {
+
+    private static final Path TEST_PROVIDERS_DIR = prepareProvidersDir();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    @Autowired
+    private WebTestClient webTestClient;
+
+    @Autowired
+    private ChatStorageProperties chatStorageProperties;
+
+    @Autowired
+    private RootProperties rootProperties;
+
+    @Autowired
+    private AgentProperties agentProperties;
+
+    @DynamicPropertySource
+    static void registerDynamicProperties(DynamicPropertyRegistry registry) {
+        registry.add("agent.providers.external-dir", () -> TEST_PROVIDERS_DIR.toString());
+    }
+
+    @TestConfiguration
+    static class TestLlmServiceConfig {
+        @Bean
+        @Primary
+        LlmService llmService() {
+            return new StubLlmService() {
+                @Override
+                protected Flux<String> contentBySpec(LlmCallSpec spec) {
+                    return Flux.just("test");
+                }
+
+                @Override
+                public Mono<String> completeText(String providerKey, String model, String systemPrompt, String userPrompt) {
+                    return Mono.just("{}");
+                }
+
+                @Override
+                public Mono<String> completeText(String providerKey, String model, String systemPrompt, String userPrompt, String stage) {
+                    return completeText(providerKey, model, systemPrompt, userPrompt);
+                }
+            };
+        }
+    }
+
+    @BeforeEach
+    void setUp() throws Exception {
+        Files.createDirectories(Path.of(chatStorageProperties.getDir()));
+        Files.createDirectories(Path.of(rootProperties.getExternalDir()));
+        Files.createDirectories(Path.of(agentProperties.getExternalDir()));
+    }
+
+    @Test
+    void rememberShouldCaptureChatHistoryIntoGlobalMemory() throws Exception {
+        String chatId = UUID.randomUUID().toString();
+        seedChat(chatId, "run-remember-1", "你好", "这是第一次回复", List.of(reference("r01")));
+
+        webTestClient.post()
+                .uri("/api/remember")
+                .bodyValue(Map.of(
+                        "requestId", "remember_req_001",
+                        "chatId", chatId,
+                        "runId", "run-remember-1",
+                        "agentKey", "dailyOfficeAssistant"
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.accepted").isEqualTo(true)
+                .jsonPath("$.data.status").isEqualTo("captured")
+                .jsonPath("$.data.memoryPath").isEqualTo("remember/" + chatId + "/remember_req_001.json");
+
+        Path memoryFile = memoryRoot().resolve("remember").resolve(chatId).resolve("remember_req_001.json");
+        assertThat(Files.exists(memoryFile)).isTrue();
+
+        JsonNode root = OBJECT_MAPPER.readTree(Files.readString(memoryFile, StandardCharsets.UTF_8));
+        assertThat(root.path("type").asText()).isEqualTo("remember-request");
+        assertThat(root.path("promptKey").asText()).isEqualTo("remember");
+        assertThat(root.path("prompt").asText()).contains("值得长期保留");
+        assertThat(root.path("chat").path("chatId").asText()).isEqualTo(chatId);
+        assertThat(root.path("chat").path("rawMessages").isArray()).isTrue();
+        assertThat(root.path("chat").path("rawMessages")).isNotEmpty();
+        assertThat(root.path("chat").path("events").isArray()).isTrue();
+        assertThat(root.path("chat").path("events")).isNotEmpty();
+        assertThat(root.path("chat").path("references").isArray()).isTrue();
+        assertThat(root.path("chat").path("references").get(0).path("id").asText()).isEqualTo("r01");
+    }
+
+    @Test
+    void rememberShouldOverwriteExistingFileForSameRequestId() throws Exception {
+        String chatId = UUID.randomUUID().toString();
+        seedChat(chatId, "run-remember-2", "你好", "旧回复", List.of());
+
+        webTestClient.post()
+                .uri("/api/remember")
+                .bodyValue(Map.of(
+                        "requestId", "remember_req_same",
+                        "chatId", chatId,
+                        "runId", "run-remember-2",
+                        "agentKey", "dailyOfficeAssistant"
+                ))
+                .exchange()
+                .expectStatus().isOk();
+
+        Path memoryFile = memoryRoot().resolve("remember").resolve(chatId).resolve("remember_req_same.json");
+        String firstSnapshot = Files.readString(memoryFile, StandardCharsets.UTF_8);
+        assertThat(firstSnapshot).contains("旧回复");
+
+        seedChat(chatId, "run-remember-2", "你好", "新回复", List.of());
+
+        webTestClient.post()
+                .uri("/api/remember")
+                .bodyValue(Map.of(
+                        "requestId", "remember_req_same",
+                        "chatId", chatId,
+                        "runId", "run-remember-2",
+                        "agentKey", "dailyOfficeAssistant"
+                ))
+                .exchange()
+                .expectStatus().isOk();
+
+        String secondSnapshot = Files.readString(memoryFile, StandardCharsets.UTF_8);
+        assertThat(secondSnapshot).contains("新回复");
+        assertThat(secondSnapshot).doesNotContain("旧回复");
+    }
+
+    @Test
+    void rememberShouldRejectInvalidChatId() {
+        webTestClient.post()
+                .uri("/api/remember")
+                .bodyValue(Map.of(
+                        "requestId", "remember_req_invalid_chat",
+                        "chatId", "not-a-uuid",
+                        "runId", "run-invalid",
+                        "agentKey", "dailyOfficeAssistant"
+                ))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(400)
+                .jsonPath("$.msg").isEqualTo("chatId must be a valid UUID");
+    }
+
+    @Test
+    void rememberShouldReturn404WhenChatDoesNotExist() {
+        webTestClient.post()
+                .uri("/api/remember")
+                .bodyValue(Map.of(
+                        "requestId", "remember_req_missing_chat",
+                        "chatId", UUID.randomUUID().toString(),
+                        "runId", "run-missing",
+                        "agentKey", "dailyOfficeAssistant"
+                ))
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(404);
+    }
+
+    @Test
+    void learnShouldReturnNotConnectedWithoutSubjectKey() {
+        String chatId = UUID.randomUUID().toString();
+
+        webTestClient.post()
+                .uri("/api/learn")
+                .bodyValue(Map.of(
+                        "requestId", "learn_req_001",
+                        "chatId", chatId,
+                        "runId", "run-learn-1",
+                        "agentKey", "dailyOfficeAssistant"
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.accepted").isEqualTo(false)
+                .jsonPath("$.data.status").isEqualTo("not_connected")
+                .jsonPath("$.data.subjectKey").doesNotExist();
+    }
+
+    @Test
+    void learnShouldEchoSubjectKeyWhenProvided() {
+        String chatId = UUID.randomUUID().toString();
+
+        webTestClient.post()
+                .uri("/api/learn")
+                .bodyValue(Map.of(
+                        "requestId", "learn_req_002",
+                        "chatId", chatId,
+                        "runId", "run-learn-2",
+                        "agentKey", "dailyOfficeAssistant",
+                        "subjectKey", "user:alice"
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.accepted").isEqualTo(false)
+                .jsonPath("$.data.status").isEqualTo("not_connected")
+                .jsonPath("$.data.subjectKey").isEqualTo("user:alice");
+    }
+
+    private void seedChat(
+            String chatId,
+            String runId,
+            String userMessage,
+            String assistantReply,
+            List<Map<String, Object>> references
+    ) throws Exception {
+        Path historyFile = Path.of(chatStorageProperties.getDir()).resolve(chatId + ".jsonl");
+        long now = System.currentTimeMillis();
+
+        Map<String, Object> query = new LinkedHashMap<>();
+        query.put("requestId", runId);
+        query.put("chatId", chatId);
+        query.put("agentKey", "dailyOfficeAssistant");
+        query.put("role", "user");
+        query.put("message", userMessage);
+        if (references != null && !references.isEmpty()) {
+            query.put("references", references);
+        }
+
+        Map<String, Object> queryLine = new LinkedHashMap<>();
+        queryLine.put("_type", "query");
+        queryLine.put("chatId", chatId);
+        queryLine.put("runId", runId);
+        queryLine.put("updatedAt", now);
+        queryLine.put("query", query);
+
+        Map<String, Object> userStoredMessage = Map.of(
+                "role", "user",
+                "content", List.of(Map.of("type", "text", "text", userMessage)),
+                "ts", now
+        );
+        Map<String, Object> assistantStoredMessage = new LinkedHashMap<>();
+        assistantStoredMessage.put("role", "assistant");
+        assistantStoredMessage.put("content", List.of(Map.of("type", "text", "text", assistantReply)));
+        assistantStoredMessage.put("ts", now + 1);
+        assistantStoredMessage.put("_contentId", runId + "_c_1");
+
+        Map<String, Object> stepLine = new LinkedHashMap<>();
+        stepLine.put("_type", "step");
+        stepLine.put("chatId", chatId);
+        stepLine.put("runId", runId);
+        stepLine.put("_stage", "oneshot");
+        stepLine.put("_seq", 1);
+        stepLine.put("updatedAt", now + 1);
+        stepLine.put("messages", List.of(userStoredMessage, assistantStoredMessage));
+
+        Files.createDirectories(historyFile.getParent());
+        Files.writeString(
+                historyFile,
+                OBJECT_MAPPER.writeValueAsString(queryLine) + System.lineSeparator()
+                        + OBJECT_MAPPER.writeValueAsString(stepLine) + System.lineSeparator(),
+                StandardCharsets.UTF_8
+        );
+    }
+
+    private Map<String, Object> reference(String id) {
+        Map<String, Object> reference = new LinkedHashMap<>();
+        reference.put("id", id);
+        reference.put("type", "file");
+        reference.put("name", "notes.txt");
+        reference.put("mimeType", "text/plain");
+        reference.put("sizeBytes", 12L);
+        reference.put("url", "/api/resource?file=notes.txt");
+        return reference;
+    }
+
+    private Path memoryRoot() {
+        return Path.of(rootProperties.getExternalDir()).resolve("memory");
+    }
+
+    private static Path prepareProvidersDir() {
+        try {
+            Path dir = Files.createTempDirectory("agent-platform-runner-memory-providers-");
+            Files.writeString(dir.resolve("bailian.yml"), """
+                    key: bailian
+                    baseUrl: https://example.com/v1
+                    apiKey: test-bailian-key
+                    defaultModel: test-bailian-model
+                    """);
+            Files.writeString(dir.resolve("babelark.yml"), """
+                    key: babelark
+                    baseUrl: https://example.com/v1
+                    apiKey: test-babelark-key
+                    defaultModel: test-babelark-model
+                    """);
+            Files.writeString(dir.resolve("siliconflow.yml"), """
+                    key: siliconflow
+                    baseUrl: https://example.com/v1
+                    apiKey: test-siliconflow-key
+                    defaultModel: test-siliconflow-model
+                    """);
+            return dir;
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+}
