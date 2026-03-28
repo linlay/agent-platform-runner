@@ -212,7 +212,7 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 toolConfig:
                   backends:
-                    - sandbox_bash
+                    - _sandbox_bash_
                 sandboxConfig:
                   environmentId: shell
                 mode: ONESHOT
@@ -223,7 +223,7 @@ class AgentDefinitionLoaderTest {
         AgentDefinition definition = loadById().get("sandboxed");
 
         assertThat(definition).isNotNull();
-        assertThat(definition.tools()).contains("sandbox_bash");
+        assertThat(definition.tools()).contains("_sandbox_bash_");
         assertThat(definition.sandboxConfig().environmentId()).isEqualTo("shell");
     }
 
@@ -238,7 +238,7 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 toolConfig:
                   backends:
-                    - sandbox_bash
+                    - _sandbox_bash_
                 sandboxConfig:
                   environmentId: shell
                   level: agent
@@ -267,7 +267,7 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 toolConfig:
                   backends:
-                    - sandbox_bash
+                    - _sandbox_bash_
                 sandboxConfig:
                   environmentId: shell
                   level: agent
@@ -308,7 +308,7 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.name()).isEqualTo("Sandbox Validator");
-        assertThat(definition.tools()).containsExactly("sandbox_bash");
+        assertThat(definition.tools()).containsExactly("_sandbox_bash_");
         assertThat(definition.skills()).isEmpty();
         assertThat(definition.sandboxConfig()).isNotNull();
         assertThat(definition.sandboxConfig().environmentId()).isNull();
@@ -329,7 +329,7 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.name()).isEqualTo("Daily Office Assistant");
-        assertThat(definition.tools()).containsExactly("sandbox_bash");
+        assertThat(definition.tools()).containsExactly("_sandbox_bash_");
         assertThat(definition.skills()).containsExactly("docx", "pptx");
         assertThat(definition.sandboxConfig()).isNotNull();
         assertThat(definition.sandboxConfig().environmentId()).isNull();
@@ -800,9 +800,9 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.skills()).containsExactly("screenshot", "doc");
-        assertThat(definition.tools()).containsExactly("sandbox_bash");
+        assertThat(definition.tools()).containsExactly("_sandbox_bash_");
         OneshotMode mode = (OneshotMode) definition.agentMode();
-        assertThat(mode.stage().tools()).containsExactly("sandbox_bash");
+        assertThat(mode.stage().tools()).containsExactly("_sandbox_bash_");
     }
 
     @Test
@@ -816,7 +816,7 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 toolConfig:
                   backends:
-                    - sandbox_bash
+                    - _sandbox_bash_
                 skillConfig:
                   skills:
                     - docx
@@ -829,9 +829,9 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.skills()).containsExactly("docx");
-        assertThat(definition.tools()).containsExactly("sandbox_bash");
+        assertThat(definition.tools()).containsExactly("_sandbox_bash_");
         ReactMode mode = (ReactMode) definition.agentMode();
-        assertThat(mode.stage().tools()).containsExactly("sandbox_bash");
+        assertThat(mode.stage().tools()).containsExactly("_sandbox_bash_");
     }
 
     @Test
@@ -864,9 +864,9 @@ class AgentDefinitionLoaderTest {
         assertThat(definition).isNotNull();
         assertThat(definition.skills()).isEmpty();
         assertThat(definition.perAgentSkills()).containsExactly("local_only");
-        assertThat(definition.tools()).doesNotContain("sandbox_bash");
+        assertThat(definition.tools()).doesNotContain("_sandbox_bash_");
         OneshotMode mode = (OneshotMode) definition.agentMode();
-        assertThat(mode.stage().tools()).doesNotContain("sandbox_bash");
+        assertThat(mode.stage().tools()).doesNotContain("_sandbox_bash_");
     }
 
     @Test
@@ -989,10 +989,10 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
-        assertThat(mode.planStage().tools()).containsExactlyInAnyOrder("datetime", "_plan_add_tasks_", "sandbox_bash");
-        assertThat(mode.executeStage().tools()).containsExactlyInAnyOrder("_plan_update_task_", "sandbox_bash");
-        assertThat(mode.summaryStage().tools()).containsExactlyInAnyOrder("datetime", "sandbox_bash");
-        assertThat(definition.tools()).contains("sandbox_bash", "_plan_add_tasks_", "_plan_update_task_");
+        assertThat(mode.planStage().tools()).containsExactlyInAnyOrder("datetime", "_plan_add_tasks_", "_sandbox_bash_");
+        assertThat(mode.executeStage().tools()).containsExactlyInAnyOrder("_plan_update_task_", "_sandbox_bash_");
+        assertThat(mode.summaryStage().tools()).containsExactlyInAnyOrder("datetime", "_sandbox_bash_");
+        assertThat(definition.tools()).contains("_sandbox_bash_", "_plan_add_tasks_", "_plan_update_task_");
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.linlay.agentplatform.agent.AgentDefinition;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
 import com.linlay.agentplatform.tool.ContainerHubClient;
+import com.linlay.agentplatform.tool.SystemContainerHubBash;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.lang.Nullable;
@@ -46,7 +47,7 @@ public class SandboxContextResolver {
         String level = resolveSandboxLevel(definition);
         boolean usesContainerHubTool = definition != null
                 && definition.tools() != null
-                && definition.tools().stream().anyMatch("sandbox_bash"::equals);
+                && definition.tools().stream().anyMatch(SystemContainerHubBash.TOOL_NAME::equals);
         List<String> extraMounts = summarizeExtraMounts(definition);
         ContainerHubClient.EnvironmentAgentPromptResult promptResult = fetchSandboxPrompt(
                 effectiveEnvironmentId,

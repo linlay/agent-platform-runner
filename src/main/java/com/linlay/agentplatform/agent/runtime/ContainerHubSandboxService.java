@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.agent.AgentDefinition;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.tool.ContainerHubClient;
+import com.linlay.agentplatform.tool.SystemContainerHubBash;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
@@ -24,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class ContainerHubSandboxService implements DisposableBean {
 
-    public static final String TOOL_NAME = "sandbox_bash";
+    public static final String TOOL_NAME = SystemContainerHubBash.TOOL_NAME;
     private static final Logger log = LoggerFactory.getLogger(ContainerHubSandboxService.class);
     private static final String DEFAULT_WORKSPACE_CWD = "/workspace";
 

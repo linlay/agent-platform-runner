@@ -582,8 +582,8 @@ class ContainerHubSandboxServiceTest {
                 null,
                 AgentRuntimeMode.ONESHOT,
                 new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
-                new OneshotMode(new StageSettings("sys", null, null, List.of("sandbox_bash"), false, ComputePolicy.MEDIUM), null, null),
-                List.of("sandbox_bash"),
+                new OneshotMode(new StageSettings("sys", null, null, List.of("_sandbox_bash_"), false, ComputePolicy.MEDIUM), null, null),
+                List.of("_sandbox_bash_"),
                 List.of(),
                 new AgentDefinition.SandboxConfig("shell", level, extraMounts),
                 List.of()

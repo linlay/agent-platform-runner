@@ -4,6 +4,9 @@ import java.util.Map;
 
 public final class ToolMetadataValidator {
 
+    private static final String TYPE_FUNCTION = "function";
+    private static final String TYPE_BUILTIN = "builtin";
+
     private ToolMetadataValidator() {
     }
 
@@ -20,8 +23,9 @@ public final class ToolMetadataValidator {
         if (!hasText(type)) {
             return "type is required";
         }
-        if (!"function".equalsIgnoreCase(type.trim())) {
-            return "type must be function";
+        String normalizedType = type.trim();
+        if (!TYPE_FUNCTION.equalsIgnoreCase(normalizedType) && !TYPE_BUILTIN.equalsIgnoreCase(normalizedType)) {
+            return "type must be function or builtin";
         }
         if (!hasText(name)) {
             return "name is required";

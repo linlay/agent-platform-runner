@@ -11,6 +11,8 @@ import java.util.Map;
 
 public class SystemContainerHubBash extends AbstractDeterministicTool implements ContextAwareTool {
 
+    public static final String TOOL_NAME = "_sandbox_bash_";
+
     private final ContainerHubToolProperties properties;
     private final ContainerHubClient client;
 
@@ -21,7 +23,7 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
 
     @Override
     public String name() {
-        return "sandbox_bash";
+        return TOOL_NAME;
     }
 
     @Override
@@ -31,13 +33,13 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
 
     @Override
     public JsonNode invoke(Map<String, Object> args) {
-        return failureText("sandbox_bash requires an active run sandbox context");
+        return failureText(TOOL_NAME + " requires an active run sandbox context");
     }
 
     @Override
     public JsonNode invoke(Map<String, Object> args, ExecutionContext context) {
         if (context == null || context.sandboxSession() == null) {
-            return failureText("sandbox_bash requires an active run sandbox session");
+            return failureText(TOOL_NAME + " requires an active run sandbox session");
         }
         JsonNode root = OBJECT_MAPPER.valueToTree(args == null ? Map.of() : args);
         String command = readText(root, "command");

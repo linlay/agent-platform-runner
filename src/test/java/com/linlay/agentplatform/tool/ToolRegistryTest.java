@@ -228,14 +228,16 @@ class ToolRegistryTest {
     void disabledContainerHubShouldBeHiddenEvenWhenYamlMetadataExists(@TempDir Path tempDir) throws IOException {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("sandbox_bash.yml"), """
-                name: sandbox_bash
+        Files.writeString(toolsDir.resolve("_sandbox_bash_.yml"), """
+                name: _sandbox_bash_
                 label: 执行命令（沙箱）
                 description: hidden when disabled
-                type: function
+                type: builtin
                 inputSchema:
                   type: object
                   properties:
+                    label:
+                      type: string
                     command:
                       type: string
                   required:
@@ -262,24 +264,26 @@ class ToolRegistryTest {
                 containerHubProperties
         );
 
-        assertThat(toolRegistry.list().stream().map(BaseTool::name)).doesNotContain("sandbox_bash");
-        assertThat(toolRegistry.descriptor("sandbox_bash")).isEmpty();
-        assertThat(toolRegistry.description("sandbox_bash")).isEmpty();
-        assertThat(toolRegistry.label("sandbox_bash")).isNull();
+        assertThat(toolRegistry.list().stream().map(BaseTool::name)).doesNotContain("_sandbox_bash_");
+        assertThat(toolRegistry.descriptor("_sandbox_bash_")).isEmpty();
+        assertThat(toolRegistry.description("_sandbox_bash_")).isEmpty();
+        assertThat(toolRegistry.label("_sandbox_bash_")).isNull();
     }
 
     @Test
     void enabledContainerHubShouldExposeLocalDescriptorEvenWhenYamlMetadataExists(@TempDir Path tempDir) throws IOException {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("sandbox_bash.yml"), """
-                name: sandbox_bash
+        Files.writeString(toolsDir.resolve("_sandbox_bash_.yml"), """
+                name: _sandbox_bash_
                 label: 执行命令（沙箱）
                 description: metadata from yaml
-                type: function
+                type: builtin
                 inputSchema:
                   type: object
                   properties:
+                    label:
+                      type: string
                     command:
                       type: string
                   required:
@@ -311,13 +315,16 @@ class ToolRegistryTest {
                 containerHubProperties
         );
 
-        assertThat(toolRegistry.descriptor("sandbox_bash"))
+        assertThat(toolRegistry.descriptor("_sandbox_bash_"))
                 .isPresent()
                 .get()
                 .satisfies(descriptor -> {
                     assertThat(descriptor.sourceType()).isEqualTo("agent-local");
                     assertThat(descriptor.sourceKey()).isNull();
                     assertThat(descriptor.description()).contains("在沙箱容器中执行命令");
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> properties = (Map<String, Object>) descriptor.parameters().get("properties");
+                    assertThat(properties).containsKey("label");
                 });
     }
 

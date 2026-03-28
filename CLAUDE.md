@@ -118,7 +118,7 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 | `model.api` | REST 契约：`ApiResponse`、`QueryRequest`、`SubmitRequest`、`SteerRequest`、`InterruptRequest`、`ChatDetailResponse` 等 |
 | `model.stream` | 流式领域模型：`AgentDelta`、`ToolCallDelta`、SSE payload 映射 |
 | `service` | `LlmService`、`AgentQueryService`、`ActiveRunService`、`ChatRecordStore`、`DirectoryWatchService`、MCP 同步与重连 |
-| `tool` | `BaseTool`、`ToolRegistry`、`ToolFileRegistryService`、内置 `_bash_` / `datetime` / `sandbox_bash` 等 |
+| `tool` | `BaseTool`、`ToolRegistry`、`ToolFileRegistryService`、内置 `_bash_` / `datetime` / `_sandbox_bash_` 等 |
 | `skill` | `SkillRegistryService`、`SkillDescriptor`、`SkillProperties`、运行时 prompt 注入 |
 | `schedule` | Schedule 注册、增量 reconcile、Cron dispatch |
 | `security` | `ApiJwtAuthWebFilter`、`ChatImageTokenService`、JWT/JWKS 本地与远程校验 |
@@ -456,7 +456,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - 顶层 `toolConfig.backends/frontends/actions` 定义默认工具集合。
 - 各 stage 可通过自身 `toolConfig` 覆盖：缺失则继承顶层，显式 `null` 则清空。
 - `PLAN_EXECUTE` 强制工具（`_plan_add_tasks_` / `_plan_update_task_`）不受 `toolConfig: null` 影响。
-- 若配置了 `skillConfig.skills`，运行时会自动附带 `sandbox_bash`；该隐式工具不受 `toolConfig: null` 影响。
+- 若配置了 `skillConfig.skills`，运行时会自动附带 `_sandbox_bash_`；该隐式工具不受 `toolConfig: null` 影响。
 - 若全局 memory 功能开启且 `memoryConfig.enabled=true`，运行时会自动附带 `_memory_write_`、`_memory_read_`、`_memory_search_`；该隐式工具同样不受 `toolConfig: null` 影响。
 
 ### 前端 tool 提交协议
@@ -475,7 +475,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 ### 内置工具
 
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
-- `sandbox_bash`：在 Container Hub 沙箱环境中执行命令，受 `sandboxConfig` 与 `agent.tools.container-hub.*` 控制。
+- `_sandbox_bash_`：在 Container Hub 沙箱环境中执行命令，受 `sandboxConfig` 与 `agent.tools.container-hub.*` 控制。
 - `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
 - `_memory_write_`：写入 agent 持久化记忆，支持 `content/category/importance/tags`；同步最佳努力生成 embedding，失败时自动降级为 FTS-only。
 - `_memory_read_`：读取 agent 持久化记忆；支持按 `id` 精确读取或按 `category/limit/sort(recent|importance)` 列表读取。
@@ -535,7 +535,7 @@ skillConfig:
 ```
 
 运行时，技能目录摘要注入 system prompt；skill 正文用于给模型提供操作手册和命令模板，不再依赖专用脚本执行工具。
-- 配置了 `skillConfig.skills` 的 agent 会自动获得 `sandbox_bash`，无需再显式写入 `toolConfig.backends`。
+- 配置了 `skillConfig.skills` 的 agent 会自动获得 `_sandbox_bash_`，无需再显式写入 `toolConfig.backends`。
 
 - 热加载：`skills/` 目录变更仅刷新 `SkillRegistryService`，不触发 agent reload；reload 后新 run 会读取新技能内容。
 - 目录化 Agent 可放置 per-agent `skills/`，作为该 agent 私有 skill 资源。

@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class ToolRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(ToolRegistry.class);
-    private static final String CONTAINER_HUB_TOOL_NAME = "sandbox_bash";
+    private static final String CONTAINER_HUB_TOOL_NAME = SystemContainerHubBash.TOOL_NAME;
 
     private final Map<String, BaseTool> nativeToolsByName;
     private final ToolFileRegistryService toolFileRegistryService;

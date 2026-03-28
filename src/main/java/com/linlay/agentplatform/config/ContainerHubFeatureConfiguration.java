@@ -48,7 +48,7 @@ public class ContainerHubFeatureConfiguration {
             ContainerHubClient containerHubClient
     ) {
         log.info(
-                "sandbox_bash enabled as sandbox command tool, baseUrl={}, defaultEnvironmentId={}, defaultSandboxLevel={}",
+                "_sandbox_bash_ enabled as sandbox command tool, baseUrl={}, defaultEnvironmentId={}, defaultSandboxLevel={}",
                 properties.getBaseUrl(),
                 properties.getDefaultEnvironmentId(),
                 properties.getDefaultSandboxLevel()

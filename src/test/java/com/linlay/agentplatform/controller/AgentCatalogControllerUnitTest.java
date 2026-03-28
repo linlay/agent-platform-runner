@@ -48,7 +48,7 @@ class AgentCatalogControllerUnitTest {
                 AgentRuntimeMode.ONESHOT,
                 new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
                 null,
-                List.of("sandbox_bash"),
+                List.of("_sandbox_bash_"),
                 List.of(),
                 List.of(),
                 new AgentDefinition.SandboxConfig(

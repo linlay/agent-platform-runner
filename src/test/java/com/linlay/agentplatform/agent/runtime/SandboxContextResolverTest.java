@@ -63,7 +63,7 @@ class SandboxContextResolverTest {
 
         RuntimeRequestContext.SandboxContext context = resolver.resolve(
                 agentDefinition(
-                        List.of("sandbox_bash"),
+                        List.of("_sandbox_bash_"),
                         new AgentDefinition.SandboxConfig(
                                 "daily-office",
                                 SandboxLevel.RUN,
@@ -105,7 +105,7 @@ class SandboxContextResolverTest {
         SandboxContextResolver resolver = new SandboxContextResolver(containerHubClient, properties);
 
         RuntimeRequestContext.SandboxContext context = resolver.resolve(
-                agentDefinition(List.of("sandbox_bash"), new AgentDefinition.SandboxConfig(null)),
+                agentDefinition(List.of("_sandbox_bash_"), new AgentDefinition.SandboxConfig(null)),
                 "chat-1",
                 "run-1",
                 "demo-agent",
@@ -138,7 +138,7 @@ class SandboxContextResolverTest {
         SandboxContextResolver resolver = new SandboxContextResolver(containerHubClient, properties);
 
         RuntimeRequestContext.SandboxContext context = resolver.resolve(
-                agentDefinition(List.of("sandbox_bash"), new AgentDefinition.SandboxConfig("shell")),
+                agentDefinition(List.of("_sandbox_bash_"), new AgentDefinition.SandboxConfig("shell")),
                 "chat-1",
                 "run-1",
                 "demo-agent",
@@ -167,7 +167,7 @@ class SandboxContextResolverTest {
         SandboxContextResolver resolver = new SandboxContextResolver(containerHubClient, new ContainerHubToolProperties());
 
         assertThatThrownBy(() -> resolver.resolve(
-                agentDefinition(List.of("sandbox_bash"), new AgentDefinition.SandboxConfig("daily-office")),
+                agentDefinition(List.of("_sandbox_bash_"), new AgentDefinition.SandboxConfig("daily-office")),
                 "chat-1",
                 "run-1",
                 "demo-agent",
@@ -193,7 +193,7 @@ class SandboxContextResolverTest {
         SandboxContextResolver resolver = new SandboxContextResolver(containerHubClient, new ContainerHubToolProperties());
 
         assertThatThrownBy(() -> resolver.resolve(
-                agentDefinition(List.of("sandbox_bash"), new AgentDefinition.SandboxConfig("daily-office")),
+                agentDefinition(List.of("_sandbox_bash_"), new AgentDefinition.SandboxConfig("daily-office")),
                 "chat-1",
                 "run-1",
                 "demo-agent",
@@ -217,7 +217,7 @@ class SandboxContextResolverTest {
         SandboxContextResolver resolver = new SandboxContextResolver(containerHubClient, new ContainerHubToolProperties());
 
         assertThatThrownBy(() -> resolver.resolve(
-                agentDefinition(List.of("sandbox_bash"), new AgentDefinition.SandboxConfig("daily-office")),
+                agentDefinition(List.of("_sandbox_bash_"), new AgentDefinition.SandboxConfig("daily-office")),
                 "chat-1",
                 "run-1",
                 "demo-agent",

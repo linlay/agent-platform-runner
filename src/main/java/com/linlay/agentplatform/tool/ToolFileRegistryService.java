@@ -217,11 +217,7 @@ public class ToolFileRegistryService {
                 viewportKey
         );
         if (validationError != null) {
-            if (!"function".equalsIgnoreCase(type)) {
-                log.warn("Skip non-function tool file: {}", source);
-            } else {
-                log.warn("Skip invalid tool file {}: {}", source, validationError);
-            }
+            log.warn("Skip invalid tool file {}: {}", source, validationError);
             return;
         }
 

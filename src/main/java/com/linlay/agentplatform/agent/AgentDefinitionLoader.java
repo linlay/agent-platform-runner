@@ -41,7 +41,7 @@ import java.util.stream.Stream;
 public class AgentDefinitionLoader {
 
     private static final Logger log = LoggerFactory.getLogger(AgentDefinitionLoader.class);
-    private static final String DEFAULT_SKILL_TOOL = "sandbox_bash";
+    private static final String DEFAULT_SKILL_TOOL = "_sandbox_bash_";
     private static final List<String> DEFAULT_MEMORY_TOOLS = List.of("_memory_write_", "_memory_read_", "_memory_search_");
     private static final Set<String> DEFAULT_SANDBOX_MOUNT_DESTINATIONS = Set.of(
             "/workspace",

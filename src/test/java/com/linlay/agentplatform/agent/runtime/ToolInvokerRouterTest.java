@@ -101,7 +101,7 @@ class ToolInvokerRouterTest {
         );
         ToolRegistry toolRegistry = new ToolRegistry(java.util.List.of(containerHubTool));
         LocalToolInvoker localToolInvoker = mock(LocalToolInvoker.class);
-        when(localToolInvoker.invoke("sandbox_bash", Map.of("command", "pwd"), null))
+        when(localToolInvoker.invoke("_sandbox_bash_", Map.of("command", "pwd"), null))
                 .thenReturn(TextNode.valueOf("LOCAL_CONTAINER_HUB"));
         McpToolInvoker mcpToolInvoker = mock(McpToolInvoker.class);
 
@@ -113,8 +113,8 @@ class ToolInvokerRouterTest {
                 beanFactory.getBeanProvider(McpToolInvoker.class)
         );
 
-        assertThat(router.invoke("sandbox_bash", Map.of("command", "pwd"), null).asText())
+        assertThat(router.invoke("_sandbox_bash_", Map.of("command", "pwd"), null).asText())
                 .isEqualTo("LOCAL_CONTAINER_HUB");
-        verify(localToolInvoker).invoke("sandbox_bash", Map.of("command", "pwd"), null);
+        verify(localToolInvoker).invoke("_sandbox_bash_", Map.of("command", "pwd"), null);
     }
 }

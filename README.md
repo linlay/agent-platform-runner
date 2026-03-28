@@ -279,7 +279,7 @@ docker compose up -d --build
 - 运行时业务目录既可以保留在仓库内默认路径，也可以通过 `.env` 的 `*_DIR` 指向宿主机其他路径覆盖默认值；其中动态 registries 默认回落到 `REGISTRIES_DIR=./runtime/registries`，其余目录默认回落到 `./runtime/*`。
 - 若把这四类动态注册目录外置到共享根目录，保持使用 `registries/` 作为它们的父目录命名，并把模板放到独立的 `registries.example/`。
 - 本地 `make run` 会先加载 `.env`，因此 `*_DIR` 会直接作为应用读取目录生效；Docker Compose 继续复用同一份 `.env`，同时把这些 `*_DIR` 暴露为容器环境变量并作为宿主机 bind mount source。
-- `sandbox_bash` 创建 container-hub session 时，会直接从当前进程环境变量读取宿主机 `*_DIR` 作为 mount source；若容器内 Spring 路径已固定成 `/opt/...`，但环境里缺少对应宿主机路径，runner 会直接报配置错误。
+- `_sandbox_bash_` 创建 container-hub session 时，会直接从当前进程环境变量读取宿主机 `*_DIR` 作为 mount source；若容器内 Spring 路径已固定成 `/opt/...`，但环境里缺少对应宿主机路径，runner 会直接报配置错误。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例；所有 `*_DIR` 都支持改成绝对宿主机路径。
 - `.env.example` 默认把 `AGENT_CONTAINER_HUB_BASE_URL` 指向 `http://host.docker.internal:11960`，用于容器内访问宿主机上的 Container Hub；compose 同时注入 `host.docker.internal:host-gateway` 以兼容 Linux Docker。
@@ -585,8 +585,8 @@ skillConfig:
     - pptx
 ```
 
-- 只要配置了 `skillConfig.skills`，运行时会自动把 `sandbox_bash` 合并进有效 backend tools，不需要再显式写到 `toolConfig.backends`。
-- 若某个 stage 显式写了 `toolConfig: null`，仍会保留这个由 skills 隐式带入的 `sandbox_bash`；`null` 只清空手动声明的普通工具。
+- 只要配置了 `skillConfig.skills`，运行时会自动把 `_sandbox_bash_` 合并进有效 backend tools，不需要再显式写到 `toolConfig.backends`。
+- 若某个 stage 显式写了 `toolConfig: null`，仍会保留这个由 skills 隐式带入的 `_sandbox_bash_`；`null` 只清空手动声明的普通工具。
 
 ### Runtime Context 配置示例
 
@@ -714,7 +714,7 @@ memoryConfig:
 
 ### 系统内置资源
 
-- `tools/`：仅保留系统内置工具定义，例如 `_bash_`、`datetime`、`sandbox_bash`、plan tools、`confirm_dialog`。
+- `tools/`：仅保留系统内置工具定义，例如 `_bash_`、`datetime`、`_sandbox_bash_`、plan tools、`confirm_dialog`。
 - `viewports/`：保留系统内置 viewport 模板。
 - skill 与 schedule 不再提供任何内置 starter 内容，完全由 `runtime/skills-market/`、`runtime/schedules/` 或对应 `*_DIR` 覆盖目录提供。
 - runner 不再分发任何内置 demo viewport、UI action tool 或示例 agent。
@@ -726,7 +726,7 @@ memoryConfig:
 
 ## Container Hub 工具说明
 
-`sandbox_bash` 是 runner 内置的本地 backend tool，用于在沙箱容器中执行命令。
+`_sandbox_bash_` 是 runner 内置的本地 backend tool，用于在沙箱容器中执行命令。
 
 配置前缀固定为：
 
@@ -738,7 +738,7 @@ default-environment-id: shell
 
 说明：
 
-- `meta.sourceType` 在 `/api/tools` 与 `/api/tool?toolName=sandbox_bash` 中应表现为 `local`。
+- `meta.sourceType` 在 `/api/tools` 与 `/api/tool?toolName=_sandbox_bash_` 中应表现为 `local`。
 - 建议通过 `.env` 中的 `AGENT_CONTAINER_HUB_BASE_URL` 配置 Container Hub 地址；容器化部署模板默认使用 `http://host.docker.internal:11960`。
 - `RUN` 级 sandbox 在创建 session 前会自动准备 `CHATS_DIR/<chatId>` 目录，并把它挂载到容器内的 `/workspace`。
 - sandbox mount source 会优先读取当前进程环境变量里的 `*_DIR`；在 Docker Compose / release bundle 中，这些值由 `env_file: .env` 直接注入容器。如果当前运行目录已被容器重写成 `/opt/...`，但环境里没有对应的宿主机 `*_DIR`，runner 会直接报配置错误。

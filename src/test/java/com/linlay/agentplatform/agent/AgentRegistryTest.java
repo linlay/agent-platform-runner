@@ -299,8 +299,8 @@ class AgentRegistryTest {
 
         AgentRegistry registry = createRegistry(agentsDir);
 
-        assertThat(registry.get("skill_agent").tools()).contains("sandbox_bash");
-        assertThat(registry.findAgentIdsByTools(Set.of("sandbox_bash"))).containsExactly("skill_agent");
+        assertThat(registry.get("skill_agent").tools()).contains("_sandbox_bash_");
+        assertThat(registry.findAgentIdsByTools(Set.of("_sandbox_bash_"))).containsExactly("skill_agent");
     }
 
     private AgentRegistry createRegistry(Path agentsDir) {
