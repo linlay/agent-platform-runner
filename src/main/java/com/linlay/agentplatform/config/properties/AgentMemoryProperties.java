@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "agent.memory.agent-memory")
 public class AgentMemoryProperties {
 
-    private boolean enabled = true;
+    private boolean enabled = false;
     private String dbFileName = "memory.db";
     private int contextTopN = 5;
     private int contextMaxChars = 4_000;

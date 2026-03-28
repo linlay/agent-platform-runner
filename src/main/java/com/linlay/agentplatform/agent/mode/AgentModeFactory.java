@@ -2,7 +2,6 @@ package com.linlay.agentplatform.agent.mode;
 
 import com.linlay.agentplatform.agent.AgentConfigFile;
 import com.linlay.agentplatform.agent.AgentPromptFiles;
-import com.linlay.agentplatform.agent.RuntimeContextTags;
 import com.linlay.agentplatform.agent.config.AgentModelConfig;
 import com.linlay.agentplatform.agent.config.AgentRuntimePromptsConfig;
 import com.linlay.agentplatform.agent.config.AgentToolConfig;
@@ -286,7 +285,7 @@ public final class AgentModeFactory {
     }
 
     private static List<String> addImplicitMemoryTools(AgentConfigFile config, List<String> tools, boolean memoryToolsEnabled) {
-        if (!memoryToolsEnabled || !hasMemoryContextTag(config)) {
+        if (!memoryToolsEnabled || !isAgentMemoryEnabled(config)) {
             return tools == null ? List.of() : List.copyOf(tools);
         }
         List<String> merged = new ArrayList<>(tools == null ? List.of() : tools);
@@ -294,14 +293,10 @@ public final class AgentModeFactory {
         return merged.stream().distinct().toList();
     }
 
-    private static boolean hasMemoryContextTag(AgentConfigFile config) {
+    private static boolean isAgentMemoryEnabled(AgentConfigFile config) {
         return config != null
-                && config.getContextConfig() != null
-                && config.getContextConfig().getTags() != null
-                && config.getContextConfig().getTags().stream()
-                .map(StringHelpers::nullable)
-                .map(value -> value == null ? null : value.trim().toLowerCase(Locale.ROOT))
-                .anyMatch(RuntimeContextTags.MEMORY::equals);
+                && config.getMemoryConfig() != null
+                && Boolean.TRUE.equals(config.getMemoryConfig().getEnabled());
     }
 
     private static void addTools(List<String> tools, List<String> rawTools) {

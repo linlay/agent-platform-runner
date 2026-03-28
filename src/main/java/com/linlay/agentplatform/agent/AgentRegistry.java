@@ -3,9 +3,11 @@ package com.linlay.agentplatform.agent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.agent.runtime.ToolInvokerRouter;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.service.ActiveRunService;
+import com.linlay.agentplatform.service.memory.AgentMemoryStore;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.skill.SkillRegistryService;
@@ -43,6 +45,8 @@ public class AgentRegistry {
     private final SkillRegistryService skillRegistryService;
     private final ToolFileRegistryService toolFileRegistryService;
     private final AgentMemoryService agentMemoryService;
+    private final AgentMemoryStore agentMemoryStore;
+    private final AgentMemoryProperties agentMemoryProperties;
     private final LoggingAgentProperties loggingAgentProperties;
     private final ToolInvokerRouter toolInvokerRouter;
     private final ActiveRunService activeRunService;
@@ -66,6 +70,8 @@ public class AgentRegistry {
             SkillRegistryService skillRegistryService,
             ToolFileRegistryService toolFileRegistryService,
             AgentMemoryService agentMemoryService,
+            ObjectProvider<AgentMemoryStore> agentMemoryStoreProvider,
+            ObjectProvider<AgentMemoryProperties> agentMemoryPropertiesProvider,
             LoggingAgentProperties loggingAgentProperties,
             ToolInvokerRouter toolInvokerRouter,
             ActiveRunService activeRunService,
@@ -81,6 +87,8 @@ public class AgentRegistry {
         this.skillRegistryService = skillRegistryService;
         this.toolFileRegistryService = toolFileRegistryService;
         this.agentMemoryService = agentMemoryService;
+        this.agentMemoryStore = agentMemoryStoreProvider.getIfAvailable();
+        this.agentMemoryProperties = agentMemoryPropertiesProvider.getIfAvailable();
         this.loggingAgentProperties = loggingAgentProperties;
         this.toolInvokerRouter = toolInvokerRouter;
         this.activeRunService = activeRunService;
@@ -112,6 +120,8 @@ public class AgentRegistry {
                 skillRegistryService,
                 new ToolFileRegistryService(objectMapper),
                 new AgentMemoryService(),
+                new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(AgentMemoryStore.class),
+                new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(AgentMemoryProperties.class),
                 loggingAgentProperties,
                 toolInvokerRouter,
                 activeRunService,
@@ -267,6 +277,8 @@ public class AgentRegistry {
                 frontendSubmitCoordinator,
                 skillRegistryService,
                 agentMemoryService,
+                agentMemoryStore,
+                agentMemoryProperties,
                 loggingAgentProperties,
                 toolInvokerRouter,
                 activeRunService,

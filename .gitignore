@@ -6,6 +6,7 @@ out/
 target/
 
 # Runtime generated directories (generated/overridden locally)
+/runtime/
 /agents/
 /teams/
 /chats/

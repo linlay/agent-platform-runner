@@ -164,6 +164,8 @@ skillConfig:
   skills: ["docx", "screenshot"]
 contextConfig:
   tags: ["system", "context", "owner", "auth", "memory"]
+memoryConfig:
+  enabled: false
 mode: ONESHOT
 toolChoice: AUTO
 budget:
@@ -295,6 +297,18 @@ contextConfig:
 
 **重要：tag 的存在与否与 `.env` 目录配置、Docker 容器挂载无关。** 例如，`owner` tag 不依赖 Container Hub 的 `/owner` 平台挂载是否配置；`context` tag 不依赖沙箱目录是否挂载。tag 读取的是 runner 进程本地可见的文件系统路径，Container Hub 挂载解析的是发给 Container Hub 的宿主机路径，两者通过不同管道消费同一组 `.env` 变量。
 
+**memoryConfig 配置：**
+
+```yaml
+memoryConfig:
+  enabled: true
+```
+
+- `memoryConfig.enabled` 默认 `false`
+- 仅控制当前 agent 在成功 run 结束后是否自动沉淀一条 `run-summary` memory
+- 当全局 memory 功能开启且 `memoryConfig.enabled=true` 时，运行时会自动附带 `_memory_write_`、`_memory_read_`、`_memory_search_`
+- `memoryConfig.enabled` 与 `contextConfig.tags: [memory]` 完全独立，前者不决定上下文注入，后者不决定自动记忆
+
 ### tag 详细说明
 
 **`system`** — 注入系统环境信息（`RuntimeContextPromptService.buildSystemEnvironmentSection()`）
@@ -337,6 +351,7 @@ contextConfig:
 - 无 `request.message()` 时按 `importance desc` 取 `contextTopN`
 - 格式：`Runtime Context: Agent Memory`，每条包含 `id/category/importance/tags/content`
 - 总字符数超过 `agent.memory.agent-memory.context-max-chars` 时截断，并附带 `[TRUNCATED: agent-memory exceeds max chars=...]`
+- 仅控制“是否把已存储 memory 摘要注入运行时上下文”，不控制自动记忆或 memory tools 暴露
 - memory 功能关闭或无数据时返回空串，不影响 agent 运行
 
 ### tag 条件解析
@@ -442,7 +457,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - 各 stage 可通过自身 `toolConfig` 覆盖：缺失则继承顶层，显式 `null` 则清空。
 - `PLAN_EXECUTE` 强制工具（`_plan_add_tasks_` / `_plan_update_task_`）不受 `toolConfig: null` 影响。
 - 若配置了 `skillConfig.skills`，运行时会自动附带 `sandbox_bash`；该隐式工具不受 `toolConfig: null` 影响。
-- 若 `contextConfig.tags` 包含 `memory` 且 memory 功能开启，运行时会自动附带 `_memory_write_`、`_memory_read_`、`_memory_search_`；该隐式工具同样不受 `toolConfig: null` 影响。
+- 若全局 memory 功能开启且 `memoryConfig.enabled=true`，运行时会自动附带 `_memory_write_`、`_memory_read_`、`_memory_search_`；该隐式工具同样不受 `toolConfig: null` 影响。
 
 ### 前端 tool 提交协议
 
@@ -469,10 +484,13 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 ## Agent Memory 系统
 
+- 全局开关 `agent.memory.agent-memory.enabled` 默认 `false`；关闭时 memory bean / memory tools / 自动记忆 / memory context 检索全部停用。
 - 现有文件型 `memory/memory.md` 仍保留，继续通过 `ExecutionContext.memoryPrompt` 注入，位置在 `AGENTS*.md` 之后、YAML stage prompt 之前。
 - 新增 SQLite agent memory：
   - 目录化 agent：`<agentDir>/<db-file-name>`，默认 `memory.db`
   - 扁平 agent：`<agent.agents.external-dir>/<agentKey>/<db-file-name>`
+- agent 级 `memoryConfig.enabled=true` 时，成功 run 结束后会自动写入 1 条 `run-summary` memory；失败、取消、超时等非成功结束不会自动写入。
+- `contextConfig.tags: [memory]` 只负责把 SQLite memory 摘要注入上下文，不负责开启自动记忆。
 - schema：单表 `MEMORIES` + `MEMORIES_FTS`（FTS5 外部内容模式）+ 触发器自动同步。
 - 查询策略：
   - FTS5 BM25 候选
@@ -860,7 +878,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `CHAT_STORAGE_ACTION_TOOLS` | `chat.storage.action-tools` | （空） | action 工具白名单 |
 | `CHAT_STORAGE_INDEX_SQLITE_FILE` | `chat.storage.index.sqlite-file` | `chats.db` | SQLite 聊天索引文件名 |
 | `CHAT_STORAGE_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `chat.storage.index.auto-rebuild-on-incompatible-schema` | `true` | 索引 schema 不兼容时是否自动重建 |
-| `AGENT_MEMORY_ENABLED` | `agent.memory.agent-memory.enabled` | `true` | Agent Memory 总开关 |
+| `AGENT_MEMORY_ENABLED` | `agent.memory.agent-memory.enabled` | `false` | Agent Memory 总开关 |
 | `AGENT_MEMORY_DB_FILE_NAME` | `agent.memory.agent-memory.db-file-name` | `memory.db` | Agent Memory SQLite 文件名 |
 | `AGENT_MEMORY_CONTEXT_TOP_N` | `agent.memory.agent-memory.context-top-n` | `5` | `memory` tag 默认注入条数 |
 | `AGENT_MEMORY_CONTEXT_MAX_CHARS` | `agent.memory.agent-memory.context-max-chars` | `4000` | `memory` tag 最大字符数 |

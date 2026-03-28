@@ -17,6 +17,14 @@ class AgentMemoryPropertiesBindingTest {
             .withUserConfiguration(TestConfig.class);
 
     @Test
+    void shouldDefaultAgentMemoryDisabled() {
+        contextRunner.run(context -> {
+            AgentMemoryProperties properties = context.getBean(AgentMemoryProperties.class);
+            assertThat(properties.isEnabled()).isFalse();
+        });
+    }
+
+    @Test
     void shouldBindAgentMemoryProperties() {
         contextRunner
                 .withPropertyValues(

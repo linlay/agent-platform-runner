@@ -18,6 +18,7 @@ import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.FrontendToolProperties;
@@ -36,6 +37,7 @@ import com.linlay.agentplatform.stream.service.AgentDeltaToStreamInputMapper;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
+import com.linlay.agentplatform.service.memory.AgentMemoryStore;
 import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.stream.model.StreamEvent;
@@ -59,6 +61,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.mock.env.MockEnvironment;
+import org.mockito.ArgumentCaptor;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
@@ -96,8 +99,11 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(OutputCaptureExtension.class)
@@ -783,6 +789,151 @@ class DefinitionDrivenAgentTest {
         assertThat(systemPrompt.indexOf("soul prompt")).isLessThan(systemPrompt.indexOf("plain markdown"));
         assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("Memory:\nmemory note"));
         assertThat(systemPrompt.indexOf("Memory:\nmemory note")).isLessThan(systemPrompt.indexOf("yaml prompt"));
+    }
+
+    @Test
+    void shouldPersistAutomaticMemoryOnSuccessfulRunWhenMemoryEnabled() throws Exception {
+        Path agentDir = Files.createTempDirectory("auto-memory-success");
+        AgentDefinition definition = new AgentDefinition(
+                "autoMemory",
+                "autoMemory",
+                null,
+                "auto memory",
+                "auto role",
+                null,
+                "bailian",
+                "qwen3-max",
+                null,
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ToolChoice.NONE, Budget.DEFAULT),
+                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of(), false, ComputePolicy.MEDIUM), null, null),
+                List.of(),
+                List.of(),
+                List.of(),
+                null,
+                List.of(),
+                null,
+                null,
+                List.of(),
+                List.of(),
+                agentDir,
+                new AgentDefinition.MemoryConfig(true)
+        );
+        AgentMemoryStore store = mock(AgentMemoryStore.class);
+        when(store.write(eq("autoMemory"), eq(agentDir), org.mockito.ArgumentMatchers.anyString(), eq("run-summary"), eq(5), eq(List.of("auto", "run-summary"))))
+                .thenReturn(new com.linlay.agentplatform.service.memory.MemoryRecord(
+                        "mem_1",
+                        "autoMemory",
+                        "stored",
+                        "run-summary",
+                        5,
+                        List.of("auto", "run-summary"),
+                        false,
+                        1L,
+                        1L,
+                        0,
+                        null
+                ));
+        AgentMemoryProperties memoryProperties = new AgentMemoryProperties();
+        memoryProperties.setEnabled(true);
+        memoryProperties.setDualWriteMarkdown(false);
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                return Flux.just(new LlmDelta("这是最终回答", null, "stop"));
+            }
+        };
+
+        DefinitionDrivenAgent agent = createAgent(
+                definition,
+                llmService,
+                new ToolRegistry(List.of()),
+                objectMapper,
+                null,
+                null,
+                null,
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                store,
+                memoryProperties
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("记住这次执行", null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        ArgumentCaptor<String> contentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(store).write(eq("autoMemory"), eq(agentDir), contentCaptor.capture(), eq("run-summary"), eq(5), eq(List.of("auto", "run-summary")));
+        assertThat(contentCaptor.getValue()).contains("User Request:\n记住这次执行");
+        assertThat(contentCaptor.getValue()).contains("Final Response:\n这是最终回答");
+    }
+
+    @Test
+    void shouldSkipAutomaticMemoryWhenRunFails() throws Exception {
+        Path agentDir = Files.createTempDirectory("auto-memory-fail");
+        AgentDefinition definition = new AgentDefinition(
+                "autoMemoryFail",
+                "autoMemoryFail",
+                null,
+                "auto memory fail",
+                "auto role",
+                null,
+                "bailian",
+                "qwen3-max",
+                null,
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ToolChoice.NONE, Budget.DEFAULT),
+                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of(), false, ComputePolicy.MEDIUM), null, null),
+                List.of(),
+                List.of(),
+                List.of(),
+                null,
+                List.of(),
+                null,
+                null,
+                List.of(),
+                List.of(),
+                agentDir,
+                new AgentDefinition.MemoryConfig(true)
+        );
+        AgentMemoryStore store = mock(AgentMemoryStore.class);
+        AgentMemoryProperties memoryProperties = new AgentMemoryProperties();
+        memoryProperties.setEnabled(true);
+        memoryProperties.setDualWriteMarkdown(false);
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                throw new IllegalStateException("boom");
+            }
+        };
+
+        DefinitionDrivenAgent agent = createAgent(
+                definition,
+                llmService,
+                new ToolRegistry(List.of()),
+                objectMapper,
+                null,
+                null,
+                null,
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                store,
+                memoryProperties
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("这次不要写入", null, null, null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        verify(store, never()).write(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyList());
     }
 
     @Test
@@ -2783,7 +2934,7 @@ class DefinitionDrivenAgentTest {
             ContainerHubSandboxService containerHubSandboxService,
             RuntimeContextPromptService runtimeContextPromptService
     ) {
-        return new DefinitionDrivenAgent(
+        return createAgent(
                 definition,
                 llmService,
                 toolRegistry,
@@ -2791,6 +2942,44 @@ class DefinitionDrivenAgentTest {
                 chatWindowMemoryStore,
                 frontendSubmitCoordinator,
                 skillRegistryService,
+                loggingAgentProperties,
+                toolInvoker,
+                activeRunService,
+                containerHubSandboxService,
+                runtimeContextPromptService,
+                null,
+                null
+        );
+    }
+
+    private DefinitionDrivenAgent createAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatStorageStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            com.linlay.agentplatform.agent.runtime.ToolInvoker toolInvoker,
+            com.linlay.agentplatform.service.ActiveRunService activeRunService,
+            ContainerHubSandboxService containerHubSandboxService,
+            RuntimeContextPromptService runtimeContextPromptService,
+            AgentMemoryStore agentMemoryStore,
+            AgentMemoryProperties agentMemoryProperties
+    ) {
+        return new DefinitionDrivenAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                new ToolFileRegistryService(objectMapper),
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService == null ? new SkillRegistryService(new SkillProperties()) : skillRegistryService,
+                new AgentMemoryService(),
+                agentMemoryStore,
+                agentMemoryProperties,
                 loggingAgentProperties,
                 toolInvoker,
                 activeRunService,

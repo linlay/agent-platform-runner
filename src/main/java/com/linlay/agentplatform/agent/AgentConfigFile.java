@@ -27,6 +27,7 @@ public class AgentConfigFile {
     private SandboxConfig sandboxConfig;
     private SkillConfig skillConfig;
     private ContextConfig contextConfig;
+    private MemoryConfig memoryConfig;
     private List<AgentControl> controls;
     private AgentRuntimeMode mode;
 
@@ -117,6 +118,14 @@ public class AgentConfigFile {
 
     public void setContextConfig(ContextConfig contextConfig) {
         this.contextConfig = contextConfig;
+    }
+
+    public MemoryConfig getMemoryConfig() {
+        return memoryConfig;
+    }
+
+    public void setMemoryConfig(MemoryConfig memoryConfig) {
+        this.memoryConfig = memoryConfig;
     }
 
     public List<AgentControl> getControls() {
@@ -299,6 +308,19 @@ public class AgentConfigFile {
 
         public void setTags(List<String> tags) {
             this.tags = tags;
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class MemoryConfig {
+        private Boolean enabled;
+
+        public Boolean getEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(Boolean enabled) {
+            this.enabled = enabled;
         }
     }
 

@@ -38,7 +38,7 @@ agent:
     pool-size: ${AGENT_SCHEDULE_POOL_SIZE:4}
   memory:
     agent-memory:
-      enabled: ${AGENT_MEMORY_ENABLED:true}
+      enabled: ${AGENT_MEMORY_ENABLED:false}
       db-file-name: ${AGENT_MEMORY_DB_FILE_NAME:memory.db}
       context-top-n: ${AGENT_MEMORY_CONTEXT_TOP_N:5}
       context-max-chars: ${AGENT_MEMORY_CONTEXT_MAX_CHARS:4000}

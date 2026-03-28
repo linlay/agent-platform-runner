@@ -17,6 +17,7 @@ import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.ToolInvoker;
 import com.linlay.agentplatform.agent.runtime.TurnTraceWriter;
 import com.linlay.agentplatform.agent.mode.OrchestratorServices;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
 import com.linlay.agentplatform.chatstorage.ChatStorageStore;
@@ -26,6 +27,8 @@ import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.util.RunIdGenerator;
 import com.linlay.agentplatform.service.ActiveRunService;
+import com.linlay.agentplatform.service.memory.AgentMemoryStore;
+import com.linlay.agentplatform.service.memory.MemoryRecord;
 import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.BaseTool;
@@ -67,6 +70,8 @@ public class DefinitionDrivenAgent implements Agent {
     private final ObjectMapper objectMapper;
     private final SkillRegistryService skillRegistryService;
     private final AgentMemoryService agentMemoryService;
+    private final AgentMemoryStore agentMemoryStore;
+    private final AgentMemoryProperties agentMemoryProperties;
     private final ActiveRunService activeRunService;
     private final ContainerHubSandboxService containerHubSandboxService;
     private final AgentRunSnapshotLogger snapshotLogger;
@@ -89,13 +94,53 @@ public class DefinitionDrivenAgent implements Agent {
             ContainerHubSandboxService containerHubSandboxService,
             RuntimeContextPromptService runtimeContextPromptService
     ) {
+        this(
+                definition,
+                llmService,
+                toolRegistry,
+                toolFileRegistryService,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                agentMemoryService,
+                null,
+                null,
+                loggingAgentProperties,
+                toolInvoker,
+                activeRunService,
+                containerHubSandboxService,
+                runtimeContextPromptService
+        );
+    }
+
+    public DefinitionDrivenAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ToolFileRegistryService toolFileRegistryService,
+            ObjectMapper objectMapper,
+            ChatStorageStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            AgentMemoryService agentMemoryService,
+            AgentMemoryStore agentMemoryStore,
+            AgentMemoryProperties agentMemoryProperties,
+            LoggingAgentProperties loggingAgentProperties,
+            ToolInvoker toolInvoker,
+            ActiveRunService activeRunService,
+            ContainerHubSandboxService containerHubSandboxService,
+            RuntimeContextPromptService runtimeContextPromptService
+    ) {
         this.definition = definition;
         this.toolRegistry = toolRegistry;
         this.toolFileRegistryService = toolFileRegistryService;
         this.chatWindowMemoryStore = chatWindowMemoryStore;
         this.objectMapper = objectMapper;
         this.skillRegistryService = skillRegistryService;
-        this.agentMemoryService = agentMemoryService;
+        this.agentMemoryService = agentMemoryService == null ? new AgentMemoryService() : agentMemoryService;
+        this.agentMemoryStore = agentMemoryStore;
+        this.agentMemoryProperties = agentMemoryProperties == null ? new AgentMemoryProperties() : agentMemoryProperties;
         this.activeRunService = activeRunService;
         this.containerHubSandboxService = containerHubSandboxService;
         this.runtimeContextPromptService = runtimeContextPromptService;
@@ -308,7 +353,7 @@ public class DefinitionDrivenAgent implements Agent {
                             )
                             .map(textBlockIdAssigner::assign)
                             .doOnNext(trace::capture)
-                            .doOnComplete(() -> finalizeTrace(request, trace))
+                            .doOnComplete(() -> finalizeRunArtifacts(request, trace, contextHolder[0]))
                             .doFinally(signalType -> {
                                 if (containerHubSandboxService != null) {
                                     containerHubSandboxService.closeQuietly(context);
@@ -511,6 +556,114 @@ public class DefinitionDrivenAgent implements Agent {
         } catch (Exception ex) {
             log.warn("[agent:{}] failed to finalize chat trace chatId={}", id(), request.chatId(), ex);
         }
+    }
+
+    private void finalizeRunArtifacts(AgentRequest request, TurnTraceWriter trace, ExecutionContext context) {
+        finalizeTrace(request, trace);
+        persistAutomaticMemory(context);
+    }
+
+    private void persistAutomaticMemory(ExecutionContext context) {
+        if (context == null
+                || agentMemoryStore == null
+                || agentMemoryProperties == null
+                || !agentMemoryProperties.isEnabled()
+                || !definition.memoryEnabled()
+                || context.runControl() == null
+                || context.runControl().state() != com.linlay.agentplatform.agent.runtime.RunLoopState.COMPLETED) {
+            return;
+        }
+        String content = buildAutomaticMemoryContent(context);
+        if (!StringUtils.hasText(content)) {
+            return;
+        }
+        try {
+            MemoryRecord record = agentMemoryStore.write(
+                    definition.id(),
+                    definition.agentDir(),
+                    content,
+                    "run-summary",
+                    5,
+                    List.of("auto", "run-summary")
+            );
+            if (agentMemoryProperties.isDualWriteMarkdown() && definition.agentDir() != null) {
+                agentMemoryService.appendMemoryEntry(definition.agentDir(), formatMarkdownEntry(record));
+            }
+        } catch (Exception ex) {
+            log.warn("[agent:{}] failed to persist automatic memory", id(), ex);
+        }
+    }
+
+    private String buildAutomaticMemoryContent(ExecutionContext context) {
+        List<String> sections = new ArrayList<>();
+        String requestText = normalize(context.request() == null ? null : context.request().message(), "");
+        if (StringUtils.hasText(requestText)) {
+            sections.add("User Request:\n" + requestText.trim());
+        }
+        String finalAnswer = latestAssistantText(context.conversationMessages());
+        if (StringUtils.hasText(finalAnswer)) {
+            sections.add("Final Response:\n" + finalAnswer.trim());
+        }
+        List<String> toolSummaries = summarizeToolRecords(context.toolRecords());
+        if (!toolSummaries.isEmpty()) {
+            sections.add("Tools Used:\n" + String.join("\n", toolSummaries));
+        }
+        return String.join("\n\n", sections).trim();
+    }
+
+    private String latestAssistantText(List<ChatMessage> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return "";
+        }
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            ChatMessage message = messages.get(i);
+            if (message instanceof ChatMessage.AssistantMsg assistant && StringUtils.hasText(assistant.text())) {
+                return assistant.text().trim();
+            }
+        }
+        return "";
+    }
+
+    private List<String> summarizeToolRecords(List<Map<String, Object>> records) {
+        if (records == null || records.isEmpty()) {
+            return List.of();
+        }
+        List<String> lines = new ArrayList<>();
+        int limit = Math.min(records.size(), 8);
+        for (int i = 0; i < limit; i++) {
+            Map<String, Object> record = records.get(i);
+            Object rawToolName = record == null ? null : record.get("toolName");
+            String toolName = normalize(rawToolName == null ? null : rawToolName.toString(), "tool");
+            String resultPreview = previewToolResult(record == null ? null : record.get("result"));
+            lines.add("- " + toolName + ": " + resultPreview);
+        }
+        if (records.size() > limit) {
+            lines.add("- +" + (records.size() - limit) + " more tool call(s)");
+        }
+        return List.copyOf(lines);
+    }
+
+    private String previewToolResult(Object value) {
+        if (value == null) {
+            return "completed";
+        }
+        try {
+            String raw = value instanceof String text ? text : objectMapper.writeValueAsString(value);
+            String compact = raw.replaceAll("\\s+", " ").trim();
+            if (!StringUtils.hasText(compact)) {
+                return "completed";
+            }
+            return compact.length() > 160 ? compact.substring(0, 157) + "..." : compact;
+        } catch (Exception ex) {
+            return "completed";
+        }
+    }
+
+    private String formatMarkdownEntry(MemoryRecord record) {
+        return "[" + java.time.Instant.ofEpochMilli(record.createdAt()).truncatedTo(java.time.temporal.ChronoUnit.SECONDS) + "] "
+                + "(category=" + record.category() + ", importance=" + record.importance() + ") "
+                + "[" + record.id() + "]\n"
+                + record.content();
     }
 
     private String resolveRunId(AgentRequest request) {

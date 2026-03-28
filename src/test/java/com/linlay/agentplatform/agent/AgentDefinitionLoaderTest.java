@@ -996,7 +996,7 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
-    void shouldInjectMemoryToolsWhenMemoryContextTagDeclared() throws IOException {
+    void shouldNotInjectMemoryToolsWhenOnlyMemoryContextTagDeclared() throws IOException {
         writeYaml("memory_stage_injection.yml", """
                 key: memory_stage_injection
                 name: Memory Stage Injection
@@ -1021,7 +1021,69 @@ class AgentDefinitionLoaderTest {
                     systemPrompt: summary stage
                 """);
 
-        AgentDefinition definition = loadById().get("memory_stage_injection");
+        AgentMemoryProperties memoryProperties = new AgentMemoryProperties();
+        memoryProperties.setEnabled(true);
+        AgentProperties properties = new AgentProperties();
+        properties.setExternalDir(tempDir.toString());
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(
+                new ObjectMapper(),
+                properties,
+                TestModelRegistryServices.standardRegistry(),
+                memoryProperties
+        );
+
+        AgentDefinition definition = loader.loadAll().stream()
+                .filter(candidate -> "memory_stage_injection".equals(candidate.id()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(definition.tools()).doesNotContain("_memory_write_", "_memory_read_", "_memory_search_");
+        PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
+        assertThat(mode.planStage().tools()).doesNotContain("_memory_write_", "_memory_read_", "_memory_search_");
+        assertThat(mode.executeStage().tools()).doesNotContain("_memory_write_", "_memory_read_", "_memory_search_");
+        assertThat(mode.summaryStage().tools()).doesNotContain("_memory_write_", "_memory_read_", "_memory_search_");
+    }
+
+    @Test
+    void shouldInjectMemoryToolsWhenMemoryConfigEnabled() throws IOException {
+        writeYaml("memory_config_enabled.yml", """
+                key: memory_config_enabled
+                name: Memory Config Enabled
+                role: Memory Config Enabled
+                description: memory config enabled
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                toolConfig:
+                  backends:
+                    - datetime
+                memoryConfig:
+                  enabled: true
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: plan stage
+                  execute:
+                    systemPrompt: execute stage
+                    toolConfig: null
+                  summary:
+                    systemPrompt: summary stage
+                """);
+
+        AgentMemoryProperties memoryProperties = new AgentMemoryProperties();
+        memoryProperties.setEnabled(true);
+        AgentProperties properties = new AgentProperties();
+        properties.setExternalDir(tempDir.toString());
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(
+                new ObjectMapper(),
+                properties,
+                TestModelRegistryServices.standardRegistry(),
+                memoryProperties
+        );
+
+        AgentDefinition definition = loader.loadAll().stream()
+                .filter(candidate -> "memory_config_enabled".equals(candidate.id()))
+                .findFirst()
+                .orElseThrow();
 
         assertThat(definition.tools()).contains("_memory_write_", "_memory_read_", "_memory_search_");
         PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
@@ -1039,9 +1101,8 @@ class AgentDefinitionLoaderTest {
                 description: memory disabled
                 modelConfig:
                   modelKey: bailian-qwen3-max
-                contextConfig:
-                  tags:
-                    - memory
+                memoryConfig:
+                  enabled: true
                 mode: ONESHOT
                 plain:
                   systemPrompt: test

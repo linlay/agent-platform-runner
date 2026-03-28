@@ -242,6 +242,7 @@ public class AgentDefinitionLoader {
             List<String> tools = collectToolNames(config);
             List<String> skills = collectSkillNames(config);
             List<String> contextTags = collectContextTags(config);
+            AgentDefinition.MemoryConfig memoryConfig = toMemoryConfig(config);
             List<AgentControl> controls = collectControls(config);
             List<String> modelKeys = collectModelKeys(config);
             AgentDefinition.SandboxConfig sandboxConfig = toSandboxConfig(config.getSandboxConfig());
@@ -255,7 +256,7 @@ public class AgentDefinitionLoader {
                     file,
                     promptFiles,
                     this::resolveModelByKey,
-                    isMemoryToolEnabled()
+                    isMemoryFeatureEnabled()
             );
             RunSpec runSpec = agentMode.defaultRunSpec(config);
 
@@ -281,7 +282,8 @@ public class AgentDefinitionLoader {
                     promptFiles.agentsContent(),
                     contextTags,
                     perAgentSkills,
-                    agentDir
+                    agentDir,
+                    memoryConfig
             ));
         } catch (Exception ex) {
             log.warn("Skip invalid external agent file: {}", file, ex);
@@ -309,6 +311,10 @@ public class AgentDefinitionLoader {
             return List.of();
         }
         return RuntimeContextTags.normalize(config.getContextConfig().getTags());
+    }
+
+    private AgentDefinition.MemoryConfig toMemoryConfig(AgentConfigFile config) {
+        return new AgentDefinition.MemoryConfig(isAgentMemoryEnabled(config));
     }
 
     private String readOptionalMarkdown(Path path) {
@@ -641,7 +647,7 @@ public class AgentDefinitionLoader {
     }
 
     private void addImplicitMemoryTools(List<String> tools, AgentConfigFile config) {
-        if (tools == null || !isMemoryToolEnabled() || !hasMemoryContextTag(config)) {
+        if (tools == null || !isMemoryFeatureEnabled() || !isAgentMemoryEnabled(config)) {
             return;
         }
         tools.addAll(DEFAULT_MEMORY_TOOLS);
@@ -653,12 +659,14 @@ public class AgentDefinitionLoader {
                 && normalizeNames(config.getSkillConfig().getSkills()).stream().findAny().isPresent();
     }
 
-    private boolean hasMemoryContextTag(AgentConfigFile config) {
-        return collectContextTags(config).contains(RuntimeContextTags.MEMORY);
+    private boolean isMemoryFeatureEnabled() {
+        return agentMemoryProperties == null || agentMemoryProperties.isEnabled();
     }
 
-    private boolean isMemoryToolEnabled() {
-        return agentMemoryProperties == null || agentMemoryProperties.isEnabled();
+    private boolean isAgentMemoryEnabled(AgentConfigFile config) {
+        return config != null
+                && config.getMemoryConfig() != null
+                && Boolean.TRUE.equals(config.getMemoryConfig().getEnabled());
     }
 
     private Optional<ModelDefinition> resolvePrimaryModel(AgentConfigFile config) {

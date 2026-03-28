@@ -600,9 +600,17 @@ contextConfig:
     - all-agents
 ```
 
+```yaml
+memoryConfig:
+  enabled: true
+```
+
 - `sandbox`：从 `agent-container-hub` 的 `GET /api/environments/{name}/agent-prompt` 读取 environment prompt，并与本地 `sandboxConfig` 摘要一起注入 system prompt。
 - `sandbox` 是强依赖：若 environment prompt 缺失、为空或请求失败，本次请求会直接失败，并输出错误日志。
 - `all-agents`：注入全部已注册 agent 的 YAML 风格头部摘要，便于指挥官 agent 预先了解子 agent 能力边界。
+- `contextConfig.tags: [memory]` 只控制“是否把已存储 memory 摘要注入运行时上下文”。
+- `memoryConfig.enabled` 只控制“成功 run 结束后是否自动沉淀一条 `run-summary` memory”，并在全局 memory 功能开启时自动暴露 `_memory_write_/_memory_read_/_memory_search_`。
+- 全局 `AGENT_MEMORY_ENABLED` 默认值为 `false`，未显式开启时 memory 功能整体关闭。
 
 ## Models / 工具 / 视图 / 技能目录
 
