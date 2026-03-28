@@ -557,8 +557,6 @@ class DefinitionDrivenAgentTest {
                 inputSchema:
                   type: object
                   properties:
-                    label:
-                      type: string
                     command:
                       type: string
                   required:

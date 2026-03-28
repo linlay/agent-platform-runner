@@ -236,8 +236,6 @@ class ToolRegistryTest {
                 inputSchema:
                   type: object
                   properties:
-                    label:
-                      type: string
                     command:
                       type: string
                   required:
@@ -282,8 +280,6 @@ class ToolRegistryTest {
                 inputSchema:
                   type: object
                   properties:
-                    label:
-                      type: string
                     command:
                       type: string
                   required:
@@ -324,7 +320,7 @@ class ToolRegistryTest {
                     assertThat(descriptor.description()).contains("在沙箱容器中执行命令");
                     @SuppressWarnings("unchecked")
                     Map<String, Object> properties = (Map<String, Object>) descriptor.parameters().get("properties");
-                    assertThat(properties).containsKey("label");
+                    assertThat(properties).doesNotContainKey("label");
                 });
     }
 

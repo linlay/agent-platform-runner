@@ -1,13 +1,10 @@
 name: _sandbox_bash_
-label: 执行命令（沙箱）
+label: 执行命令
 description: 在沙箱容器中执行命令。
 type: builtin
 inputSchema:
   type: object
   properties:
-    label:
-      type: string
-      description: 可选。本次 bash 内容的简要概述，便于表达这条命令的执行意图。
     command:
       type: string
       description: 必填。要在沙箱容器中通过 /bin/sh -lc 执行的命令字符串。
