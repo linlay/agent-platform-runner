@@ -18,6 +18,7 @@ import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.service.chat.ChatAssetCatalogService;
 import com.linlay.agentplatform.service.chat.ChatRecordStore;
 import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
+import com.linlay.agentplatform.stream.autoconfigure.StreamSseProperties;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.service.SseEventNormalizer;
 import com.linlay.agentplatform.stream.service.StreamSseStreamer;
@@ -329,6 +330,104 @@ class AgentQueryServiceTest {
     }
 
     @Test
+    void streamShouldDropToolPayloadEventsByDefault() {
+        Agent agent = mock(Agent.class);
+        when(agent.stream(any(AgentRequest.class))).thenReturn(Flux.<AgentDelta>empty());
+
+        StreamSseStreamer streamer = mock(StreamSseStreamer.class);
+        when(streamer.stream(any(StreamRequest.class), any())).thenReturn(Flux.just(
+                ServerSentEvent.builder("{\"type\":\"tool.start\",\"toolName\":\"bash\",\"toolId\":\"call_1\",\"runId\":\"run-1\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"tool.args\",\"toolId\":\"call_1\",\"delta\":\"{\\\"command\\\":\\\"pwd\\\"}\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"tool.end\",\"toolId\":\"call_1\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"tool.result\",\"toolId\":\"call_1\",\"result\":\"/workspace\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"run.complete\",\"runId\":\"run-1\",\"timestamp\":200}").build()
+        ));
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        AgentQueryService service = newService(
+                mock(AgentRegistry.class),
+                streamer,
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties(),
+                new StreamSseProperties(null, null, false)
+        );
+
+        String chatId = UUID.randomUUID().toString();
+        AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
+                agent,
+                new StreamRequest.Query("req-1", chatId, "user", "fallback", "demo", null, null, null, null, true, "chat", "run-1"),
+                new AgentRequest("fallback", chatId, "req-1", "run-1", Map.of())
+        );
+
+        List<ServerSentEvent<String>> events = service.stream(session).collectList().block();
+
+        assertThat(events).hasSize(3);
+        assertThat(events.stream().map(ServerSentEvent::data))
+                .anyMatch(item -> item.contains("\"type\":\"tool.start\""))
+                .anyMatch(item -> item.contains("\"type\":\"tool.end\""))
+                .anyMatch(item -> item.contains("\"type\":\"run.complete\""));
+        assertThat(events.stream().map(ServerSentEvent::data))
+                .noneMatch(item -> item.contains("\"type\":\"tool.args\"") || item.contains("\"type\":\"tool.result\""));
+        verify(chatRecordStore, times(3)).appendEvent(any(String.class), any(String.class));
+    }
+
+    @Test
+    void streamShouldKeepToolPayloadEventsWhenEnabled() {
+        Agent agent = mock(Agent.class);
+        when(agent.stream(any(AgentRequest.class))).thenReturn(Flux.<AgentDelta>empty());
+
+        StreamSseStreamer streamer = mock(StreamSseStreamer.class);
+        when(streamer.stream(any(StreamRequest.class), any())).thenReturn(Flux.just(
+                ServerSentEvent.builder("{\"type\":\"tool.start\",\"toolName\":\"bash\",\"toolId\":\"call_1\",\"runId\":\"run-1\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"tool.args\",\"toolId\":\"call_1\",\"delta\":\"{\\\"command\\\":\\\"pwd\\\"}\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"tool.end\",\"toolId\":\"call_1\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"tool.result\",\"toolId\":\"call_1\",\"result\":\"/workspace\"}").build(),
+                ServerSentEvent.builder("{\"type\":\"run.complete\",\"runId\":\"run-1\",\"timestamp\":200}").build()
+        ));
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        AgentQueryService service = newService(
+                mock(AgentRegistry.class),
+                streamer,
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties(),
+                new StreamSseProperties(null, null, true)
+        );
+
+        String chatId = UUID.randomUUID().toString();
+        AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
+                agent,
+                new StreamRequest.Query("req-1", chatId, "user", "fallback", "demo", null, null, null, null, true, "chat", "run-1"),
+                new AgentRequest("fallback", chatId, "req-1", "run-1", Map.of())
+        );
+
+        List<ServerSentEvent<String>> events = service.stream(session).collectList().block();
+
+        assertThat(events).hasSize(5);
+        assertThat(events.stream().map(ServerSentEvent::data))
+                .anyMatch(item -> item.contains("\"type\":\"tool.start\""))
+                .anyMatch(item -> item.contains("\"type\":\"tool.args\""))
+                .anyMatch(item -> item.contains("\"type\":\"tool.end\""))
+                .anyMatch(item -> item.contains("\"type\":\"tool.result\""))
+                .anyMatch(item -> item.contains("\"type\":\"run.complete\""));
+        verify(chatRecordStore, times(5)).appendEvent(any(String.class), any(String.class));
+    }
+
+    @Test
     void streamShouldNotEmitRequestSteerUntilNextModelTurnConsumesIt() {
         Agent agent = mock(Agent.class);
         Sinks.Many<AgentDelta> upstream = Sinks.many().unicast().onBackpressureBuffer();
@@ -431,6 +530,36 @@ class AgentQueryServiceTest {
             ContainerHubClient containerHubClient,
             ContainerHubToolProperties containerHubToolProperties
     ) {
+        return newService(
+                agentRegistry,
+                streamSseStreamer,
+                chatRecordStore,
+                toolRegistry,
+                loggingAgentProperties,
+                chatAssetCatalogService,
+                activeRunService,
+                renderQueue,
+                runtimeContextPromptService,
+                containerHubClient,
+                containerHubToolProperties,
+                new StreamSseProperties(null, null, false)
+        );
+    }
+
+    private AgentQueryService newService(
+            AgentRegistry agentRegistry,
+            StreamSseStreamer streamSseStreamer,
+            ChatRecordStore chatRecordStore,
+            ToolRegistry toolRegistry,
+            LoggingAgentProperties loggingAgentProperties,
+            ChatAssetCatalogService chatAssetCatalogService,
+            ActiveRunService activeRunService,
+            com.linlay.agentplatform.stream.service.RenderQueue renderQueue,
+            RuntimeContextPromptService runtimeContextPromptService,
+            ContainerHubClient containerHubClient,
+            ContainerHubToolProperties containerHubToolProperties,
+            StreamSseProperties streamSseProperties
+    ) {
         ToolRegistry effectiveToolRegistry = toolRegistry == null ? mock(ToolRegistry.class) : toolRegistry;
         ViewportRegistryService viewportRegistryService = mock(ViewportRegistryService.class);
         FrontendToolProperties frontendToolProperties = new FrontendToolProperties();
@@ -450,7 +579,13 @@ class AgentQueryServiceTest {
                 activeRunService,
                 renderQueue,
                 runtimeContextPromptService == null ? new RuntimeContextPromptService() : runtimeContextPromptService,
-                new SseEventNormalizer(objectMapper, effectiveToolRegistry, viewportRegistryService, frontendToolProperties),
+                new SseEventNormalizer(
+                        objectMapper,
+                        effectiveToolRegistry,
+                        viewportRegistryService,
+                        frontendToolProperties,
+                        streamSseProperties == null ? new StreamSseProperties(null, null, false) : streamSseProperties
+                ),
                 sandboxContextResolver,
                 containerHubToolProperties
         );

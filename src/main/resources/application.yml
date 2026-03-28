@@ -85,6 +85,11 @@ agent:
       default-sandbox-level: ${AGENT_CONTAINER_HUB_DEFAULT_SANDBOX_LEVEL:run}
       agent-idle-timeout-ms: ${AGENT_CONTAINER_HUB_AGENT_IDLE_TIMEOUT_MS:600000}
       destroy-queue-delay-ms: ${AGENT_CONTAINER_HUB_DESTROY_QUEUE_DELAY_MS:5000}
+  sse:
+    stream-timeout: ${AGENT_SSE_STREAM_TIMEOUT:5m}
+    heartbeat-interval: ${AGENT_SSE_HEARTBEAT_INTERVAL:15s}
+    # 是否向客户端返回 tool.args / tool.result（默认关闭，避免超大 SSE payload）
+    include-tool-payload-events: ${AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS:false}
   h2a:
     render:
       flush-interval-ms: ${AGENT_H2A_RENDER_FLUSH_INTERVAL_MS:0}

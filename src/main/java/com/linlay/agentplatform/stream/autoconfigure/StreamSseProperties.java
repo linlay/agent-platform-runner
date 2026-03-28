@@ -7,7 +7,8 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "agent.sse")
 public record StreamSseProperties(
         Duration streamTimeout,
-        Duration heartbeatInterval
+        Duration heartbeatInterval,
+        boolean includeToolPayloadEvents
 ) {
 
     public StreamSseProperties {
@@ -17,9 +18,5 @@ public record StreamSseProperties(
         if (heartbeatInterval == null) {
             heartbeatInterval = Duration.ofSeconds(15);
         }
-    }
-
-    public StreamSseProperties() {
-        this(null, null);
     }
 }

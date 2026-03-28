@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.properties.FrontendToolProperties;
 import com.linlay.agentplatform.model.ViewportType;
 import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
+import com.linlay.agentplatform.stream.autoconfigure.StreamSseProperties;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
@@ -113,12 +114,67 @@ class SseEventNormalizerTest {
         assertThat(hiddenToolIds).isEmpty();
     }
 
+    @Test
+    void normalizeEventShouldDropToolPayloadEventsByDefault() {
+        SseEventNormalizer normalizer = newNormalizer(mock(ToolRegistry.class), mock(ViewportRegistryService.class), new FrontendToolProperties());
+
+        ServerSentEvent<String> argsEvent = ServerSentEvent.builder("""
+                {"type":"tool.args","toolId":"call_1","delta":"{}"}
+                """).build();
+        ServerSentEvent<String> resultEvent = ServerSentEvent.builder("""
+                {"type":"tool.result","toolId":"call_1","result":"ok"}
+                """).build();
+        ServerSentEvent<String> startEvent = ServerSentEvent.builder("""
+                {"type":"tool.start","toolId":"call_1","toolName":"bash","runId":"run_1"}
+                """).build();
+        ServerSentEvent<String> endEvent = ServerSentEvent.builder("""
+                {"type":"tool.end","toolId":"call_1"}
+                """).build();
+
+        assertThat(normalizer.normalizeEvent(argsEvent, new HashSet<>())).isNull();
+        assertThat(normalizer.normalizeEvent(resultEvent, new HashSet<>())).isNull();
+        assertThat(normalizer.normalizeEvent(startEvent, new HashSet<>())).isNotNull();
+        assertThat(normalizer.normalizeEvent(endEvent, new HashSet<>())).isNotNull();
+    }
+
+    @Test
+    void normalizeEventShouldKeepToolPayloadEventsWhenEnabled() throws Exception {
+        SseEventNormalizer normalizer = newNormalizer(
+                mock(ToolRegistry.class),
+                mock(ViewportRegistryService.class),
+                new FrontendToolProperties(),
+                new StreamSseProperties(null, null, true)
+        );
+
+        ServerSentEvent<String> argsEvent = ServerSentEvent.builder("""
+                {"type":"tool.args","toolId":"call_1","delta":"{}"}
+                """).build();
+        ServerSentEvent<String> resultEvent = ServerSentEvent.builder("""
+                {"type":"tool.result","toolId":"call_1","result":"ok"}
+                """).build();
+
+        JsonNode argsPayload = objectMapper.readTree(normalizer.normalizeEvent(argsEvent, new HashSet<>()).data());
+        JsonNode resultPayload = objectMapper.readTree(normalizer.normalizeEvent(resultEvent, new HashSet<>()).data());
+
+        assertThat(argsPayload.path("type").asText()).isEqualTo("tool.args");
+        assertThat(resultPayload.path("type").asText()).isEqualTo("tool.result");
+    }
+
     private SseEventNormalizer newNormalizer(
             ToolRegistry toolRegistry,
             ViewportRegistryService viewportRegistryService,
             FrontendToolProperties frontendToolProperties
     ) {
-        return new SseEventNormalizer(objectMapper, toolRegistry, viewportRegistryService, frontendToolProperties);
+        return newNormalizer(toolRegistry, viewportRegistryService, frontendToolProperties, new StreamSseProperties(null, null, false));
+    }
+
+    private SseEventNormalizer newNormalizer(
+            ToolRegistry toolRegistry,
+            ViewportRegistryService viewportRegistryService,
+            FrontendToolProperties frontendToolProperties,
+            StreamSseProperties streamSseProperties
+    ) {
+        return new SseEventNormalizer(objectMapper, toolRegistry, viewportRegistryService, frontendToolProperties, streamSseProperties);
     }
 
     private void assertFrontendPayload(JsonNode payload, String type, long timeoutMs) {

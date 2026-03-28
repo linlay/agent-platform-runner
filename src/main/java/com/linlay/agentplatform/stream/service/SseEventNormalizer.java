@@ -5,8 +5,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.config.properties.FrontendToolProperties;
-import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolRegistry;
+import com.linlay.agentplatform.stream.autoconfigure.StreamSseProperties;
+import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
@@ -24,17 +25,20 @@ public class SseEventNormalizer {
     private final ToolRegistry toolRegistry;
     private final ViewportRegistryService viewportRegistryService;
     private final FrontendToolProperties frontendToolProperties;
+    private final StreamSseProperties streamSseProperties;
 
     public SseEventNormalizer(
             ObjectMapper objectMapper,
             ToolRegistry toolRegistry,
             ViewportRegistryService viewportRegistryService,
-            FrontendToolProperties frontendToolProperties
+            FrontendToolProperties frontendToolProperties,
+            StreamSseProperties streamSseProperties
     ) {
         this.objectMapper = objectMapper;
         this.toolRegistry = toolRegistry;
         this.viewportRegistryService = viewportRegistryService;
         this.frontendToolProperties = frontendToolProperties;
+        this.streamSseProperties = streamSseProperties == null ? new StreamSseProperties(null, null, false) : streamSseProperties;
     }
 
     public ServerSentEvent<String> normalizeEvent(ServerSentEvent<String> event, Set<String> hiddenToolIds) {
@@ -76,11 +80,22 @@ public class SseEventNormalizer {
             return null;
         }
 
+        if (shouldHideToolPayloadEvent(type)) {
+            return null;
+        }
+
         if (normalizeFrontendToolEvent(type, objectNode)) {
             return rebuildEvent(event, objectNode);
         }
 
         return event;
+    }
+
+    boolean shouldHideToolPayloadEvent(String eventType) {
+        if (streamSseProperties.includeToolPayloadEvents()) {
+            return false;
+        }
+        return "tool.args".equals(eventType) || "tool.result".equals(eventType);
     }
 
     ServerSentEvent<String> normalizeHeartbeatCommentEvent(ServerSentEvent<String> event) {

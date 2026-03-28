@@ -27,6 +27,7 @@
 
 - `POST /api/query` 返回 SSE event stream。
 - `/api/query` 流结束时会追加传输层终止帧 `data:[DONE]`（不属于业务事件模型，也不会出现在 `/api/chat` 的历史 `events` 中）。
+- 默认不会返回 `tool.args` / `tool.result`，仅保留 `tool.start` / `tool.end`；如需返回完整 tool payload，可设置 `AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS=true`。
 - 其它 JSON 接口统一返回：
 
 ```json
@@ -693,6 +694,7 @@ memoryConfig:
 ### 前端 tool 提交流程
 
 - 当前端工具触发时，SSE `tool.start` / `tool.snapshot` 会包含 `toolType`、`viewportKey`、`toolTimeout`。
+- 若开启 `AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS=true`，同一次工具调用还会继续返回 `tool.args` / `tool.result`。
 - 默认等待超时 5 分钟（可配置）。
 - `POST /api/submit` 请求体：`runId` + `toolId` + `params`。
 - 成功命中后会释放对应 `runId + toolId` 的等待；未命中返回 `accepted=false`。
@@ -872,6 +874,7 @@ for f in *.md; do echo "$f"; done
 | `AGENT_BASH_SHELL_TIMEOUT_MS` | `10000` | Bash shell 模式超时（ms） |
 | `AGENT_BASH_MAX_COMMAND_CHARS` | `16000` | Bash 命令最大字符数 |
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `300000` | 前端工具提交超时 |
+| `AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS` | `false` | 是否向客户端返回 `tool.args` / `tool.result` |
 | `AGENT_AUTH_ENABLED` | `true` | JWT 认证开关 |
 | `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/resource` 的 `t` 参数校验开关（关闭后忽略 `t`） |
 | `CHAT_STORAGE_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `CHATS_DIR` 解析） |
