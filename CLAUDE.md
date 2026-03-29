@@ -169,7 +169,7 @@ memoryConfig:
 mode: ONESHOT
 toolChoice: AUTO
 budget:
-  runTimeoutMs: 120000
+  runTimeoutMs: 300000
   model:
     maxCalls: 15
     timeoutMs: 60000

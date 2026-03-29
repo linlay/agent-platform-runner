@@ -1277,6 +1277,28 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldParseDailyOfficeAssistantBudgetOverride() throws IOException {
+        writeYaml("dailyOfficeAssistant.yml", """
+                key: dailyOfficeAssistant
+                name: Daily Office Assistant
+                role: Office Assistant
+                description: daily office assistant
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                budget:
+                  runTimeoutMs: 600000
+                mode: REACT
+                react:
+                  systemPrompt: assist office tasks
+                """);
+
+        AgentDefinition definition = loadById().get("dailyOfficeAssistant");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.runSpec().budget().runTimeoutMs()).isEqualTo(600000);
+    }
+
+    @Test
     void shouldRejectLegacyBudgetFields() throws IOException {
         writeYaml("budget_legacy.yml", """
                 key: budget_legacy

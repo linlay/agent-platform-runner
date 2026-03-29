@@ -7,7 +7,7 @@ path-checked-commands: ls,cat,head,tail,git,rg,find
 path-check-bypass-commands: git
 shell-features-enabled: false
 shell-executable: bash
-shell-timeout-ms: 10000
+shell-timeout-ms: 30000
 max-command-chars: 16000
 
 # Bash 高权限预设：扩大命令与路径范围，但仍保持显式白名单与可控边界。

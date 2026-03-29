@@ -22,7 +22,7 @@ class OneshotModeTest {
         RunSpec spec = mode.defaultRunSpec(new AgentConfigFile());
 
         assertThat(spec.budget()).isEqualTo(Budget.DEFAULT);
-        assertThat(spec.budget().runTimeoutMs()).isEqualTo(120_000L);
+        assertThat(spec.budget().runTimeoutMs()).isEqualTo(300_000L);
         assertThat(spec.budget().model().maxCalls()).isEqualTo(15);
         assertThat(spec.budget().model().timeoutMs()).isEqualTo(60_000L);
     }

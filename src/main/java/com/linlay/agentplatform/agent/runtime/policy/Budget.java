@@ -20,7 +20,7 @@ public record Budget(
 
     private static final Scope DEFAULT_MODEL_SCOPE = new Scope(15, 60_000, 0);
     private static final Scope DEFAULT_TOOL_SCOPE = new Scope(20, 120_000, 0);
-    private static final long DEFAULT_RUN_TIMEOUT_MS = 120_000L;
+    private static final long DEFAULT_RUN_TIMEOUT_MS = 300_000L;
     private static final Scope LIGHT_MODEL_SCOPE = new Scope(3, 30_000, 0);
     private static final Scope LIGHT_TOOL_SCOPE = new Scope(5, 30_000, 0);
     private static final Scope HEAVY_MODEL_SCOPE = new Scope(30, 120_000, 0);
