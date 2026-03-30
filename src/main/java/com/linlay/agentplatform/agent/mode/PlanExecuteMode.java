@@ -52,7 +52,7 @@ public final class PlanExecuteMode extends AgentMode {
             SkillAppend skillAppend,
             ToolAppend toolAppend
     ) {
-        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, null, 15);
+        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, Budget.DEFAULT, null, 60);
     }
 
     public PlanExecuteMode(
@@ -63,7 +63,7 @@ public final class PlanExecuteMode extends AgentMode {
             ToolAppend toolAppend,
             String taskExecutionPromptTemplate
     ) {
-        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, taskExecutionPromptTemplate, 15);
+        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, Budget.DEFAULT, taskExecutionPromptTemplate, 60);
     }
 
     public PlanExecuteMode(
@@ -75,7 +75,43 @@ public final class PlanExecuteMode extends AgentMode {
             String taskExecutionPromptTemplate,
             int maxSteps
     ) {
-        super(executeStage == null ? "" : executeStage.primaryPrompt(), skillAppend, toolAppend);
+        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, Budget.DEFAULT, taskExecutionPromptTemplate, maxSteps);
+    }
+
+    public PlanExecuteMode(
+            StageSettings planStage,
+            StageSettings executeStage,
+            StageSettings summaryStage,
+            SkillAppend skillAppend,
+            ToolAppend toolAppend,
+            Budget defaultBudget
+    ) {
+        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, defaultBudget, null, 15);
+    }
+
+    public PlanExecuteMode(
+            StageSettings planStage,
+            StageSettings executeStage,
+            StageSettings summaryStage,
+            SkillAppend skillAppend,
+            ToolAppend toolAppend,
+            Budget defaultBudget,
+            String taskExecutionPromptTemplate
+    ) {
+        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, defaultBudget, taskExecutionPromptTemplate, 15);
+    }
+
+    public PlanExecuteMode(
+            StageSettings planStage,
+            StageSettings executeStage,
+            StageSettings summaryStage,
+            SkillAppend skillAppend,
+            ToolAppend toolAppend,
+            Budget defaultBudget,
+            String taskExecutionPromptTemplate,
+            int maxSteps
+    ) {
+        super(executeStage == null ? "" : executeStage.primaryPrompt(), skillAppend, toolAppend, defaultBudget);
         this.planStage = planStage;
         this.executeStage = executeStage;
         this.summaryStage = summaryStage;
@@ -120,7 +156,7 @@ public final class PlanExecuteMode extends AgentMode {
     public RunSpec defaultRunSpec(AgentConfigFile config) {
         return new RunSpec(
                 config != null && config.getToolChoice() != null ? config.getToolChoice() : ToolChoice.AUTO,
-                config != null && config.getBudget() != null ? config.getBudget().toBudget() : Budget.HEAVY
+                resolveBudget(config)
         );
     }
 

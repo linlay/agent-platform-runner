@@ -11,6 +11,7 @@ import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.MountAccessMode;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
+import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.util.RuntimeCatalogNaming;
 import com.linlay.agentplatform.util.StringHelpers;
@@ -56,6 +57,7 @@ public class AgentDefinitionLoader {
     private final ModelRegistryService modelRegistryService;
     private final AgentSkillSyncService agentSkillSyncService;
     private final AgentMemoryProperties agentMemoryProperties;
+    private final AgentDefaultsProperties agentDefaultsProperties;
 
     @Autowired
     public AgentDefinitionLoader(
@@ -63,7 +65,8 @@ public class AgentDefinitionLoader {
             AgentProperties properties,
             ModelRegistryService modelRegistryService,
             AgentSkillSyncService agentSkillSyncService,
-            AgentMemoryProperties agentMemoryProperties
+            AgentMemoryProperties agentMemoryProperties,
+            AgentDefaultsProperties agentDefaultsProperties
     ) {
         this.objectMapper = objectMapper;
         this.yamlMapper = new ObjectMapper(new YAMLFactory());
@@ -71,6 +74,7 @@ public class AgentDefinitionLoader {
         this.modelRegistryService = modelRegistryService;
         this.agentSkillSyncService = agentSkillSyncService;
         this.agentMemoryProperties = agentMemoryProperties == null ? new AgentMemoryProperties() : agentMemoryProperties;
+        this.agentDefaultsProperties = agentDefaultsProperties == null ? new AgentDefaultsProperties() : agentDefaultsProperties;
     }
 
     AgentDefinitionLoader(
@@ -78,7 +82,7 @@ public class AgentDefinitionLoader {
             AgentProperties properties,
             ModelRegistryService modelRegistryService
     ) {
-        this(objectMapper, properties, modelRegistryService, null, new AgentMemoryProperties());
+        this(objectMapper, properties, modelRegistryService, null, new AgentMemoryProperties(), new AgentDefaultsProperties());
     }
 
     AgentDefinitionLoader(
@@ -87,7 +91,7 @@ public class AgentDefinitionLoader {
             ModelRegistryService modelRegistryService,
             AgentSkillSyncService agentSkillSyncService
     ) {
-        this(objectMapper, properties, modelRegistryService, agentSkillSyncService, new AgentMemoryProperties());
+        this(objectMapper, properties, modelRegistryService, agentSkillSyncService, new AgentMemoryProperties(), new AgentDefaultsProperties());
     }
 
     AgentDefinitionLoader(
@@ -96,7 +100,16 @@ public class AgentDefinitionLoader {
             ModelRegistryService modelRegistryService,
             AgentMemoryProperties agentMemoryProperties
     ) {
-        this(objectMapper, properties, modelRegistryService, null, agentMemoryProperties);
+        this(objectMapper, properties, modelRegistryService, null, agentMemoryProperties, new AgentDefaultsProperties());
+    }
+
+    AgentDefinitionLoader(
+            ObjectMapper objectMapper,
+            AgentProperties properties,
+            ModelRegistryService modelRegistryService,
+            AgentDefaultsProperties agentDefaultsProperties
+    ) {
+        this(objectMapper, properties, modelRegistryService, null, new AgentMemoryProperties(), agentDefaultsProperties);
     }
 
     public List<AgentDefinition> loadAll() {
@@ -256,7 +269,8 @@ public class AgentDefinitionLoader {
                     file,
                     promptFiles,
                     this::resolveModelByKey,
-                    isMemoryFeatureEnabled()
+                    isMemoryFeatureEnabled(),
+                    agentDefaultsProperties
             );
             RunSpec runSpec = agentMode.defaultRunSpec(config);
 

@@ -24,7 +24,11 @@ public final class OneshotMode extends AgentMode {
     private final StageSettings stage;
 
     public OneshotMode(StageSettings stage, SkillAppend skillAppend, ToolAppend toolAppend) {
-        super(stage == null ? "" : stage.primaryPrompt(), skillAppend, toolAppend);
+        this(stage, skillAppend, toolAppend, Budget.DEFAULT);
+    }
+
+    public OneshotMode(StageSettings stage, SkillAppend skillAppend, ToolAppend toolAppend, Budget defaultBudget) {
+        super(stage == null ? "" : stage.primaryPrompt(), skillAppend, toolAppend, defaultBudget);
         this.stage = stage;
     }
 
@@ -44,7 +48,7 @@ public final class OneshotMode extends AgentMode {
                 : ToolChoice.NONE;
         return new RunSpec(
                 config != null && config.getToolChoice() != null ? config.getToolChoice() : defaultChoice,
-                config != null && config.getBudget() != null ? config.getBudget().toBudget() : Budget.DEFAULT
+                resolveBudget(config)
         );
     }
 

@@ -497,7 +497,7 @@ mode: ONESHOT
 
 ### REACT 示例
 
-最多 N 轮循环（默认 6）：思考 → 调 1 个工具 → 观察结果。
+最多 N 轮循环（默认 60）：思考 → 调 1 个工具 → 观察结果。
 
 `agents/react_demo/agent.yml`
 
@@ -517,7 +517,7 @@ toolConfig:
     - _bash_
     - datetime
 react:
-  maxSteps: 6
+  maxSteps: 60
 ```
 
 `agents/react_demo/AGENTS.md`
@@ -530,6 +530,8 @@ react:
 ### PLAN_EXECUTE 示例
 
 先规划后执行（plan 阶段按 `deepThinking` 选择一回合或两回合）。
+
+全局默认 budget / `maxSteps` 可通过根目录 `.env` 覆盖；若某个 agent 在 `agent.yml` 里显式写了 `budget` 或 `react.maxSteps` / `planExecute.maxSteps`，则该 agent 的显式配置优先。
 
 `agents/plan_execute_demo/agent.yml`
 

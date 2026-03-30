@@ -23,8 +23,8 @@ class OneshotModeTest {
 
         assertThat(spec.budget()).isEqualTo(Budget.DEFAULT);
         assertThat(spec.budget().runTimeoutMs()).isEqualTo(300_000L);
-        assertThat(spec.budget().model().maxCalls()).isEqualTo(15);
-        assertThat(spec.budget().model().timeoutMs()).isEqualTo(60_000L);
+        assertThat(spec.budget().model().maxCalls()).isEqualTo(30);
+        assertThat(spec.budget().model().timeoutMs()).isEqualTo(120_000L);
     }
 
     @Test

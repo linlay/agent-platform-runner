@@ -5,6 +5,7 @@ import com.linlay.agentplatform.agent.SkillAppend;
 import com.linlay.agentplatform.agent.ToolAppend;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
+import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.tool.BaseTool;
@@ -18,11 +19,13 @@ public sealed abstract class AgentMode
     protected final String systemPrompt;
     protected final SkillAppend skillAppend;
     protected final ToolAppend toolAppend;
+    protected final Budget defaultBudget;
 
-    protected AgentMode(String systemPrompt, SkillAppend skillAppend, ToolAppend toolAppend) {
+    protected AgentMode(String systemPrompt, SkillAppend skillAppend, ToolAppend toolAppend, Budget defaultBudget) {
         this.systemPrompt = systemPrompt;
         this.skillAppend = skillAppend == null ? SkillAppend.DEFAULTS : skillAppend;
         this.toolAppend = toolAppend == null ? ToolAppend.DEFAULTS : toolAppend;
+        this.defaultBudget = defaultBudget == null ? Budget.DEFAULT : defaultBudget;
     }
 
     public abstract AgentRuntimeMode runtimeMode();
@@ -41,6 +44,10 @@ public sealed abstract class AgentMode
 
     public ToolAppend toolAppend() {
         return toolAppend;
+    }
+
+    protected Budget resolveBudget(AgentConfigFile config) {
+        return config != null && config.getBudget() != null ? config.getBudget().toBudget(defaultBudget) : defaultBudget;
     }
 
     public abstract RunSpec defaultRunSpec(AgentConfigFile config);

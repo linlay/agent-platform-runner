@@ -85,6 +85,21 @@ agent:
       default-sandbox-level: ${AGENT_CONTAINER_HUB_DEFAULT_SANDBOX_LEVEL:run}
       agent-idle-timeout-ms: ${AGENT_CONTAINER_HUB_AGENT_IDLE_TIMEOUT_MS:600000}
       destroy-queue-delay-ms: ${AGENT_CONTAINER_HUB_DESTROY_QUEUE_DELAY_MS:5000}
+  defaults:
+    budget:
+      run-timeout-ms: ${AGENT_DEFAULT_BUDGET_RUN_TIMEOUT_MS:300000}
+      model:
+        max-calls: ${AGENT_DEFAULT_BUDGET_MODEL_MAX_CALLS:30}
+        timeout-ms: ${AGENT_DEFAULT_BUDGET_MODEL_TIMEOUT_MS:120000}
+        retry-count: ${AGENT_DEFAULT_BUDGET_MODEL_RETRY_COUNT:0}
+      tool:
+        max-calls: ${AGENT_DEFAULT_BUDGET_TOOL_MAX_CALLS:50}
+        timeout-ms: ${AGENT_DEFAULT_BUDGET_TOOL_TIMEOUT_MS:300000}
+        retry-count: ${AGENT_DEFAULT_BUDGET_TOOL_RETRY_COUNT:0}
+    react:
+      max-steps: ${AGENT_DEFAULT_REACT_MAX_STEPS:60}
+    plan-execute:
+      max-steps: ${AGENT_DEFAULT_PLAN_EXECUTE_MAX_STEPS:60}
   sse:
     stream-timeout: ${AGENT_SSE_STREAM_TIMEOUT:5m}
     heartbeat-interval: ${AGENT_SSE_HEARTBEAT_INTERVAL:15s}

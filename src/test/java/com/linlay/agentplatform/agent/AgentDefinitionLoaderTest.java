@@ -8,6 +8,7 @@ import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.agent.runtime.MountAccessMode;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
+import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.testsupport.TestCatalogFixtures;
 import com.linlay.agentplatform.testsupport.TestModelRegistryServices;
@@ -317,7 +318,7 @@ class AgentDefinitionLoaderTest {
         assertThat(definition.mode()).isEqualTo(AgentRuntimeMode.REACT);
 
         ReactMode mode = (ReactMode) definition.agentMode();
-        assertThat(mode.maxSteps()).isEqualTo(6);
+        assertThat(mode.maxSteps()).isEqualTo(60);
         assertThat(mode.stage().primaryPrompt()).contains("使用 container hub 验证沙箱");
     }
 
@@ -338,7 +339,7 @@ class AgentDefinitionLoaderTest {
         assertThat(definition.mode()).isEqualTo(AgentRuntimeMode.REACT);
 
         ReactMode mode = (ReactMode) definition.agentMode();
-        assertThat(mode.maxSteps()).isEqualTo(6);
+        assertThat(mode.maxSteps()).isEqualTo(60);
         assertThat(mode.stage().primaryPrompt()).contains("协助办公文档处理");
     }
 
@@ -1296,6 +1297,73 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         assertThat(definition.runSpec().budget().runTimeoutMs()).isEqualTo(600000);
+        assertThat(definition.runSpec().budget().model().maxCalls()).isEqualTo(30);
+        assertThat(definition.runSpec().budget().tool().maxCalls()).isEqualTo(50);
+    }
+
+    @Test
+    void shouldMergeAgentBudgetWithConfiguredDefaults() throws IOException {
+        writeYaml("merged_budget.yml", """
+                key: merged_budget
+                name: Merged Budget
+                role: Merged Budget
+                description: merged budget
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                budget:
+                  runTimeoutMs: 700000
+                  model:
+                    maxCalls: 45
+                mode: REACT
+                react:
+                  systemPrompt: merged budget prompt
+                """);
+
+        AgentDefaultsProperties defaults = new AgentDefaultsProperties();
+        defaults.getBudget().setRunTimeoutMs(500_000L);
+        defaults.getBudget().getModel().setMaxCalls(40);
+        defaults.getBudget().getModel().setTimeoutMs(90_000L);
+        defaults.getBudget().getTool().setMaxCalls(70);
+        defaults.getBudget().getTool().setTimeoutMs(480_000L);
+        defaults.getReact().setMaxSteps(72);
+
+        AgentDefinition definition = loadById(defaults).get("merged_budget");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.runSpec().budget().runTimeoutMs()).isEqualTo(700_000L);
+        assertThat(definition.runSpec().budget().model().maxCalls()).isEqualTo(45);
+        assertThat(definition.runSpec().budget().model().timeoutMs()).isEqualTo(90_000L);
+        assertThat(definition.runSpec().budget().tool().maxCalls()).isEqualTo(70);
+        assertThat(definition.runSpec().budget().tool().timeoutMs()).isEqualTo(480_000L);
+        assertThat(((ReactMode) definition.agentMode()).maxSteps()).isEqualTo(72);
+    }
+
+    @Test
+    void shouldUseConfiguredPlanExecuteDefaultMaxSteps() throws IOException {
+        writeYaml("plan_execute_defaults.yml", """
+                key: plan_execute_defaults
+                name: Plan Execute Defaults
+                role: Plan Execute Defaults
+                description: defaults
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: plan
+                  execute:
+                    systemPrompt: execute
+                  summary:
+                    systemPrompt: summary
+                """);
+
+        AgentDefaultsProperties defaults = new AgentDefaultsProperties();
+        defaults.getPlanExecute().setMaxSteps(72);
+
+        AgentDefinition definition = loadById(defaults).get("plan_execute_defaults");
+
+        assertThat(definition).isNotNull();
+        assertThat(((PlanExecuteMode) definition.agentMode()).maxSteps()).isEqualTo(72);
     }
 
     @Test
@@ -1400,15 +1468,23 @@ class AgentDefinitionLoaderTest {
     }
 
     private Map<String, AgentDefinition> loadById() {
+        return loadById(new AgentDefaultsProperties());
+    }
+
+    private Map<String, AgentDefinition> loadById(AgentDefaultsProperties defaults) {
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties);
+        AgentDefinitionLoader loader = newLoader(properties, defaults);
         return loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
     }
 
     private AgentDefinitionLoader newLoader(AgentProperties properties) {
-        return new AgentDefinitionLoader(new ObjectMapper(), properties, TestModelRegistryServices.standardRegistry());
+        return newLoader(properties, new AgentDefaultsProperties());
+    }
+
+    private AgentDefinitionLoader newLoader(AgentProperties properties, AgentDefaultsProperties defaults) {
+        return new AgentDefinitionLoader(new ObjectMapper(), properties, TestModelRegistryServices.standardRegistry(), defaults);
     }
 
     private void writeYaml(String fileName, String content) throws IOException {

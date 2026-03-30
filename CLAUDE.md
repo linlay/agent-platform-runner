@@ -171,12 +171,12 @@ toolChoice: AUTO
 budget:
   runTimeoutMs: 300000
   model:
-    maxCalls: 15
-    timeoutMs: 60000
+    maxCalls: 30
+    timeoutMs: 120000
     retryCount: 0
   tool:
-    maxCalls: 20
-    timeoutMs: 120000
+    maxCalls: 50
+    timeoutMs: 300000
     retryCount: 0
 sandboxConfig:
   environmentId: shell
@@ -188,7 +188,7 @@ plain:
   toolConfig: null
 react:
   systemPrompt: 系统提示词
-  maxSteps: 6
+  maxSteps: 60
 planExecute:
   plan:
     systemPrompt: 规划提示词
@@ -197,7 +197,7 @@ planExecute:
     systemPrompt: 执行提示词
   summary:
     systemPrompt: 总结提示词
-  maxSteps: 10
+  maxSteps: 60
 runtimePrompts:
   planExecute:
     taskExecutionPromptTemplate: "..."
@@ -399,6 +399,7 @@ memoryConfig:
 
 - `react.maxSteps` 控制 REACT 循环上限。
 - `planExecute.maxSteps` 控制 PLAN_EXECUTE 执行阶段步骤上限。
+- 根目录 `.env` / 环境变量可设置全局默认 budget 与默认 steps；agent.yml 中显式声明的 `budget` 和 `maxSteps` 优先于全局默认。
 
 ## Models 目录（内部注册）
 

@@ -52,16 +52,33 @@ public class AgentBudgetConfig {
     }
 
     public Budget toBudget() {
+        return toBudget(Budget.DEFAULT);
+    }
+
+    public Budget toBudget(Budget defaults) {
         if (!unknownFields.isEmpty()) {
             List<String> names = unknownFields.keySet().stream().sorted().toList();
             throw new IllegalArgumentException(
                     "budget contains unsupported fields: " + String.join(", ", names)
             );
         }
+        Budget base = defaults == null ? Budget.DEFAULT : defaults;
         return new Budget(
-                runTimeoutMs == null ? 0L : runTimeoutMs,
-                model == null ? null : model.toScope(),
-                tool == null ? null : tool.toScope()
+                runTimeoutMs == null ? base.runTimeoutMs() : runTimeoutMs,
+                mergeScope(model, base.model()),
+                mergeScope(tool, base.tool())
+        );
+    }
+
+    private Budget.Scope mergeScope(ScopeConfig scope, Budget.Scope defaults) {
+        if (scope == null) {
+            return defaults;
+        }
+        Budget.Scope base = defaults == null ? Budget.DEFAULT.model() : defaults;
+        return new Budget.Scope(
+                scope.maxCalls == null ? base.maxCalls() : scope.maxCalls,
+                scope.timeoutMs == null ? base.timeoutMs() : scope.timeoutMs,
+                scope.retryCount == null ? base.retryCount() : scope.retryCount
         );
     }
 
@@ -93,14 +110,6 @@ public class AgentBudgetConfig {
 
         public void setRetryCount(Integer retryCount) {
             this.retryCount = retryCount;
-        }
-
-        private Budget.Scope toScope() {
-            return new Budget.Scope(
-                    maxCalls == null ? 0 : maxCalls,
-                    timeoutMs == null ? 0L : timeoutMs,
-                    retryCount == null ? 0 : retryCount
-            );
         }
     }
 }

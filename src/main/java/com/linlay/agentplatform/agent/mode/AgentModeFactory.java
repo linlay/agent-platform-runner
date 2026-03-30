@@ -9,7 +9,9 @@ import com.linlay.agentplatform.agent.PlanToolConstants;
 import com.linlay.agentplatform.agent.SkillAppend;
 import com.linlay.agentplatform.agent.ToolAppend;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
+import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
 import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.model.ModelDefinition;
 import org.springframework.util.StringUtils;
@@ -34,12 +36,16 @@ public final class AgentModeFactory {
             Path file,
             AgentPromptFiles promptFiles,
             Function<String, ModelDefinition> modelResolver,
-            boolean memoryToolsEnabled
+            boolean memoryToolsEnabled,
+            AgentDefaultsProperties defaults
     ) {
         AgentRuntimePromptsConfig runtimePromptsConfig = config == null ? null : config.getRuntimePrompts();
         SkillAppend skillAppend = buildSkillAppend(runtimePromptsConfig);
         ToolAppend toolAppend = buildToolAppend(runtimePromptsConfig);
         String taskExecutionPromptTemplate = buildTaskExecutionPromptTemplate(runtimePromptsConfig);
+        Budget defaultBudget = defaults == null ? Budget.DEFAULT : defaults.defaultBudget();
+        int defaultReactMaxSteps = defaults == null ? 60 : defaults.defaultReactMaxSteps();
+        int defaultPlanExecuteMaxSteps = defaults == null ? 60 : defaults.defaultPlanExecuteMaxSteps();
 
         return switch (mode) {
             case ONESHOT -> {
@@ -54,7 +60,7 @@ public final class AgentModeFactory {
                 if (isBlank(stage.primaryPrompt())) {
                     throw new IllegalArgumentException("AGENTS.md is required for ONESHOT agents: " + file);
                 }
-                yield new OneshotMode(stage, skillAppend, toolAppend);
+                yield new OneshotMode(stage, skillAppend, toolAppend, defaultBudget);
             }
             case REACT -> {
                 AgentConfigFile.ReactConfig react = config == null ? null : config.getReact();
@@ -69,8 +75,8 @@ public final class AgentModeFactory {
                 if (isBlank(stage.primaryPrompt())) {
                     throw new IllegalArgumentException("AGENTS.md is required for REACT agents: " + file);
                 }
-                int maxSteps = react != null && react.getMaxSteps() != null ? react.getMaxSteps() : 6;
-                yield new ReactMode(stage, maxSteps, skillAppend, toolAppend);
+                int maxSteps = react != null && react.getMaxSteps() != null ? react.getMaxSteps() : defaultReactMaxSteps;
+                yield new ReactMode(stage, maxSteps, skillAppend, toolAppend, defaultBudget);
             }
             case PLAN_EXECUTE -> {
                 AgentConfigFile.PlanExecuteConfig pe = config == null ? null : config.getPlanExecute();
@@ -108,13 +114,14 @@ public final class AgentModeFactory {
                 }
                 int maxSteps = pe != null && pe.getMaxSteps() != null && pe.getMaxSteps() > 0
                         ? pe.getMaxSteps()
-                        : 15;
+                        : defaultPlanExecuteMaxSteps;
                 yield new PlanExecuteMode(
                         planStage,
                         executeStage,
                         summaryStage,
                         skillAppend,
                         toolAppend,
+                        defaultBudget,
                         taskExecutionPromptTemplate,
                         maxSteps
                 );

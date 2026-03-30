@@ -21,7 +21,11 @@ public final class ReactMode extends AgentMode {
     private final int maxSteps;
 
     public ReactMode(StageSettings stage, int maxSteps, SkillAppend skillAppend, ToolAppend toolAppend) {
-        super(stage == null ? "" : stage.primaryPrompt(), skillAppend, toolAppend);
+        this(stage, maxSteps, skillAppend, toolAppend, Budget.DEFAULT);
+    }
+
+    public ReactMode(StageSettings stage, int maxSteps, SkillAppend skillAppend, ToolAppend toolAppend, Budget defaultBudget) {
+        super(stage == null ? "" : stage.primaryPrompt(), skillAppend, toolAppend, defaultBudget);
         this.stage = stage;
         this.maxSteps = maxSteps > 0 ? maxSteps : 6;
     }
@@ -41,10 +45,9 @@ public final class ReactMode extends AgentMode {
 
     @Override
     public RunSpec defaultRunSpec(AgentConfigFile config) {
-        Budget budget = config != null && config.getBudget() != null ? config.getBudget().toBudget() : Budget.DEFAULT;
         return new RunSpec(
                 config != null && config.getToolChoice() != null ? config.getToolChoice() : ToolChoice.AUTO,
-                budget
+                resolveBudget(config)
         );
     }
 
