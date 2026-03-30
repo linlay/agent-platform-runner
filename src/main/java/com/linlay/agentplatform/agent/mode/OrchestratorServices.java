@@ -168,7 +168,7 @@ public class OrchestratorServices {
                     null,
                     resolveEffort(stageSettings),
                     stageSettings.reasoningEnabled(),
-                    4096,
+                    stageSettings.maxTokens() != null ? stageSettings.maxTokens() : 4096,
                     context.budget().model().timeoutMs(),
                     stage,
                     parallelToolCalls,

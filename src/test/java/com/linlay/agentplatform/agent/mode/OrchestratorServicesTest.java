@@ -16,6 +16,7 @@ import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.ChatMessage;
+import com.linlay.agentplatform.model.ModelProtocol;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.stream.model.LlmDelta;
@@ -304,6 +305,55 @@ class OrchestratorServicesTest {
                 .filter(java.util.Objects::nonNull)
                 .map(AgentDelta.RequestSteer::message)
                 .toList()).containsExactly("first steer", "second steer");
+    }
+
+    @Test
+    void callModelTurnStreamingShouldPassStageMaxTokensToLlmService() {
+        LlmService llmService = mock(LlmService.class);
+        ToolExecutionService toolExecutionService = mock(ToolExecutionService.class);
+        OrchestratorServices services = new OrchestratorServices(llmService, toolExecutionService, new ObjectMapper());
+        ExecutionContext context = contextWithBudget(Budget.DEFAULT);
+        AtomicReference<LlmCallSpec> captured = new AtomicReference<>();
+
+        when(llmService.streamDeltas(any(LlmCallSpec.class))).thenAnswer(invocation -> {
+            LlmCallSpec spec = invocation.getArgument(0);
+            captured.set(spec);
+            return Flux.just(new LlmDelta("done", null, "stop"));
+        });
+
+        Flux.<AgentDelta>create(sink -> {
+            services.callModelTurnStreaming(
+                    context,
+                    new StageSettings(
+                            "sys",
+                            "demo-model",
+                            "demo-provider",
+                            "demo-model-id",
+                            ModelProtocol.OPENAI,
+                            List.of(),
+                            false,
+                            ComputePolicy.MEDIUM,
+                            false,
+                            null,
+                            12_000
+                    ),
+                    List.of(),
+                    null,
+                    Map.of(),
+                    List.of(),
+                    ToolChoice.NONE,
+                    "test-max-tokens",
+                    false,
+                    false,
+                    false,
+                    false,
+                    sink
+            );
+            sink.complete();
+        }).collectList().block(Duration.ofSeconds(3));
+
+        assertThat(captured.get()).isNotNull();
+        assertThat(captured.get().maxTokens()).isEqualTo(12_000);
     }
 
     private ExecutionContext contextWithBudget(Budget budget) {

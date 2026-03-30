@@ -204,11 +204,19 @@ public final class AgentModeFactory {
         if (resolvedModel == null) {
             throw new IllegalArgumentException("Unknown modelKey: " + modelKey);
         }
+        AgentModelConfig topModelConfig = config == null ? null : config.getModelConfig();
+        AgentModelConfig stageModelConfig = stage != null && stage.isModelConfigProvided() ? stage.getModelConfig() : null;
         AgentConfigFile.ReasoningConfig resolvedReasoning = resolvedModelConfig == null ? null : resolvedModelConfig.getReasoning();
         boolean reasoningEnabled = resolvedReasoning != null && Boolean.TRUE.equals(resolvedReasoning.getEnabled());
         ComputePolicy reasoningEffort = resolvedReasoning != null && resolvedReasoning.getEffort() != null
                 ? resolvedReasoning.getEffort()
                 : ComputePolicy.MEDIUM;
+        Integer maxTokens = firstPositive(
+                stageModelConfig == null ? null : stageModelConfig.getMaxTokens(),
+                topModelConfig == null ? null : topModelConfig.getMaxTokens(),
+                resolvedModel.maxOutputTokens(),
+                resolvedModel.maxTokens()
+        );
         List<String> tools = resolveTools(config, stage, requiredTools, memoryToolsEnabled);
 
         return new StageSettings(
@@ -221,8 +229,21 @@ public final class AgentModeFactory {
                 reasoningEnabled,
                 reasoningEffort,
                 stage != null && stage.isDeepThinking(),
-                instructionsPrompt
+                instructionsPrompt,
+                maxTokens
         );
+    }
+
+    private static Integer firstPositive(Integer... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Integer value : values) {
+            if (value != null && value > 0) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static AgentModelConfig resolveModelConfig(AgentConfigFile config, AgentConfigFile.StageConfig stage) {

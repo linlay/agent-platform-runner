@@ -10,6 +10,9 @@ import com.linlay.agentplatform.agent.runtime.MountAccessMode;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
 import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
+import com.linlay.agentplatform.model.ModelDefinition;
+import com.linlay.agentplatform.model.ModelProtocol;
+import com.linlay.agentplatform.model.ModelRegistryService;
 import com.linlay.agentplatform.testsupport.TestCatalogFixtures;
 import com.linlay.agentplatform.testsupport.TestModelRegistryServices;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
@@ -633,6 +636,83 @@ class AgentDefinitionLoaderTest {
         assertThat(mode.planStage().primaryPrompt()).isEqualTo("先规划\n再拆解");
         assertThat(mode.executeStage().primaryPrompt()).isEqualTo("执行任务");
         assertThat(mode.summaryStage().primaryPrompt()).isEqualTo("总结结果");
+    }
+
+    @Test
+    void shouldResolveStageAndTopLevelMaxTokensFromAgentConfig() throws IOException {
+        writeYaml("yaml_max_tokens.yml", """
+                key: yaml_max_tokens
+                name: YAML Max Tokens
+                role: YAML Max Tokens
+                description: yaml max tokens
+                modelConfig:
+                  modelKey: custom-qwen
+                  max_tokens: 9000
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    systemPrompt: 先规划
+                  execute:
+                    systemPrompt: 执行任务
+                    modelConfig:
+                      modelKey: custom-qwen
+                      max_tokens: 12000
+                  summary:
+                    systemPrompt: 总结结果
+                """);
+
+        ModelRegistryService registry = TestModelRegistryServices.registry(new ModelDefinition(
+                "custom-qwen",
+                "custom",
+                ModelProtocol.OPENAI,
+                "custom-qwen",
+                false,
+                true,
+                null,
+                null,
+                16000,
+                null,
+                null
+        ));
+
+        PlanExecuteMode mode = (PlanExecuteMode) loadById(registry).get("yaml_max_tokens").agentMode();
+
+        assertThat(mode.planStage().maxTokens()).isEqualTo(9000);
+        assertThat(mode.executeStage().maxTokens()).isEqualTo(12000);
+        assertThat(mode.summaryStage().maxTokens()).isEqualTo(9000);
+    }
+
+    @Test
+    void shouldFallbackToModelRegistryMaxTokensWhenAgentDoesNotDeclareIt() throws IOException {
+        writeYaml("yaml_model_fallback.yml", """
+                key: yaml_model_fallback
+                name: YAML Model Fallback
+                role: YAML Model Fallback
+                description: yaml model fallback
+                modelConfig:
+                  modelKey: custom-qwen
+                mode: ONESHOT
+                plain:
+                  systemPrompt: test
+                """);
+
+        ModelRegistryService registry = TestModelRegistryServices.registry(new ModelDefinition(
+                "custom-qwen",
+                "custom",
+                ModelProtocol.OPENAI,
+                "custom-qwen",
+                false,
+                true,
+                null,
+                null,
+                16000,
+                null,
+                null
+        ));
+
+        OneshotMode mode = (OneshotMode) loadById(registry).get("yaml_model_fallback").agentMode();
+
+        assertThat(mode.stage().maxTokens()).isEqualTo(16000);
     }
 
     @Test
@@ -1472,9 +1552,17 @@ class AgentDefinitionLoaderTest {
     }
 
     private Map<String, AgentDefinition> loadById(AgentDefaultsProperties defaults) {
+        return loadById(TestModelRegistryServices.standardRegistry(), defaults);
+    }
+
+    private Map<String, AgentDefinition> loadById(ModelRegistryService modelRegistryService) {
+        return loadById(modelRegistryService, new AgentDefaultsProperties());
+    }
+
+    private Map<String, AgentDefinition> loadById(ModelRegistryService modelRegistryService, AgentDefaultsProperties defaults) {
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
-        AgentDefinitionLoader loader = newLoader(properties, defaults);
+        AgentDefinitionLoader loader = new AgentDefinitionLoader(new ObjectMapper(), properties, modelRegistryService, defaults);
         return loader.loadAll().stream()
                 .collect(Collectors.toMap(AgentDefinition::id, definition -> definition));
     }
