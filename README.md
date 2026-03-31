@@ -28,6 +28,7 @@
 - `POST /api/query` 返回 SSE event stream。
 - `/api/query` 流结束时会追加传输层终止帧 `data:[DONE]`（不属于业务事件模型，也不会出现在 `/api/chat` 的历史 `events` 中）。
 - 默认不会返回 `tool.args` / `tool.result`，仅保留 `tool.start` / `tool.end`；如需返回完整 tool payload，可设置 `AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS=true`。
+- `run.complete` 仅表示业务顺利完成；失败统一使用 `run.error`，其 `error` 包含稳定错误码、分类、作用域以及 `diagnostics`（如 `elapsedMs`、`timeoutMs`、`toolName`、`stage`）。
 - 其它 JSON 接口统一返回：
 
 ```json

@@ -19,7 +19,8 @@ public sealed interface StreamInput permits
         StreamInput.RequestSubmit,
         StreamInput.RequestSteer,
         StreamInput.RunCancel,
-        StreamInput.RunComplete {
+        StreamInput.RunComplete,
+        StreamInput.RunError {
 
     record PlanUpdate(String planId, Object plan, String chatId) implements StreamInput {
         public PlanUpdate {
@@ -156,6 +157,13 @@ public sealed interface StreamInput permits
     }
 
     record RunComplete(String finishReason) implements StreamInput {
+    }
+
+    record RunError(Map<String, Object> error) implements StreamInput {
+        public RunError {
+            requireNonNull(error, "error");
+            error = Map.copyOf(error);
+        }
     }
 
     private static void requireNonBlank(String value, String fieldName) {

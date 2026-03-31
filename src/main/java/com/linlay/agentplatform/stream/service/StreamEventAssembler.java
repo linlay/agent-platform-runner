@@ -119,15 +119,7 @@ public class StreamEventAssembler {
             List<StreamEvent> events = new ArrayList<>();
             closeOpenBlocks(events);
             Map<String, Object> error = errorPayload(ex);
-            if (activeTaskId != null) {
-                emitTaskFail(events, activeTaskId, error);
-            }
-
-            Map<String, Object> runError = new LinkedHashMap<>();
-            runError.put("runId", runId);
-            runError.put("error", error);
-            putActor(runError, requestActor);
-            events.add(next("run.error", runError));
+            emitRunError(events, error, requestActor);
             return events;
         }
 
@@ -439,6 +431,11 @@ public class StreamEventAssembler {
                 completeRun(events, value.finishReason(), actor);
                 return;
             }
+            if (input instanceof StreamInput.RunError value) {
+                ensureRunContext();
+                errorRun(events, value.error(), actor);
+                return;
+            }
             throw new IllegalStateException("Unknown input type: " + input.getClass().getName());
         }
 
@@ -507,6 +504,14 @@ public class StreamEventAssembler {
             putActor(payload, actor == null ? requestActor : actor);
             events.add(next("run.complete", payload));
             terminated = true;
+        }
+
+        private void errorRun(List<StreamEvent> events, Map<String, Object> error, RunActor actor) {
+            if (terminated) {
+                return;
+            }
+            closeOpenBlocks(events);
+            emitRunError(events, error, actor == null ? requestActor : actor);
         }
 
         private void closeOpenBlocks(List<StreamEvent> events) {
@@ -602,6 +607,18 @@ public class StreamEventAssembler {
             putActor(payload, requestActor);
             events.add(next("task.fail", payload));
             activeTaskId = null;
+        }
+
+        private void emitRunError(List<StreamEvent> events, Map<String, Object> error, RunActor actor) {
+            if (activeTaskId != null) {
+                emitTaskFail(events, activeTaskId, error);
+            }
+            Map<String, Object> runError = new LinkedHashMap<>();
+            runError.put("runId", runId);
+            runError.put("error", error);
+            putActor(runError, actor);
+            events.add(next("run.error", runError));
+            terminated = true;
         }
 
         private void ensureActiveTask(String taskId, String eventType) {

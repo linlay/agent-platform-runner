@@ -677,6 +677,56 @@ class ChatRecordStoreTest {
     }
 
     @Test
+    void loadChatShouldConvertLegacyRunCompleteErrorToRunError() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174111";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "错误会话", 1707000600000L, 1707000600000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".jsonl");
+        writeJsonLine(historyPath, queryLine(chatId, "run_007_error", query("run_007_error", chatId, "第一轮", List.of())));
+        writeJsonLine(historyPath, stepLine(chatId, "run_007_error", "oneshot", 1, null,
+                1707000600000L,
+                List.of(
+                        userMessage("第一轮", 1707000600000L),
+                        assistantContentMessage("处理中", 1707000600001L)
+                )));
+
+        ChatRecordStore store = newStore();
+        store.appendEvent(chatId, objectMapper.writeValueAsString(Map.of(
+                "seq", 100,
+                "type", "run.complete",
+                "timestamp", 1707000600002L,
+                "runId", "run_007_error",
+                "finishReason", "timeout",
+                "error", Map.of(
+                        "code", "run_timeout",
+                        "message", "运行超时，本次执行已结束。已运行 301000ms，超过 runTimeoutMs=300000。",
+                        "scope", "run",
+                        "category", "timeout",
+                        "diagnostics", Map.of(
+                                "elapsedMs", 301000L,
+                                "timeoutMs", 300000L
+                        )
+                )
+        )));
+
+        ChatDetailResponse detail = store.loadChat(chatId, false);
+        Map<String, Object> runError = detail.events().stream()
+                .filter(event -> "run.error".equals(event.get("type")))
+                .reduce((first, second) -> second)
+                .orElseThrow();
+
+        assertThat(runError).doesNotContainKey("finishReason");
+        assertThat(runError).containsKey("error");
+        assertThat(runError.get("error")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) runError.get("error");
+        assertThat(error).containsEntry("code", "run_timeout");
+        assertThat(error).containsEntry("scope", "run");
+        assertThat(error).containsEntry("category", "timeout");
+    }
+
+    @Test
     void appendEventShouldPersistRequestSteerAndRunCancelForHistoryReplay() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174019";
         Path chatDir = tempDir.resolve("chats");

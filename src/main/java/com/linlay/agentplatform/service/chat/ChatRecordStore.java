@@ -88,6 +88,10 @@ public class ChatRecordStore {
     }
 
     public void appendEvent(String chatId, String eventData) {
+        appendEvent(chatId, eventData, false);
+    }
+
+    public void appendEvent(String chatId, String eventData, boolean hidden) {
         if (!isValidChatId(chatId) || !StringUtils.hasText(eventData)) {
             return;
         }
@@ -110,6 +114,7 @@ public class ChatRecordStore {
                 node,
                 objectMapper.getTypeFactory().constructMapType(LinkedHashMap.class, String.class, Object.class)
         );
+        Path historyPath = resolveHistoryPath(chatId);
 
         Map<String, Object> line = new LinkedHashMap<>();
         line.put("_type", "event");
@@ -117,9 +122,12 @@ public class ChatRecordStore {
         line.put("runId", runId);
         line.put("updatedAt", timestamp > 0 ? timestamp : System.currentTimeMillis());
         line.put("event", event);
+        if (hidden || isHiddenRun(historyPath, runId)) {
+            line.put("hidden", true);
+        }
 
         synchronized (lock) {
-            appendJsonLine(resolveHistoryPath(chatId), line);
+            appendJsonLine(historyPath, line);
         }
     }
 
@@ -376,7 +384,9 @@ public class ChatRecordStore {
     private boolean isPersistedEventType(String type) {
         return "request.submit".equals(type)
                 || "request.steer".equals(type)
-                || "run.cancel".equals(type);
+                || "run.cancel".equals(type)
+                || "run.error".equals(type)
+                || "run.complete".equals(type);
     }
 
     private String textValue(JsonNode node) {
@@ -385,6 +395,30 @@ public class ChatRecordStore {
         }
         String text = node.asText();
         return StringUtils.hasText(text) ? text.trim() : null;
+    }
+
+    private boolean isHiddenRun(Path historyPath, String runId) {
+        if (historyPath == null || !Files.exists(historyPath) || !StringUtils.hasText(runId)) {
+            return false;
+        }
+        try {
+            for (String line : Files.readAllLines(historyPath, resolveCharset())) {
+                JsonNode parsed = parseLine(line);
+                if (parsed == null || !parsed.isObject()) {
+                    continue;
+                }
+                if (!"query".equals(textValue(parsed.get("_type")))) {
+                    continue;
+                }
+                if (!runId.equals(textValue(parsed.get("runId")))) {
+                    continue;
+                }
+                return parsed.path("hidden").asBoolean(false);
+            }
+        } catch (IOException ex) {
+            log.warn("Cannot inspect hidden flag for chat history path={}", historyPath, ex);
+        }
+        return false;
     }
 
     private ChatSummary toChatSummary(com.linlay.agentplatform.service.chat.ChatIndexRecord record) {

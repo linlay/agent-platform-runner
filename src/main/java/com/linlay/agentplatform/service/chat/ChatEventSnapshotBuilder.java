@@ -466,7 +466,7 @@ final class ChatEventSnapshotBuilder {
     }
 
     private boolean isTerminalRunEvent(String type) {
-        return "run.cancel".equals(type) || "run.complete".equals(type);
+        return "run.cancel".equals(type) || "run.complete".equals(type) || "run.error".equals(type);
     }
 
     private String textOrFallback(Object value, String fallback) {

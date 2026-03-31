@@ -682,9 +682,10 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `plan.create`：`planId`, `chatId`, `plan`
 - `plan.update`：`planId`, `chatId`, `plan`（总是带 `chatId`）
 - `run.start`：`runId`, `chatId`, `agentKey`
-- `run.complete`：`runId`, `finishReason?`
+- `run.complete`：`runId`, `finishReason?`（仅成功完成）
 - `run.cancel`：`runId`
 - `run.error`：`runId`, `error`
+  - `error`：`code`, `message`, `scope`, `category`, `diagnostics?`
 - `task.*`：仅在“已有 plan 且显式 `task.start` 输入”时出现；不自动创建 task
 
 ### 4. 推理与内容事件
@@ -717,7 +718,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - 无活跃 task 出错时：只发 `run.error`（不补 `task.fail`）。
 - plain 模式（当前无 plan）不应出现 `task.*`，叶子事件直接归属 `run`。
 - `GET /api/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件，并保留 `tool.result` / `action.result`。
-- 历史里 `run.complete` 每个 run 都保留，`chat.start` 仅首次一次。
+- 历史里每个 run 都保留一个终态事件：成功为 `run.complete`，失败为 `run.error`，取消为 `run.cancel`；`chat.start` 仅首次一次。
 - `/api/query` 在流式输出结束时追加传输层终止帧 `data:[DONE]`；该 sentinel 不属于 Event Model v2 业务事件，也不写入 chat 历史事件。
 - `RenderQueue` 只影响传输 flush 行为，不改变上述业务事件类型与字段契约。
 

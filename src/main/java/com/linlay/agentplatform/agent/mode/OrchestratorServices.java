@@ -9,6 +9,7 @@ import com.linlay.agentplatform.agent.PlannedToolCall;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.agent.runtime.FatalToolExecutionException;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitTimeoutException;
+import com.linlay.agentplatform.agent.runtime.ModelTimeoutException;
 import com.linlay.agentplatform.agent.runtime.RunControl;
 import com.linlay.agentplatform.agent.runtime.RunInputBroker;
 import com.linlay.agentplatform.agent.runtime.RunInterruptedException;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -154,6 +156,7 @@ public class OrchestratorServices {
         );
 
         context.runControl().transitionState(RunLoopState.MODEL_STREAMING);
+        long modelStartNanos = System.nanoTime();
         try {
             return modelTurnAccumulator.accumulate(
                     llmService.streamDeltas(new LlmCallSpec(
@@ -181,6 +184,12 @@ public class OrchestratorServices {
                     emitToolCalls,
                     sink
             );
+        } catch (RuntimeException ex) {
+            ModelTimeoutException timeout = classifyModelTimeout(ex, stage, context, modelStartNanos);
+            if (timeout != null) {
+                throw timeout;
+            }
+            throw ex;
         } finally {
             if (!context.isInterrupted()) {
                 context.runControl().transitionState(RunLoopState.IDLE);
@@ -403,7 +412,16 @@ public class OrchestratorServices {
                 }
                 String rawMessage = result.path("error").asText(null);
                 String message = StringUtils.hasText(rawMessage) ? rawMessage.trim() : FRONTEND_TIMEOUT_MESSAGE;
-                return new FrontendSubmitTimeoutException(message, event.callId(), event.resultText());
+                long timeoutMs = result.path("diagnostics").path("timeoutMs").asLong(0L);
+                long elapsedMs = result.path("diagnostics").path("elapsedMs").asLong(0L);
+                return new FrontendSubmitTimeoutException(
+                        message,
+                        event.callId(),
+                        event.toolName(),
+                        event.resultText(),
+                        timeoutMs,
+                        elapsedMs
+                );
             } catch (Exception ignored) {
                 // ignore malformed tool results and continue scanning
             }
@@ -432,10 +450,37 @@ public class OrchestratorServices {
                 String message = StringUtils.hasText(rawMessage)
                         ? rawMessage.trim()
                         : "Tool invocation failed: " + normalize(event.toolName());
-                return new FatalToolExecutionException(code, message);
+                return new FatalToolExecutionException(code, message, event.callId(), event.toolName());
             } catch (Exception ignored) {
                 // ignore malformed tool results and continue scanning
             }
+        }
+        return null;
+    }
+
+    private ModelTimeoutException classifyModelTimeout(
+            RuntimeException ex,
+            String stage,
+            ExecutionContext context,
+            long modelStartNanos
+    ) {
+        Throwable cursor = ex;
+        while (cursor != null) {
+            if (cursor instanceof TimeoutException) {
+                long timeoutMs = context == null || context.budget() == null
+                        ? 0L
+                        : Math.max(1L, context.budget().model().timeoutMs());
+                long elapsedMs = Math.max(1L, (System.nanoTime() - modelStartNanos) / 1_000_000L);
+                String normalizedStage = normalize(stage);
+                String message = "模型调用超时：stage="
+                        + (StringUtils.hasText(normalizedStage) ? normalizedStage : "unknown")
+                        + ", elapsedMs="
+                        + elapsedMs
+                        + ", timeoutMs="
+                        + timeoutMs;
+                return new ModelTimeoutException(message, normalizedStage, timeoutMs, elapsedMs, ex);
+            }
+            cursor = cursor.getCause();
         }
         return null;
     }

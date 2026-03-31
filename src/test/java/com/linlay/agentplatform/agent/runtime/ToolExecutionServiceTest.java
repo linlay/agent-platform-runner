@@ -275,6 +275,9 @@ class ToolExecutionServiceTest {
         assertThat(resultNode.path("ok").asBoolean(true)).isFalse();
         assertThat(resultNode.path("code").asText()).isEqualTo(ToolExecutionService.FRONTEND_SUBMIT_TIMEOUT_CODE);
         assertThat(resultNode.path("error").asText()).contains("Frontend tool submit timeout");
+        assertThat(resultNode.path("scope").asText()).isEqualTo("frontend_submit");
+        assertThat(resultNode.path("category").asText()).isEqualTo("timeout");
+        assertThat(resultNode.path("diagnostics").path("timeoutMs").asLong()).isEqualTo(60L);
     }
 
     @Test

@@ -217,6 +217,10 @@ public class AgentDeltaToStreamInputMapper {
             inputs.add(new StreamInput.RunComplete(delta.finishReason()));
         }
 
+        if (delta.error() != null) {
+            inputs.add(new StreamInput.RunError(delta.error().toPayload()));
+        }
+
         if (hasNonTextPayload(delta)) {
             closeTextBlocks();
         }
@@ -235,7 +239,8 @@ public class AgentDeltaToStreamInputMapper {
                 || delta.planUpdate() != null
                 || delta.requestSubmit() != null
                 || delta.requestSteer() != null
-                || hasText(delta.finishReason());
+                || hasText(delta.finishReason())
+                || delta.error() != null;
     }
 
     private void appendTaskLifecycleInput(AgentDelta.TaskLifecycle lifecycle, List<StreamInput> inputs) {

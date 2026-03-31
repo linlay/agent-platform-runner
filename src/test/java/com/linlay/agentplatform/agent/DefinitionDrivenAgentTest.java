@@ -307,6 +307,52 @@ class DefinitionDrivenAgentTest {
     }
 
     @Test
+    void modelTimeoutShouldEmitStructuredTimeoutError() {
+        Budget modelTimeoutBudget = new Budget(
+                120_000L,
+                new Budget.Scope(15, 1_234L, 0),
+                new Budget.Scope(20, 60_000L, 0)
+        );
+        AgentDefinition definition = definition(
+                "demoModelTimeout",
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ToolChoice.NONE, modelTimeoutBudget),
+                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of(), false, ComputePolicy.MEDIUM), null, null),
+                List.of()
+        );
+
+        LlmService llmService = new StubLlmService() {
+            @Override
+            protected Flux<LlmDelta> deltaByStage(String stage) {
+                return Flux.error(new RuntimeException(new java.util.concurrent.TimeoutException("simulated model timeout")));
+            }
+        };
+
+        DefinitionDrivenAgent agent = createAgent(
+                definition,
+                llmService,
+                new ToolRegistry(List.of()),
+                objectMapper,
+                null,
+                null
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试 model timeout", null, null, "run_model_timeout_1"))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        AgentDelta finish = deltas.getLast();
+        assertThat(finish.finishReason()).isNull();
+        assertThat(finish.error()).isNotNull();
+        assertThat(finish.error().code()).isEqualTo("model_timeout");
+        assertThat(finish.error().scope()).isEqualTo("model");
+        assertThat(finish.error().category()).isEqualTo("timeout");
+        assertThat(finish.error().diagnostics()).containsEntry("timeoutMs", 1_234L);
+        assertThat(finish.error().diagnostics()).containsEntry("stage", "agent-oneshot");
+    }
+
+    @Test
     void configuredMcpAliasToolShouldExposeResolvedDescriptorSchema() {
         AgentDefinition definition = definition(
                 "demoMcpAliasTool",
@@ -441,7 +487,9 @@ class DefinitionDrivenAgentTest {
                 .map(AgentDelta::content)
                 .filter(text -> text != null && !text.isBlank())
                 .anyMatch(text -> text.contains("Tool is not registered"))).isTrue();
-        assertThat(deltas.getLast().finishReason()).isEqualTo("tool_error");
+        assertThat(deltas.getLast().finishReason()).isNull();
+        assertThat(deltas.getLast().error()).isNotNull();
+        assertThat(deltas.getLast().error().code()).isEqualTo("fatal_tool_error");
         String logs = output.getOut() + output.getErr();
         assertThat(logs).contains("WARN");
         assertThat(logs).contains("configured tool currently not registered, keep runtime placeholder: missing_tool");
@@ -2760,7 +2808,9 @@ class DefinitionDrivenAgentTest {
         assertThat(deltas).isNotNull();
         assertThat(deltas.stream().map(AgentDelta::content).filter(java.util.Objects::nonNull).toList())
                 .contains("container-hub sandbox create failed: sandbox unavailable");
-        assertThat(deltas.getLast().finishReason()).isEqualTo("tool_error");
+        assertThat(deltas.getLast().finishReason()).isNull();
+        assertThat(deltas.getLast().error()).isNotNull();
+        assertThat(deltas.getLast().error().code()).isEqualTo("fatal_tool_error");
         assertThat(httpClient.events()).containsExactly("create");
     }
 

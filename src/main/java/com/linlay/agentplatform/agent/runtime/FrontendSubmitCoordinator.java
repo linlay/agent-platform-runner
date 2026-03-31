@@ -39,6 +39,10 @@ public class FrontendSubmitCoordinator {
                 .doFinally(signalType -> pendingByKey.remove(key));
     }
 
+    public long timeoutMs() {
+        return Math.max(1L, properties.getSubmitTimeoutMs());
+    }
+
     public SubmitAck submit(String runId, String toolId, Object params) {
         String key = key(runId, toolId);
         CompletableFuture<Object> pending = pendingByKey.remove(key);

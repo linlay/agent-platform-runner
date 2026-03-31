@@ -281,7 +281,7 @@ public class AgentQueryService {
                             assistantContent.setLength(0);
                             assistantContent.append(text);
                         }
-                    } else if ("run.complete".equals(type) && !completed[0]) {
+                    } else if (("run.complete".equals(type) || "run.error".equals(type)) && !completed[0]) {
                         completed[0] = true;
                         long completedAt = node.path("timestamp").asLong(System.currentTimeMillis());
                         String assistantText = assistantContent.toString().trim();
@@ -307,7 +307,11 @@ public class AgentQueryService {
                     );
                 })
                 .doOnNext(event -> logSseEvent(session, event, eventSeq.incrementAndGet()))
-                .doOnNext(event -> chatRecordStore.appendEvent(session.request().chatId(), event.data()));
+                .doOnNext(event -> chatRecordStore.appendEvent(
+                        session.request().chatId(),
+                        event.data(),
+                        Boolean.TRUE.equals(session.request().hidden())
+                ));
         if (activeSession != null) {
             stream = stream.doFinally(signalType -> activeRunService.finish(session.request().runId()));
         }

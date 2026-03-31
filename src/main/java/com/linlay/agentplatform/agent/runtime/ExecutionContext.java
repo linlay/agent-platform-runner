@@ -341,6 +341,10 @@ public class ExecutionContext {
         return toolCalls;
     }
 
+    public long elapsedMs() {
+        return Math.max(0L, System.currentTimeMillis() - startedAtMs);
+    }
+
     public void incrementModelCalls() {
         this.modelCalls++;
         checkBudget();

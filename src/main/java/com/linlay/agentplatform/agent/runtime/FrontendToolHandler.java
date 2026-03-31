@@ -37,6 +37,8 @@ public class FrontendToolHandler {
         if (!StringUtils.hasText(runId)) {
             return new InvokeResult(errorResult(toolName, "Missing runId for frontend tool submission"), null);
         }
+        long timeoutMs = resolveFrontendSubmitTimeoutMs(context);
+        long waitStartNanos = System.nanoTime();
         try {
             context.runControl().transitionState(RunLoopState.WAITING_SUBMIT);
             Object payload = awaitFrontendSubmit(runId.trim(), toolId, context);
@@ -51,7 +53,29 @@ public class FrontendToolHandler {
                 throw new RunInterruptedException();
             }
             if (isFrontendSubmitTimeout(ex)) {
-                return new InvokeResult(errorResult(toolName, ToolExecutionService.FRONTEND_SUBMIT_TIMEOUT_CODE, resolveErrorMessage(ex)), null);
+                long elapsedMs = Math.max(1L, (System.nanoTime() - waitStartNanos) / 1_000_000L);
+                Map<String, Object> diagnostics = new java.util.LinkedHashMap<>();
+                String normalizedToolId = normalizeValue(toolId);
+                String normalizedToolName = normalizeValue(toolName);
+                if (normalizedToolId != null) {
+                    diagnostics.put("toolId", normalizedToolId);
+                }
+                if (normalizedToolName != null) {
+                    diagnostics.put("toolName", normalizedToolName);
+                }
+                diagnostics.put("timeoutMs", timeoutMs);
+                diagnostics.put("elapsedMs", elapsedMs);
+                return new InvokeResult(
+                        errorResult(
+                                toolName,
+                                ToolExecutionService.FRONTEND_SUBMIT_TIMEOUT_CODE,
+                                resolveFrontendTimeoutMessage(toolName, toolId, timeoutMs, elapsedMs),
+                                "frontend_submit",
+                                "timeout",
+                                diagnostics
+                        ),
+                        null
+                );
             }
             return new InvokeResult(errorResult(toolName, resolveErrorMessage(ex)), null);
         } finally {
@@ -101,11 +125,32 @@ public class FrontendToolHandler {
         throw new IllegalStateException("Frontend submit coordinator is not configured");
     }
 
+    private long resolveFrontendSubmitTimeoutMs(ExecutionContext context) {
+        if (frontendSubmitCoordinator != null) {
+            return frontendSubmitCoordinator.timeoutMs();
+        }
+        Budget.Scope scope = context == null || context.budget() == null
+                ? Budget.DEFAULT.tool()
+                : context.budget().tool();
+        return Math.max(1L, scope.timeoutMs());
+    }
+
     private ObjectNode errorResult(String toolName, String message) {
         return errorResult(toolName, null, message);
     }
 
     private ObjectNode errorResult(String toolName, String code, String message) {
+        return errorResult(toolName, code, message, null, null, Map.of());
+    }
+
+    private ObjectNode errorResult(
+            String toolName,
+            String code,
+            String message,
+            String scope,
+            String category,
+            Map<String, Object> diagnostics
+    ) {
         ObjectNode error = objectMapper.createObjectNode();
         error.put("tool", toolName);
         error.put("ok", false);
@@ -113,6 +158,15 @@ public class FrontendToolHandler {
             error.put("code", code);
         }
         error.put("error", message == null ? "unknown error" : message);
+        if (StringUtils.hasText(scope)) {
+            error.put("scope", scope);
+        }
+        if (StringUtils.hasText(category)) {
+            error.put("category", category);
+        }
+        if (diagnostics != null && !diagnostics.isEmpty()) {
+            error.set("diagnostics", objectMapper.valueToTree(diagnostics));
+        }
         return error;
     }
 
@@ -160,6 +214,23 @@ public class FrontendToolHandler {
             cursor = cursor.getCause();
         }
         return "unknown error";
+    }
+
+    private String resolveFrontendTimeoutMessage(String toolName, String toolId, long timeoutMs, long elapsedMs) {
+        String normalizedToolName = normalizeValue(toolName);
+        String normalizedToolId = normalizeValue(toolId);
+        return "Frontend tool submit timeout: tool="
+                + (normalizedToolName == null ? "unknown" : normalizedToolName)
+                + ", toolId="
+                + (normalizedToolId == null ? "unknown" : normalizedToolId)
+                + ", elapsedMs="
+                + elapsedMs
+                + ", timeoutMs="
+                + timeoutMs;
+    }
+
+    private String normalizeValue(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     public record InvokeResult(

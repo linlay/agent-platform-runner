@@ -37,6 +37,7 @@ public final class TurnTraceWriter {
         this.request = Objects.requireNonNull(request);
         this.runId = runId;
         this.lastWrittenSystem = lastWrittenSystem;
+        ensureQueryLineWritten();
     }
 
     public void capture(AgentDelta delta) {
@@ -172,10 +173,7 @@ public final class TurnTraceWriter {
             return;
         }
 
-        if (!queryLineWritten) {
-            chatWindowMemoryStore.appendQueryLine(request.chatId(), runId, request.query());
-            queryLineWritten = true;
-        }
+        ensureQueryLineWritten();
 
         seqCounter++;
 
@@ -213,6 +211,14 @@ public final class TurnTraceWriter {
             lastWrittenSystem = stepSystem;
         }
         currentStep = null;
+    }
+
+    private void ensureQueryLineWritten() {
+        if (queryLineWritten || chatWindowMemoryStore == null || !StringUtils.hasText(request.chatId())) {
+            return;
+        }
+        chatWindowMemoryStore.appendQueryLine(request.chatId(), runId, request.query());
+        queryLineWritten = true;
     }
 
     private static Long durationOrNull(long startTs, long endTs) {

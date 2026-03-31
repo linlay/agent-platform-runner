@@ -126,6 +126,10 @@ final class ChatHistoryFileReader {
                     eventPayload.remove("seq");
                     eventPayload.remove("type");
                     eventPayload.remove("timestamp");
+                    if ("run.complete".equals(eventType) && eventPayload.containsKey("error")) {
+                        eventPayload.remove("finishReason");
+                        eventType = "run.error";
+                    }
                     if (!eventPayload.containsKey("chatId")) {
                         String eventChatId = textValue(node.get("chatId"));
                         if (StringUtils.hasText(eventChatId)) {
@@ -230,7 +234,9 @@ final class ChatHistoryFileReader {
     private boolean isPersistedEventType(String type) {
         return "request.submit".equals(type)
                 || "request.steer".equals(type)
-                || "run.cancel".equals(type);
+                || "run.cancel".equals(type)
+                || "run.error".equals(type)
+                || "run.complete".equals(type);
     }
 
     private String textValue(JsonNode node) {

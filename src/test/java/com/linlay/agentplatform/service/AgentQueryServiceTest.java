@@ -45,6 +45,7 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -326,7 +327,7 @@ class AgentQueryServiceTest {
         assertThat(events).hasSize(2);
         assertThat(events.stream().map(ServerSentEvent::data))
                 .allMatch(item -> item.contains("\"content.delta\"") || item.contains("\"run.complete\""));
-        verify(chatRecordStore, times(2)).appendEvent(any(String.class), any(String.class));
+        verify(chatRecordStore, times(2)).appendEvent(any(String.class), any(String.class), anyBoolean());
     }
 
     @Test
@@ -375,7 +376,7 @@ class AgentQueryServiceTest {
                 .anyMatch(item -> item.contains("\"type\":\"run.complete\""));
         assertThat(events.stream().map(ServerSentEvent::data))
                 .noneMatch(item -> item.contains("\"type\":\"tool.args\"") || item.contains("\"type\":\"tool.result\""));
-        verify(chatRecordStore, times(3)).appendEvent(any(String.class), any(String.class));
+        verify(chatRecordStore, times(3)).appendEvent(any(String.class), any(String.class), anyBoolean());
     }
 
     @Test
@@ -424,7 +425,7 @@ class AgentQueryServiceTest {
                 .anyMatch(item -> item.contains("\"type\":\"tool.end\""))
                 .anyMatch(item -> item.contains("\"type\":\"tool.result\""))
                 .anyMatch(item -> item.contains("\"type\":\"run.complete\""));
-        verify(chatRecordStore, times(5)).appendEvent(any(String.class), any(String.class));
+        verify(chatRecordStore, times(5)).appendEvent(any(String.class), any(String.class), anyBoolean());
     }
 
     @Test

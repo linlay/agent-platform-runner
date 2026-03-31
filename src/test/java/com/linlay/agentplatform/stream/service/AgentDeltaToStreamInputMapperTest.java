@@ -548,6 +548,37 @@ class AgentDeltaToStreamInputMapperTest {
     }
 
     @Test
+    void runErrorShouldCarryStructuredErrorPayload() {
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null, null);
+        List<StreamEvent> events = assembleEvents(mapper, List.of(
+                AgentDelta.runError(
+                        new AgentDelta.RunError(
+                                "run_timeout",
+                                "运行超时，本次执行已结束。已运行 301000ms，超过 runTimeoutMs=300000。",
+                                "run",
+                                "timeout",
+                                Map.of("elapsedMs", 301000L, "timeoutMs", 300000L)
+                        )
+                )
+        ));
+
+        StreamEvent runError = events.stream()
+                .filter(event -> "run.error".equals(event.type()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(runError.payload()).doesNotContainKey("finishReason");
+        assertThat(runError.payload()).containsKey("error");
+        assertThat(runError.payload().get("error")).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> error = (Map<String, Object>) runError.payload().get("error");
+        assertThat(error).containsEntry("code", "run_timeout");
+        assertThat(error).containsEntry("scope", "run");
+        assertThat(error).containsEntry("category", "timeout");
+        assertThat(error).containsKey("diagnostics");
+    }
+
+    @Test
     void runCancelShouldTerminateStreamWithoutRunComplete() {
         StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
                 .begin(new StreamRequest.Query(
