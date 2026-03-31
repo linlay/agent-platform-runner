@@ -45,8 +45,6 @@ public class GlobalMemoryRequestService {
     public CaptureResult captureRemember(RememberRequest request) {
         String requestId = normalizeRequestId(request == null ? null : request.requestId());
         String chatId = requireText(request == null ? null : request.chatId(), "chatId");
-        String runId = requireText(request == null ? null : request.runId(), "runId");
-        String agentKey = requireText(request == null ? null : request.agentKey(), "agentKey");
         ChatDetailResponse detail = chatRecordStore.loadChat(chatId, true);
         long createdAt = System.currentTimeMillis();
         String relativePath = "remember/" + chatId + "/" + requestId + ".json";
@@ -56,8 +54,6 @@ public class GlobalMemoryRequestService {
         payload.put("type", "remember-request");
         payload.put("requestId", requestId);
         payload.put("chatId", chatId);
-        payload.put("runId", runId);
-        payload.put("agentKey", agentKey);
         payload.put("createdAt", createdAt);
         payload.put("prompt", prompt(PROMPT_KEY_REMEMBER));
         payload.put("promptKey", PROMPT_KEY_REMEMBER);
@@ -71,7 +67,7 @@ public class GlobalMemoryRequestService {
         payload.put("chat", chatPayload);
 
         writeJson(targetPath, payload);
-        return new CaptureResult(requestId, chatId, runId, relativePath, "remember request captured");
+        return new CaptureResult(requestId, chatId, relativePath, "remember request captured");
     }
 
     public Path resolveMemoryRoot() {
@@ -129,7 +125,6 @@ public class GlobalMemoryRequestService {
     public record CaptureResult(
             String requestId,
             String chatId,
-            String runId,
             String memoryPath,
             String detail
     ) {

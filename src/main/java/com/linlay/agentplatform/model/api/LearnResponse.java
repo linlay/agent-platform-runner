@@ -5,7 +5,6 @@ public record LearnResponse(
         String status,
         String requestId,
         String chatId,
-        String runId,
         String subjectKey,
         String detail
 ) {

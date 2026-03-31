@@ -59,20 +59,18 @@ public class ModelTurnAccumulator {
             deltaSeq++;
 
             boolean hasToolCalls = delta.toolCalls() != null && !delta.toolCalls().isEmpty();
-            if (hasToolCalls) {
-                toolCallObserved = true;
-            }
+            boolean allowTextEmission = !toolCallObserved;
 
             if (StringUtils.hasText(delta.reasoning())) {
                 reasoning.append(delta.reasoning());
-                if (emitReasoning && !toolCallObserved) {
+                if (emitReasoning && allowTextEmission) {
                     emit(sink, AgentDelta.reasoning(delta.reasoning(), context.activeTaskId()));
                 }
             }
 
             if (StringUtils.hasText(delta.content())) {
                 content.append(delta.content());
-                if (emitContent && !toolCallObserved) {
+                if (emitContent && allowTextEmission) {
                     emit(sink, AgentDelta.content(delta.content(), context.activeTaskId()));
                 }
             }
@@ -130,6 +128,7 @@ public class ModelTurnAccumulator {
                     ));
                     activeStreamedToolCallId = callId;
                 }
+                toolCallObserved = true;
             }
 
             if (delta.usage() != null && !delta.usage().isEmpty()) {

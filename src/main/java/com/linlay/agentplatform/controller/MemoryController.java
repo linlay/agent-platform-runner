@@ -31,12 +31,9 @@ public class MemoryController {
     @PostMapping("/remember")
     public ApiResponse<RememberResponse> remember(@Valid @RequestBody RememberRequest request, ServerWebExchange exchange) {
         exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_REQUEST_ID, request.requestId());
-        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_RUN_ID, request.runId());
         exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_BODY_SUMMARY, bodySummary(
                 request.chatId(),
-                request.agentKey(),
-                request.requestId(),
-                request.runId()
+                request.requestId()
         ));
         GlobalMemoryRequestService.CaptureResult result = globalMemoryRequestService.captureRemember(request);
         return ApiResponse.success(new RememberResponse(
@@ -44,7 +41,6 @@ public class MemoryController {
                 "captured",
                 result.requestId(),
                 result.chatId(),
-                result.runId(),
                 result.memoryPath(),
                 result.detail()
         ));
@@ -53,12 +49,9 @@ public class MemoryController {
     @PostMapping("/learn")
     public ApiResponse<LearnResponse> learn(@Valid @RequestBody LearnRequest request, ServerWebExchange exchange) {
         exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_REQUEST_ID, request.requestId());
-        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_RUN_ID, request.runId());
         Map<String, Object> summary = bodySummary(
                 request.chatId(),
-                request.agentKey(),
-                request.requestId(),
-                request.runId()
+                request.requestId()
         );
         if (StringUtils.hasText(request.subjectKey())) {
             summary.put("subjectKey", request.subjectKey().trim());
@@ -69,18 +62,15 @@ public class MemoryController {
                 "not_connected",
                 request.requestId(),
                 request.chatId(),
-                request.runId(),
                 StringUtils.hasText(request.subjectKey()) ? request.subjectKey().trim() : null,
                 "learn capability is not connected yet"
         ));
     }
 
-    private Map<String, Object> bodySummary(String chatId, String agentKey, String requestId, String runId) {
+    private Map<String, Object> bodySummary(String chatId, String requestId) {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("chatId", chatId);
-        summary.put("agentKey", agentKey);
         summary.put("requestId", requestId);
-        summary.put("runId", runId);
         return summary;
     }
 }

@@ -6,10 +6,6 @@ public record RememberRequest(
         @NotBlank
         String requestId,
         @NotBlank
-        String chatId,
-        @NotBlank
-        String runId,
-        @NotBlank
-        String agentKey
+        String chatId
 ) {
 }

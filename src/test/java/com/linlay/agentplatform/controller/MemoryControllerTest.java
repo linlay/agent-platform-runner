@@ -119,9 +119,7 @@ class MemoryControllerTest {
                 .uri("/api/remember")
                 .bodyValue(Map.of(
                         "requestId", "remember_req_001",
-                        "chatId", chatId,
-                        "runId", "run-remember-1",
-                        "agentKey", "dailyOfficeAssistant"
+                        "chatId", chatId
                 ))
                 .exchange()
                 .expectStatus().isOk()
@@ -129,6 +127,7 @@ class MemoryControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data.accepted").isEqualTo(true)
                 .jsonPath("$.data.status").isEqualTo("captured")
+                .jsonPath("$.data.runId").doesNotExist()
                 .jsonPath("$.data.memoryPath").isEqualTo("remember/" + chatId + "/remember_req_001.json");
 
         Path memoryFile = memoryRoot().resolve("remember").resolve(chatId).resolve("remember_req_001.json");
@@ -138,6 +137,8 @@ class MemoryControllerTest {
         assertThat(root.path("type").asText()).isEqualTo("remember-request");
         assertThat(root.path("promptKey").asText()).isEqualTo("remember");
         assertThat(root.path("prompt").asText()).contains("值得长期保留");
+        assertThat(root.has("runId")).isFalse();
+        assertThat(root.has("agentKey")).isFalse();
         assertThat(root.path("chat").path("chatId").asText()).isEqualTo(chatId);
         assertThat(root.path("chat").path("rawMessages").isArray()).isTrue();
         assertThat(root.path("chat").path("rawMessages")).isNotEmpty();
@@ -156,9 +157,7 @@ class MemoryControllerTest {
                 .uri("/api/remember")
                 .bodyValue(Map.of(
                         "requestId", "remember_req_same",
-                        "chatId", chatId,
-                        "runId", "run-remember-2",
-                        "agentKey", "dailyOfficeAssistant"
+                        "chatId", chatId
                 ))
                 .exchange()
                 .expectStatus().isOk();
@@ -173,9 +172,7 @@ class MemoryControllerTest {
                 .uri("/api/remember")
                 .bodyValue(Map.of(
                         "requestId", "remember_req_same",
-                        "chatId", chatId,
-                        "runId", "run-remember-2",
-                        "agentKey", "dailyOfficeAssistant"
+                        "chatId", chatId
                 ))
                 .exchange()
                 .expectStatus().isOk();
@@ -191,9 +188,7 @@ class MemoryControllerTest {
                 .uri("/api/remember")
                 .bodyValue(Map.of(
                         "requestId", "remember_req_invalid_chat",
-                        "chatId", "not-a-uuid",
-                        "runId", "run-invalid",
-                        "agentKey", "dailyOfficeAssistant"
+                        "chatId", "not-a-uuid"
                 ))
                 .exchange()
                 .expectStatus().isBadRequest()
@@ -208,9 +203,7 @@ class MemoryControllerTest {
                 .uri("/api/remember")
                 .bodyValue(Map.of(
                         "requestId", "remember_req_missing_chat",
-                        "chatId", UUID.randomUUID().toString(),
-                        "runId", "run-missing",
-                        "agentKey", "dailyOfficeAssistant"
+                        "chatId", UUID.randomUUID().toString()
                 ))
                 .exchange()
                 .expectStatus().isNotFound()
@@ -226,9 +219,7 @@ class MemoryControllerTest {
                 .uri("/api/learn")
                 .bodyValue(Map.of(
                         "requestId", "learn_req_001",
-                        "chatId", chatId,
-                        "runId", "run-learn-1",
-                        "agentKey", "dailyOfficeAssistant"
+                        "chatId", chatId
                 ))
                 .exchange()
                 .expectStatus().isOk()
@@ -236,6 +227,7 @@ class MemoryControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data.accepted").isEqualTo(false)
                 .jsonPath("$.data.status").isEqualTo("not_connected")
+                .jsonPath("$.data.runId").doesNotExist()
                 .jsonPath("$.data.subjectKey").doesNotExist();
     }
 
@@ -248,8 +240,6 @@ class MemoryControllerTest {
                 .bodyValue(Map.of(
                         "requestId", "learn_req_002",
                         "chatId", chatId,
-                        "runId", "run-learn-2",
-                        "agentKey", "dailyOfficeAssistant",
                         "subjectKey", "user:alice"
                 ))
                 .exchange()
@@ -258,6 +248,7 @@ class MemoryControllerTest {
                 .jsonPath("$.code").isEqualTo(0)
                 .jsonPath("$.data.accepted").isEqualTo(false)
                 .jsonPath("$.data.status").isEqualTo("not_connected")
+                .jsonPath("$.data.runId").doesNotExist()
                 .jsonPath("$.data.subjectKey").isEqualTo("user:alice");
     }
 

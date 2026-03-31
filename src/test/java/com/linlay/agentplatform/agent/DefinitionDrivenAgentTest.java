@@ -1453,6 +1453,98 @@ class DefinitionDrivenAgentTest {
     }
 
     @Test
+    void reactShouldEmitReasoningSseBeforeToolWhenSameChunkContainsBoth() {
+        String chatId = "chat_react_same_chunk";
+        String runId = "run_react_same_chunk";
+
+        AgentDefinition definition = definition(
+                "demoReactSameChunkReasoning",
+                AgentRuntimeMode.REACT,
+                new RunSpec(ToolChoice.AUTO, new Budget(
+                        60_000,
+                        new Budget.Scope(10, 60_000, 0),
+                        new Budget.Scope(10, 60_000, 0)
+                )),
+                new ReactMode(new StageSettings("你是测试助手", null, null, List.of("echo_tool"), true, ComputePolicy.MEDIUM), 6, null, null),
+                List.of("echo_tool")
+        );
+
+        LlmService llmService = new StubLlmService() {
+            private int step;
+
+            @Override
+            protected Flux<LlmDelta> deltaByStage(String stage) {
+                if (stage.startsWith("agent-react-step-")) {
+                    step++;
+                    if (step == 1) {
+                        return Flux.just(new LlmDelta(
+                                "同 chunk 推理",
+                                null,
+                                List.of(new ToolCallDelta("call_react_same_chunk_1", "function", "echo_tool", "{\"text\":\"ping\"}")),
+                                "tool_calls"
+                        ));
+                    }
+                    return Flux.just(new LlmDelta("react 最终结论", null, "stop"));
+                }
+                return Flux.empty();
+            }
+        };
+
+        BaseTool echoTool = new BaseTool() {
+            @Override
+            public String name() {
+                return "echo_tool";
+            }
+
+            @Override
+            public String description() {
+                return "echo";
+            }
+
+            @Override
+            public JsonNode invoke(Map<String, Object> args) {
+                return objectMapper.valueToTree(Map.of("ok", true));
+            }
+        };
+
+        DefinitionDrivenAgent agent = createAgent(
+                definition,
+                llmService,
+                new ToolRegistry(List.of(echoTool)),
+                objectMapper,
+                null,
+                null
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("测试 react 同 chunk reasoning", chatId, "req_react_same_chunk", runId))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        assertThat(deltas.stream()
+                .map(AgentDelta::reasoning)
+                .filter(value -> value != null && !value.isBlank()))
+                .contains("同 chunk 推理");
+
+        List<StreamEvent> events = assembleEvents(chatId, runId, deltas);
+        int reasoningStart = indexOfEvent(events, "reasoning.start");
+        int reasoningDelta = indexOfEvent(events, "reasoning.delta");
+        int reasoningEnd = indexOfEvent(events, "reasoning.end");
+        int toolStart = indexOfEvent(events, "tool.start", "toolId", "call_react_same_chunk_1");
+        int toolArgs = indexOfEvent(events, "tool.args", "toolId", "call_react_same_chunk_1");
+        int toolEnd = indexOfEvent(events, "tool.end", "toolId", "call_react_same_chunk_1");
+        int toolResult = indexOfEvent(events, "tool.result", "toolId", "call_react_same_chunk_1");
+
+        assertThat(reasoningStart).isGreaterThanOrEqualTo(0);
+        assertThat(reasoningDelta).isGreaterThan(reasoningStart);
+        assertThat(reasoningEnd).isGreaterThan(reasoningDelta);
+        assertThat(toolStart).isGreaterThan(reasoningEnd);
+        assertThat(toolArgs).isGreaterThan(toolStart);
+        assertThat(toolEnd).isGreaterThan(toolArgs);
+        assertThat(toolResult).isGreaterThan(toolEnd);
+    }
+
+    @Test
     void reactShouldRetryBlankFinalWithoutInjectingRedundantUserMessage() {
         Map<String, LlmCallSpec> stageSpecs = new ConcurrentHashMap<>();
         AgentDefinition definition = definition(
@@ -3218,6 +3310,27 @@ class DefinitionDrivenAgentTest {
         }
         events.addAll(state.complete());
         return events;
+    }
+
+    private int indexOfEvent(List<StreamEvent> events, String type) {
+        return indexOfEvent(events, type, null, null);
+    }
+
+    private int indexOfEvent(List<StreamEvent> events, String type, String payloadKey, String payloadValue) {
+        for (int i = 0; i < events.size(); i++) {
+            StreamEvent event = events.get(i);
+            if (!type.equals(event.type())) {
+                continue;
+            }
+            if (payloadKey == null) {
+                return i;
+            }
+            Object value = event.payload().get(payloadKey);
+            if (payloadValue.equals(String.valueOf(value))) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private abstract static class StubLlmService extends LlmService {

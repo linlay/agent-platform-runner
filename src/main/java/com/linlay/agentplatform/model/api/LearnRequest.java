@@ -7,10 +7,6 @@ public record LearnRequest(
         String requestId,
         @NotBlank
         String chatId,
-        @NotBlank
-        String runId,
-        @NotBlank
-        String agentKey,
         String subjectKey
 ) {
 }
