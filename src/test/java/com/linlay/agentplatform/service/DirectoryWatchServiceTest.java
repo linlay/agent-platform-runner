@@ -27,7 +27,7 @@ class DirectoryWatchServiceTest {
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(watchedDir, latch::countDown);
 
-        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        DirectoryWatchService service = new DirectoryWatchService(null, null, dirs);
         try {
             Files.writeString(watchedDir.resolve("test.yml"), "name: test\n");
             boolean triggered = latch.await(10, TimeUnit.SECONDS);
@@ -46,7 +46,7 @@ class DirectoryWatchServiceTest {
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(watchedDir, counter::incrementAndGet);
 
-        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        DirectoryWatchService service = new DirectoryWatchService(null, null, dirs);
         try {
             Files.writeString(watchedDir.resolve("once.yml"), "name: once\n");
 
@@ -71,7 +71,7 @@ class DirectoryWatchServiceTest {
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(watchedDir, counter::incrementAndGet);
 
-        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        DirectoryWatchService service = new DirectoryWatchService(null, null, dirs);
         try {
             Files.writeString(file, "name: twice\nvalue: 1\n");
             boolean firstTriggered = waitForCountAtLeast(counter, 1, 10_000);
@@ -92,7 +92,7 @@ class DirectoryWatchServiceTest {
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(tempDir.resolve("nonexistent"), () -> {});
 
-        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        DirectoryWatchService service = new DirectoryWatchService(null, null, dirs);
         service.destroy();
     }
 
@@ -105,7 +105,7 @@ class DirectoryWatchServiceTest {
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(skillsDir, latch::countDown);
 
-        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        DirectoryWatchService service = new DirectoryWatchService(null, null, dirs);
         try {
             Files.writeString(skillsDir.resolve("demo.txt"), "ok");
             boolean triggered = latch.await(10, TimeUnit.SECONDS);
@@ -120,7 +120,7 @@ class DirectoryWatchServiceTest {
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(tempDir.resolve("missing-skills"), () -> {});
 
-        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        DirectoryWatchService service = new DirectoryWatchService(null, null, dirs);
         service.destroy();
     }
 
@@ -133,7 +133,7 @@ class DirectoryWatchServiceTest {
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(modelsDir, latch::countDown);
 
-        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        DirectoryWatchService service = new DirectoryWatchService(null, null, dirs);
         try {
             Files.writeString(modelsDir.resolve("demo-model.yml"), "key: demo-model\nprovider: demo\nprotocol: OPENAI\nmodelId: demo\n");
             boolean triggered = latch.await(10, TimeUnit.SECONDS);
@@ -152,7 +152,7 @@ class DirectoryWatchServiceTest {
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(teamsDir, latch::countDown);
 
-        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        DirectoryWatchService service = new DirectoryWatchService(null, null, dirs);
         try {
             Files.writeString(teamsDir.resolve("a1b2c3d4e5f6.yml"), "name: Team\ndefaultAgentKey: demo\n");
             boolean triggered = latch.await(10, TimeUnit.SECONDS);
@@ -171,7 +171,7 @@ class DirectoryWatchServiceTest {
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(schedulesDir, latch::countDown);
 
-        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        DirectoryWatchService service = new DirectoryWatchService(null, null, dirs);
         try {
             Files.writeString(schedulesDir.resolve("demo_daily_summary.yml"), "name: demo\ndescription: test\n");
             boolean triggered = latch.await(10, TimeUnit.SECONDS);
@@ -191,7 +191,7 @@ class DirectoryWatchServiceTest {
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(watchedDir, latch::countDown);
 
-        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        DirectoryWatchService service = new DirectoryWatchService(null, null, dirs);
         try {
             Files.writeString(nestedDir.resolve("AGENTS.md"), "prompt");
             boolean triggered = latch.await(10, TimeUnit.SECONDS);
@@ -210,7 +210,7 @@ class DirectoryWatchServiceTest {
         Map<Path, Runnable> dirs = new LinkedHashMap<>();
         dirs.put(watchedDir, counter::incrementAndGet);
 
-        DirectoryWatchService service = new DirectoryWatchService(null, null, null, null, dirs);
+        DirectoryWatchService service = new DirectoryWatchService(null, null, dirs);
         try {
             Path nestedDir = watchedDir.resolve("nested/child");
             Files.createDirectories(nestedDir);

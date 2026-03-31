@@ -126,10 +126,6 @@ final class ChatHistoryFileReader {
                     eventPayload.remove("seq");
                     eventPayload.remove("type");
                     eventPayload.remove("timestamp");
-                    if ("run.complete".equals(eventType) && eventPayload.containsKey("error")) {
-                        eventPayload.remove("finishReason");
-                        eventType = "run.error";
-                    }
                     if (!eventPayload.containsKey("chatId")) {
                         String eventChatId = textValue(node.get("chatId"));
                         if (StringUtils.hasText(eventChatId)) {

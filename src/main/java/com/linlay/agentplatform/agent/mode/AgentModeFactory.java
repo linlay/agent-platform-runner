@@ -44,8 +44,10 @@ public final class AgentModeFactory {
         ToolAppend toolAppend = buildToolAppend(runtimePromptsConfig);
         String taskExecutionPromptTemplate = buildTaskExecutionPromptTemplate(runtimePromptsConfig);
         Budget defaultBudget = defaults == null ? Budget.DEFAULT : defaults.defaultBudget();
+        int defaultMaxTokens = defaults == null ? 4096 : defaults.defaultMaxTokens();
         int defaultReactMaxSteps = defaults == null ? 60 : defaults.defaultReactMaxSteps();
         int defaultPlanExecuteMaxSteps = defaults == null ? 60 : defaults.defaultPlanExecuteMaxSteps();
+        int defaultPlanExecuteMaxWorkRoundsPerTask = defaults == null ? 6 : defaults.defaultPlanExecuteMaxWorkRoundsPerTask();
 
         return switch (mode) {
             case ONESHOT -> {
@@ -55,7 +57,8 @@ public final class AgentModeFactory {
                         List.of(),
                         promptFiles == null ? null : promptFiles.plainStageContent(),
                         modelResolver,
-                        memoryToolsEnabled
+                        memoryToolsEnabled,
+                        defaultMaxTokens
                 );
                 if (isBlank(stage.primaryPrompt())) {
                     throw new IllegalArgumentException("AGENTS.md is required for ONESHOT agents: " + file);
@@ -70,7 +73,8 @@ public final class AgentModeFactory {
                         List.of(),
                         promptFiles == null ? null : promptFiles.reactStageContent(),
                         modelResolver,
-                        memoryToolsEnabled
+                        memoryToolsEnabled,
+                        defaultMaxTokens
                 );
                 if (isBlank(stage.primaryPrompt())) {
                     throw new IllegalArgumentException("AGENTS.md is required for REACT agents: " + file);
@@ -88,7 +92,8 @@ public final class AgentModeFactory {
                         List.of(PlanToolConstants.PLAN_ADD_TASKS_TOOL),
                         promptFiles == null ? null : promptFiles.planStageContent(),
                         modelResolver,
-                        memoryToolsEnabled
+                        memoryToolsEnabled,
+                        defaultMaxTokens
                 );
                 StageSettings executeStage = stageSettings(
                         config,
@@ -96,7 +101,8 @@ public final class AgentModeFactory {
                         List.of(PlanToolConstants.PLAN_UPDATE_TASK_TOOL),
                         promptFiles == null ? null : promptFiles.executeStageContent(),
                         modelResolver,
-                        memoryToolsEnabled
+                        memoryToolsEnabled,
+                        defaultMaxTokens
                 );
                 StageSettings summaryStage = stageSettings(
                         config,
@@ -104,7 +110,8 @@ public final class AgentModeFactory {
                         List.of(),
                         promptFiles == null ? null : promptFiles.summaryStageContent(),
                         modelResolver,
-                        memoryToolsEnabled
+                        memoryToolsEnabled,
+                        defaultMaxTokens
                 );
                 if (isBlank(planStage.primaryPrompt())
                         || isBlank(executeStage.primaryPrompt())
@@ -123,7 +130,8 @@ public final class AgentModeFactory {
                         toolAppend,
                         defaultBudget,
                         taskExecutionPromptTemplate,
-                        maxSteps
+                        maxSteps,
+                        defaultPlanExecuteMaxWorkRoundsPerTask
                 );
             }
         };
@@ -190,7 +198,8 @@ public final class AgentModeFactory {
             List<String> requiredTools,
             String instructionsPrompt,
             Function<String, ModelDefinition> modelResolver,
-            boolean memoryToolsEnabled
+            boolean memoryToolsEnabled,
+            int defaultMaxTokens
     ) {
         AgentModelConfig resolvedModelConfig = resolveModelConfig(config, stage);
         if (resolvedModelConfig == null || !StringUtils.hasText(resolvedModelConfig.getModelKey())) {
@@ -215,7 +224,8 @@ public final class AgentModeFactory {
                 stageModelConfig == null ? null : stageModelConfig.getMaxTokens(),
                 topModelConfig == null ? null : topModelConfig.getMaxTokens(),
                 resolvedModel.maxOutputTokens(),
-                resolvedModel.maxTokens()
+                resolvedModel.maxTokens(),
+                defaultMaxTokens
         );
         List<String> tools = resolveTools(config, stage, requiredTools, memoryToolsEnabled);
 

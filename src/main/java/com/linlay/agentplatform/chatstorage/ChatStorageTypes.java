@@ -245,14 +245,6 @@ public final class ChatStorageTypes {
         public String id;
         public String type;
         public FunctionCall function;
-        /**
-         * V3 backward compat only: new writes go to outer StoredMessage._toolId/_actionId.
-         * Retained for deserialization of legacy V3 JSONL data.
-         */
-        @JsonProperty("_toolId")
-        public String toolId;
-        @JsonProperty("_actionId")
-        public String actionId;
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

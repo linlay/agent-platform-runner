@@ -13,8 +13,8 @@ class DataFilePathNormalizerTest {
     }
 
     @Test
-    void shouldRejectRemovedDataApiReference() {
+    void shouldTreatRemovedDataApiReferenceAsPlainRelativePath() {
         assertThat(DataFilePathNormalizer.normalizeAssetReference("/api/data?file=legacy_api_image.png"))
-                .isNull();
+                .isEqualTo("api/data");
     }
 }

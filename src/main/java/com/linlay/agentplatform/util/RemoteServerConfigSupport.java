@@ -67,8 +67,7 @@ public final class RemoteServerConfigSupport {
     }
 
     public static String normalizeKey(String raw) {
-        String text = normalizeText(raw);
-        return StringUtils.hasText(text) ? text.toLowerCase(Locale.ROOT) : "";
+        return StringHelpers.normalizeKey(raw);
     }
 
     public static String normalizeText(String raw) {
@@ -105,8 +104,8 @@ public final class RemoteServerConfigSupport {
         }
         Map<String, String> normalized = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : source.entrySet()) {
-            String alias = normalizeText(entry.getKey()).toLowerCase(Locale.ROOT);
-            String target = normalizeText(entry.getValue()).toLowerCase(Locale.ROOT);
+            String alias = StringHelpers.normalizeKey(entry.getKey());
+            String target = StringHelpers.normalizeKey(entry.getValue());
             if (!StringUtils.hasText(alias) || !StringUtils.hasText(target)) {
                 continue;
             }

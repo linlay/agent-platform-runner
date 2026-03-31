@@ -1682,7 +1682,7 @@ class DefinitionDrivenAgentTest {
                 AgentRuntimeMode.PLAN_EXECUTE,
                 new RunSpec(ToolChoice.AUTO, Budget.DEFAULT),
                 new PlanExecuteMode(
-                        new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_"), true, ComputePolicy.MEDIUM, true),
+                        new StageSettings("规划系统提示", null, null, null, null, List.of("_plan_add_tasks_"), true, ComputePolicy.MEDIUM, true, null, null),
                         new StageSettings("执行系统提示", null, null, List.of("_plan_update_task_"), false, ComputePolicy.MEDIUM),
                         new StageSettings("总结系统提示", null, null, List.of(), false, ComputePolicy.MEDIUM),
                         null, null
@@ -2416,7 +2416,7 @@ class DefinitionDrivenAgentTest {
                         new StageSettings("规划系统提示", null, null, List.of("_plan_add_tasks_"), false, ComputePolicy.MEDIUM),
                         new StageSettings("执行系统提示", null, null, List.of("_plan_update_task_"), false, ComputePolicy.MEDIUM),
                         new StageSettings("总结系统提示", null, null, List.of(), false, ComputePolicy.MEDIUM),
-                        null, null, taskExecutionPromptTemplate
+                        null, null, Budget.DEFAULT, taskExecutionPromptTemplate, 60, 6
                 ),
                 List.of("_plan_add_tasks_", "_plan_update_task_")
         );

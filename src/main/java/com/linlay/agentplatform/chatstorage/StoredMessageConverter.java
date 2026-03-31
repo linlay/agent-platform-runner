@@ -15,6 +15,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static com.linlay.agentplatform.util.StringHelpers.hasText;
+
 /**
  * Extracted ChatStorageStore conversion and normalization helpers.
  */
@@ -464,9 +466,5 @@ final class StoredMessageConverter {
 
     private String normalizeStatus(String raw) {
         return AgentDelta.normalizePlanTaskStatus(raw);
-    }
-
-    private boolean hasText(String value) {
-        return StringHelpers.hasText(value);
     }
 }

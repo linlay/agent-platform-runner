@@ -29,8 +29,7 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
             "container-hub", "agent.tools.container-hub",
             "cors", "agent.cors",
             "auth", "agent.auth",
-            "chat-image-token", "agent.chat-image-token",
-            "voice-tts", "agent.tools.voice-tts"
+            "chat-image-token", "agent.chat-image-token"
     );
     private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
 
@@ -74,7 +73,7 @@ public class ConfigDirectoryEnvironmentPostProcessor implements EnvironmentPostP
                     .comparingInt(this::runtimeVariantPriority)
                     .thenComparingInt(this::yamlFormatPriority)
                     .thenComparing(path -> path.getFileName().toString());
-            for (String baseName : List.of("auth", "container-hub", "bash", "voice-tts", "cors", "chat-image-token")) {
+            for (String baseName : List.of("auth", "container-hub", "bash", "cors", "chat-image-token")) {
                 List<Path> candidates = candidatesByBase.get(baseName);
                 if (candidates == null || candidates.isEmpty()) {
                     continue;

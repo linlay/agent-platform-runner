@@ -6,9 +6,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "agent.defaults")
 public class AgentDefaultsProperties {
 
+    private int maxTokens = 4096;
     private final BudgetProperties budget = new BudgetProperties();
     private final ReactProperties react = new ReactProperties();
     private final PlanExecuteProperties planExecute = new PlanExecuteProperties();
+
+    public int getMaxTokens() {
+        return maxTokens;
+    }
+
+    public void setMaxTokens(int maxTokens) {
+        this.maxTokens = maxTokens;
+    }
 
     public BudgetProperties getBudget() {
         return budget;
@@ -36,6 +45,10 @@ public class AgentDefaultsProperties {
                         budget.getTool().getRetryCount()
                 )
         );
+    }
+
+    public int defaultMaxTokens() {
+        return maxTokens > 0 ? maxTokens : 4096;
     }
 
     public int defaultReactMaxSteps() {
@@ -121,6 +134,7 @@ public class AgentDefaultsProperties {
 
     public static class PlanExecuteProperties {
         private int maxSteps = 60;
+        private int maxWorkRoundsPerTask = 6;
 
         public int getMaxSteps() {
             return maxSteps;
@@ -129,5 +143,18 @@ public class AgentDefaultsProperties {
         public void setMaxSteps(int maxSteps) {
             this.maxSteps = maxSteps;
         }
+
+        public int getMaxWorkRoundsPerTask() {
+            return maxWorkRoundsPerTask;
+        }
+
+        public void setMaxWorkRoundsPerTask(int maxWorkRoundsPerTask) {
+            this.maxWorkRoundsPerTask = maxWorkRoundsPerTask;
+        }
+    }
+
+    public int defaultPlanExecuteMaxWorkRoundsPerTask() {
+        int configured = planExecute.getMaxWorkRoundsPerTask();
+        return configured > 0 ? configured : 6;
     }
 }

@@ -17,6 +17,7 @@ import com.linlay.agentplatform.agent.runtime.RunLoopState;
 import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
+import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.model.ModelProtocol;
@@ -53,16 +54,27 @@ public class OrchestratorServices {
     private final ToolExecutionService toolExecutionService;
     private final ObjectMapper objectMapper;
     private final ModelTurnAccumulator modelTurnAccumulator;
+    private final int defaultMaxTokens;
 
     public OrchestratorServices(
             LlmService llmService,
             ToolExecutionService toolExecutionService,
             ObjectMapper objectMapper
     ) {
+        this(llmService, toolExecutionService, objectMapper, null);
+    }
+
+    public OrchestratorServices(
+            LlmService llmService,
+            ToolExecutionService toolExecutionService,
+            ObjectMapper objectMapper,
+            AgentDefaultsProperties defaults
+    ) {
         this.llmService = llmService;
         this.toolExecutionService = toolExecutionService;
         this.objectMapper = objectMapper;
         this.modelTurnAccumulator = new ModelTurnAccumulator(objectMapper);
+        this.defaultMaxTokens = defaults == null ? 4096 : defaults.defaultMaxTokens();
     }
 
     public LlmService llmService() {
@@ -171,7 +183,7 @@ public class OrchestratorServices {
                     null,
                     resolveEffort(stageSettings),
                     stageSettings.reasoningEnabled(),
-                    stageSettings.maxTokens() != null ? stageSettings.maxTokens() : 4096,
+                    stageSettings.maxTokens() != null ? stageSettings.maxTokens() : defaultMaxTokens,
                     context.budget().model().timeoutMs(),
                     stage,
                     parallelToolCalls,

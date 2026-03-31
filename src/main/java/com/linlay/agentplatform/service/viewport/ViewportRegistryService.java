@@ -2,6 +2,7 @@ package com.linlay.agentplatform.service.viewport;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.model.ViewportType;
+import com.linlay.agentplatform.util.StringHelpers;
 import com.linlay.agentplatform.util.YamlCatalogSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
@@ -167,7 +168,7 @@ public class ViewportRegistryService {
     }
 
     private String normalizeKey(String raw) {
-        return raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        return StringHelpers.normalizeKey(raw);
     }
 
     private String resourceSortKey(Resource resource) {

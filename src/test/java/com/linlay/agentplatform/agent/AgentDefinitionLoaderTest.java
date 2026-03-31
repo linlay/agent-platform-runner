@@ -1439,11 +1439,13 @@ class AgentDefinitionLoaderTest {
 
         AgentDefaultsProperties defaults = new AgentDefaultsProperties();
         defaults.getPlanExecute().setMaxSteps(72);
+        defaults.getPlanExecute().setMaxWorkRoundsPerTask(9);
 
         AgentDefinition definition = loadById(defaults).get("plan_execute_defaults");
 
         assertThat(definition).isNotNull();
         assertThat(((PlanExecuteMode) definition.agentMode()).maxSteps()).isEqualTo(72);
+        assertThat(((PlanExecuteMode) definition.agentMode()).maxWorkRoundsPerTask()).isEqualTo(9);
     }
 
     @Test

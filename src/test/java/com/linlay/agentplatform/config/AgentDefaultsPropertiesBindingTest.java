@@ -19,6 +19,7 @@ class AgentDefaultsPropertiesBindingTest {
     void shouldBindBudgetAndModeDefaults() {
         contextRunner
                 .withPropertyValues(
+                        "agent.defaults.max-tokens=8192",
                         "agent.defaults.budget.run-timeout-ms=600000",
                         "agent.defaults.budget.model.max-calls=40",
                         "agent.defaults.budget.model.timeout-ms=90000",
@@ -27,10 +28,12 @@ class AgentDefaultsPropertiesBindingTest {
                         "agent.defaults.budget.tool.timeout-ms=480000",
                         "agent.defaults.budget.tool.retry-count=2",
                         "agent.defaults.react.max-steps=72",
-                        "agent.defaults.plan-execute.max-steps=48"
+                        "agent.defaults.plan-execute.max-steps=48",
+                        "agent.defaults.plan-execute.max-work-rounds-per-task=9"
                 )
                 .run(context -> {
                     AgentDefaultsProperties properties = context.getBean(AgentDefaultsProperties.class);
+                    assertThat(properties.defaultMaxTokens()).isEqualTo(8192);
                     assertThat(properties.defaultBudget().runTimeoutMs()).isEqualTo(600_000L);
                     assertThat(properties.defaultBudget().model().maxCalls()).isEqualTo(40);
                     assertThat(properties.defaultBudget().model().timeoutMs()).isEqualTo(90_000L);
@@ -40,6 +43,7 @@ class AgentDefaultsPropertiesBindingTest {
                     assertThat(properties.defaultBudget().tool().retryCount()).isEqualTo(2);
                     assertThat(properties.defaultReactMaxSteps()).isEqualTo(72);
                     assertThat(properties.defaultPlanExecuteMaxSteps()).isEqualTo(48);
+                    assertThat(properties.defaultPlanExecuteMaxWorkRoundsPerTask()).isEqualTo(9);
                 });
     }
 

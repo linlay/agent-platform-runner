@@ -26,7 +26,6 @@ import java.util.Map;
 public class LlmService {
 
     private static final Logger log = LoggerFactory.getLogger(LlmService.class);
-    private static final long DEFAULT_STREAM_TIMEOUT_MS = 60_000L;
 
     private final OpenAiCompatibleSseClient openAiCompatibleSseClient;
     private final LlmCallLogger callLogger;
@@ -226,7 +225,7 @@ public class LlmService {
 
     private long resolveTimeoutMs(Long timeoutMs) {
         if (timeoutMs == null || timeoutMs <= 0) {
-            return DEFAULT_STREAM_TIMEOUT_MS;
+            return LlmTimeouts.DEFAULT_STREAM_TIMEOUT_MS;
         }
         return timeoutMs;
     }

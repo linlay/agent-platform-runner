@@ -1,6 +1,4 @@
 package com.linlay.agentplatform.stream.service;
-
-import com.linlay.agentplatform.util.StringHelpers;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -8,6 +6,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+
+import static com.linlay.agentplatform.util.StringHelpers.hasText;
 
 public class SseFlushWriter {
 
@@ -50,9 +50,5 @@ public class SseFlushWriter {
         }
         builder.append('\n');
         return builder.toString().getBytes(StandardCharsets.UTF_8);
-    }
-
-    private boolean hasText(String value) {
-        return StringHelpers.hasText(value);
     }
 }

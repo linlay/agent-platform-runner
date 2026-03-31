@@ -25,7 +25,6 @@ import java.util.regex.Pattern;
 
 public final class PlanExecuteMode extends AgentMode {
 
-    private static final int MAX_WORK_ROUNDS_PER_TASK = 6;
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{\\s*([a-z0-9_]+)\\s*}}");
 
     private static final String DEFAULT_TASK_EXECUTION_PROMPT_TEMPLATE = """
@@ -44,6 +43,7 @@ public final class PlanExecuteMode extends AgentMode {
     private final StageSettings summaryStage;
     private final String taskExecutionPromptTemplate;
     private final int maxSteps;
+    private final int maxWorkRoundsPerTask;
 
     public PlanExecuteMode(
             StageSettings planStage,
@@ -52,53 +52,7 @@ public final class PlanExecuteMode extends AgentMode {
             SkillAppend skillAppend,
             ToolAppend toolAppend
     ) {
-        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, Budget.DEFAULT, null, 60);
-    }
-
-    public PlanExecuteMode(
-            StageSettings planStage,
-            StageSettings executeStage,
-            StageSettings summaryStage,
-            SkillAppend skillAppend,
-            ToolAppend toolAppend,
-            String taskExecutionPromptTemplate
-    ) {
-        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, Budget.DEFAULT, taskExecutionPromptTemplate, 60);
-    }
-
-    public PlanExecuteMode(
-            StageSettings planStage,
-            StageSettings executeStage,
-            StageSettings summaryStage,
-            SkillAppend skillAppend,
-            ToolAppend toolAppend,
-            String taskExecutionPromptTemplate,
-            int maxSteps
-    ) {
-        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, Budget.DEFAULT, taskExecutionPromptTemplate, maxSteps);
-    }
-
-    public PlanExecuteMode(
-            StageSettings planStage,
-            StageSettings executeStage,
-            StageSettings summaryStage,
-            SkillAppend skillAppend,
-            ToolAppend toolAppend,
-            Budget defaultBudget
-    ) {
-        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, defaultBudget, null, 15);
-    }
-
-    public PlanExecuteMode(
-            StageSettings planStage,
-            StageSettings executeStage,
-            StageSettings summaryStage,
-            SkillAppend skillAppend,
-            ToolAppend toolAppend,
-            Budget defaultBudget,
-            String taskExecutionPromptTemplate
-    ) {
-        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, defaultBudget, taskExecutionPromptTemplate, 15);
+        this(planStage, executeStage, summaryStage, skillAppend, toolAppend, Budget.DEFAULT, null, 60, 6);
     }
 
     public PlanExecuteMode(
@@ -109,7 +63,8 @@ public final class PlanExecuteMode extends AgentMode {
             ToolAppend toolAppend,
             Budget defaultBudget,
             String taskExecutionPromptTemplate,
-            int maxSteps
+            int maxSteps,
+            int maxWorkRoundsPerTask
     ) {
         super(executeStage == null ? "" : executeStage.primaryPrompt(), skillAppend, toolAppend, defaultBudget);
         this.planStage = planStage;
@@ -118,7 +73,8 @@ public final class PlanExecuteMode extends AgentMode {
         this.taskExecutionPromptTemplate = taskExecutionPromptTemplate != null && !taskExecutionPromptTemplate.isBlank()
                 ? taskExecutionPromptTemplate
                 : DEFAULT_TASK_EXECUTION_PROMPT_TEMPLATE;
-        this.maxSteps = maxSteps > 0 ? maxSteps : 15;
+        this.maxSteps = maxSteps > 0 ? maxSteps : 60;
+        this.maxWorkRoundsPerTask = maxWorkRoundsPerTask > 0 ? maxWorkRoundsPerTask : 6;
     }
 
     public StageSettings planStage() {
@@ -135,6 +91,10 @@ public final class PlanExecuteMode extends AgentMode {
 
     public int maxSteps() {
         return maxSteps;
+    }
+
+    public int maxWorkRoundsPerTask() {
+        return maxWorkRoundsPerTask;
     }
 
     @Override
@@ -350,7 +310,7 @@ public final class PlanExecuteMode extends AgentMode {
             FluxSink<AgentDelta> sink
     ) {
         // Phase 1: work rounds — model may produce text or call tools freely
-        for (int round = 1; round <= MAX_WORK_ROUNDS_PER_TASK; round++) {
+        for (int round = 1; round <= maxWorkRoundsPerTask; round++) {
             OrchestratorServices.ModelTurn stepTurn = services.callModelTurnStreaming(
                     context,
                     executeStage,

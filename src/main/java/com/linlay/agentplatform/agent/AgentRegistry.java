@@ -3,6 +3,7 @@ package com.linlay.agentplatform.agent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.agent.runtime.ToolInvokerRouter;
+import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageStore;
@@ -47,6 +48,7 @@ public class AgentRegistry {
     private final AgentMemoryService agentMemoryService;
     private final AgentMemoryStore agentMemoryStore;
     private final AgentMemoryProperties agentMemoryProperties;
+    private final AgentDefaultsProperties agentDefaultsProperties;
     private final LoggingAgentProperties loggingAgentProperties;
     private final ToolInvokerRouter toolInvokerRouter;
     private final ActiveRunService activeRunService;
@@ -72,6 +74,7 @@ public class AgentRegistry {
             AgentMemoryService agentMemoryService,
             ObjectProvider<AgentMemoryStore> agentMemoryStoreProvider,
             ObjectProvider<AgentMemoryProperties> agentMemoryPropertiesProvider,
+            ObjectProvider<AgentDefaultsProperties> agentDefaultsPropertiesProvider,
             LoggingAgentProperties loggingAgentProperties,
             ToolInvokerRouter toolInvokerRouter,
             ActiveRunService activeRunService,
@@ -89,6 +92,7 @@ public class AgentRegistry {
         this.agentMemoryService = agentMemoryService;
         this.agentMemoryStore = agentMemoryStoreProvider.getIfAvailable();
         this.agentMemoryProperties = agentMemoryPropertiesProvider.getIfAvailable();
+        this.agentDefaultsProperties = agentDefaultsPropertiesProvider.getIfAvailable(AgentDefaultsProperties::new);
         this.loggingAgentProperties = loggingAgentProperties;
         this.toolInvokerRouter = toolInvokerRouter;
         this.activeRunService = activeRunService;
@@ -122,6 +126,7 @@ public class AgentRegistry {
                 new AgentMemoryService(),
                 new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(AgentMemoryStore.class),
                 new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(AgentMemoryProperties.class),
+                new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(AgentDefaultsProperties.class),
                 loggingAgentProperties,
                 toolInvokerRouter,
                 activeRunService,
@@ -283,7 +288,8 @@ public class AgentRegistry {
                 toolInvokerRouter,
                 activeRunService,
                 containerHubSandboxService,
-                runtimeContextPromptService
+                runtimeContextPromptService,
+                agentDefaultsProperties
         );
     }
 
@@ -394,10 +400,7 @@ public class AgentRegistry {
         }
 
         private static String normalizeKey(String raw) {
-            if (!StringUtils.hasText(raw)) {
-                return "";
-            }
-            return raw.trim().toLowerCase(Locale.ROOT);
+            return StringHelpers.normalizeKey(raw);
         }
     }
 }

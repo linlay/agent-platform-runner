@@ -20,6 +20,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static com.linlay.agentplatform.util.StringHelpers.hasText;
+
 /**
  * 将 Agent 内部流式增量（{@link AgentDelta}）转换为 流式输入事件序列。
  * <p>
@@ -363,9 +365,5 @@ public class AgentDeltaToStreamInputMapper {
         }
         String description = toolRegistry.description(toolName);
         return hasText(description) ? description : null;
-    }
-
-    private boolean hasText(String value) {
-        return StringHelpers.hasText(value);
     }
 }

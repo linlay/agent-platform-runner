@@ -276,12 +276,6 @@ final class ChatEventSnapshotBuilder {
         if (StringUtils.hasText(message.toolId)) {
             return new IdBinding(message.toolId.trim(), false);
         }
-        if (StringUtils.hasText(toolCall.actionId)) {
-            return new IdBinding(toolCall.actionId.trim(), true);
-        }
-        if (StringUtils.hasText(toolCall.toolId)) {
-            return new IdBinding(toolCall.toolId.trim(), false);
-        }
         boolean actionByType = StringUtils.hasText(toolCall.type)
                 && "action".equalsIgnoreCase(toolCall.type.trim());
         if (actionByType && StringUtils.hasText(toolCall.id)) {
@@ -308,10 +302,18 @@ final class ChatEventSnapshotBuilder {
         if (StringUtils.hasText(message.toolId)) {
             return new IdBinding(message.toolId.trim(), false);
         }
+        if (StringUtils.hasText(message.toolCallId)) {
+            boolean action = isActionTool(message.name);
+            return new IdBinding(message.toolCallId.trim(), action);
+        }
         if (!StringUtils.hasText(message.name)) {
             return null;
         }
         return new IdBinding(runId + "_tool_result_" + toolIndex + "_action_" + actionIndex, false);
+    }
+
+    private boolean isActionTool(String toolName) {
+        return StringUtils.hasText(toolName) && toolRegistry != null && toolRegistry.isAction(toolName);
     }
 
     private boolean isClientVisibleTool(String toolName) {

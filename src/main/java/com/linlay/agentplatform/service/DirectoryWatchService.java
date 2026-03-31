@@ -122,17 +122,6 @@ public class DirectoryWatchService implements DisposableBean {
         start();
     }
 
-    // visible for legacy tests
-    DirectoryWatchService(
-            AgentRegistry agentRegistry,
-            ModelRegistryService modelRegistryService,
-            ProviderRegistryService providerRegistryService,
-            SkillRegistryService skillRegistryService,
-            Map<Path, Runnable> watchedDirs
-    ) {
-        this(agentRegistry, skillRegistryService, watchedDirs);
-    }
-
     private Map<Path, WatchedRoot> buildWatchedRoots(
             AgentRegistry agentRegistry,
             ViewportRegistryService viewportRegistryService,

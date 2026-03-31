@@ -2,6 +2,7 @@ package com.linlay.agentplatform.util;
 
 import org.springframework.util.StringUtils;
 
+import java.util.Locale;
 import java.util.UUID;
 
 public final class StringHelpers {
@@ -14,7 +15,7 @@ public final class StringHelpers {
     }
 
     public static String normalizeKey(String value) {
-        return trimToEmpty(value).toLowerCase();
+        return trimToEmpty(value).toLowerCase(Locale.ROOT);
     }
 
     public static String trimOrDefault(String value, String fallback) {

@@ -38,7 +38,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 class OpenAiCompatibleSseClient {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiCompatibleSseClient.class);
-    private static final long DEFAULT_STREAM_TIMEOUT_MS = 60_000L;
 
     private final ProviderRegistryService providerRegistryService;
     private final ObjectMapper objectMapper;
@@ -249,7 +248,7 @@ class OpenAiCompatibleSseClient {
                             callLogger.message(traceId, stage, "LLM raw SSE content stream canceled in {} ms, partial response:\n{}"),
                             elapsedMs(startNanos), responseBuffer
                     ))
-                    .timeout(Duration.ofMillis(DEFAULT_STREAM_TIMEOUT_MS));
+                    .timeout(Duration.ofMillis(LlmTimeouts.DEFAULT_STREAM_TIMEOUT_MS));
         });
     }
 

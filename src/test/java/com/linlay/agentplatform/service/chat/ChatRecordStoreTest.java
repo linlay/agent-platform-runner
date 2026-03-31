@@ -677,7 +677,7 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void loadChatShouldConvertLegacyRunCompleteErrorToRunError() throws Exception {
+    void loadChatShouldPreserveLegacyRunCompleteErrorPayloadWithoutConversion() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174111";
         Path chatDir = tempDir.resolve("chats");
         writeIndex(chatDir, chatId, "错误会话", 1707000600000L, 1707000600000L);
@@ -711,16 +711,17 @@ class ChatRecordStoreTest {
         )));
 
         ChatDetailResponse detail = store.loadChat(chatId, false);
-        Map<String, Object> runError = detail.events().stream()
-                .filter(event -> "run.error".equals(event.get("type")))
+        Map<String, Object> runComplete = detail.events().stream()
+                .filter(event -> "run.complete".equals(event.get("type")))
                 .reduce((first, second) -> second)
                 .orElseThrow();
 
-        assertThat(runError).doesNotContainKey("finishReason");
-        assertThat(runError).containsKey("error");
-        assertThat(runError.get("error")).isInstanceOf(Map.class);
+        assertThat(detail.events()).noneMatch(event -> "run.error".equals(event.get("type")));
+        assertThat(runComplete).containsEntry("finishReason", "timeout");
+        assertThat(runComplete).containsKey("error");
+        assertThat(runComplete.get("error")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
-        Map<String, Object> error = (Map<String, Object>) runError.get("error");
+        Map<String, Object> error = (Map<String, Object>) runComplete.get("error");
         assertThat(error).containsEntry("code", "run_timeout");
         assertThat(error).containsEntry("scope", "run");
         assertThat(error).containsEntry("category", "timeout");
@@ -1033,12 +1034,6 @@ class ChatRecordStoreTest {
         call.put("id", toolCallId);
         call.put("type", "function");
         call.put("function", function);
-        if (toolId != null) {
-            call.put("_toolId", toolId);
-        }
-        if (actionId != null) {
-            call.put("_actionId", actionId);
-        }
 
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("role", "assistant");
@@ -1046,6 +1041,12 @@ class ChatRecordStoreTest {
         message.put("ts", ts);
         message.put("_timing", 20);
         message.put("_usage", usage());
+        if (toolId != null) {
+            message.put("_toolId", toolId);
+        }
+        if (actionId != null) {
+            message.put("_actionId", actionId);
+        }
         return message;
     }
 

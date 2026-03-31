@@ -69,7 +69,7 @@ class RuntimeDirectoryHostPathsTest {
     }
 
     @Test
-    void shouldCollapseLegacyRegistryFileEntriesIntoRegistriesDir() throws Exception {
+    void shouldIgnoreLegacyRegistryFileEntries() throws Exception {
         Path file = tempDir.resolve("runner-host.env");
         Files.writeString(file, """
                 PROVIDERS_DIR=/legacy/registries/providers
@@ -83,7 +83,7 @@ class RuntimeDirectoryHostPathsTest {
         ));
 
         assertThat(hostPaths.sourcePath()).isEqualTo(file.toString());
-        assertThat(hostPaths.get("REGISTRIES_DIR")).isEqualTo("/legacy/registries");
+        assertThat(hostPaths.get("REGISTRIES_DIR")).isNull();
         assertThat(hostPaths.get("PROVIDERS_DIR")).isNull();
     }
 }

@@ -17,6 +17,7 @@ import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
 import com.linlay.agentplatform.agent.runtime.ToolInvoker;
 import com.linlay.agentplatform.agent.runtime.TurnTraceWriter;
 import com.linlay.agentplatform.agent.mode.OrchestratorServices;
+import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
@@ -110,7 +111,8 @@ public class DefinitionDrivenAgent implements Agent {
                 toolInvoker,
                 activeRunService,
                 containerHubSandboxService,
-                runtimeContextPromptService
+                runtimeContextPromptService,
+                null
         );
     }
 
@@ -130,7 +132,8 @@ public class DefinitionDrivenAgent implements Agent {
             ToolInvoker toolInvoker,
             ActiveRunService activeRunService,
             ContainerHubSandboxService containerHubSandboxService,
-            RuntimeContextPromptService runtimeContextPromptService
+            RuntimeContextPromptService runtimeContextPromptService,
+            AgentDefaultsProperties agentDefaultsProperties
     ) {
         this.definition = definition;
         this.toolRegistry = toolRegistry;
@@ -168,8 +171,47 @@ public class DefinitionDrivenAgent implements Agent {
                 loggingAgentProperties,
                 toolInvoker
         );
-        this.services = new OrchestratorServices(llmService, toolExecutionService, objectMapper);
+        this.services = new OrchestratorServices(llmService, toolExecutionService, objectMapper, agentDefaultsProperties);
         this.runLifecycle = new AgentRunLifecycle(definition.id(), containerHubSandboxService);
+    }
+
+    public DefinitionDrivenAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ToolFileRegistryService toolFileRegistryService,
+            ObjectMapper objectMapper,
+            ChatStorageStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            AgentMemoryService agentMemoryService,
+            AgentMemoryStore agentMemoryStore,
+            AgentMemoryProperties agentMemoryProperties,
+            LoggingAgentProperties loggingAgentProperties,
+            ToolInvoker toolInvoker,
+            ActiveRunService activeRunService,
+            ContainerHubSandboxService containerHubSandboxService,
+            RuntimeContextPromptService runtimeContextPromptService
+    ) {
+        this(
+                definition,
+                llmService,
+                toolRegistry,
+                toolFileRegistryService,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                agentMemoryService,
+                agentMemoryStore,
+                agentMemoryProperties,
+                loggingAgentProperties,
+                toolInvoker,
+                activeRunService,
+                containerHubSandboxService,
+                runtimeContextPromptService,
+                null
+        );
     }
 
     public DefinitionDrivenAgent(

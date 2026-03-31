@@ -13,6 +13,7 @@ import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
+import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.ChatMessage;
@@ -354,6 +355,45 @@ class OrchestratorServicesTest {
 
         assertThat(captured.get()).isNotNull();
         assertThat(captured.get().maxTokens()).isEqualTo(12_000);
+    }
+
+    @Test
+    void callModelTurnStreamingShouldFallbackToConfiguredDefaultMaxTokens() {
+        LlmService llmService = mock(LlmService.class);
+        ToolExecutionService toolExecutionService = mock(ToolExecutionService.class);
+        AgentDefaultsProperties defaults = new AgentDefaultsProperties();
+        defaults.setMaxTokens(8192);
+        OrchestratorServices services = new OrchestratorServices(llmService, toolExecutionService, new ObjectMapper(), defaults);
+        ExecutionContext context = contextWithBudget(Budget.DEFAULT);
+        AtomicReference<LlmCallSpec> captured = new AtomicReference<>();
+
+        when(llmService.streamDeltas(any(LlmCallSpec.class))).thenAnswer(invocation -> {
+            LlmCallSpec spec = invocation.getArgument(0);
+            captured.set(spec);
+            return Flux.just(new LlmDelta("done", null, "stop"));
+        });
+
+        Flux.<AgentDelta>create(sink -> {
+            services.callModelTurnStreaming(
+                    context,
+                    new StageSettings("sys", null, null, List.of(), false, ComputePolicy.MEDIUM),
+                    List.of(),
+                    null,
+                    Map.of(),
+                    List.of(),
+                    ToolChoice.NONE,
+                    "test-default-max-tokens",
+                    false,
+                    false,
+                    false,
+                    false,
+                    sink
+            );
+            sink.complete();
+        }).collectList().block(Duration.ofSeconds(3));
+
+        assertThat(captured.get()).isNotNull();
+        assertThat(captured.get().maxTokens()).isEqualTo(8192);
     }
 
     private ExecutionContext contextWithBudget(Budget budget) {

@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static com.linlay.agentplatform.util.StringHelpers.hasText;
+
 @Service
 public class ChatStorageStore {
 
@@ -438,11 +440,6 @@ public class ChatStorageStore {
             return StandardCharsets.UTF_8;
         }
     }
-
-    private boolean hasText(String value) {
-        return StringHelpers.hasText(value);
-    }
-
     private boolean isValidChatId(String chatId) {
         return StringHelpers.isValidChatId(chatId);
     }

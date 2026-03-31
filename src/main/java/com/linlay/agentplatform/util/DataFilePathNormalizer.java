@@ -55,9 +55,6 @@ public final class DataFilePathNormalizer {
         if (isAbsoluteAssetPath(value)) {
             return null;
         }
-        if (isRemovedDataApiReference(value)) {
-            return null;
-        }
 
         String fromDataApi = extractFileFromDataApi(value);
         if (StringUtils.hasText(fromDataApi)) {
@@ -85,18 +82,6 @@ public final class DataFilePathNormalizer {
                 || normalized.startsWith("https://")
                 || normalized.startsWith("data:")
                 || normalized.startsWith("blob:");
-    }
-
-    private static boolean isRemovedDataApiReference(String value) {
-        if (!StringUtils.hasText(value)) {
-            return false;
-        }
-        String candidate = value.trim();
-        int hashIndex = candidate.indexOf('#');
-        if (hashIndex >= 0) {
-            candidate = candidate.substring(0, hashIndex);
-        }
-        return candidate.startsWith("/api/data") || candidate.startsWith("api/data");
     }
 
     private static String extractFileFromDataApi(String value) {

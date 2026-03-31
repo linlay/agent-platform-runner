@@ -86,6 +86,7 @@ agent:
       agent-idle-timeout-ms: ${AGENT_CONTAINER_HUB_AGENT_IDLE_TIMEOUT_MS:600000}
       destroy-queue-delay-ms: ${AGENT_CONTAINER_HUB_DESTROY_QUEUE_DELAY_MS:5000}
   defaults:
+    max-tokens: ${AGENT_DEFAULT_MAX_TOKENS:4096}
     budget:
       run-timeout-ms: ${AGENT_DEFAULT_BUDGET_RUN_TIMEOUT_MS:300000}
       model:
@@ -100,6 +101,7 @@ agent:
       max-steps: ${AGENT_DEFAULT_REACT_MAX_STEPS:60}
     plan-execute:
       max-steps: ${AGENT_DEFAULT_PLAN_EXECUTE_MAX_STEPS:60}
+      max-work-rounds-per-task: ${AGENT_DEFAULT_PLAN_EXECUTE_MAX_WORK_ROUNDS_PER_TASK:6}
   sse:
     stream-timeout: ${AGENT_SSE_STREAM_TIMEOUT:5m}
     heartbeat-interval: ${AGENT_SSE_HEARTBEAT_INTERVAL:15s}
