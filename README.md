@@ -258,6 +258,7 @@ TEAMS_DIR=/Users/you/runtime/runner/teams
 ROOT_DIR=/Users/you/runtime/runner/root
 SCHEDULES_DIR=/Users/you/runtime/runner/schedules
 CHATS_DIR=/Users/you/runtime/runner/chats
+MEMORY_DIR=/Users/you/runtime/runner/memory
 PAN_DIR=/Users/you/runtime/runner/pan
 SKILLS_MARKET_DIR=/Users/you/runtime/runner/skills-market
 ```
@@ -284,11 +285,11 @@ docker compose up -d --build
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例；所有 `*_DIR` 都支持改成绝对宿主机路径。
 - `.env.example` 默认把 `AGENT_CONTAINER_HUB_BASE_URL` 指向 `http://host.docker.internal:11960`，用于容器内访问宿主机上的 Container Hub；compose 同时注入 `host.docker.internal:host-gateway` 以兼容 Linux Docker。
-- Docker Compose / release bundle 会显式启用 `SPRING_PROFILES_ACTIVE=docker`，应用在该 profile 下固定使用容器内 `/opt/agents`、`/opt/chats`、`/opt/root` 以及 `/opt/registries/{providers,models,mcp-servers,viewport-servers}` 等路径。
+- Docker Compose / release bundle 会显式启用 `SPRING_PROFILES_ACTIVE=docker`，应用在该 profile 下固定使用容器内 `/opt/agents`、`/opt/chats`、`/opt/memory`、`/opt/root` 以及 `/opt/registries/{providers,models,mcp-servers,viewport-servers}` 等路径。
 - `compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（由 `docker` profile 固定，不依赖 `.env` 中的 `SERVER_PORT`）。
-- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`REGISTRIES_DIR`、`OWNER_DIR`、`AGENTS_DIR`、`TEAMS_DIR`、`ROOT_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`PAN_DIR`、`SKILLS_MARKET_DIR`。
+- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`REGISTRIES_DIR`、`OWNER_DIR`、`AGENTS_DIR`、`TEAMS_DIR`、`ROOT_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`MEMORY_DIR`、`PAN_DIR`、`SKILLS_MARKET_DIR`。
 - Docker 容器内这些目录固定映射到 `/opt/*`，其中四类动态注册目录固定映射到 `/opt/registries/*`；`.env` 中的 `*_DIR` 不再直接决定容器内 Spring 绑定值。
 - `/owner` 平台挂载显式使用 `OWNER_DIR`；Docker 下容器内固定校验 `/opt/owner`，同时把宿主机 `OWNER_DIR` 传给 Container Hub 作为 mount source。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
@@ -468,8 +469,8 @@ AGENT_AUTH_JWKS_CACHE_SECONDS=300
 - 同目录内 `agent.yml` 与 `agent.yaml` 同时存在时优先 `agent.yml`，并忽略对应 `agent.yaml`
 - 目录化 Agent 不再支持 `systemPrompt` 字段；`ONESHOT` / `REACT` 固定读取 `AGENTS.md`
 - `PLAN_EXECUTE` 的 `plan` / `execute` / `summary` 必须分别通过 `promptFile` 指定 markdown prompt
-- 目录化 Agent 可额外放置：`SOUL.md`、`AGENTS.md`、`AGENTS.plan.md`、`AGENTS.execute.md`、`AGENTS.summary.md`、`memory/memory.md`
-- 运行时 system prompt 合并顺序为：`SOUL.md` → 当前阶段选中的 prompt markdown → `memory/memory.md` → skills/tool appendix
+- 目录化 Agent 可额外放置：`SOUL.md`、`AGENTS.md`、`AGENTS.plan.md`、`AGENTS.execute.md`、`AGENTS.summary.md`
+- 运行时 system prompt 合并顺序为：`SOUL.md` → 当前阶段选中的 prompt markdown → runtime context / central memory → skills/tool appendix
 
 ### ONESHOT 示例
 
@@ -616,6 +617,7 @@ memoryConfig:
 - `contextConfig.tags: [memory]` 只控制“是否把已存储 memory 摘要注入运行时上下文”。
 - `memoryConfig.enabled` 只控制“成功 run 结束后是否自动沉淀一条 `run-summary` memory”，并在全局 memory 功能开启时自动暴露 `_memory_write_/_memory_read_/_memory_search_`。
 - 全局 `AGENT_MEMORY_ENABLED` 默认值为 `false`，未显式开启时 memory 功能整体关闭。
+- 正式 memory 根目录为 `MEMORY_DIR`；Phase 1 结构固定为 `memory.db + journal/YYYY-MM/YYYY-MM-DD.jsonl`。
 
 ## Models / 工具 / 视图 / 技能目录
 
@@ -633,6 +635,7 @@ memoryConfig:
   - skills-market: `runtime/skills-market/`（可通过 `SKILLS_MARKET_DIR` 覆盖）
   - schedules: `runtime/schedules/`（可通过 `SCHEDULES_DIR` 覆盖）
   - chats: `runtime/chats/`
+  - memory: `runtime/memory/`（可通过 `MEMORY_DIR` 覆盖）
   - root: `runtime/root/`
   - pan: `runtime/pan/`
 - 四类动态注册目录默认归到 `registries/` 下，例如 `registries/providers/`、`registries/models/`、`registries/mcp-servers/`、`registries/viewport-servers/`；静态启动配置仍使用 runner 根目录 `configs/`。
@@ -862,6 +865,7 @@ for f in *.md; do echo "$f"; done
 | `ROOT_DIR` | `runtime/root` | 本地运行时的 runner 根目录；Docker 中仅作为宿主机挂载 source |
 | `SCHEDULES_DIR` | `runtime/schedules` | 本地运行时的 Schedule 目录；Docker 中仅作为宿主机挂载 source |
 | `CHATS_DIR` | `runtime/chats` | 本地运行时的聊天存储目录；Docker 中仅作为宿主机挂载 source |
+| `MEMORY_DIR` | `runtime/memory` | 本地运行时的 central memory 目录；包含 `memory.db` 与 `journal/`，Docker 中仅作为宿主机挂载 source |
 | `PAN_DIR` | `runtime/pan` | 本地运行时的 pan 目录；Docker 中仅作为宿主机挂载 source |
 | `SKILLS_MARKET_DIR` | `runtime/skills-market` | 本地运行时的 Skill market 目录；Docker 中仅作为宿主机挂载 source |
 | `DATA_DIR` | `data` | 静态文件目录 |

@@ -29,7 +29,6 @@ import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.util.RunIdGenerator;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.memory.AgentMemoryStore;
-import com.linlay.agentplatform.service.memory.MemoryRecord;
 import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.BaseTool;
@@ -531,10 +530,6 @@ public class DefinitionDrivenAgent implements Agent {
     }
 
     private String buildMemoryPrompt() {
-        String memoryPrompt = agentMemoryService == null ? null : agentMemoryService.loadMemory(definition.agentDir());
-        if (StringUtils.hasText(memoryPrompt)) {
-            return "Memory:\n" + memoryPrompt.trim();
-        }
         return "";
     }
 
@@ -620,17 +615,17 @@ public class DefinitionDrivenAgent implements Agent {
             return;
         }
         try {
-            MemoryRecord record = agentMemoryStore.write(
+            agentMemoryStore.write(new AgentMemoryStore.WriteRequest(
                     definition.id(),
-                    definition.agentDir(),
+                    context.request() == null ? null : context.request().requestId(),
+                    context.request() == null ? null : context.request().chatId(),
+                    null,
                     content,
+                    "run-summary",
                     "run-summary",
                     5,
                     List.of("auto", "run-summary")
-            );
-            if (agentMemoryProperties.isDualWriteMarkdown() && definition.agentDir() != null) {
-                agentMemoryService.appendMemoryEntry(definition.agentDir(), formatMarkdownEntry(record));
-            }
+            ));
         } catch (Exception ex) {
             log.warn("[agent:{}] failed to persist automatic memory", id(), ex);
         }
@@ -699,13 +694,6 @@ public class DefinitionDrivenAgent implements Agent {
         } catch (Exception ex) {
             return "completed";
         }
-    }
-
-    private String formatMarkdownEntry(MemoryRecord record) {
-        return "[" + java.time.Instant.ofEpochMilli(record.createdAt()).truncatedTo(java.time.temporal.ChronoUnit.SECONDS) + "] "
-                + "(category=" + record.category() + ", importance=" + record.importance() + ") "
-                + "[" + record.id() + "]\n"
-                + record.content();
     }
 
     private String resolveRunId(AgentRequest request) {

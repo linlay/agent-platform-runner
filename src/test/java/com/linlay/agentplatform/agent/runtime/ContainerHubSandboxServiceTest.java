@@ -538,6 +538,7 @@ class ContainerHubSandboxServiceTest {
         return new ContainerHubMountResolver(
                 new MountDirectoryConfig(
                         resolvedDataProperties.getExternalDir(),
+                        createTempMountDir("container-hub-memory").toString(),
                         resolvedRootProperties.getExternalDir(),
                         resolvedPanProperties.getExternalDir(),
                         resolvedSkillProperties.getExternalDir(),

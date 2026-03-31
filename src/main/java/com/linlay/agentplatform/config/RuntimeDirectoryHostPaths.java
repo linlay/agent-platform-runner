@@ -24,6 +24,7 @@ public final class RuntimeDirectoryHostPaths {
             "SKILLS_MARKET_DIR",
             "SCHEDULES_DIR",
             "CHATS_DIR",
+            "MEMORY_DIR",
             "ROOT_DIR",
             "PAN_DIR"
     );

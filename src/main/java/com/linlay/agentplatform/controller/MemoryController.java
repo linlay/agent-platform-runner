@@ -42,6 +42,7 @@ public class MemoryController {
                 result.requestId(),
                 result.chatId(),
                 result.memoryPath(),
+                result.memoryCount(),
                 result.detail()
         ));
     }

@@ -6,6 +6,7 @@ public record RememberResponse(
         String requestId,
         String chatId,
         String memoryPath,
+        int memoryCount,
         String detail
 ) {
 }

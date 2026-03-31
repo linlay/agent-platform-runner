@@ -34,7 +34,7 @@ class MemorySearchToolTest {
 
         when(store.search("searcher", Path.of("/tmp/searcher"), "alpha", "fact", 2)).thenReturn(List.of(
                 new ScoredMemory(
-                        new MemoryRecord("mem_1", "searcher", "alpha memory", "fact", 8, List.of("alpha"), true, 1L, 1L, 2, 3L),
+                        new MemoryRecord("mem_1", "searcher", "agent:searcher", "alpha memory", "tool-write", "fact", 8, List.of("alpha"), true, "embed-demo", 1L, 1L, 2, 3L),
                         0.93d,
                         "hybrid"
                 )

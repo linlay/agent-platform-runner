@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.AgentProperties;
+import com.linlay.agentplatform.agent.AgentMemoryService;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.service.embedding.EmbeddingService;
 import com.linlay.agentplatform.service.llm.ProviderRegistryService;
@@ -28,9 +28,9 @@ public class AgentMemoryConfiguration {
     @Bean
     public AgentMemoryStore agentMemoryStore(
             AgentMemoryProperties agentMemoryProperties,
-            AgentProperties agentProperties,
+            AgentMemoryService agentMemoryService,
             EmbeddingService embeddingService
     ) {
-        return new AgentMemoryStore(agentMemoryProperties, agentProperties, embeddingService);
+        return new AgentMemoryStore(agentMemoryProperties, agentMemoryService, embeddingService);
     }
 }

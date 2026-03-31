@@ -83,11 +83,18 @@ public class MemorySearchTool extends AbstractDeterministicTool implements Conte
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("id", record.id());
         node.put("agentKey", record.agentKey());
+        node.put("subjectKey", record.subjectKey());
         node.put("content", record.content());
+        node.put("sourceType", record.sourceType());
         node.put("category", record.category());
         node.put("importance", record.importance());
         node.set("tags", OBJECT_MAPPER.valueToTree(record.tags()));
         node.put("hasEmbedding", record.hasEmbedding());
+        if (record.embeddingModel() == null) {
+            node.putNull("embeddingModel");
+        } else {
+            node.put("embeddingModel", record.embeddingModel());
+        }
         node.put("createdAt", record.createdAt());
         node.put("updatedAt", record.updatedAt());
         node.put("accessCount", record.accessCount());

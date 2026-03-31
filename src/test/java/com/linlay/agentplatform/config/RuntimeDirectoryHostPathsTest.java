@@ -22,12 +22,14 @@ class RuntimeDirectoryHostPathsTest {
         RuntimeDirectoryHostPaths hostPaths = RuntimeDirectoryHostPaths.load(Map.of(
                 RuntimeDirectoryHostPaths.HOST_DIRS_FILE_ENV, file.toString(),
                 "REGISTRIES_DIR", "/env/registries",
-                "AGENTS_DIR", "/env/agents"
+                "AGENTS_DIR", "/env/agents",
+                "MEMORY_DIR", "/env/memory"
         ));
 
         assertThat(hostPaths.sourcePath()).isEqualTo(RuntimeDirectoryHostPaths.SYSTEM_ENVIRONMENT_SOURCE);
         assertThat(hostPaths.get("REGISTRIES_DIR")).isEqualTo("/env/registries");
         assertThat(hostPaths.get("AGENTS_DIR")).isEqualTo("/env/agents");
+        assertThat(hostPaths.get("MEMORY_DIR")).isEqualTo("/env/memory");
         assertThat(hostPaths.get("CHATS_DIR")).isNull();
     }
 
@@ -37,6 +39,7 @@ class RuntimeDirectoryHostPathsTest {
         Files.writeString(file, """
                 REGISTRIES_DIR=/file/registries
                 CHATS_DIR=/file/chats
+                MEMORY_DIR=/file/memory
                 """);
 
         RuntimeDirectoryHostPaths hostPaths = RuntimeDirectoryHostPaths.load(Map.of(
@@ -47,6 +50,7 @@ class RuntimeDirectoryHostPathsTest {
         assertThat(hostPaths.sourcePath()).isEqualTo(file.toString());
         assertThat(hostPaths.get("REGISTRIES_DIR")).isEqualTo("/file/registries");
         assertThat(hostPaths.get("CHATS_DIR")).isEqualTo("/file/chats");
+        assertThat(hostPaths.get("MEMORY_DIR")).isEqualTo("/file/memory");
     }
 
     @Test

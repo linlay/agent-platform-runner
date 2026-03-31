@@ -1006,6 +1006,7 @@ class ContainerHubMountResolverTest {
         return new ContainerHubMountResolver(
                 new MountDirectoryConfig(
                         dataProperties == null ? null : dataProperties.getExternalDir(),
+                        tempDir.resolve("memory").toString(),
                         rootProperties == null ? null : rootProperties.getExternalDir(),
                         panProperties == null ? null : panProperties.getExternalDir(),
                         skillProperties == null ? null : skillProperties.getExternalDir(),

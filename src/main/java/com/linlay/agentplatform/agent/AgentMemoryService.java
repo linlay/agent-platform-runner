@@ -1,5 +1,9 @@
 package com.linlay.agentplatform.agent;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -8,11 +12,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Service
 public class AgentMemoryService {
@@ -20,124 +25,103 @@ public class AgentMemoryService {
     private static final DateTimeFormatter MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
 
-    public String loadMemory(Path agentDir) {
-        return readOptional(agentMemoryPath(agentDir));
+    private final MemoryStorageProperties memoryStorageProperties;
+    private final ObjectMapper objectMapper;
+
+    public AgentMemoryService() {
+        this(new MemoryStorageProperties(), new ObjectMapper());
     }
 
-    public String loadDailySummary(Path agentDir, LocalDate date) {
-        if (agentDir == null || date == null) {
-            return null;
-        }
-        return readOptional(resolveDailySummaryPath(agentDir, date));
+    @Autowired
+    public AgentMemoryService(MemoryStorageProperties memoryStorageProperties, ObjectMapper objectMapper) {
+        this.memoryStorageProperties = memoryStorageProperties == null ? new MemoryStorageProperties() : memoryStorageProperties;
+        this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
     }
 
-    public void writeMemory(Path agentDir, String content) {
-        write(agentMemoryPath(agentDir), content);
+    public Path resolveMemoryRoot() {
+        return Path.of(memoryStorageProperties.getDir()).toAbsolutePath().normalize();
     }
 
-    public void appendMemoryEntry(Path agentDir, String content) {
-        Path path = agentMemoryPath(agentDir);
-        if (path == null || !StringUtils.hasText(content)) {
+    public Path resolveMemoryDbPath() {
+        return resolveMemoryRoot().resolve("memory.db");
+    }
+
+    public Path resolveJournalPath(LocalDate date) {
+        LocalDate normalizedDate = date == null ? LocalDate.now() : date;
+        return resolveMemoryRoot()
+                .resolve("journal")
+                .resolve(MONTH_FORMATTER.format(normalizedDate))
+                .resolve(DATE_FORMATTER.format(normalizedDate) + ".jsonl");
+    }
+
+    public String relativeJournalPath(LocalDate date) {
+        LocalDate normalizedDate = date == null ? LocalDate.now() : date;
+        return "journal/" + MONTH_FORMATTER.format(normalizedDate) + "/" + DATE_FORMATTER.format(normalizedDate) + ".jsonl";
+    }
+
+    public void appendJournalEntry(
+            String id,
+            Instant timestamp,
+            String requestId,
+            String chatId,
+            String agentKey,
+            String subjectKey,
+            String summary,
+            String sourceType,
+            String category,
+            int importance,
+            java.util.List<String> tags
+    ) {
+        if (!StringUtils.hasText(id) || !StringUtils.hasText(summary)) {
             return;
         }
+        Instant normalizedTs = timestamp == null ? Instant.now() : timestamp;
+        LocalDate date = normalizedTs.atZone(ZoneId.systemDefault()).toLocalDate();
+        Map<String, Object> line = new LinkedHashMap<>();
+        line.put("id", id);
+        line.put("ts", normalizedTs.toEpochMilli());
+        line.put("date", DATE_FORMATTER.format(date));
+        line.put("requestId", trimToNull(requestId));
+        line.put("chatId", trimToNull(chatId));
+        line.put("agentKey", trimToNull(agentKey));
+        line.put("subjectKey", trimToNull(subjectKey));
+        line.put("summary", summary.trim());
+        line.put("sourceType", trimToNull(sourceType));
+        if (StringUtils.hasText(category)) {
+            line.put("category", category.trim());
+        }
+        line.put("importance", importance);
+        if (tags != null && !tags.isEmpty()) {
+            line.put("tags", tags);
+        }
+        appendJsonLine(resolveJournalPath(date), line);
+    }
+
+    private void appendJsonLine(Path path, Map<String, Object> payload) {
         try {
             Files.createDirectories(path.getParent());
-            String normalized = content.trim();
-            String prefix = Files.isRegularFile(path) && StringUtils.hasText(Files.readString(path)) ? "\n\n" : "";
             Files.writeString(
                     path,
-                    prefix + normalized,
+                    toJson(payload) + System.lineSeparator(),
                     StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE,
                     StandardOpenOption.APPEND,
                     StandardOpenOption.WRITE
             );
         } catch (IOException ex) {
-            throw new IllegalStateException("Failed to append agent memory file: " + path, ex);
+            throw new IllegalStateException("Failed to append memory journal entry: " + path, ex);
         }
     }
 
-    public void writeDailySummary(Path agentDir, LocalDate date, String content) {
-        if (agentDir == null || date == null) {
-            return;
-        }
-        write(resolveDailySummaryPath(agentDir, date), content);
-    }
-
-    public List<String> loadRecentDailySummaries(Path agentDir, int days) {
-        if (agentDir == null || days <= 0) {
-            return List.of();
-        }
-        Path root = normalize(agentDir).resolve("memory");
-        if (!Files.isDirectory(root)) {
-            return List.of();
-        }
-        List<Path> files = new ArrayList<>();
-        try (var stream = Files.walk(root, 2)) {
-            stream.filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().endsWith(".md"))
-                    .sorted(Comparator.reverseOrder())
-                    .limit(days)
-                    .forEach(files::add);
-        } catch (IOException ignored) {
-            return List.of();
-        }
-        List<String> loaded = new ArrayList<>();
-        for (Path file : files) {
-            String text = readOptional(file);
-            if (StringUtils.hasText(text)) {
-                loaded.add(text);
-            }
-        }
-        return List.copyOf(loaded);
-    }
-
-    private Path agentMemoryPath(Path agentDir) {
-        if (agentDir == null) {
-            return null;
-        }
-        return normalize(agentDir).resolve("memory").resolve("memory.md");
-    }
-
-    private Path resolveDailySummaryPath(Path agentDir, LocalDate date) {
-        Path normalized = normalize(agentDir);
-        return normalized.resolve("memory")
-                .resolve(MONTH_FORMATTER.format(date))
-                .resolve(DATE_FORMATTER.format(date) + ".md");
-    }
-
-    private String readOptional(Path path) {
-        if (path == null || !Files.isRegularFile(path)) {
-            return null;
-        }
+    private String toJson(Map<String, Object> payload) {
         try {
-            String text = Files.readString(path);
-            return StringUtils.hasText(text) ? text.trim() : null;
-        } catch (IOException ignored) {
-            return null;
+            return objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Failed to serialize memory journal entry", ex);
         }
     }
 
-    private void write(Path path, String content) {
-        if (path == null) {
-            return;
-        }
-        try {
-            Files.createDirectories(path.getParent());
-            Files.writeString(
-                    path,
-                    content == null ? "" : content,
-                    StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING,
-                    StandardOpenOption.WRITE
-            );
-        } catch (IOException ex) {
-            throw new IllegalStateException("Failed to write agent memory file: " + path, ex);
-        }
-    }
-
-    private Path normalize(Path path) {
-        return path.toAbsolutePath().normalize();
+    private String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 }

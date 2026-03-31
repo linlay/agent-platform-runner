@@ -1,7 +1,6 @@
 package com.linlay.agentplatform.tool;
 
 import com.linlay.agentplatform.agent.AgentDefinition;
-import com.linlay.agentplatform.agent.AgentMemoryService;
 import com.linlay.agentplatform.agent.mode.OneshotMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
@@ -16,7 +15,6 @@ import com.linlay.agentplatform.service.memory.MemoryRecord;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -35,16 +33,14 @@ class MemoryWriteToolTest {
     void shouldWriteMemoryAndAppendMarkdown() throws Exception {
         AgentMemoryStore store = mock(AgentMemoryStore.class);
         AgentMemoryProperties properties = new AgentMemoryProperties();
-        properties.setDualWriteMarkdown(true);
-        AgentMemoryService agentMemoryService = new AgentMemoryService();
-        MemoryWriteTool tool = new MemoryWriteTool(store, properties, agentMemoryService);
+        MemoryWriteTool tool = new MemoryWriteTool(store, properties);
 
         Path agentDir = tempDir.resolve("writer");
         ExecutionContext context = mock(ExecutionContext.class);
         when(context.definition()).thenReturn(definition("writer", agentDir));
 
-        MemoryRecord record = new MemoryRecord("mem_1234abcd", "writer", "Keep answers concise", "preference", 8, List.of("style"), false, 1L, 1L, 0, null);
-        when(store.write("writer", agentDir, "Keep answers concise", "preference", 8, List.of("style"))).thenReturn(record);
+        MemoryRecord record = new MemoryRecord("mem_1234abcd", "writer", "agent:writer", "Keep answers concise", "tool-write", "preference", 8, List.of("style"), false, null, 1L, 1L, 0, null);
+        when(store.write(org.mockito.ArgumentMatchers.any(AgentMemoryStore.WriteRequest.class))).thenReturn(record);
 
         String result = tool.invoke(Map.of(
                 "content", "Keep answers concise",
@@ -53,13 +49,12 @@ class MemoryWriteToolTest {
                 "tags", List.of("style")
         ), context).toString();
 
-        assertThat(result).contains("\"status\":\"stored\"");
-        assertThat(Files.readString(agentDir.resolve("memory/memory.md"))).contains("[mem_1234abcd]").contains("Keep answers concise");
+        assertThat(result).contains("\"status\":\"stored\"").contains("\"sourceType\":\"tool-write\"").contains("\"subjectKey\":\"agent:writer\"");
     }
 
     @Test
     void shouldRejectMissingContent() {
-        MemoryWriteTool tool = new MemoryWriteTool(mock(AgentMemoryStore.class), new AgentMemoryProperties(), new AgentMemoryService());
+        MemoryWriteTool tool = new MemoryWriteTool(mock(AgentMemoryStore.class), new AgentMemoryProperties());
         ExecutionContext context = mock(ExecutionContext.class);
         when(context.definition()).thenReturn(definition("writer", tempDir.resolve("writer")));
 

@@ -1,7 +1,8 @@
 package com.linlay.agentplatform.service.memory;
 
-import com.linlay.agentplatform.agent.AgentProperties;
+import com.linlay.agentplatform.agent.AgentMemoryService;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
+import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
 import com.linlay.agentplatform.service.embedding.EmbeddingService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,7 +30,7 @@ class AgentMemoryStoreTest {
         EmbeddingService embeddingService = mock(EmbeddingService.class);
         when(embeddingService.embed("remember this")).thenReturn(Optional.of(new float[]{1f, 0f}));
 
-        AgentMemoryStore store = new AgentMemoryStore(properties(2), agentProperties(), embeddingService);
+        AgentMemoryStore store = new AgentMemoryStore(properties(2), agentMemoryService(), embeddingService);
         Path agentDir = tempDir.resolve("agent-a");
 
         MemoryRecord written = store.write("agent-a", agentDir, "remember this", "fact", 8, List.of("alpha", "beta"));
@@ -37,12 +38,15 @@ class AgentMemoryStoreTest {
 
         assertThat(written.id()).startsWith("mem_");
         assertThat(read.content()).isEqualTo("remember this");
+        assertThat(read.subjectKey()).isEqualTo("agent:agent-a");
+        assertThat(read.sourceType()).isEqualTo("tool-write");
         assertThat(read.category()).isEqualTo("fact");
         assertThat(read.tags()).containsExactly("alpha", "beta");
         assertThat(read.hasEmbedding()).isTrue();
         assertThat(read.accessCount()).isEqualTo(1);
         assertThat(read.lastAccessedAt()).isNotNull();
-        assertThat(Files.exists(agentDir.resolve("memory.db"))).isTrue();
+        assertThat(Files.exists(tempDir.resolve("memory/memory.db"))).isTrue();
+        assertThat(Files.exists(tempDir.resolve("memory/journal"))).isTrue();
     }
 
     @Test
@@ -52,7 +56,7 @@ class AgentMemoryStoreTest {
         when(embeddingService.embed("second note")).thenReturn(Optional.empty());
         when(embeddingService.embed("keyword")).thenReturn(Optional.empty());
 
-        AgentMemoryStore store = new AgentMemoryStore(properties(2), agentProperties(), embeddingService);
+        AgentMemoryStore store = new AgentMemoryStore(properties(2), agentMemoryService(), embeddingService);
         Path agentDir = tempDir.resolve("agent-b");
 
         store.write("agent-b", agentDir, "first keyword memory", "general", 5, List.of("hello"));
@@ -72,7 +76,7 @@ class AgentMemoryStoreTest {
         when(embeddingService.embed("beta note")).thenReturn(Optional.of(new float[]{0f, 1f}));
         when(embeddingService.embed("alpha keyword")).thenReturn(Optional.of(new float[]{1f, 0f}));
 
-        AgentMemoryStore store = new AgentMemoryStore(properties(2), agentProperties(), embeddingService);
+        AgentMemoryStore store = new AgentMemoryStore(properties(2), agentMemoryService(), embeddingService);
         Path agentDir = tempDir.resolve("agent-c");
 
         store.write("agent-c", agentDir, "alpha keyword memory", "general", 7, List.of());
@@ -86,17 +90,15 @@ class AgentMemoryStoreTest {
     }
 
     @Test
-    void shouldResolveFlatAgentDatabasePathWhenAgentDirMissing() {
+    void shouldResolveCentralDatabasePathWhenAgentDirMissing() {
         EmbeddingService embeddingService = mock(EmbeddingService.class);
         when(embeddingService.embed("flat memory")).thenReturn(Optional.empty());
 
-        AgentProperties agentProperties = agentProperties();
-        agentProperties.setExternalDir(tempDir.resolve("agents").toString());
-        AgentMemoryStore store = new AgentMemoryStore(properties(2), agentProperties, embeddingService);
+        AgentMemoryStore store = new AgentMemoryStore(properties(2), agentMemoryService(), embeddingService);
 
         store.write("flat-agent", null, "flat memory", null, 5, List.of());
 
-        assertThat(Files.exists(tempDir.resolve("agents/flat-agent/memory.db"))).isTrue();
+        assertThat(Files.exists(tempDir.resolve("memory/memory.db"))).isTrue();
     }
 
     @Test
@@ -104,7 +106,7 @@ class AgentMemoryStoreTest {
         EmbeddingService embeddingService = mock(EmbeddingService.class);
         when(embeddingService.embed(org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.empty());
 
-        AgentMemoryStore store = new AgentMemoryStore(properties(2), agentProperties(), embeddingService);
+        AgentMemoryStore store = new AgentMemoryStore(properties(2), agentMemoryService(), embeddingService);
         Path agentDir = tempDir.resolve("agent-d");
         ExecutorService executorService = Executors.newFixedThreadPool(4);
         try {
@@ -137,9 +139,9 @@ class AgentMemoryStoreTest {
         return properties;
     }
 
-    private AgentProperties agentProperties() {
-        AgentProperties agentProperties = new AgentProperties();
-        agentProperties.setExternalDir(tempDir.resolve("agents").toString());
-        return agentProperties;
+    private AgentMemoryService agentMemoryService() {
+        MemoryStorageProperties storageProperties = new MemoryStorageProperties();
+        storageProperties.setDir(tempDir.resolve("memory").toString());
+        return new AgentMemoryService(storageProperties, new com.fasterxml.jackson.databind.ObjectMapper());
     }
 }

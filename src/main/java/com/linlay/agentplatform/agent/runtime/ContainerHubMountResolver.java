@@ -36,6 +36,7 @@ public class ContainerHubMountResolver {
             null,
             null,
             null,
+            null,
             null
     );
     private static final Set<String> DEFAULT_OVERRIDEABLE_PATHS = Set.of(
@@ -133,6 +134,10 @@ public class ContainerHubMountResolver {
 
     private ResolvedPath resolveRootDir() {
         return resolveHostBackedDirectory("ROOT_DIR", directories.rootDir(), "root-dir");
+    }
+
+    private ResolvedPath resolveMemoryDir() {
+        return resolveHostBackedDirectory("MEMORY_DIR", directories.memoryDir(), "memory-dir");
     }
 
     private ResolvedPath resolveGlobalSkillsDir() {
@@ -366,6 +371,7 @@ public class ContainerHubMountResolver {
                 Map.entry("mcp-servers", new PlatformMountDef(this::resolveMcpServersDir, "/mcp-servers", MountSourceType.DIRECTORY)),
                 Map.entry("providers", new PlatformMountDef(this::resolveProvidersDir, "/providers", MountSourceType.DIRECTORY)),
                 Map.entry("chats", new PlatformMountDef(this::resolveChatsDir, "/chats", MountSourceType.DIRECTORY)),
+                Map.entry("memory", new PlatformMountDef(this::resolveMemoryDir, "/memory", MountSourceType.DIRECTORY)),
                 Map.entry("skills-market", new PlatformMountDef(this::resolveSkillsMarketDir, SKILLS_MARKET_PATH, MountSourceType.DIRECTORY)),
                 Map.entry("owner", new PlatformMountDef(this::resolveOwnerDirPath, "/owner", MountSourceType.DIRECTORY))
         );

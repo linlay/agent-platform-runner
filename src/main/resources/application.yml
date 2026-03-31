@@ -162,6 +162,10 @@ chat:
       sqlite-file: ${CHAT_STORAGE_INDEX_SQLITE_FILE:chats.db}
       auto-rebuild-on-incompatible-schema: ${CHAT_STORAGE_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA:true}
 
+memory:
+  storage:
+    dir: ${MEMORY_DIR:runtime/memory}
+
 logging:
   pattern:
     # Compact colored console format: keep hour/min/sec timestamp, level, shortened logger, and message only.

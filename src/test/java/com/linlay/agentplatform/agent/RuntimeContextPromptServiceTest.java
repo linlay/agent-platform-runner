@@ -11,9 +11,10 @@ import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
-import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
+import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
+import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
@@ -363,7 +364,7 @@ class RuntimeContextPromptServiceTest {
         agentMemoryProperties.setContextTopN(2);
         RuntimeContextPromptService service = newService("owner", null, store, agentMemoryProperties);
         when(store.topRelevant("context-agent", tempDir.resolve("agent"), "remember", 2)).thenReturn(List.of(
-                new MemoryRecord("mem_1", "context-agent", "alpha memory", "fact", 9, List.of("alpha"), false, 1L, 1L, 0, null)
+                new MemoryRecord("mem_1", "context-agent", "chat:chat-memory", "alpha memory", "remember", "fact", 9, List.of("alpha"), false, null, 1L, 1L, 0, null)
         ));
 
         AgentRequest request = new AgentRequest(
@@ -391,7 +392,7 @@ class RuntimeContextPromptServiceTest {
         agentMemoryProperties.setContextMaxChars(80);
         RuntimeContextPromptService service = newService("owner", null, store, agentMemoryProperties);
         when(store.list("context-agent", tempDir.resolve("agent"), null, 1, "importance")).thenReturn(List.of(
-                new MemoryRecord("mem_1", "context-agent", "x".repeat(200), "fact", 9, List.of(), false, 1L, 1L, 0, null)
+                new MemoryRecord("mem_1", "context-agent", "chat:chat-memory", "x".repeat(200), "remember", "fact", 9, List.of(), false, null, 1L, 1L, 0, null)
         ));
 
         AgentRequest request = new AgentRequest(
@@ -440,6 +441,8 @@ class RuntimeContextPromptServiceTest {
         dataProperties.setExternalDir("data");
         ChatStorageProperties memoryProperties = new ChatStorageProperties();
         memoryProperties.setDir("chats");
+        MemoryStorageProperties storageProperties = new MemoryStorageProperties();
+        storageProperties.setDir("memory");
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         if (agentMemoryStore != null) {
             beanFactory.addBean("agentMemoryStore", agentMemoryStore);
@@ -453,6 +456,7 @@ class RuntimeContextPromptServiceTest {
                 ownerProperties,
                 dataProperties,
                 memoryProperties,
+                storageProperties,
                 beanFactory.getBeanProvider(AgentMemoryStore.class),
                 beanFactory.getBeanProvider(AgentMemoryProperties.class)
         );

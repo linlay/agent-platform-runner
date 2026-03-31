@@ -23,6 +23,7 @@ import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.FrontendToolProperties;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
+import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
@@ -771,10 +772,8 @@ class DefinitionDrivenAgentTest {
     }
 
     @Test
-    void shouldMergeSoulAgentsStageMarkdownMemoryAndYamlPromptForOneshot() throws Exception {
+    void shouldMergeSoulAgentsStageMarkdownAndYamlPromptForOneshot() throws Exception {
         Path agentDir = Files.createTempDirectory("oneshot-directory-agent");
-        Files.createDirectories(agentDir.resolve("memory"));
-        Files.writeString(agentDir.resolve("memory").resolve("memory.md"), "memory note");
 
         AgentDefinition definition = new AgentDefinition(
                 "directoryOneshot",
@@ -831,12 +830,10 @@ class DefinitionDrivenAgentTest {
         String systemPrompt = captured.get().systemPrompt();
         assertThat(systemPrompt).contains("soul prompt");
         assertThat(systemPrompt).contains("plain markdown");
-        assertThat(systemPrompt).contains("Memory:\nmemory note");
         assertThat(systemPrompt).contains("yaml prompt");
         assertThat(systemPrompt).doesNotContain("shared prompt");
         assertThat(systemPrompt.indexOf("soul prompt")).isLessThan(systemPrompt.indexOf("plain markdown"));
-        assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("Memory:\nmemory note"));
-        assertThat(systemPrompt.indexOf("Memory:\nmemory note")).isLessThan(systemPrompt.indexOf("yaml prompt"));
+        assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("yaml prompt"));
     }
 
     @Test
@@ -868,15 +865,18 @@ class DefinitionDrivenAgentTest {
                 new AgentDefinition.MemoryConfig(true)
         );
         AgentMemoryStore store = mock(AgentMemoryStore.class);
-        when(store.write(eq("autoMemory"), eq(agentDir), org.mockito.ArgumentMatchers.anyString(), eq("run-summary"), eq(5), eq(List.of("auto", "run-summary"))))
+        when(store.write(org.mockito.ArgumentMatchers.any(AgentMemoryStore.WriteRequest.class)))
                 .thenReturn(new com.linlay.agentplatform.service.memory.MemoryRecord(
                         "mem_1",
                         "autoMemory",
+                        "chat:chat-auto",
                         "stored",
+                        "run-summary",
                         "run-summary",
                         5,
                         List.of("auto", "run-summary"),
                         false,
+                        null,
                         1L,
                         1L,
                         0,
@@ -914,10 +914,12 @@ class DefinitionDrivenAgentTest {
                 .block(Duration.ofSeconds(3));
 
         assertThat(deltas).isNotNull();
-        ArgumentCaptor<String> contentCaptor = ArgumentCaptor.forClass(String.class);
-        verify(store).write(eq("autoMemory"), eq(agentDir), contentCaptor.capture(), eq("run-summary"), eq(5), eq(List.of("auto", "run-summary")));
-        assertThat(contentCaptor.getValue()).contains("User Request:\n记住这次执行");
-        assertThat(contentCaptor.getValue()).contains("Final Response:\n这是最终回答");
+        ArgumentCaptor<AgentMemoryStore.WriteRequest> requestCaptor = ArgumentCaptor.forClass(AgentMemoryStore.WriteRequest.class);
+        verify(store).write(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().agentKey()).isEqualTo("autoMemory");
+        assertThat(requestCaptor.getValue().sourceType()).isEqualTo("run-summary");
+        assertThat(requestCaptor.getValue().summary()).contains("User Request:\n记住这次执行");
+        assertThat(requestCaptor.getValue().summary()).contains("Final Response:\n这是最终回答");
     }
 
     @Test
@@ -1012,8 +1014,6 @@ class DefinitionDrivenAgentTest {
                 """);
 
         Path agentDir = Files.createTempDirectory("oneshot-runtime-context-agent");
-        Files.createDirectories(agentDir.resolve("memory"));
-        Files.writeString(agentDir.resolve("memory").resolve("memory.md"), "memory note");
 
         AgentDefinition definition = new AgentDefinition(
                 "runtimeContextOneshot",
@@ -1123,13 +1123,11 @@ class DefinitionDrivenAgentTest {
             assertThat(systemPrompt).doesNotContain("fallback owner");
             assertThat(systemPrompt).contains("Runtime Context: Auth Identity");
             assertThat(systemPrompt).contains("plain markdown");
-            assertThat(systemPrompt).contains("Memory:\nmemory note");
             assertThat(systemPrompt).contains("yaml prompt");
             assertThat(systemPrompt).doesNotContain("runner_working_directory:");
             assertThat(systemPrompt.indexOf("soul prompt")).isLessThan(systemPrompt.indexOf("Runtime Context: Context"));
             assertThat(systemPrompt.indexOf("Runtime Context: Context")).isLessThan(systemPrompt.indexOf("plain markdown"));
-            assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("Memory:\nmemory note"));
-            assertThat(systemPrompt.indexOf("Memory:\nmemory note")).isLessThan(systemPrompt.indexOf("yaml prompt"));
+            assertThat(systemPrompt.indexOf("plain markdown")).isLessThan(systemPrompt.indexOf("yaml prompt"));
 
             ChatStorageTypes.SystemSnapshot snapshot = chatWindowMemoryStore.loadLatestSystemSnapshot(chatId);
             assertThat(snapshot).isNotNull();
@@ -3184,7 +3182,9 @@ class DefinitionDrivenAgentTest {
         dataProperties.setExternalDir("data");
         ChatStorageProperties memoryProperties = new ChatStorageProperties();
         memoryProperties.setDir("chats");
-        return new RuntimeContextPromptService(environment, rootProperties, ownerProperties, dataProperties, memoryProperties, hostPaths);
+        MemoryStorageProperties storageProperties = new MemoryStorageProperties();
+        storageProperties.setDir("memory");
+        return new RuntimeContextPromptService(environment, rootProperties, ownerProperties, dataProperties, memoryProperties, storageProperties, hostPaths);
     }
 
     private void restoreUserDir(String originalUserDir) {
@@ -3214,6 +3214,7 @@ class DefinitionDrivenAgentTest {
         return new ContainerHubMountResolver(
                 new MountDirectoryConfig(
                         dataProperties == null ? null : dataProperties.getExternalDir(),
+                        null,
                         rootProperties.getExternalDir(),
                         panProperties.getExternalDir(),
                         resolvedSkillProperties.getExternalDir(),

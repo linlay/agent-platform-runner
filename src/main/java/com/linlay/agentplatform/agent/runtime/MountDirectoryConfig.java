@@ -6,6 +6,7 @@ import java.nio.file.Path;
 
 public record MountDirectoryConfig(
         String chatsDir,
+        String memoryDir,
         String rootDir,
         String panDir,
         String skillsDir,

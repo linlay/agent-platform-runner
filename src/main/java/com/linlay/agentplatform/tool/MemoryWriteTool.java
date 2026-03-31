@@ -3,7 +3,6 @@ package com.linlay.agentplatform.tool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.linlay.agentplatform.agent.AgentDefinition;
-import com.linlay.agentplatform.agent.AgentMemoryService;
 import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.service.memory.AgentMemoryStore;
@@ -12,8 +11,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 
@@ -23,16 +20,12 @@ public class MemoryWriteTool extends AbstractDeterministicTool implements Contex
 
     private final AgentMemoryStore agentMemoryStore;
     private final AgentMemoryProperties properties;
-    private final AgentMemoryService agentMemoryService;
-
     public MemoryWriteTool(
             AgentMemoryStore agentMemoryStore,
-            AgentMemoryProperties properties,
-            AgentMemoryService agentMemoryService
+            AgentMemoryProperties properties
     ) {
         this.agentMemoryStore = agentMemoryStore;
         this.properties = properties == null ? new AgentMemoryProperties() : properties;
-        this.agentMemoryService = agentMemoryService == null ? new AgentMemoryService() : agentMemoryService;
     }
 
     @Override
@@ -62,21 +55,23 @@ public class MemoryWriteTool extends AbstractDeterministicTool implements Contex
         }
         List<String> tags = readStringList(root.get("tags"));
 
-        MemoryRecord record = agentMemoryStore.write(
+        MemoryRecord record = agentMemoryStore.write(new AgentMemoryStore.WriteRequest(
                 definition.id(),
-                definition.agentDir(),
+                context.request() == null ? null : context.request().requestId(),
+                context.request() == null ? null : context.request().chatId(),
+                null,
                 content,
+                "tool-write",
                 category,
                 importance,
                 tags
-        );
-        if (properties.isDualWriteMarkdown() && definition.agentDir() != null) {
-            agentMemoryService.appendMemoryEntry(definition.agentDir(), formatMarkdownEntry(record));
-        }
+        ));
 
         ObjectNode result = OBJECT_MAPPER.createObjectNode();
         result.put("id", record.id());
         result.put("status", "stored");
+        result.put("subjectKey", record.subjectKey());
+        result.put("sourceType", record.sourceType());
         result.put("category", record.category());
         result.put("importance", record.importance());
         result.put("hasEmbedding", record.hasEmbedding());
@@ -89,14 +84,6 @@ public class MemoryWriteTool extends AbstractDeterministicTool implements Contex
         }
         return context.definition();
     }
-
-    private String formatMarkdownEntry(MemoryRecord record) {
-        return "[" + Instant.ofEpochMilli(record.createdAt()).truncatedTo(ChronoUnit.SECONDS) + "] "
-                + "(category=" + record.category() + ", importance=" + record.importance() + ") "
-                + "[" + record.id() + "]\n"
-                + record.content();
-    }
-
     private String requireText(JsonNode root, String fieldName) {
         String value = readText(root, fieldName);
         if (!StringUtils.hasText(value)) {

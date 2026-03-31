@@ -1,6 +1,8 @@
 package com.linlay.agentplatform.service.memory;
 
-import com.linlay.agentplatform.agent.AgentProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.agent.AgentMemoryService;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.service.embedding.EmbeddingService;
 import com.linlay.agentplatform.util.IdGenerators;
@@ -19,6 +21,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -42,19 +47,34 @@ public class AgentMemoryStore {
     private static final String MATCH_VECTOR = "vector";
 
     private final AgentMemoryProperties properties;
-    private final AgentProperties agentProperties;
+    private final AgentMemoryService agentMemoryService;
     private final EmbeddingService embeddingService;
+    private final ObjectMapper objectMapper;
     private final Map<String, Object> dbLocks = new ConcurrentHashMap<>();
     private final Set<String> initializedDatabases = ConcurrentHashMap.newKeySet();
 
     public AgentMemoryStore(
             AgentMemoryProperties properties,
-            AgentProperties agentProperties,
+            AgentMemoryService agentMemoryService,
             EmbeddingService embeddingService
     ) {
         this.properties = properties == null ? new AgentMemoryProperties() : properties;
-        this.agentProperties = agentProperties == null ? new AgentProperties() : agentProperties;
+        this.agentMemoryService = agentMemoryService == null ? new AgentMemoryService() : agentMemoryService;
         this.embeddingService = embeddingService;
+        this.objectMapper = new ObjectMapper();
+    }
+
+    public record WriteRequest(
+            String agentKey,
+            String requestId,
+            String chatId,
+            String subjectKey,
+            String summary,
+            String sourceType,
+            String category,
+            int importance,
+            List<String> tags
+    ) {
     }
 
     public MemoryRecord write(
@@ -65,54 +85,90 @@ public class AgentMemoryStore {
             int importance,
             List<String> tags
     ) {
-        String normalizedAgentKey = requireText(agentKey, "agentKey");
-        String normalizedContent = requireText(content, "content");
-        String normalizedCategory = normalizeCategory(category);
-        int normalizedImportance = normalizeImportance(importance);
-        List<String> normalizedTags = normalizeTags(tags);
-        long now = System.currentTimeMillis();
+        return write(new WriteRequest(agentKey, null, null, null, content, "tool-write", category, importance, tags));
+    }
+
+    public MemoryRecord write(WriteRequest request) {
+        String normalizedAgentKey = requireText(request == null ? null : request.agentKey(), "agentKey");
+        String normalizedSummary = requireText(request == null ? null : request.summary(), "summary");
+        String normalizedSubjectKey = normalizeSubjectKey(
+                request == null ? null : request.subjectKey(),
+                request == null ? null : request.chatId(),
+                normalizedAgentKey
+        );
+        String normalizedSourceType = normalizeSourceType(request == null ? null : request.sourceType());
+        String normalizedCategory = normalizeCategory(request == null ? null : request.category());
+        int normalizedImportance = normalizeImportance(request == null ? 0 : request.importance());
+        List<String> normalizedTags = normalizeTags(request == null ? null : request.tags());
+        String normalizedRequestId = normalizeNullable(request == null ? null : request.requestId());
+        String normalizedChatId = normalizeNullable(request == null ? null : request.chatId());
         String id = IdGenerators.shortHexId("mem");
-        Path dbPath = resolveDbPath(normalizedAgentKey, agentDir);
-        Optional<float[]> embedding = safeEmbed(normalizedContent);
+        long now = System.currentTimeMillis();
+        Path dbPath = resolveDbPath();
+        String embeddingModel = normalizeNullable(properties.getEmbeddingModel());
+        Optional<float[]> embedding = safeEmbed(normalizedSummary);
 
         synchronized (lockFor(dbPath)) {
             ensureInitialized(dbPath);
             try (Connection connection = openConnection(dbPath);
                  PreparedStatement statement = connection.prepareStatement("""
                          INSERT INTO MEMORIES (
-                           ID_, AGENT_KEY_, CONTENT_, CATEGORY_, IMPORTANCE_, TAGS_, EMBEDDING_,
-                           CREATED_AT_, UPDATED_AT_, ACCESS_COUNT_, LAST_ACCESSED_AT_
-                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           ID_, TS_, REQUEST_ID_, CHAT_ID_, AGENT_KEY_, SUBJECT_KEY_, SOURCE_TYPE_,
+                           SUMMARY_, CATEGORY_, IMPORTANCE_, TAGS_, EMBEDDING_, EMBEDDING_MODEL_,
+                           UPDATED_AT_, ACCESS_COUNT_, LAST_ACCESSED_AT_
+                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                          """)) {
                 statement.setString(1, id);
-                statement.setString(2, normalizedAgentKey);
-                statement.setString(3, normalizedContent);
-                statement.setString(4, normalizedCategory);
-                statement.setInt(5, normalizedImportance);
-                statement.setString(6, joinTags(normalizedTags));
+                statement.setLong(2, now);
+                setNullableText(statement, 3, normalizedRequestId);
+                setNullableText(statement, 4, normalizedChatId);
+                statement.setString(5, normalizedAgentKey);
+                statement.setString(6, normalizedSubjectKey);
+                statement.setString(7, normalizedSourceType);
+                statement.setString(8, normalizedSummary);
+                statement.setString(9, normalizedCategory);
+                statement.setInt(10, normalizedImportance);
+                statement.setString(11, joinTags(normalizedTags));
                 if (embedding.isPresent()) {
-                    statement.setBytes(7, serializeEmbedding(embedding.get()));
+                    statement.setBytes(12, serializeEmbedding(embedding.get()));
                 } else {
-                    statement.setNull(7, java.sql.Types.BLOB);
+                    statement.setNull(12, java.sql.Types.BLOB);
                 }
-                statement.setLong(8, now);
-                statement.setLong(9, now);
-                statement.setInt(10, 0);
-                statement.setNull(11, java.sql.Types.BIGINT);
+                setNullableText(statement, 13, embedding.isPresent() ? embeddingModel : null);
+                statement.setLong(14, now);
+                statement.setInt(15, 0);
+                statement.setNull(16, java.sql.Types.BIGINT);
                 statement.executeUpdate();
             } catch (SQLException ex) {
-                throw new IllegalStateException("Cannot write agent memory for agentKey=" + normalizedAgentKey, ex);
+                throw new IllegalStateException("Cannot write memory for agentKey=" + normalizedAgentKey, ex);
             }
         }
+
+        agentMemoryService.appendJournalEntry(
+                id,
+                Instant.ofEpochMilli(now),
+                normalizedRequestId,
+                normalizedChatId,
+                normalizedAgentKey,
+                normalizedSubjectKey,
+                normalizedSummary,
+                normalizedSourceType,
+                normalizedCategory,
+                normalizedImportance,
+                normalizedTags
+        );
 
         return new MemoryRecord(
                 id,
                 normalizedAgentKey,
-                normalizedContent,
+                normalizedSubjectKey,
+                normalizedSummary,
+                normalizedSourceType,
                 normalizedCategory,
                 normalizedImportance,
                 normalizedTags,
                 embedding.isPresent(),
+                embedding.isPresent() ? embeddingModel : null,
                 now,
                 now,
                 0,
@@ -122,13 +178,14 @@ public class AgentMemoryStore {
 
     public Optional<MemoryRecord> read(String agentKey, Path agentDir, String id) {
         String normalizedId = requireText(id, "id");
-        Path dbPath = resolveDbPath(agentKey, agentDir);
+        Path dbPath = resolveDbPath();
         synchronized (lockFor(dbPath)) {
             ensureInitialized(dbPath);
             try (Connection connection = openConnection(dbPath);
                  PreparedStatement statement = connection.prepareStatement("""
-                         SELECT ID_, AGENT_KEY_, CONTENT_, CATEGORY_, IMPORTANCE_, TAGS_, EMBEDDING_,
-                                CREATED_AT_, UPDATED_AT_, ACCESS_COUNT_, LAST_ACCESSED_AT_
+                         SELECT ID_, AGENT_KEY_, SUBJECT_KEY_, SUMMARY_, SOURCE_TYPE_, CATEGORY_,
+                                IMPORTANCE_, TAGS_, EMBEDDING_, EMBEDDING_MODEL_, TS_, UPDATED_AT_,
+                                ACCESS_COUNT_, LAST_ACCESSED_AT_
                          FROM MEMORIES
                          WHERE AGENT_KEY_ = ? AND ID_ = ?
                          """)) {
@@ -143,7 +200,7 @@ public class AgentMemoryStore {
                     return Optional.of(withTouched(record));
                 }
             } catch (SQLException ex) {
-                throw new IllegalStateException("Cannot read agent memory id=" + normalizedId, ex);
+                throw new IllegalStateException("Cannot read memory id=" + normalizedId, ex);
             }
         }
     }
@@ -155,19 +212,20 @@ public class AgentMemoryStore {
         }
         String normalizedSort = normalizeSort(sortBy);
         String normalizedCategory = normalizeOptionalCategory(category);
-        Path dbPath = resolveDbPath(agentKey, agentDir);
+        Path dbPath = resolveDbPath();
         synchronized (lockFor(dbPath)) {
             ensureInitialized(dbPath);
             String sql = """
-                    SELECT ID_, AGENT_KEY_, CONTENT_, CATEGORY_, IMPORTANCE_, TAGS_, EMBEDDING_,
-                           CREATED_AT_, UPDATED_AT_, ACCESS_COUNT_, LAST_ACCESSED_AT_
+                    SELECT ID_, AGENT_KEY_, SUBJECT_KEY_, SUMMARY_, SOURCE_TYPE_, CATEGORY_,
+                           IMPORTANCE_, TAGS_, EMBEDDING_, EMBEDDING_MODEL_, TS_, UPDATED_AT_,
+                           ACCESS_COUNT_, LAST_ACCESSED_AT_
                     FROM MEMORIES
                     WHERE AGENT_KEY_ = ?
                     """
                     + (normalizedCategory == null ? "" : " AND CATEGORY_ = ?")
                     + ("importance".equals(normalizedSort)
                     ? " ORDER BY IMPORTANCE_ DESC, UPDATED_AT_ DESC LIMIT ?"
-                    : " ORDER BY UPDATED_AT_ DESC, CREATED_AT_ DESC LIMIT ?");
+                    : " ORDER BY UPDATED_AT_ DESC, TS_ DESC LIMIT ?");
             try (Connection connection = openConnection(dbPath);
                  PreparedStatement statement = connection.prepareStatement(sql)) {
                 statement.setString(1, requireText(agentKey, "agentKey"));
@@ -193,7 +251,7 @@ public class AgentMemoryStore {
         }
         String normalizedAgentKey = requireText(agentKey, "agentKey");
         String normalizedCategory = normalizeOptionalCategory(category);
-        Path dbPath = resolveDbPath(normalizedAgentKey, agentDir);
+        Path dbPath = resolveDbPath();
         synchronized (lockFor(dbPath)) {
             ensureInitialized(dbPath);
             try (Connection connection = openConnection(dbPath)) {
@@ -258,7 +316,7 @@ public class AgentMemoryStore {
     public boolean delete(String agentKey, Path agentDir, String id) {
         String normalizedAgentKey = requireText(agentKey, "agentKey");
         String normalizedId = requireText(id, "id");
-        Path dbPath = resolveDbPath(normalizedAgentKey, agentDir);
+        Path dbPath = resolveDbPath();
         synchronized (lockFor(dbPath)) {
             ensureInitialized(dbPath);
             try (Connection connection = openConnection(dbPath);
@@ -296,8 +354,9 @@ public class AgentMemoryStore {
             return Map.of();
         }
         String sql = """
-                SELECT m.ID_, m.AGENT_KEY_, m.CONTENT_, m.CATEGORY_, m.IMPORTANCE_, m.TAGS_, m.EMBEDDING_,
-                       m.CREATED_AT_, m.UPDATED_AT_, m.ACCESS_COUNT_, m.LAST_ACCESSED_AT_,
+                SELECT m.ID_, m.AGENT_KEY_, m.SUBJECT_KEY_, m.SUMMARY_, m.SOURCE_TYPE_, m.CATEGORY_,
+                       m.IMPORTANCE_, m.TAGS_, m.EMBEDDING_, m.EMBEDDING_MODEL_, m.TS_, m.UPDATED_AT_,
+                       m.ACCESS_COUNT_, m.LAST_ACCESSED_AT_,
                        -bm25(MEMORIES_FTS) AS SCORE_
                 FROM MEMORIES_FTS
                 JOIN MEMORIES m ON m.rowid = MEMORIES_FTS.rowid
@@ -315,7 +374,7 @@ public class AgentMemoryStore {
             }
             statement.setInt(parameterIndex, Math.max(1, limit));
             try (ResultSet resultSet = statement.executeQuery()) {
-                return readScoredRecords(resultSet, MATCH_FTS);
+                return readScoredRecords(resultSet);
             }
         } catch (SQLException ex) {
             log.debug("FTS query failed, fallback to LIKE search for query={}", query, ex);
@@ -331,11 +390,12 @@ public class AgentMemoryStore {
             int limit
     ) throws SQLException {
         String sql = """
-                SELECT ID_, AGENT_KEY_, CONTENT_, CATEGORY_, IMPORTANCE_, TAGS_, EMBEDDING_,
-                       CREATED_AT_, UPDATED_AT_, ACCESS_COUNT_, LAST_ACCESSED_AT_
+                SELECT ID_, AGENT_KEY_, SUBJECT_KEY_, SUMMARY_, SOURCE_TYPE_, CATEGORY_,
+                       IMPORTANCE_, TAGS_, EMBEDDING_, EMBEDDING_MODEL_, TS_, UPDATED_AT_,
+                       ACCESS_COUNT_, LAST_ACCESSED_AT_
                 FROM MEMORIES
                 WHERE AGENT_KEY_ = ?
-                  AND (CONTENT_ LIKE ? OR CATEGORY_ LIKE ? OR TAGS_ LIKE ?)
+                  AND (SUMMARY_ LIKE ? OR SUBJECT_KEY_ LIKE ? OR CATEGORY_ LIKE ? OR TAGS_ LIKE ?)
                 """
                 + (category == null ? "" : " AND CATEGORY_ = ?")
                 + " ORDER BY IMPORTANCE_ DESC, UPDATED_AT_ DESC LIMIT ?";
@@ -345,7 +405,8 @@ public class AgentMemoryStore {
             statement.setString(2, likeQuery);
             statement.setString(3, likeQuery);
             statement.setString(4, likeQuery);
-            int parameterIndex = 5;
+            statement.setString(5, likeQuery);
+            int parameterIndex = 6;
             if (category != null) {
                 statement.setString(parameterIndex++, category);
             }
@@ -355,7 +416,7 @@ public class AgentMemoryStore {
                 double rank = Math.max(1, limit);
                 while (resultSet.next()) {
                     MemoryRecord record = mapRecord(resultSet);
-                    results.put(record.id(), new CandidateScore(record, rank--, MATCH_FTS));
+                    results.put(record.id(), new CandidateScore(record, rank--));
                 }
                 return results;
             }
@@ -378,8 +439,9 @@ public class AgentMemoryStore {
         }
         float[] queryVector = queryEmbedding.get();
         String sql = """
-                SELECT ID_, AGENT_KEY_, CONTENT_, CATEGORY_, IMPORTANCE_, TAGS_, EMBEDDING_,
-                       CREATED_AT_, UPDATED_AT_, ACCESS_COUNT_, LAST_ACCESSED_AT_
+                SELECT ID_, AGENT_KEY_, SUBJECT_KEY_, SUMMARY_, SOURCE_TYPE_, CATEGORY_,
+                       IMPORTANCE_, TAGS_, EMBEDDING_, EMBEDDING_MODEL_, TS_, UPDATED_AT_,
+                       ACCESS_COUNT_, LAST_ACCESSED_AT_
                 FROM MEMORIES
                 WHERE AGENT_KEY_ = ?
                   AND EMBEDDING_ IS NOT NULL
@@ -400,7 +462,7 @@ public class AgentMemoryStore {
                         continue;
                     }
                     double cosine = cosineSimilarity(queryVector, storedVector);
-                    candidates.add(new CandidateScore(record, cosine, MATCH_VECTOR));
+                    candidates.add(new CandidateScore(record, cosine));
                 }
                 return candidates.stream()
                         .sorted(Comparator.comparingDouble(CandidateScore::score).reversed())
@@ -412,6 +474,9 @@ public class AgentMemoryStore {
 
     private void ensureInitialized(Path dbPath) {
         String key = dbPath.toAbsolutePath().normalize().toString();
+        if (!Files.isRegularFile(dbPath)) {
+            initializedDatabases.remove(key);
+        }
         if (initializedDatabases.contains(key)) {
             return;
         }
@@ -419,6 +484,7 @@ public class AgentMemoryStore {
             if (initializedDatabases.contains(key)) {
                 return;
             }
+            boolean newDatabase = !Files.isRegularFile(dbPath);
             Path parent = dbPath.getParent();
             try {
                 if (parent != null) {
@@ -431,47 +497,58 @@ public class AgentMemoryStore {
                 statement.execute("""
                         CREATE TABLE IF NOT EXISTS MEMORIES (
                           ID_ TEXT PRIMARY KEY,
+                          TS_ INTEGER NOT NULL,
+                          REQUEST_ID_ TEXT,
+                          CHAT_ID_ TEXT,
                           AGENT_KEY_ TEXT NOT NULL,
-                          CONTENT_ TEXT NOT NULL,
+                          SUBJECT_KEY_ TEXT NOT NULL,
+                          SOURCE_TYPE_ TEXT NOT NULL,
+                          SUMMARY_ TEXT NOT NULL,
                           CATEGORY_ TEXT DEFAULT 'general',
                           IMPORTANCE_ INTEGER DEFAULT 5,
                           TAGS_ TEXT,
                           EMBEDDING_ BLOB,
-                          CREATED_AT_ INTEGER NOT NULL,
+                          EMBEDDING_MODEL_ TEXT,
                           UPDATED_AT_ INTEGER NOT NULL,
                           ACCESS_COUNT_ INTEGER DEFAULT 0,
                           LAST_ACCESSED_AT_ INTEGER
                         )
                         """);
                 statement.execute("CREATE INDEX IF NOT EXISTS IDX_MEMORIES_AGENT_KEY_ ON MEMORIES(AGENT_KEY_)");
+                statement.execute("CREATE INDEX IF NOT EXISTS IDX_MEMORIES_SUBJECT_KEY_ ON MEMORIES(SUBJECT_KEY_)");
+                statement.execute("CREATE INDEX IF NOT EXISTS IDX_MEMORIES_CHAT_ID_ ON MEMORIES(CHAT_ID_)");
+                statement.execute("CREATE INDEX IF NOT EXISTS IDX_MEMORIES_TS_ ON MEMORIES(TS_ DESC)");
                 statement.execute("CREATE INDEX IF NOT EXISTS IDX_MEMORIES_IMPORTANCE_ ON MEMORIES(IMPORTANCE_ DESC)");
                 statement.execute("""
                         CREATE VIRTUAL TABLE IF NOT EXISTS MEMORIES_FTS USING fts5(
-                          CONTENT_, CATEGORY_, TAGS_,
+                          SUMMARY_, SUBJECT_KEY_, CATEGORY_, TAGS_,
                           content=MEMORIES, content_rowid=rowid
                         )
                         """);
                 statement.execute("""
                         CREATE TRIGGER IF NOT EXISTS MEMORIES_AI AFTER INSERT ON MEMORIES BEGIN
-                          INSERT INTO MEMORIES_FTS(rowid, CONTENT_, CATEGORY_, TAGS_)
-                          VALUES (new.rowid, new.CONTENT_, new.CATEGORY_, new.TAGS_);
+                          INSERT INTO MEMORIES_FTS(rowid, SUMMARY_, SUBJECT_KEY_, CATEGORY_, TAGS_)
+                          VALUES (new.rowid, new.SUMMARY_, new.SUBJECT_KEY_, new.CATEGORY_, new.TAGS_);
                         END
                         """);
                 statement.execute("""
                         CREATE TRIGGER IF NOT EXISTS MEMORIES_AU AFTER UPDATE ON MEMORIES BEGIN
-                          INSERT INTO MEMORIES_FTS(MEMORIES_FTS, rowid, CONTENT_, CATEGORY_, TAGS_)
-                          VALUES ('delete', old.rowid, old.CONTENT_, old.CATEGORY_, old.TAGS_);
-                          INSERT INTO MEMORIES_FTS(rowid, CONTENT_, CATEGORY_, TAGS_)
-                          VALUES (new.rowid, new.CONTENT_, new.CATEGORY_, new.TAGS_);
+                          INSERT INTO MEMORIES_FTS(MEMORIES_FTS, rowid, SUMMARY_, SUBJECT_KEY_, CATEGORY_, TAGS_)
+                          VALUES ('delete', old.rowid, old.SUMMARY_, old.SUBJECT_KEY_, old.CATEGORY_, old.TAGS_);
+                          INSERT INTO MEMORIES_FTS(rowid, SUMMARY_, SUBJECT_KEY_, CATEGORY_, TAGS_)
+                          VALUES (new.rowid, new.SUMMARY_, new.SUBJECT_KEY_, new.CATEGORY_, new.TAGS_);
                         END
                         """);
                 statement.execute("""
                         CREATE TRIGGER IF NOT EXISTS MEMORIES_AD AFTER DELETE ON MEMORIES BEGIN
-                          INSERT INTO MEMORIES_FTS(MEMORIES_FTS, rowid, CONTENT_, CATEGORY_, TAGS_)
-                          VALUES ('delete', old.rowid, old.CONTENT_, old.CATEGORY_, old.TAGS_);
+                          INSERT INTO MEMORIES_FTS(MEMORIES_FTS, rowid, SUMMARY_, SUBJECT_KEY_, CATEGORY_, TAGS_)
+                          VALUES ('delete', old.rowid, old.SUMMARY_, old.SUBJECT_KEY_, old.CATEGORY_, old.TAGS_);
                         END
                         """);
                 statement.execute("INSERT INTO MEMORIES_FTS(MEMORIES_FTS) VALUES('rebuild')");
+                if (newDatabase || tableRowCount(connection) == 0) {
+                    rebuildFromJournal(connection);
+                }
             } catch (SQLException ex) {
                 throw new IllegalStateException("Cannot initialize memory database: " + dbPath, ex);
             }
@@ -479,17 +556,99 @@ public class AgentMemoryStore {
         }
     }
 
+    private void rebuildFromJournal(Connection connection) {
+        Path journalRoot = agentMemoryService.resolveMemoryRoot().resolve("journal");
+        if (!Files.isDirectory(journalRoot)) {
+            return;
+        }
+        try (var stream = Files.walk(journalRoot)) {
+            stream.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".jsonl"))
+                    .sorted()
+                    .forEach(path -> replayJournalFile(connection, path));
+        } catch (IOException ex) {
+            throw new IllegalStateException("Cannot rebuild memory database from journal: " + journalRoot, ex);
+        }
+    }
+
+    private void replayJournalFile(Connection connection, Path file) {
+        try {
+            List<String> lines = Files.readAllLines(file);
+            for (String line : lines) {
+                if (!StringUtils.hasText(line)) {
+                    continue;
+                }
+                JsonNode node = objectMapper.readTree(line);
+                replayJournalEntry(connection, node);
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("Cannot read memory journal file: " + file, ex);
+        }
+    }
+
+    private void replayJournalEntry(Connection connection, JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return;
+        }
+        String id = normalizeNullable(node.path("id").asText(null));
+        String agentKey = normalizeNullable(node.path("agentKey").asText(null));
+        String summary = normalizeNullable(node.path("summary").asText(null));
+        if (!StringUtils.hasText(id) || !StringUtils.hasText(agentKey) || !StringUtils.hasText(summary)) {
+            return;
+        }
+        String subjectKey = normalizeSubjectKey(
+                normalizeNullable(node.path("subjectKey").asText(null)),
+                normalizeNullable(node.path("chatId").asText(null)),
+                agentKey
+        );
+        String sourceType = normalizeSourceType(node.path("sourceType").asText(null));
+        String category = normalizeCategory(node.path("category").asText(null));
+        int importance = normalizeImportance(node.path("importance").asInt(5));
+        List<String> tags = normalizeTags(readStringList(node.path("tags")));
+        long ts = node.path("ts").asLong(System.currentTimeMillis());
+        String requestId = normalizeNullable(node.path("requestId").asText(null));
+        String chatId = normalizeNullable(node.path("chatId").asText(null));
+        Optional<float[]> embedding = safeEmbed(summary);
+        try (PreparedStatement statement = connection.prepareStatement("""
+                INSERT OR IGNORE INTO MEMORIES (
+                  ID_, TS_, REQUEST_ID_, CHAT_ID_, AGENT_KEY_, SUBJECT_KEY_, SOURCE_TYPE_,
+                  SUMMARY_, CATEGORY_, IMPORTANCE_, TAGS_, EMBEDDING_, EMBEDDING_MODEL_,
+                  UPDATED_AT_, ACCESS_COUNT_, LAST_ACCESSED_AT_
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """)) {
+            statement.setString(1, id);
+            statement.setLong(2, ts);
+            setNullableText(statement, 3, requestId);
+            setNullableText(statement, 4, chatId);
+            statement.setString(5, agentKey);
+            statement.setString(6, subjectKey);
+            statement.setString(7, sourceType);
+            statement.setString(8, summary);
+            statement.setString(9, category);
+            statement.setInt(10, importance);
+            statement.setString(11, joinTags(tags));
+            if (embedding.isPresent()) {
+                statement.setBytes(12, serializeEmbedding(embedding.get()));
+                setNullableText(statement, 13, normalizeNullable(properties.getEmbeddingModel()));
+            } else {
+                statement.setNull(12, java.sql.Types.BLOB);
+                statement.setNull(13, java.sql.Types.VARCHAR);
+            }
+            statement.setLong(14, ts);
+            statement.setInt(15, 0);
+            statement.setNull(16, java.sql.Types.BIGINT);
+            statement.executeUpdate();
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Cannot replay memory journal entry id=" + id, ex);
+        }
+    }
+
     private Connection openConnection(Path dbPath) throws SQLException {
         return DriverManager.getConnection("jdbc:sqlite:" + dbPath.toAbsolutePath().normalize());
     }
 
-    private Path resolveDbPath(String agentKey, Path agentDir) {
-        String fileName = StringUtils.hasText(properties.getDbFileName()) ? properties.getDbFileName().trim() : "memory.db";
-        if (agentDir != null) {
-            return agentDir.toAbsolutePath().normalize().resolve(fileName);
-        }
-        Path agentsRoot = Path.of(agentProperties.getExternalDir()).toAbsolutePath().normalize();
-        return agentsRoot.resolve(requireText(agentKey, "agentKey")).resolve(fileName);
+    private Path resolveDbPath() {
+        return agentMemoryService.resolveMemoryDbPath();
     }
 
     private Object lockFor(Path dbPath) {
@@ -501,12 +660,15 @@ public class AgentMemoryStore {
         return new MemoryRecord(
                 resultSet.getString("ID_"),
                 resultSet.getString("AGENT_KEY_"),
-                resultSet.getString("CONTENT_"),
+                resultSet.getString("SUBJECT_KEY_"),
+                resultSet.getString("SUMMARY_"),
+                resultSet.getString("SOURCE_TYPE_"),
                 resultSet.getString("CATEGORY_"),
                 resultSet.getInt("IMPORTANCE_"),
                 splitTags(resultSet.getString("TAGS_")),
                 resultSet.getBytes("EMBEDDING_") != null,
-                resultSet.getLong("CREATED_AT_"),
+                resultSet.getString("EMBEDDING_MODEL_"),
+                resultSet.getLong("TS_"),
                 resultSet.getLong("UPDATED_AT_"),
                 resultSet.getInt("ACCESS_COUNT_"),
                 nullableLong(resultSet, "LAST_ACCESSED_AT_")
@@ -521,116 +683,139 @@ public class AgentMemoryStore {
         return List.copyOf(records);
     }
 
-    private Map<String, CandidateScore> readScoredRecords(ResultSet resultSet, String matchType) throws SQLException {
+    private Map<String, CandidateScore> readScoredRecords(ResultSet resultSet) throws SQLException {
         Map<String, CandidateScore> results = new LinkedHashMap<>();
         while (resultSet.next()) {
             MemoryRecord record = mapRecord(resultSet);
-            results.put(record.id(), new CandidateScore(record, resultSet.getDouble("SCORE_"), matchType));
+            results.put(record.id(), new CandidateScore(record, resultSet.getDouble("SCORE_")));
         }
         return results;
-    }
-
-    private Long nullableLong(ResultSet resultSet, String column) throws SQLException {
-        long value = resultSet.getLong(column);
-        return resultSet.wasNull() ? null : value;
     }
 
     private void touch(Connection connection, Collection<String> ids) throws SQLException {
         if (ids == null || ids.isEmpty()) {
             return;
         }
+        List<String> normalizedIds = ids.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (normalizedIds.isEmpty()) {
+            return;
+        }
         long now = System.currentTimeMillis();
-        try (PreparedStatement statement = connection.prepareStatement("""
-                UPDATE MEMORIES
-                SET ACCESS_COUNT_ = ACCESS_COUNT_ + 1,
-                    LAST_ACCESSED_AT_ = ?
-                WHERE ID_ = ?
-                """)) {
-            for (String id : ids) {
-                if (!StringUtils.hasText(id)) {
-                    continue;
-                }
-                statement.setLong(1, now);
-                statement.setString(2, id);
-                statement.addBatch();
+        String placeholders = String.join(",", java.util.Collections.nCopies(normalizedIds.size(), "?"));
+        String sql = "UPDATE MEMORIES SET ACCESS_COUNT_ = ACCESS_COUNT_ + 1, LAST_ACCESSED_AT_ = ?, UPDATED_AT_ = ? WHERE ID_ IN (" + placeholders + ")";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, now);
+            statement.setLong(2, now);
+            for (int i = 0; i < normalizedIds.size(); i++) {
+                statement.setString(i + 3, normalizedIds.get(i));
             }
-            statement.executeBatch();
+            statement.executeUpdate();
         }
     }
 
     private MemoryRecord withTouched(MemoryRecord record) {
-        if (record == null) {
-            return null;
-        }
         long now = System.currentTimeMillis();
         return new MemoryRecord(
                 record.id(),
                 record.agentKey(),
+                record.subjectKey(),
                 record.content(),
+                record.sourceType(),
                 record.category(),
                 record.importance(),
                 record.tags(),
                 record.hasEmbedding(),
+                record.embeddingModel(),
                 record.createdAt(),
-                record.updatedAt(),
+                now,
                 record.accessCount() + 1,
                 now
         );
     }
 
     private Optional<float[]> safeEmbed(String text) {
-        if (embeddingService == null || !StringUtils.hasText(text)) {
+        if (embeddingService == null) {
             return Optional.empty();
         }
         try {
-            return embeddingService.embed(text)
-                    .filter(vector -> vector.length == properties.getEmbeddingDimension());
+            return embeddingService.embed(text);
         } catch (Exception ex) {
-            log.debug("Embedding lookup failed, fallback to FTS-only memory path", ex);
+            log.debug("Embedding generation failed, fallback to FTS-only memory search", ex);
             return Optional.empty();
+        }
+    }
+
+    private int tableRowCount(Connection connection) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT COUNT(1) FROM MEMORIES");
+             ResultSet resultSet = statement.executeQuery()) {
+            return resultSet.next() ? resultSet.getInt(1) : 0;
+        }
+    }
+
+    private void setNullableText(PreparedStatement statement, int index, String value) throws SQLException {
+        if (StringUtils.hasText(value)) {
+            statement.setString(index, value.trim());
+        } else {
+            statement.setNull(index, java.sql.Types.VARCHAR);
         }
     }
 
     private String buildFtsQuery(String query) {
         if (!StringUtils.hasText(query)) {
-            return "";
+            return null;
         }
-        List<String> tokens = new ArrayList<>();
+        List<String> terms = new ArrayList<>();
         for (String token : query.trim().split("\\s+")) {
-            String normalized = token == null ? "" : token.trim();
-            if (normalized.isEmpty()) {
+            String normalized = token == null ? "" : token.trim().replace("\"", "");
+            if (normalized.length() < 2) {
                 continue;
             }
-            tokens.add("\"" + normalized.replace("\"", "\"\"") + "\"");
+            terms.add("\"" + normalized + "\"");
         }
-        return String.join(" AND ", tokens);
+        if (terms.isEmpty()) {
+            return null;
+        }
+        return String.join(" AND ", terms);
     }
 
     private Map<String, Double> normalizeScores(Map<String, CandidateScore> scores) {
         if (scores == null || scores.isEmpty()) {
             return Map.of();
         }
-        double min = scores.values().stream().mapToDouble(CandidateScore::score).min().orElse(0d);
-        double max = scores.values().stream().mapToDouble(CandidateScore::score).max().orElse(0d);
+        double max = scores.values().stream()
+                .mapToDouble(CandidateScore::score)
+                .max()
+                .orElse(0d);
+        double min = scores.values().stream()
+                .mapToDouble(CandidateScore::score)
+                .min()
+                .orElse(0d);
         if (Double.compare(max, min) == 0) {
-            return scores.values().stream()
-                    .collect(LinkedHashMap::new, (map, candidate) -> map.put(candidate.record().id(), 1d), Map::putAll);
+            return scores.keySet().stream()
+                    .collect(LinkedHashMap::new, (map, key) -> map.put(key, 1d), Map::putAll);
         }
-        return scores.values().stream()
-                .collect(LinkedHashMap::new, (map, candidate) -> map.put(
-                        candidate.record().id(),
-                        (candidate.score() - min) / (max - min)
-                ), Map::putAll);
+        Map<String, Double> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, CandidateScore> entry : scores.entrySet()) {
+            normalized.put(entry.getKey(), (entry.getValue().score() - min) / (max - min));
+        }
+        return Map.copyOf(normalized);
     }
 
     private double cosineSimilarity(float[] left, float[] right) {
+        if (left == null || right == null || left.length == 0 || left.length != right.length) {
+            return 0d;
+        }
         double dot = 0d;
         double leftNorm = 0d;
         double rightNorm = 0d;
-        for (int index = 0; index < left.length; index++) {
-            dot += left[index] * right[index];
-            leftNorm += left[index] * left[index];
-            rightNorm += right[index] * right[index];
+        for (int i = 0; i < left.length; i++) {
+            dot += left[i] * right[i];
+            leftNorm += left[i] * left[i];
+            rightNorm += right[i] * right[i];
         }
         if (leftNorm == 0d || rightNorm == 0d) {
             return 0d;
@@ -639,7 +824,8 @@ public class AgentMemoryStore {
     }
 
     private byte[] serializeEmbedding(float[] embedding) {
-        ByteBuffer buffer = ByteBuffer.allocate(embedding.length * Float.BYTES).order(ByteOrder.BIG_ENDIAN);
+        ByteBuffer buffer = ByteBuffer.allocate(embedding.length * Float.BYTES)
+                .order(ByteOrder.LITTLE_ENDIAN);
         for (float value : embedding) {
             buffer.putFloat(value);
         }
@@ -650,75 +836,91 @@ public class AgentMemoryStore {
         if (bytes == null || bytes.length == 0 || bytes.length % Float.BYTES != 0) {
             return null;
         }
-        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
-        float[] embedding = new float[bytes.length / Float.BYTES];
-        for (int index = 0; index < embedding.length; index++) {
-            embedding[index] = buffer.getFloat();
+        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+        float[] values = new float[bytes.length / Float.BYTES];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = buffer.getFloat();
         }
-        return embedding;
+        return values;
     }
 
     private String requireText(String value, String fieldName) {
         if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException("Missing argument: " + fieldName);
+            throw new IllegalArgumentException(fieldName + " must not be blank");
         }
         return value.trim();
     }
 
     private String normalizeCategory(String category) {
-        return StringUtils.hasText(category) ? category.trim() : "general";
+        return StringUtils.hasText(category) ? category.trim().toLowerCase(Locale.ROOT) : "general";
     }
 
     private String normalizeOptionalCategory(String category) {
-        return StringUtils.hasText(category) ? category.trim() : null;
+        return StringUtils.hasText(category) ? category.trim().toLowerCase(Locale.ROOT) : null;
     }
 
-    private int normalizeImportance(int importance) {
-        if (importance < 1 || importance > 10) {
-            throw new IllegalArgumentException("Invalid argument: importance must be between 1 and 10");
+    private String normalizeSort(String sortBy) {
+        String normalized = normalizeNullable(sortBy);
+        if (!StringUtils.hasText(normalized)) {
+            return RECENT_SORT;
         }
-        return importance;
+        return IMPORTANCE_SORT.equalsIgnoreCase(normalized) ? IMPORTANCE_SORT : RECENT_SORT;
+    }
+
+    private String normalizeSourceType(String sourceType) {
+        return StringUtils.hasText(sourceType) ? sourceType.trim().toLowerCase(Locale.ROOT) : "tool-write";
     }
 
     private int normalizeLimit(int limit) {
         if (limit <= 0) {
             return properties.getSearchDefaultLimit();
         }
-        return limit;
+        return Math.min(limit, 100);
     }
 
-    private String normalizeSort(String sortBy) {
-        if (!StringUtils.hasText(sortBy)) {
-            return RECENT_SORT;
+    private int normalizeImportance(int importance) {
+        int normalized = importance <= 0 ? 5 : importance;
+        return Math.max(1, Math.min(10, normalized));
+    }
+
+    private String normalizeSubjectKey(String subjectKey, String chatId, String agentKey) {
+        if (StringUtils.hasText(subjectKey)) {
+            return subjectKey.trim();
         }
-        String normalized = sortBy.trim().toLowerCase(Locale.ROOT);
-        return IMPORTANCE_SORT.equals(normalized) ? IMPORTANCE_SORT : RECENT_SORT;
+        if (StringUtils.hasText(chatId)) {
+            return "chat:" + chatId.trim();
+        }
+        if (StringUtils.hasText(agentKey)) {
+            return "agent:" + agentKey.trim();
+        }
+        return "_global";
+    }
+
+    private String normalizeNullable(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private List<String> normalizeTags(List<String> tags) {
         if (tags == null || tags.isEmpty()) {
             return List.of();
         }
-        LinkedHashSet<String> normalized = new LinkedHashSet<>();
-        for (String tag : tags) {
-            if (!StringUtils.hasText(tag)) {
-                continue;
-            }
-            normalized.add(tag.trim());
-        }
-        return List.copyOf(normalized);
+        return tags.stream()
+                .filter(StringUtils::hasText)
+                .map(value -> value.trim().toLowerCase(Locale.ROOT))
+                .distinct()
+                .toList();
     }
 
     private String joinTags(List<String> tags) {
         return tags == null || tags.isEmpty() ? null : String.join(",", tags);
     }
 
-    private List<String> splitTags(String serialized) {
-        if (!StringUtils.hasText(serialized)) {
+    private List<String> splitTags(String joined) {
+        if (!StringUtils.hasText(joined)) {
             return List.of();
         }
         List<String> tags = new ArrayList<>();
-        for (String token : serialized.split(",")) {
+        for (String token : joined.split(",")) {
             if (StringUtils.hasText(token)) {
                 tags.add(token.trim());
             }
@@ -726,10 +928,27 @@ public class AgentMemoryStore {
         return List.copyOf(tags);
     }
 
-    private record CandidateScore(MemoryRecord record, double score, String matchType) {
+    private Long nullableLong(ResultSet resultSet, String column) throws SQLException {
+        long value = resultSet.getLong(column);
+        return resultSet.wasNull() ? null : value;
+    }
+
+    private List<String> readStringList(JsonNode node) {
+        if (node == null || !node.isArray()) {
+            return List.of();
+        }
+        List<String> items = new ArrayList<>();
+        for (JsonNode item : node) {
+            if (item != null && item.isValueNode() && StringUtils.hasText(item.asText())) {
+                items.add(item.asText().trim());
+            }
+        }
+        return List.copyOf(items);
+    }
+
+    private record CandidateScore(MemoryRecord record, double score) {
         private CandidateScore {
             Objects.requireNonNull(record, "record");
-            matchType = matchType == null ? MATCH_FTS : matchType;
         }
     }
 }

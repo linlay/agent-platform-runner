@@ -7,6 +7,7 @@ import com.linlay.agentplatform.agent.runtime.MountDirectoryConfig;
 import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.properties.McpProperties;
+import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
@@ -59,6 +60,7 @@ public class ContainerHubFeatureConfiguration {
     @Bean
     public ContainerHubMountResolver containerHubMountResolver(
             ChatStorageProperties chatWindowMemoryProperties,
+            MemoryStorageProperties memoryStorageProperties,
             RootProperties rootProperties,
             PanProperties panProperties,
             SkillProperties skillProperties,
@@ -76,6 +78,7 @@ public class ContainerHubFeatureConfiguration {
         RuntimeDirectoryHostPaths hostPaths = RuntimeDirectoryHostPaths.load(System.getenv());
         MountDirectoryConfig directories = new MountDirectoryConfig(
                 chatWindowMemoryProperties == null ? null : chatWindowMemoryProperties.getDir(),
+                memoryStorageProperties == null ? null : memoryStorageProperties.getDir(),
                 rootProperties == null ? null : rootProperties.getExternalDir(),
                 panProperties == null ? null : panProperties.getExternalDir(),
                 skillProperties == null ? null : skillProperties.getExternalDir(),

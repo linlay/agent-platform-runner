@@ -4,6 +4,7 @@ import com.linlay.agentplatform.config.ConfigDirectorySupport;
 import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
+import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.agent.runtime.SandboxLevel;
@@ -42,6 +43,7 @@ public class RuntimeContextPromptService {
     private static final int ALL_AGENTS_MAX_CHARS = 12_000;
     private static final String SANDBOX_WORKSPACE_DIR = "/workspace";
     private static final String SANDBOX_ROOT_DIR = "/root";
+    private static final String SANDBOX_MEMORY_DIR = "/memory";
     private static final String SANDBOX_SKILLS_DIR = "/skills";
     private static final String SANDBOX_SKILLS_MARKET_DIR = "/skills-market";
     private static final String SANDBOX_PAN_DIR = "/pan";
@@ -52,6 +54,7 @@ public class RuntimeContextPromptService {
     private final OwnerProperties ownerProperties;
     private final DataProperties dataProperties;
     private final ChatStorageProperties chatWindowMemoryProperties;
+    private final MemoryStorageProperties memoryStorageProperties;
     private final AgentMemoryStore agentMemoryStore;
     private final AgentMemoryProperties agentMemoryProperties;
 
@@ -62,6 +65,7 @@ public class RuntimeContextPromptService {
             OwnerProperties ownerProperties,
             DataProperties dataProperties,
             ChatStorageProperties chatWindowMemoryProperties,
+            MemoryStorageProperties memoryStorageProperties,
             ObjectProvider<AgentMemoryStore> agentMemoryStoreProvider,
             ObjectProvider<AgentMemoryProperties> agentMemoryPropertiesProvider
     ) {
@@ -70,6 +74,7 @@ public class RuntimeContextPromptService {
         this.ownerProperties = ownerProperties == null ? new OwnerProperties() : ownerProperties;
         this.dataProperties = dataProperties;
         this.chatWindowMemoryProperties = chatWindowMemoryProperties;
+        this.memoryStorageProperties = memoryStorageProperties == null ? new MemoryStorageProperties() : memoryStorageProperties;
         this.agentMemoryStore = agentMemoryStoreProvider == null ? null : agentMemoryStoreProvider.getIfAvailable();
         this.agentMemoryProperties = agentMemoryPropertiesProvider == null
                 ? null
@@ -81,6 +86,7 @@ public class RuntimeContextPromptService {
             RootProperties rootProperties,
             DataProperties dataProperties,
             ChatStorageProperties chatWindowMemoryProperties,
+            MemoryStorageProperties memoryStorageProperties,
             RuntimeDirectoryHostPaths runtimeDirectoryHostPaths
     ) {
         this.environment = environment;
@@ -88,6 +94,7 @@ public class RuntimeContextPromptService {
         this.ownerProperties = new OwnerProperties();
         this.dataProperties = dataProperties;
         this.chatWindowMemoryProperties = chatWindowMemoryProperties;
+        this.memoryStorageProperties = memoryStorageProperties == null ? new MemoryStorageProperties() : memoryStorageProperties;
         this.agentMemoryStore = null;
         this.agentMemoryProperties = null;
     }
@@ -98,6 +105,7 @@ public class RuntimeContextPromptService {
             OwnerProperties ownerProperties,
             DataProperties dataProperties,
             ChatStorageProperties chatWindowMemoryProperties,
+            MemoryStorageProperties memoryStorageProperties,
             RuntimeDirectoryHostPaths runtimeDirectoryHostPaths
     ) {
         this.environment = environment;
@@ -105,6 +113,7 @@ public class RuntimeContextPromptService {
         this.ownerProperties = ownerProperties == null ? new OwnerProperties() : ownerProperties;
         this.dataProperties = dataProperties;
         this.chatWindowMemoryProperties = chatWindowMemoryProperties;
+        this.memoryStorageProperties = memoryStorageProperties == null ? new MemoryStorageProperties() : memoryStorageProperties;
         this.agentMemoryStore = null;
         this.agentMemoryProperties = null;
     }
@@ -120,6 +129,7 @@ public class RuntimeContextPromptService {
                 new OwnerProperties(),
                 new DataProperties(),
                 chatWindowMemoryProperties,
+                new MemoryStorageProperties(),
                 RuntimeDirectoryHostPaths.load(System.getenv())
         );
     }
@@ -131,6 +141,7 @@ public class RuntimeContextPromptService {
                 new OwnerProperties(),
                 new DataProperties(),
                 new ChatStorageProperties(),
+                new MemoryStorageProperties(),
                 RuntimeDirectoryHostPaths.load(System.getenv())
         );
     }
@@ -163,6 +174,7 @@ public class RuntimeContextPromptService {
         Path rootDir = resolveRuntimePath(runtimeHome, rootProperties.getExternalDir(), "root");
         Path agentsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.agents.external-dir"), "agents");
         Path chatsDir = resolveRuntimePath(runtimeHome, chatWindowMemoryProperties.getDir(), "chats");
+        Path memoryDir = resolveRuntimePath(runtimeHome, memoryStorageProperties.getDir(), "memory");
         Path dataDir = resolveRuntimePath(runtimeHome, dataProperties.getExternalDir(), "data");
         Path skillsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.skills.external-dir"), null);
         Path schedulesDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.schedule.external-dir"), null);
@@ -176,6 +188,7 @@ public class RuntimeContextPromptService {
                 rootDir.toString(),
                 agentsDir.toString(),
                 chatsDir.toString(),
+                memoryDir == null ? null : memoryDir.toString(),
                 dataDir.toString(),
                 pathValue(skillsDir),
                 pathValue(schedulesDir),
@@ -198,6 +211,7 @@ public class RuntimeContextPromptService {
         Path teamsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.teams.external-dir"), null);
         Path schedulesDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.schedule.external-dir"), null);
         Path chatsDir = resolveRuntimePath(runtimeHome, chatWindowMemoryProperties.getDir(), "chats");
+        Path memoryDir = resolveRuntimePath(runtimeHome, memoryStorageProperties.getDir(), "memory");
         Path modelsDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.models.external-dir"), null);
         Path providersDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.providers.external-dir"), null);
         Path mcpServersDir = resolveRuntimePath(runtimeHome, environment.getProperty("agent.mcp-servers.registry.external-dir"), null);
@@ -215,6 +229,7 @@ public class RuntimeContextPromptService {
         String teamsMount = null;
         String schedulesMount = null;
         String chatsMount = null;
+        String memoryMount = null;
         String modelsMount = null;
         String providersMount = null;
         String mcpServersMount = null;
@@ -235,6 +250,7 @@ public class RuntimeContextPromptService {
                     case "teams" -> teamsMount = teamsDir == null ? null : "/teams";
                     case "schedules" -> schedulesMount = schedulesDir == null ? null : "/schedules";
                     case "chats" -> chatsMount = chatsDir == null ? null : "/chats";
+                    case "memory" -> memoryMount = memoryDir == null ? null : SANDBOX_MEMORY_DIR;
                     case "models" -> modelsMount = modelsDir == null ? null : "/models";
                     case "providers" -> providersMount = providersDir == null ? null : "/providers";
                     case "mcp-servers" -> mcpServersMount = mcpServersDir == null ? null : "/mcp-servers";
@@ -260,6 +276,7 @@ public class RuntimeContextPromptService {
                 teamsMount,
                 schedulesMount,
                 chatsMount,
+                memoryMount,
                 modelsMount,
                 providersMount,
                 mcpServersMount,
@@ -302,6 +319,7 @@ public class RuntimeContextPromptService {
                 appendKeyValue(lines, "sandbox_teams_dir", sandboxPaths.teamsDir());
                 appendKeyValue(lines, "sandbox_schedules_dir", sandboxPaths.schedulesDir());
                 appendKeyValue(lines, "sandbox_chats_dir", sandboxPaths.chatsDir());
+                appendKeyValue(lines, "sandbox_memory_dir", sandboxPaths.memoryDir());
                 appendKeyValue(lines, "sandbox_models_dir", sandboxPaths.modelsDir());
                 appendKeyValue(lines, "sandbox_providers_dir", sandboxPaths.providersDir());
                 appendKeyValue(lines, "sandbox_mcp_servers_dir", sandboxPaths.mcpServersDir());
@@ -476,6 +494,8 @@ public class RuntimeContextPromptService {
             }
             first = false;
             builder.append("id: ").append(memory.id()).append('\n');
+            builder.append("subjectKey: ").append(memory.subjectKey()).append('\n');
+            builder.append("sourceType: ").append(memory.sourceType()).append('\n');
             builder.append("category: ").append(memory.category()).append('\n');
             builder.append("importance: ").append(memory.importance()).append('\n');
             if (!memory.tags().isEmpty()) {

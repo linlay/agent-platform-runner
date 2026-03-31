@@ -32,7 +32,7 @@ class MemoryReadToolTest {
         ExecutionContext context = context("reader", Path.of("/tmp/reader"));
 
         when(store.read("reader", Path.of("/tmp/reader"), "mem_1")).thenReturn(Optional.of(
-                new MemoryRecord("mem_1", "reader", "memory", "general", 5, List.of(), false, 1L, 1L, 1, 2L)
+                new MemoryRecord("mem_1", "reader", "agent:reader", "memory", "tool-write", "general", 5, List.of(), false, null, 1L, 1L, 1, 2L)
         ));
 
         String result = tool.invoke(Map.of("id", "mem_1"), context).toString();
@@ -46,7 +46,7 @@ class MemoryReadToolTest {
         MemoryReadTool tool = new MemoryReadTool(store, new AgentMemoryProperties());
         ExecutionContext context = context("reader", Path.of("/tmp/reader"));
         when(store.list("reader", Path.of("/tmp/reader"), "fact", 3, "importance")).thenReturn(List.of(
-                new MemoryRecord("mem_1", "reader", "memory", "fact", 9, List.of("a"), false, 1L, 1L, 0, null)
+                new MemoryRecord("mem_1", "reader", "agent:reader", "memory", "tool-write", "fact", 9, List.of("a"), false, null, 1L, 1L, 0, null)
         ));
 
         String result = tool.invoke(Map.of("category", "fact", "limit", 3, "sort", "importance"), context).toString();
