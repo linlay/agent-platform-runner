@@ -1,6 +1,8 @@
 package com.linlay.agentplatform.service.chat;
 
 import com.linlay.agentplatform.model.api.UploadResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.multipart.FilePart;
@@ -32,6 +34,7 @@ import java.util.stream.Stream;
 @Service
 public class ChatUploadService {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatUploadService.class);
     private static final Map<String, String> EXTRA_MIME_TYPES = createExtraMimeTypes();
 
     private final ChatDataPathService chatDataPathService;
@@ -124,8 +127,14 @@ public class ChatUploadService {
             } catch (Exception ex) {
                 try {
                     Files.deleteIfExists(tempPath);
-                } catch (Exception ignored) {
-                    // ignore cleanup failure after upload write failure
+                } catch (Exception cleanupEx) {
+                    log.debug(
+                            "Failed to delete temporary upload file after store failure chatId={}, requestId={}, tempPath={}, fallback=ignore cleanup failure",
+                            chatId,
+                            requestId,
+                            tempPath,
+                            cleanupEx
+                    );
                 }
                 if (ex instanceof ResponseStatusException responseStatusException) {
                     throw responseStatusException;
@@ -248,8 +257,12 @@ public class ChatUploadService {
                     .map(path -> path.getFileName().toString())
                     .filter(name -> StringUtils.hasText(name) && !name.startsWith("."))
                     .forEach(names::add);
-        } catch (Exception ignored) {
-            // fall back to manifest-derived names only
+        } catch (Exception ex) {
+            log.debug(
+                    "Failed to list chat upload directory entries chatDir={}, fallback=manifest-derived names only",
+                    chatDir,
+                    ex
+            );
         }
         Path uploadsDir = chatDir.resolve("uploads");
         if (!Files.isDirectory(uploadsDir)) {
@@ -260,8 +273,12 @@ public class ChatUploadService {
                     .map(path -> path.getFileName().toString())
                     .filter(StringUtils::hasText)
                     .forEach(names::add);
-        } catch (Exception ignored) {
-            // fall back to already-collected names
+        } catch (Exception ex) {
+            log.debug(
+                    "Failed to list chat uploads subdirectory uploadsDir={}, fallback=already-collected names",
+                    uploadsDir,
+                    ex
+            );
         }
         return names;
     }

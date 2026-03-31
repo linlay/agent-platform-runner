@@ -3,6 +3,8 @@ package com.linlay.agentplatform.service.chat;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.util.DataFilePathNormalizer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -15,6 +17,7 @@ import java.util.regex.Pattern;
 @Service
 public class ChatAssetAccessService {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatAssetAccessService.class);
     private static final Pattern MARKDOWN_LINK_PATTERN = Pattern.compile("!?\\[[^\\]]*]\\(([^)]+)\\)");
 
     private final ChatRecordStore chatRecordStore;
@@ -34,6 +37,11 @@ public class ChatAssetAccessService {
         try {
             chatDetail = chatRecordStore.loadChat(chatId, false);
         } catch (Exception ex) {
+            log.debug(
+                    "Failed to load chat detail while checking asset access chatId={}, fallback=deny access",
+                    chatId,
+                    ex
+            );
             return false;
         }
 
@@ -45,8 +53,12 @@ public class ChatAssetAccessService {
                         addNormalized(assets, reference.url());
                     }
                 }
-            } catch (Exception ignored) {
-                // fall back to persisted history assets only
+            } catch (Exception ex) {
+                log.debug(
+                        "Failed to load live chat assets chatId={}, fallback=persisted history assets only",
+                        chatId,
+                        ex
+                );
             }
         }
         return assets.contains(normalizedFilePath);

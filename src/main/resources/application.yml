@@ -94,8 +94,8 @@ agent:
         timeout-ms: ${AGENT_DEFAULT_BUDGET_MODEL_TIMEOUT_MS:120000}
         retry-count: ${AGENT_DEFAULT_BUDGET_MODEL_RETRY_COUNT:0}
       tool:
-        max-calls: ${AGENT_DEFAULT_BUDGET_TOOL_MAX_CALLS:50}
-        timeout-ms: ${AGENT_DEFAULT_BUDGET_TOOL_TIMEOUT_MS:300000}
+        max-calls: ${AGENT_DEFAULT_BUDGET_TOOL_MAX_CALLS:20}
+        timeout-ms: ${AGENT_DEFAULT_BUDGET_TOOL_TIMEOUT_MS:120000}
         retry-count: ${AGENT_DEFAULT_BUDGET_TOOL_RETRY_COUNT:0}
     react:
       max-steps: ${AGENT_DEFAULT_REACT_MAX_STEPS:60}

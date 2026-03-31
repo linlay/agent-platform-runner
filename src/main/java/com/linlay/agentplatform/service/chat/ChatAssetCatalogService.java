@@ -2,6 +2,8 @@ package com.linlay.agentplatform.service.chat;
 
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.util.DataFilePathNormalizer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -24,6 +26,7 @@ import java.util.stream.Stream;
 @Service
 public class ChatAssetCatalogService {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatAssetCatalogService.class);
     private static final Map<String, String> EXTRA_MIME_TYPES = Map.ofEntries(
             Map.entry(".svg", "image/svg+xml"),
             Map.entry(".webp", "image/webp"),
@@ -90,7 +93,13 @@ public class ChatAssetCatalogService {
                         toReference(normalizedChatId, chatDir, path).ifPresent(references::add);
                     });
         } catch (IOException ex) {
-            return List.of();
+            log.debug(
+                    "Failed to scan chat asset directory chatId={}, chatDir={}, fallback=manifest-only assets",
+                    normalizedChatId,
+                    chatDir,
+                    ex
+            );
+            return List.copyOf(references);
         }
         return List.copyOf(references);
     }
@@ -127,6 +136,12 @@ public class ChatAssetCatalogService {
                     Map.of("relativePath", normalizedRelativePath)
             ));
         } catch (Exception ex) {
+            log.debug(
+                    "Failed to build chat asset reference chatId={}, path={}, fallback=skip file",
+                    chatId,
+                    file,
+                    ex
+            );
             return java.util.Optional.empty();
         }
     }

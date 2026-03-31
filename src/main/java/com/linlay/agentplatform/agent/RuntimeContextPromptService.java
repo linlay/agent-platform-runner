@@ -14,6 +14,8 @@ import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.service.memory.AgentMemoryStore;
 import com.linlay.agentplatform.service.memory.MemoryRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.env.Environment;
@@ -36,6 +38,7 @@ import java.util.stream.Stream;
 @Component
 public class RuntimeContextPromptService {
 
+    private static final Logger log = LoggerFactory.getLogger(RuntimeContextPromptService.class);
     private static final int ALL_AGENTS_MAX_CHARS = 12_000;
     private static final String SANDBOX_WORKSPACE_DIR = "/workspace";
     private static final String SANDBOX_ROOT_DIR = "/root";
@@ -348,7 +351,12 @@ public class RuntimeContextPromptService {
             lines.add("--- file: " + normalizeRelativePath(relativePath));
             try {
                 lines.add(Files.readString(file));
-            } catch (IOException ignored) {
+            } catch (IOException ex) {
+                log.debug(
+                        "Failed to read owner markdown file path={}, fallback=emit unreadable placeholder",
+                        file,
+                        ex
+                );
                 lines.add("[UNREADABLE: " + normalizeRelativePath(relativePath) + "]");
             }
         }
@@ -504,7 +512,12 @@ public class RuntimeContextPromptService {
                     .filter(this::isOwnerMarkdownFile)
                     .sorted(Comparator.comparing(path -> normalizeRelativePath(ownerDir.relativize(path))))
                     .toList();
-        } catch (IOException ignored) {
+        } catch (IOException ex) {
+            log.debug(
+                    "Failed to scan owner markdown files ownerDir={}, fallback=empty owner context",
+                    ownerDir,
+                    ex
+            );
             return List.of();
         }
     }

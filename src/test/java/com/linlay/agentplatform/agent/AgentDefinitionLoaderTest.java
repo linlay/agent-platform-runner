@@ -1367,7 +1367,11 @@ class AgentDefinitionLoaderTest {
                 modelConfig:
                   modelKey: bailian-qwen3-max
                 budget:
-                  runTimeoutMs: 600000
+                  runTimeoutMs: 1800000
+                  model:
+                    maxCalls: 100
+                  tool:
+                    maxCalls: 60
                 mode: REACT
                 react:
                   systemPrompt: assist office tasks
@@ -1376,9 +1380,39 @@ class AgentDefinitionLoaderTest {
         AgentDefinition definition = loadById().get("dailyOfficeAssistant");
 
         assertThat(definition).isNotNull();
-        assertThat(definition.runSpec().budget().runTimeoutMs()).isEqualTo(600000);
-        assertThat(definition.runSpec().budget().model().maxCalls()).isEqualTo(30);
-        assertThat(definition.runSpec().budget().tool().maxCalls()).isEqualTo(50);
+        assertThat(definition.runSpec().budget().runTimeoutMs()).isEqualTo(1_800_000L);
+        assertThat(definition.runSpec().budget().model().maxCalls()).isEqualTo(100);
+        assertThat(definition.runSpec().budget().tool().maxCalls()).isEqualTo(60);
+        assertThat(definition.runSpec().budget().tool().timeoutMs()).isEqualTo(120_000L);
+    }
+
+    @Test
+    void shouldParseDailyOfficeProAssistantBudgetOverride() throws IOException {
+        writeYaml("dailyOfficeProAssistant.yml", """
+                key: dailyOfficeProAssistant
+                name: Daily Office Pro Assistant
+                role: Office Assistant Pro
+                description: daily office pro assistant
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                budget:
+                  runTimeoutMs: 1800000
+                  model:
+                    maxCalls: 100
+                  tool:
+                    maxCalls: 60
+                mode: REACT
+                react:
+                  systemPrompt: assist office tasks
+                """);
+
+        AgentDefinition definition = loadById().get("dailyOfficeProAssistant");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.runSpec().budget().runTimeoutMs()).isEqualTo(1_800_000L);
+        assertThat(definition.runSpec().budget().model().maxCalls()).isEqualTo(100);
+        assertThat(definition.runSpec().budget().tool().maxCalls()).isEqualTo(60);
+        assertThat(definition.runSpec().budget().tool().timeoutMs()).isEqualTo(120_000L);
     }
 
     @Test

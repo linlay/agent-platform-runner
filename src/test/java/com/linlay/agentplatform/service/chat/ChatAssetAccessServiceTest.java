@@ -2,13 +2,16 @@ package com.linlay.agentplatform.service.chat;
 
 import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
+import com.linlay.agentplatform.model.api.QueryRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -34,6 +37,40 @@ class ChatAssetAccessServiceTest {
 
         assertThat(service.canRead(chatId, chatId + "/image.png")).isTrue();
         assertThat(service.canRead(chatId, otherChatId + "/image.png")).isFalse();
+    }
+
+    @Test
+    void shouldFallbackToPersistedHistoryAssetsWhenLiveCatalogFails() {
+        String chatId = "123e4567-e89b-12d3-a456-426614174022";
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        when(chatRecordStore.loadChat(chatId, false))
+                .thenReturn(new ChatDetailResponse(
+                        chatId,
+                        "chat",
+                        null,
+                        null,
+                        List.of(),
+                        List.of(new QueryRequest.Reference(
+                                "ref-1",
+                                "image",
+                                "image.png",
+                                "image/png",
+                                1L,
+                                "/api/resource?file=" + chatId + "%2Fimage.png",
+                                null,
+                                null
+                        ))
+                ));
+
+        ChatAssetCatalogService chatAssetCatalogService = mock(ChatAssetCatalogService.class);
+        doThrow(new IllegalStateException("catalog unavailable"))
+                .when(chatAssetCatalogService)
+                .listAssets(chatId);
+
+        ChatAssetAccessService service = new ChatAssetAccessService(chatRecordStore, chatAssetCatalogService);
+
+        assertThat(service.canRead(chatId, chatId + "/image.png")).isTrue();
     }
 
     private ChatAssetCatalogService newCatalogService() {

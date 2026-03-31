@@ -392,7 +392,8 @@ class OpenAiCompatibleSseClient {
                             "strict", true
                     )
             );
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            log.debug("Failed to parse response json schema, fallback=permissive object schema", ex);
             return Map.of(
                     "type", "json_schema",
                     "json_schema", Map.of(

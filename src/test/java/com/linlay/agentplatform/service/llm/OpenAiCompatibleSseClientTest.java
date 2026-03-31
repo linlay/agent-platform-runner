@@ -149,6 +149,41 @@ class OpenAiCompatibleSseClientTest {
         assertThat(request).containsKey("tools");
     }
 
+    @Test
+    void shouldFallbackToPermissiveObjectSchemaWhenJsonSchemaIsInvalid() throws Exception {
+        OpenAiCompatibleSseClient client = new OpenAiCompatibleSseClient(
+                providerRegistry("https://api.babelark.com", "/v1/chat/completions"),
+                new ObjectMapper(),
+                new LlmCallLogger(new LlmInteractionLogProperties()),
+                null
+        );
+
+        Map<String, Object> request = client.buildRequestBody(
+                "babelark",
+                "Qwen3.5-397B-A17B",
+                "system",
+                List.of(),
+                "user",
+                List.of(),
+                false,
+                ToolChoice.AUTO,
+                "{invalid-json",
+                ComputePolicy.MEDIUM,
+                false,
+                4096
+        );
+
+        assertThat(request).containsKey("response_format");
+        assertThat(request.get("response_format")).isEqualTo(Map.of(
+                "type", "json_schema",
+                "json_schema", Map.of(
+                        "name", "response_schema",
+                        "schema", Map.of("type", "object"),
+                        "strict", false
+                )
+        ));
+    }
+
     private ProviderRegistryService providerRegistry(String baseUrl, String endpointPath) throws Exception {
         Path providersDir = tempDir.resolve(java.util.UUID.randomUUID().toString());
         Files.createDirectories(providersDir);

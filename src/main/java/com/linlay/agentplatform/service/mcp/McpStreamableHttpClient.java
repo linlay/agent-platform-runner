@@ -224,6 +224,14 @@ public class McpStreamableHttpClient {
                         .block(Duration.ofMillis(Math.max(1, server.readTimeoutMs())));
                 JsonNode payload = parseResponsePayload(body);
                 if (payload == null || payload.isNull()) {
+                    if (StringUtils.hasText(body)) {
+                        log.debug(
+                                "Failed to parse MCP response payload serverKey={}, method={}, fallback=empty payload body={}",
+                                server.serverKey(),
+                                method,
+                                abbreviateForLog(body)
+                        );
+                    }
                     throw new IllegalStateException("MCP call returned empty payload");
                 }
                 JsonNode result = payload.get("result");
@@ -413,6 +421,14 @@ public class McpStreamableHttpClient {
             return type;
         }
         return type + ": " + message;
+    }
+
+    private String abbreviateForLog(String body) {
+        String normalized = body == null ? "" : body.trim().replaceAll("\\s+", " ");
+        if (normalized.length() <= 400) {
+            return normalized;
+        }
+        return normalized.substring(0, 400) + "...";
     }
 
     public record McpToolDefinition(

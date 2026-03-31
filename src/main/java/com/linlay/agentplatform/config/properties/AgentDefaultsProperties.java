@@ -62,7 +62,7 @@ public class AgentDefaultsProperties {
     public static class BudgetProperties {
         private long runTimeoutMs = 300_000L;
         private final ScopeProperties model = new ScopeProperties(30, 120_000L, 0);
-        private final ScopeProperties tool = new ScopeProperties(50, 300_000L, 0);
+        private final ScopeProperties tool = new ScopeProperties(20, 120_000L, 0);
 
         public long getRunTimeoutMs() {
             return runTimeoutMs;
