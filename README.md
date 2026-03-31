@@ -403,8 +403,9 @@ RELEASE_BASE_IMAGE=<candidate-image> ARCH=arm64 make release
 - `agent.cors.enabled` 在主配置中默认是 `false`，即默认不启用 CORS 过滤器。
 - `agent.cors.allowed-origin-patterns` 仅匹配请求头 `Origin`，当前服务不读取/校验 `Referer`。
 - provider 目录默认是项目根目录下的 `runtime/registries/providers/`（或 `REGISTRIES_DIR/providers` 覆盖目录），支持热加载，且仅扫描 `.yml/.yaml`。
-- provider 文件契约是单文件单对象 flat schema：`key/baseUrl/apiKey/defaultModel/protocols.<PROTOCOL>.endpointPath`。
+- provider 文件契约是单文件单对象 flat schema：`key/baseUrl/apiKey/defaultModel/protocols.<PROTOCOL>.endpointPath`，并可选扩展 `protocols.<PROTOCOL>.compat` 作为 OpenAI 兼容层请求/响应格式适配配置。
 - 实际模型调用统一使用 `runtime/registries/providers/*.yml`（或 `REGISTRIES_DIR/providers` 覆盖目录）；provider 负责基础地址、鉴权和协议级 endpoint 配置。
+- model 文件也可选扩展根级 `compat`，用于按模型覆盖 provider 级 OpenAI compat 行为；运行时优先级是 `model > provider`。
 
 ### settings.xml 说明
 

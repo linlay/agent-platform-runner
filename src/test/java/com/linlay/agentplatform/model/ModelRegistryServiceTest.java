@@ -1,6 +1,7 @@
 package com.linlay.agentplatform.model;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.config.ReasoningFormat;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
 import com.linlay.agentplatform.service.llm.ProviderRegistryService;
 import com.linlay.agentplatform.util.CatalogDiff;
@@ -56,6 +57,38 @@ class ModelRegistryServiceTest {
         assertThat(model.pricing().completionPointsPer1k()).isEqualTo(30);
         assertThat(model.pricing().tiers()).hasSize(1);
         assertThat(model.pricing().tiers().getFirst().maxInputTokens()).isEqualTo(8000);
+    }
+
+    @Test
+    void shouldLoadCompatFromModelYaml() throws Exception {
+        Path modelsDir = tempDir.resolve("models");
+        Files.createDirectories(modelsDir);
+        Files.writeString(modelsDir.resolve("babelark-minimax-m2_7.yml"), """
+                key: babelark-minimax-m2_7
+                provider: babelark
+                protocol: OPENAI
+                modelId: MiniMax-M2.7
+                compat:
+                  response:
+                    reasoningFormats:
+                      - REASONING_CONTENT
+                      - THINK_TAG_CONTENT
+                    thinkTag:
+                      start: "<think>"
+                      end: "</think>"
+                      stripFromContent: true
+                """);
+
+        ModelRegistryService service = new ModelRegistryService(
+                new ObjectMapper(),
+                modelProperties(modelsDir),
+                providerRegistry(Map.of("babelark", "https://example.com"))
+        );
+
+        ModelDefinition model = service.find("babelark-minimax-m2_7").orElseThrow();
+        assertThat(model.compat()).isNotNull();
+        assertThat(model.compat().response().reasoningFormats())
+                .containsExactly(ReasoningFormat.REASONING_CONTENT, ReasoningFormat.THINK_TAG_CONTENT);
     }
 
     @Test

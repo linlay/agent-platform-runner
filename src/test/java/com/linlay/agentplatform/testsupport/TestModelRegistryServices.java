@@ -63,6 +63,7 @@ public final class TestModelRegistryServices {
                 null,
                 null,
                 null,
+                null,
                 null
         );
     }

@@ -672,6 +672,7 @@ class AgentDefinitionLoaderTest {
                 null,
                 16000,
                 null,
+                null,
                 null
         ));
 
@@ -706,6 +707,7 @@ class AgentDefinitionLoaderTest {
                 null,
                 null,
                 16000,
+                null,
                 null,
                 null
         ));

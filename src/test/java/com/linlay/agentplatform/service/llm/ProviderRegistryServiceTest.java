@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.service.llm;
 
+import com.linlay.agentplatform.config.ReasoningFormat;
 import com.linlay.agentplatform.config.ProviderConfig;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,65 @@ class ProviderRegistryServiceTest {
 
         ProviderConfig config = service.find("bailian").orElseThrow();
         assertThat(config.defaultModel()).isEqualTo("qwen3.5-plus");
+    }
+
+    @Test
+    void shouldLoadOpenAiCompatFromProviderYaml() throws Exception {
+        Path providersDir = tempDir.resolve("providers");
+        Files.createDirectories(providersDir);
+        Files.writeString(providersDir.resolve("minimax.yml"), """
+                key: minimax
+                baseUrl: https://api.minimaxi.com/v1
+                apiKey: dummy
+                defaultModel: MiniMax-M2.7
+                protocols:
+                  OPENAI:
+                    compat:
+                      request:
+                        whenReasoningEnabled:
+                          reasoning_split: true
+                      response:
+                        reasoningFormats:
+                          - REASONING_DETAILS_TEXT
+                          - THINK_TAG_CONTENT
+                        thinkTag:
+                          start: "<think>"
+                          end: "</think>"
+                          stripFromContent: true
+                """);
+
+        ProviderRegistryService service = new ProviderRegistryService(providerProperties(providersDir));
+
+        ProviderConfig config = service.find("minimax").orElseThrow();
+        assertThat(config.getProtocol(com.linlay.agentplatform.model.ModelProtocol.OPENAI)).isNotNull();
+        assertThat(config.getProtocol(com.linlay.agentplatform.model.ModelProtocol.OPENAI).compat()).isNotNull();
+        assertThat(config.getProtocol(com.linlay.agentplatform.model.ModelProtocol.OPENAI).compat().request().whenReasoningEnabled())
+                .containsEntry("reasoning_split", true);
+        assertThat(config.getProtocol(com.linlay.agentplatform.model.ModelProtocol.OPENAI).compat().response().reasoningFormats())
+                .containsExactly(ReasoningFormat.REASONING_DETAILS_TEXT, ReasoningFormat.THINK_TAG_CONTENT);
+    }
+
+    @Test
+    void shouldRejectReservedCompatRequestKeysInProviderYaml() throws Exception {
+        Path providersDir = tempDir.resolve("providers");
+        Files.createDirectories(providersDir);
+        Files.writeString(providersDir.resolve("minimax.yml"), """
+                key: minimax
+                baseUrl: https://api.minimaxi.com/v1
+                apiKey: dummy
+                defaultModel: MiniMax-M2.7
+                protocols:
+                  OPENAI:
+                    compat:
+                      request:
+                        whenReasoningEnabled:
+                          response_format: {}
+                """);
+
+        assertThatThrownBy(() -> new ProviderRegistryService(providerProperties(providersDir)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("reserved keys are not allowed")
+                .hasMessageContaining("response_format");
     }
 
     @Test

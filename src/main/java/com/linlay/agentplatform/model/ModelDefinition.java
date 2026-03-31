@@ -1,5 +1,7 @@
 package com.linlay.agentplatform.model;
 
+import com.linlay.agentplatform.config.OpenAiCompatConfig;
+
 import java.util.List;
 
 public record ModelDefinition(
@@ -13,6 +15,7 @@ public record ModelDefinition(
         Integer maxInputTokens,
         Integer maxOutputTokens,
         Pricing pricing,
+        OpenAiCompatConfig compat,
         String sourceFile
 ) {
 

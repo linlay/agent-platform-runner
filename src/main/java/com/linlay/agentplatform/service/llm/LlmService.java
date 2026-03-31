@@ -6,6 +6,8 @@ import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.properties.LlmInteractionLogProperties;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
+import com.linlay.agentplatform.model.ModelRegistryService;
+import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.service.llm.ProviderRegistryService;
 import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.model.ModelProtocol;
@@ -41,6 +43,7 @@ public class LlmService {
     public LlmService() {
         this(
                 emptyProviderRegistryService(),
+                emptyModelRegistryService(),
                 new ObjectMapper(),
                 new LlmInteractionLogProperties(),
                 null
@@ -50,18 +53,31 @@ public class LlmService {
     @Autowired
     public LlmService(
             ProviderRegistryService providerRegistryService,
+            ModelRegistryService modelRegistryService,
             ObjectMapper objectMapper,
             LlmInteractionLogProperties logProperties,
             ConnectionProvider llmConnectionProvider
     ) {
         this.callLogger = new LlmCallLogger(logProperties);
-        this.openAiCompatibleSseClient = new OpenAiCompatibleSseClient(providerRegistryService, objectMapper, this.callLogger, llmConnectionProvider);
+        this.openAiCompatibleSseClient = new OpenAiCompatibleSseClient(
+                providerRegistryService,
+                modelRegistryService,
+                objectMapper,
+                this.callLogger,
+                llmConnectionProvider
+        );
     }
 
     private static ProviderRegistryService emptyProviderRegistryService() {
         ProviderProperties providerProperties = new ProviderProperties();
         providerProperties.setExternalDir("__missing_providers__");
         return new ProviderRegistryService(providerProperties);
+    }
+
+    private static ModelRegistryService emptyModelRegistryService() {
+        ModelProperties modelProperties = new ModelProperties();
+        modelProperties.setExternalDir("__missing_models__");
+        return new ModelRegistryService(new ObjectMapper(), modelProperties, emptyProviderRegistryService());
     }
 
     public Flux<String> streamContent(LlmCallSpec spec) {
@@ -134,6 +150,7 @@ public class LlmService {
 
     private Flux<String> streamContentInternal(LlmCallSpec spec) {
         return openAiCompatibleSseClient.streamContentRawSse(
+                spec.modelKey(),
                 spec.providerKey(),
                 spec.model(),
                 spec.protocol(),
@@ -151,6 +168,7 @@ public class LlmService {
             StringBuilder responseBuffer = new StringBuilder();
             boolean hasTools = !spec.tools().isEmpty();
             Map<String, Object> requestBody = openAiCompatibleSseClient.buildRequestBody(
+                    spec.modelKey(),
                     spec.providerKey(),
                     spec.model(),
                     spec.systemPrompt(),
@@ -175,6 +193,7 @@ public class LlmService {
             callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream user prompt:\n{}"), callLogger.normalizePrompt(spec.userPrompt()));
 
             Flux<LlmDelta> deltaFlux = openAiCompatibleSseClient.streamDeltasRawSse(
+                    spec.modelKey(),
                     spec.providerKey(),
                     spec.model(),
                     spec.protocol(),

@@ -5,8 +5,9 @@ import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.properties.LlmInteractionLogProperties;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
-import com.linlay.agentplatform.service.llm.ProviderRegistryService;
+import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.model.ModelProtocol;
+import com.linlay.agentplatform.model.ModelRegistryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -24,12 +25,7 @@ class OpenAiCompatibleSseClientTest {
 
     @Test
     void shouldPreferConfiguredProtocolEndpointPath() throws Exception {
-        OpenAiCompatibleSseClient client = new OpenAiCompatibleSseClient(
-                providerRegistry("https://api.babelark.com", "/v1/chat/completions"),
-                new ObjectMapper(),
-                new LlmCallLogger(new LlmInteractionLogProperties()),
-                null
-        );
+        OpenAiCompatibleSseClient client = client(providerYaml("https://api.babelark.com", "/v1/chat/completions", null));
 
         assertThat(client.resolveRawCompletionsUri("babelark", ModelProtocol.OPENAI))
                 .isEqualTo("/v1/chat/completions");
@@ -37,18 +33,8 @@ class OpenAiCompatibleSseClientTest {
 
     @Test
     void shouldInferOpenAiEndpointWhenProviderDoesNotConfigureOne() throws Exception {
-        OpenAiCompatibleSseClient versionedClient = new OpenAiCompatibleSseClient(
-                providerRegistry("https://example.com/v1", null),
-                new ObjectMapper(),
-                new LlmCallLogger(new LlmInteractionLogProperties()),
-                null
-        );
-        OpenAiCompatibleSseClient rootClient = new OpenAiCompatibleSseClient(
-                providerRegistry("https://example.com", null),
-                new ObjectMapper(),
-                new LlmCallLogger(new LlmInteractionLogProperties()),
-                null
-        );
+        OpenAiCompatibleSseClient versionedClient = client(providerYaml("https://example.com/v1", null, null));
+        OpenAiCompatibleSseClient rootClient = client(providerYaml("https://example.com", null, null));
 
         assertThat(versionedClient.resolveRawCompletionsUri("babelark", ModelProtocol.OPENAI))
                 .isEqualTo("/chat/completions");
@@ -57,13 +43,8 @@ class OpenAiCompatibleSseClientTest {
     }
 
     @Test
-    void shouldAlwaysIncludeEnableThinkingFalseForNonBailianWhenReasoningDisabled() throws Exception {
-        OpenAiCompatibleSseClient client = new OpenAiCompatibleSseClient(
-                providerRegistry("https://api.babelark.com", "/v1/chat/completions"),
-                new ObjectMapper(),
-                new LlmCallLogger(new LlmInteractionLogProperties()),
-                null
-        );
+    void shouldAlwaysIncludeEnableThinkingFalseWhenReasoningDisabled() throws Exception {
+        OpenAiCompatibleSseClient client = client(providerYaml("https://api.babelark.com", "/v1/chat/completions", null));
 
         Map<String, Object> request = client.buildRequestBody(
                 "babelark",
@@ -85,17 +66,17 @@ class OpenAiCompatibleSseClientTest {
     }
 
     @Test
-    void shouldAlwaysIncludeEnableThinkingTrueAndReasoningForNonBailianWhenReasoningEnabled() throws Exception {
-        OpenAiCompatibleSseClient client = new OpenAiCompatibleSseClient(
-                providerRegistry("https://api.babelark.com", "/v1/chat/completions"),
-                new ObjectMapper(),
-                new LlmCallLogger(new LlmInteractionLogProperties()),
-                null
-        );
+    void shouldApplyProviderCompatRequestWhenReasoningEnabled() throws Exception {
+        String compat = """
+                request:
+                  whenReasoningEnabled:
+                    reasoning_split: true
+                """;
+        OpenAiCompatibleSseClient client = client(providerYaml("https://api.minimaxi.com/v1", null, compat));
 
         Map<String, Object> request = client.buildRequestBody(
-                "babelark",
-                "Qwen3.5-397B-A17B",
+                "minimax",
+                "MiniMax-M2.7",
                 "system",
                 List.of(),
                 "user",
@@ -110,16 +91,54 @@ class OpenAiCompatibleSseClientTest {
 
         assertThat(request).containsEntry("enable_thinking", true);
         assertThat(request).containsEntry("reasoning", Map.of("effort", "high"));
+        assertThat(request).containsEntry("reasoning_split", true);
+    }
+
+    @Test
+    void shouldAllowModelCompatToOverrideProviderCompatRequestFields() throws Exception {
+        String providerCompat = """
+                request:
+                  whenReasoningEnabled:
+                    reasoning_split: true
+                    gateway_mode: provider
+                """;
+        String modelCompat = """
+                compat:
+                  request:
+                    whenReasoningEnabled:
+                      reasoning_split: null
+                      gateway_mode: model
+                      model_only: true
+                """;
+        OpenAiCompatibleSseClient client = client(
+                providerYaml("https://example.com/v1", null, providerCompat),
+                modelYaml("babelark-minimax-m2_7", "babelark", "MiniMax-M2.7", modelCompat)
+        );
+
+        Map<String, Object> request = client.buildRequestBody(
+                "babelark-minimax-m2_7",
+                "babelark",
+                "MiniMax-M2.7",
+                "system",
+                List.of(),
+                "user",
+                List.of(),
+                false,
+                ToolChoice.AUTO,
+                null,
+                ComputePolicy.MEDIUM,
+                true,
+                4096
+        );
+
+        assertThat(request).doesNotContainKey("reasoning_split");
+        assertThat(request).containsEntry("gateway_mode", "model");
+        assertThat(request).containsEntry("model_only", true);
     }
 
     @Test
     void shouldSendEnableThinkingAlongsideRequiredToolChoiceForPlanGenerationPayload() throws Exception {
-        OpenAiCompatibleSseClient client = new OpenAiCompatibleSseClient(
-                providerRegistry("https://api.babelark.com", "/v1/chat/completions"),
-                new ObjectMapper(),
-                new LlmCallLogger(new LlmInteractionLogProperties()),
-                null
-        );
+        OpenAiCompatibleSseClient client = client(providerYaml("https://api.babelark.com", "/v1/chat/completions", null));
 
         List<LlmService.LlmFunctionTool> tools = List.of(new LlmService.LlmFunctionTool(
                 "_plan_add_tasks_",
@@ -151,12 +170,7 @@ class OpenAiCompatibleSseClientTest {
 
     @Test
     void shouldFallbackToPermissiveObjectSchemaWhenJsonSchemaIsInvalid() throws Exception {
-        OpenAiCompatibleSseClient client = new OpenAiCompatibleSseClient(
-                providerRegistry("https://api.babelark.com", "/v1/chat/completions"),
-                new ObjectMapper(),
-                new LlmCallLogger(new LlmInteractionLogProperties()),
-                null
-        );
+        OpenAiCompatibleSseClient client = client(providerYaml("https://api.babelark.com", "/v1/chat/completions", null));
 
         Map<String, Object> request = client.buildRequestBody(
                 "babelark",
@@ -184,24 +198,76 @@ class OpenAiCompatibleSseClientTest {
         ));
     }
 
-    private ProviderRegistryService providerRegistry(String baseUrl, String endpointPath) throws Exception {
-        Path providersDir = tempDir.resolve(java.util.UUID.randomUUID().toString());
+    private OpenAiCompatibleSseClient client(String providerYaml, String... modelYamls) throws Exception {
+        ProviderRegistryService providerRegistry = providerRegistry(providerYaml);
+        ModelRegistryService modelRegistry = modelRegistry(providerRegistry, modelYamls);
+        return new OpenAiCompatibleSseClient(
+                providerRegistry,
+                modelRegistry,
+                new ObjectMapper(),
+                new LlmCallLogger(new LlmInteractionLogProperties()),
+                null
+        );
+    }
+
+    private ProviderRegistryService providerRegistry(String providerYaml) throws Exception {
+        Path providersDir = tempDir.resolve("providers-" + java.util.UUID.randomUUID());
         Files.createDirectories(providersDir);
-        String protocolsBlock = endpointPath == null
+        Files.writeString(providersDir.resolve("provider.yml"), providerYaml);
+        ProviderProperties properties = new ProviderProperties();
+        properties.setExternalDir(providersDir.toString());
+        return new ProviderRegistryService(properties);
+    }
+
+    private ModelRegistryService modelRegistry(ProviderRegistryService providerRegistry, String... modelYamls) throws Exception {
+        Path modelsDir = tempDir.resolve("models-" + java.util.UUID.randomUUID());
+        Files.createDirectories(modelsDir);
+        if (modelYamls != null) {
+            for (int i = 0; i < modelYamls.length; i++) {
+                Files.writeString(modelsDir.resolve("model-" + i + ".yml"), modelYamls[i]);
+            }
+        }
+        ModelProperties properties = new ModelProperties();
+        properties.setExternalDir(modelsDir.toString());
+        return new ModelRegistryService(new ObjectMapper(), properties, providerRegistry);
+    }
+
+    private String providerYaml(String baseUrl, String endpointPath, String compatBlock) {
+        String protocolsBlock = endpointPath == null && compatBlock == null
                 ? ""
                 : """
                 protocols:
                   OPENAI:
-                    endpointPath: %s
-                """.formatted(endpointPath);
-        Files.writeString(providersDir.resolve("babelark.yml"), """
-                key: babelark
+                %s%s
+                """.formatted(
+                        endpointPath == null ? "" : "    endpointPath: %s%n".formatted(endpointPath),
+                        compatBlock == null ? "" : "    compat:\n" + indent(compatBlock, 6)
+                );
+        return """
+                key: %s
                 baseUrl: %s
                 apiKey: dummy
+                defaultModel: default-model
                 %s
-                """.formatted(baseUrl, protocolsBlock));
-        ProviderProperties properties = new ProviderProperties();
-        properties.setExternalDir(providersDir.toString());
-        return new ProviderRegistryService(properties);
+                """.formatted(baseUrl.contains("minimaxi") ? "minimax" : "babelark", baseUrl, protocolsBlock);
+    }
+
+    private String modelYaml(String key, String provider, String modelId, String extraBlock) {
+        return """
+                key: %s
+                provider: %s
+                protocol: OPENAI
+                modelId: %s
+                isReasoner: true
+                isFunction: true
+                %s
+                """.formatted(key, provider, modelId, extraBlock == null ? "" : extraBlock);
+    }
+
+    private String indent(String text, int spaces) {
+        String prefix = " ".repeat(spaces);
+        return text.lines()
+                .map(line -> line.isEmpty() ? line : prefix + line)
+                .reduce("", (left, right) -> left + right + "\n");
     }
 }

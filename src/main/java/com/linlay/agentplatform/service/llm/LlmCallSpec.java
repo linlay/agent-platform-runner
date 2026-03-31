@@ -9,6 +9,7 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 public record LlmCallSpec(
+        String modelKey,
         String providerKey,
         String model,
         ModelProtocol protocol,
@@ -27,6 +28,7 @@ public record LlmCallSpec(
         Mono<Void> cancelSignal
 ) {
     public LlmCallSpec {
+        modelKey = modelKey == null || modelKey.isBlank() ? null : modelKey.trim();
         if (messages == null) {
             messages = List.of();
         } else {

@@ -1,5 +1,8 @@
 package com.linlay.agentplatform.service.llm;
 
+import com.linlay.agentplatform.config.OpenAiCompatConfig;
+import com.linlay.agentplatform.config.OpenAiCompatConfigSupport;
+import com.linlay.agentplatform.config.OpenAiCompatRequestConfig;
 import com.linlay.agentplatform.stream.adapter.openai.OpenAiSseDeltaParser;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,6 +11,8 @@ import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.ProviderConfig;
 import com.linlay.agentplatform.config.ProtocolConfig;
+import com.linlay.agentplatform.model.ModelDefinition;
+import com.linlay.agentplatform.model.ModelRegistryService;
 import com.linlay.agentplatform.service.llm.ProviderRegistryService;
 import com.linlay.agentplatform.model.ModelProtocol;
 import org.slf4j.Logger;
@@ -25,6 +30,7 @@ import reactor.util.retry.Retry;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -40,21 +46,23 @@ class OpenAiCompatibleSseClient {
     private static final Logger log = LoggerFactory.getLogger(OpenAiCompatibleSseClient.class);
 
     private final ProviderRegistryService providerRegistryService;
+    private final ModelRegistryService modelRegistryService;
     private final ObjectMapper objectMapper;
     private final LlmCallLogger callLogger;
-    private final OpenAiSseDeltaParser openAiSseDeltaParser;
     private final ConnectionProvider connectionProvider;
 
-    OpenAiCompatibleSseClient(ProviderRegistryService providerRegistryService, ObjectMapper objectMapper,
+    OpenAiCompatibleSseClient(ProviderRegistryService providerRegistryService, ModelRegistryService modelRegistryService,
+                              ObjectMapper objectMapper,
                               LlmCallLogger callLogger, ConnectionProvider connectionProvider) {
         this.providerRegistryService = providerRegistryService;
+        this.modelRegistryService = modelRegistryService;
         this.objectMapper = objectMapper;
         this.callLogger = callLogger;
-        this.openAiSseDeltaParser = new OpenAiSseDeltaParser(objectMapper);
         this.connectionProvider = connectionProvider;
     }
 
     Flux<LlmDelta> streamDeltasRawSse(
+            String modelKey,
             String providerKey,
             String model,
             ModelProtocol protocol,
@@ -72,6 +80,7 @@ class OpenAiCompatibleSseClient {
             String stage
     ) {
         return streamDeltasRawSse(
+                modelKey,
                 providerKey,
                 model,
                 protocol,
@@ -92,6 +101,7 @@ class OpenAiCompatibleSseClient {
     }
 
     Flux<LlmDelta> streamDeltasRawSse(
+            String modelKey,
             String providerKey,
             String model,
             ModelProtocol protocol,
@@ -111,8 +121,11 @@ class OpenAiCompatibleSseClient {
     ) {
         return Flux.defer(() -> {
             ProviderConfig config = resolveProviderConfig(providerKey);
+            OpenAiCompatConfig compat = resolveEffectiveCompat(providerKey, modelKey, protocol);
+            OpenAiSseDeltaParser parser = new OpenAiSseDeltaParser(objectMapper);
             WebClient webClient = buildRawWebClient(config);
             Map<String, Object> request = buildRawStreamRequest(
+                    modelKey,
                     providerKey,
                     model,
                     systemPrompt,
@@ -123,6 +136,7 @@ class OpenAiCompatibleSseClient {
                     toolChoice,
                     jsonSchema,
                     computePolicy,
+                    compat,
                     reasoningEnabled,
                     maxTokens
             );
@@ -158,7 +172,7 @@ class OpenAiCompatibleSseClient {
                         }
                     })
                     .handle((rawChunk, sink) -> {
-                        LlmDelta delta = openAiSseDeltaParser.parseOrNull(rawChunk);
+                        LlmDelta delta = parser.parseOrNull(rawChunk);
                         if (delta != null) {
                             sink.next(delta);
                         }
@@ -175,10 +189,24 @@ class OpenAiCompatibleSseClient {
             String userPrompt,
             String stage
     ) {
-        return streamContentRawSse(providerKey, model, protocol, systemPrompt, historyMessages, userPrompt, stage, null);
+        return streamContentRawSse(null, providerKey, model, protocol, systemPrompt, historyMessages, userPrompt, stage);
     }
 
     Flux<String> streamContentRawSse(
+            String modelKey,
+            String providerKey,
+            String model,
+            ModelProtocol protocol,
+            String systemPrompt,
+            List<ChatMessage> historyMessages,
+            String userPrompt,
+            String stage
+    ) {
+        return streamContentRawSse(modelKey, providerKey, model, protocol, systemPrompt, historyMessages, userPrompt, stage, null);
+    }
+
+    Flux<String> streamContentRawSse(
+            String modelKey,
             String providerKey,
             String model,
             ModelProtocol protocol,
@@ -200,8 +228,11 @@ class OpenAiCompatibleSseClient {
             callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream user prompt:\n{}"), callLogger.normalizePrompt(userPrompt));
 
             ProviderConfig config = resolveProviderConfig(providerKey);
+            OpenAiCompatConfig compat = resolveEffectiveCompat(providerKey, modelKey, protocol);
+            OpenAiSseDeltaParser parser = new OpenAiSseDeltaParser(objectMapper);
             WebClient webClient = buildRawWebClient(config);
             Map<String, Object> request = buildRawStreamRequest(
+                    modelKey,
                     providerKey,
                     model,
                     systemPrompt,
@@ -212,6 +243,7 @@ class OpenAiCompatibleSseClient {
                     ToolChoice.NONE,
                     null,
                     ComputePolicy.MEDIUM,
+                    compat,
                     false,
                     null
             );
@@ -226,7 +258,7 @@ class OpenAiCompatibleSseClient {
                     .retryWhen(Retry.max(1)
                             .filter(ex -> !firstChunkReceived.get() && isConnectionError(ex)))
                     .<String>handle((rawChunk, sink) -> {
-                        LlmDelta delta = openAiSseDeltaParser.parseOrNull(rawChunk);
+                        LlmDelta delta = parser.parseOrNull(rawChunk);
                         if (delta != null && delta.content() != null && !delta.content().isEmpty()) {
                             sink.next(delta.content());
                         }
@@ -322,7 +354,8 @@ class OpenAiCompatibleSseClient {
             boolean reasoningEnabled,
             Integer maxTokens
     ) {
-        return buildRawStreamRequest(
+        return buildRequestBody(
+                null,
                 providerKey,
                 model,
                 systemPrompt,
@@ -338,7 +371,8 @@ class OpenAiCompatibleSseClient {
         );
     }
 
-    private Map<String, Object> buildRawStreamRequest(
+    Map<String, Object> buildRequestBody(
+            String modelKey,
             String providerKey,
             String model,
             String systemPrompt,
@@ -349,6 +383,41 @@ class OpenAiCompatibleSseClient {
             ToolChoice toolChoice,
             String jsonSchema,
             ComputePolicy computePolicy,
+            boolean reasoningEnabled,
+            Integer maxTokens
+    ) {
+        OpenAiCompatConfig compat = resolveEffectiveCompat(providerKey, modelKey, ModelProtocol.OPENAI);
+        return buildRawStreamRequest(
+                modelKey,
+                providerKey,
+                model,
+                systemPrompt,
+                historyMessages,
+                userPrompt,
+                tools,
+                parallelToolCalls,
+                toolChoice,
+                jsonSchema,
+                computePolicy,
+                compat,
+                reasoningEnabled,
+                maxTokens
+        );
+    }
+
+    private Map<String, Object> buildRawStreamRequest(
+            String modelKey,
+            String providerKey,
+            String model,
+            String systemPrompt,
+            List<ChatMessage> historyMessages,
+            String userPrompt,
+            List<LlmService.LlmFunctionTool> tools,
+            boolean parallelToolCalls,
+            ToolChoice toolChoice,
+            String jsonSchema,
+            ComputePolicy computePolicy,
+            OpenAiCompatConfig compat,
             boolean reasoningEnabled,
             Integer maxTokens
     ) {
@@ -378,7 +447,40 @@ class OpenAiCompatibleSseClient {
             request.put("tool_choice", toToolChoiceValue(toolChoice));
             request.put("parallel_tool_calls", parallelToolCalls);
         }
+        applyCompatRequest(request, compat, reasoningEnabled);
         return request;
+    }
+
+    private void applyCompatRequest(Map<String, Object> request, OpenAiCompatConfig compat, boolean reasoningEnabled) {
+        if (!reasoningEnabled || compat == null || compat.request() == null) {
+            return;
+        }
+        OpenAiCompatRequestConfig requestCompat = compat.request();
+        if (requestCompat.whenReasoningEnabled() == null || requestCompat.whenReasoningEnabled().isEmpty()) {
+            return;
+        }
+        Map<String, Object> merged = OpenAiCompatConfigSupport.mergeNullableMaps(
+                request,
+                requestCompat.whenReasoningEnabled()
+        );
+        request.clear();
+        request.putAll(merged == null ? Collections.emptyMap() : merged);
+    }
+
+    private OpenAiCompatConfig resolveEffectiveCompat(String providerKey, String modelKey, ModelProtocol protocol) {
+        ProviderConfig providerConfig = resolveProviderConfig(providerKey);
+        ProtocolConfig protocolConfig = providerConfig.getProtocol(protocol);
+        OpenAiCompatConfig providerCompat = protocolConfig == null ? null : protocolConfig.compat();
+        OpenAiCompatConfig modelCompat = resolveModelCompat(modelKey);
+        return OpenAiCompatConfigSupport.merge(providerCompat, modelCompat);
+    }
+
+    private OpenAiCompatConfig resolveModelCompat(String modelKey) {
+        if (!StringUtils.hasText(modelKey) || modelRegistryService == null) {
+            return null;
+        }
+        ModelDefinition modelDefinition = modelRegistryService.find(modelKey).orElse(null);
+        return modelDefinition == null ? null : modelDefinition.compat();
     }
 
     private Map<String, Object> buildJsonSchemaFormat(String schema) {

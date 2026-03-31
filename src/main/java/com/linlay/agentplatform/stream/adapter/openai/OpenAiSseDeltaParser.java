@@ -1,5 +1,9 @@
 package com.linlay.agentplatform.stream.adapter.openai;
 
+import com.linlay.agentplatform.config.OpenAiCompatConfig;
+import com.linlay.agentplatform.config.OpenAiCompatResponseConfig;
+import com.linlay.agentplatform.config.ReasoningFormat;
+import com.linlay.agentplatform.config.ThinkTagConfig;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -19,9 +23,30 @@ public class OpenAiSseDeltaParser {
     private static final Logger log = LoggerFactory.getLogger(OpenAiSseDeltaParser.class);
 
     private final ObjectMapper objectMapper;
+    private final List<ReasoningFormat> reasoningFormats;
+    private final ThinkTagConfig thinkTagConfig;
+    private final boolean thinkTagEnabled;
+    private final String thinkTagStart;
+    private final String thinkTagEnd;
+    private final boolean stripThinkTagFromContent;
+    private final StringBuilder thinkBuffer = new StringBuilder();
+    private boolean insideThinkTag;
 
     public OpenAiSseDeltaParser(ObjectMapper objectMapper) {
+        this(objectMapper, null);
+    }
+
+    public OpenAiSseDeltaParser(ObjectMapper objectMapper, OpenAiCompatConfig compat) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper cannot be null");
+        OpenAiCompatResponseConfig response = compat == null ? null : compat.response();
+        this.reasoningFormats = response == null || response.reasoningFormats() == null
+                ? List.of(ReasoningFormat.REASONING_CONTENT)
+                : response.reasoningFormats();
+        this.thinkTagConfig = response == null ? null : response.thinkTag();
+        this.thinkTagEnabled = reasoningFormats.contains(ReasoningFormat.THINK_TAG_CONTENT);
+        this.thinkTagStart = thinkTagConfig != null && hasText(thinkTagConfig.start()) ? thinkTagConfig.start() : "<think>";
+        this.thinkTagEnd = thinkTagConfig != null && hasText(thinkTagConfig.end()) ? thinkTagConfig.end() : "</think>";
+        this.stripThinkTagFromContent = thinkTagConfig == null || thinkTagConfig.stripFromContentOrDefault();
     }
 
     public LlmDelta parseOrNull(String rawChunk) {
@@ -42,8 +67,12 @@ public class OpenAiSseDeltaParser {
 
             JsonNode firstChoice = choices.get(0);
             JsonNode deltaNode = firstChoice.path("delta");
-            String reasoning = optionalText(deltaNode.get("reasoning_content"));
-            String content = optionalText(deltaNode.get("content"));
+            String reasoning = parseReasoning(deltaNode);
+            ParsedThinkTagContent parsedContent = parseThinkTagContent(optionalText(deltaNode.get("content")));
+            String content = parsedContent.content();
+            if (hasText(parsedContent.reasoning())) {
+                reasoning = appendText(reasoning, parsedContent.reasoning());
+            }
             String finishReason = optionalText(firstChoice.get("finish_reason"));
 
             List<ToolCallDelta> toolCalls = new ArrayList<>();
@@ -82,6 +111,127 @@ public class OpenAiSseDeltaParser {
             log.warn("Failed to parse OpenAI SSE chunk: {}", rawChunk, ex);
             return null;
         }
+    }
+
+    private String parseReasoning(JsonNode deltaNode) {
+        String reasoning = null;
+        if (reasoningFormats.contains(ReasoningFormat.REASONING_CONTENT)) {
+            reasoning = appendText(reasoning, optionalText(deltaNode.get("reasoning_content")));
+        }
+        if (reasoningFormats.contains(ReasoningFormat.REASONING_DETAILS_TEXT)) {
+            reasoning = appendText(reasoning, parseReasoningDetails(deltaNode.get("reasoning_details")));
+        }
+        return reasoning;
+    }
+
+    private String parseReasoningDetails(JsonNode node) {
+        if (node == null || node.isNull() || node.isMissingNode() || !node.isArray()) {
+            return null;
+        }
+        StringBuilder builder = new StringBuilder();
+        for (JsonNode item : node) {
+            String text = optionalText(item.get("text"));
+            if (hasText(text)) {
+                builder.append(text);
+            }
+        }
+        return builder.isEmpty() ? null : builder.toString();
+    }
+
+    private ParsedThinkTagContent parseThinkTagContent(String rawContent) {
+        if (!thinkTagEnabled) {
+            return new ParsedThinkTagContent(null, rawContent);
+        }
+        if (rawContent == null) {
+            return new ParsedThinkTagContent(null, null);
+        }
+        thinkBuffer.append(rawContent);
+        StringBuilder reasoning = new StringBuilder();
+        StringBuilder content = new StringBuilder();
+
+        while (thinkBuffer.length() > 0) {
+            if (insideThinkTag) {
+                int endIndex = thinkBuffer.indexOf(thinkTagEnd);
+                if (endIndex >= 0) {
+                    appendRange(thinkBuffer, 0, endIndex, reasoning, content, true);
+                    if (!stripThinkTagFromContent) {
+                        content.append(thinkTagEnd);
+                    }
+                    thinkBuffer.delete(0, endIndex + thinkTagEnd.length());
+                    insideThinkTag = false;
+                    continue;
+                }
+                int keep = longestSuffixPrefix(thinkBuffer, thinkTagEnd);
+                appendRange(thinkBuffer, 0, thinkBuffer.length() - keep, reasoning, content, true);
+                thinkBuffer.delete(0, thinkBuffer.length() - keep);
+                break;
+            }
+
+            int startIndex = thinkBuffer.indexOf(thinkTagStart);
+            if (startIndex >= 0) {
+                appendRange(thinkBuffer, 0, startIndex, reasoning, content, false);
+                if (!stripThinkTagFromContent) {
+                    content.append(thinkTagStart);
+                }
+                thinkBuffer.delete(0, startIndex + thinkTagStart.length());
+                insideThinkTag = true;
+                continue;
+            }
+            int keep = longestSuffixPrefix(thinkBuffer, thinkTagStart);
+            appendRange(thinkBuffer, 0, thinkBuffer.length() - keep, reasoning, content, false);
+            thinkBuffer.delete(0, thinkBuffer.length() - keep);
+            break;
+        }
+
+        return new ParsedThinkTagContent(
+                reasoning.isEmpty() ? null : reasoning.toString(),
+                content.isEmpty() ? null : content.toString()
+        );
+    }
+
+    private void appendRange(StringBuilder source, int start, int end, StringBuilder reasoning, StringBuilder content, boolean reasoningMode) {
+        if (end <= start) {
+            return;
+        }
+        String segment = source.substring(start, end);
+        if (reasoningMode) {
+            reasoning.append(segment);
+            if (!stripThinkTagFromContent) {
+                content.append(segment);
+            }
+            return;
+        }
+        content.append(segment);
+    }
+
+    private int longestSuffixPrefix(CharSequence source, String marker) {
+        if (!hasText(marker) || source == null || source.length() == 0) {
+            return 0;
+        }
+        int max = Math.min(source.length(), marker.length() - 1);
+        for (int len = max; len > 0; len--) {
+            boolean matches = true;
+            for (int i = 0; i < len; i++) {
+                if (source.charAt(source.length() - len + i) != marker.charAt(i)) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                return len;
+            }
+        }
+        return 0;
+    }
+
+    private String appendText(String base, String addition) {
+        if (!hasText(addition)) {
+            return base;
+        }
+        if (!hasText(base)) {
+            return addition;
+        }
+        return base + addition;
     }
 
     private Map<String, Object> parseUsage(JsonNode usageNode) {
@@ -178,5 +328,8 @@ public class OpenAiSseDeltaParser {
 
     private boolean hasText(String text) {
         return StringHelpers.hasText(text);
+    }
+
+    private record ParsedThinkTagContent(String reasoning, String content) {
     }
 }

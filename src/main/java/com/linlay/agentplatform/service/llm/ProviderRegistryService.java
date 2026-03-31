@@ -3,6 +3,8 @@ package com.linlay.agentplatform.service.llm;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.linlay.agentplatform.config.OpenAiCompatConfig;
+import com.linlay.agentplatform.config.OpenAiCompatConfigSupport;
 import com.linlay.agentplatform.config.ProtocolConfig;
 import com.linlay.agentplatform.config.ProviderConfig;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
@@ -151,7 +153,11 @@ public class ProviderRegistryService {
                     try {
                         ModelProtocol protocol = ModelProtocol.fromJson(entry.getKey());
                         String endpointPath = StringHelpers.trimToEmpty(entry.getValue().path("endpointPath").asText(""));
-                        protocols.put(protocol, new ProtocolConfig(endpointPath));
+                        OpenAiCompatConfig compat = OpenAiCompatConfigSupport.parse(
+                                entry.getValue().path("compat"),
+                                "provider '%s' protocol '%s'".formatted(key, protocol.name())
+                        );
+                        protocols.put(protocol, new ProtocolConfig(endpointPath, compat));
                     } catch (IllegalArgumentException ex) {
                         throw new IllegalStateException(
                                 "Skip provider '%s' with unsupported protocol '%s': %s"

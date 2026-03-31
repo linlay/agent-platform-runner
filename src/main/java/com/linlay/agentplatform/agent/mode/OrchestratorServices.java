@@ -172,6 +172,7 @@ public class OrchestratorServices {
         try {
             return modelTurnAccumulator.accumulate(
                     llmService.streamDeltas(new LlmCallSpec(
+                    stageSettings.modelKey(),
                     resolveProvider(stageSettings, context),
                     resolveModel(stageSettings, context),
                     resolveProtocol(stageSettings, context),

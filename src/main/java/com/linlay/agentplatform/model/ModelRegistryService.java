@@ -3,6 +3,8 @@ package com.linlay.agentplatform.model;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.linlay.agentplatform.config.OpenAiCompatConfig;
+import com.linlay.agentplatform.config.OpenAiCompatConfigSupport;
 import com.linlay.agentplatform.service.llm.ProviderRegistryService;
 import com.linlay.agentplatform.util.CatalogDiff;
 import com.linlay.agentplatform.util.RuntimeCatalogNaming;
@@ -167,6 +169,10 @@ public class ModelRegistryService {
                 return Optional.empty();
             }
             ModelDefinition.Pricing pricing = parsePricing(root.path("pricing"));
+            OpenAiCompatConfig compat = OpenAiCompatConfigSupport.parse(
+                    root.path("compat"),
+                    "model '%s'".formatted(key)
+            );
 
             return Optional.of(new ModelDefinition(
                     key,
@@ -179,6 +185,7 @@ public class ModelRegistryService {
                     optionalInt(root, "maxInputTokens"),
                     optionalInt(root, "maxOutputTokens"),
                     pricing,
+                    compat,
                     file.toString()
             ));
         } catch (Exception ex) {
