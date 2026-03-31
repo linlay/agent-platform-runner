@@ -122,7 +122,7 @@ class OpenAiCompatibleSseClient {
         return Flux.defer(() -> {
             ProviderConfig config = resolveProviderConfig(providerKey);
             OpenAiCompatConfig compat = resolveEffectiveCompat(providerKey, modelKey, protocol);
-            OpenAiSseDeltaParser parser = new OpenAiSseDeltaParser(objectMapper);
+            OpenAiSseDeltaParser parser = buildSseDeltaParser(providerKey, modelKey, protocol);
             WebClient webClient = buildRawWebClient(config);
             Map<String, Object> request = buildRawStreamRequest(
                     modelKey,
@@ -229,7 +229,7 @@ class OpenAiCompatibleSseClient {
 
             ProviderConfig config = resolveProviderConfig(providerKey);
             OpenAiCompatConfig compat = resolveEffectiveCompat(providerKey, modelKey, protocol);
-            OpenAiSseDeltaParser parser = new OpenAiSseDeltaParser(objectMapper);
+            OpenAiSseDeltaParser parser = buildSseDeltaParser(providerKey, modelKey, protocol);
             WebClient webClient = buildRawWebClient(config);
             Map<String, Object> request = buildRawStreamRequest(
                     modelKey,
@@ -465,6 +465,10 @@ class OpenAiCompatibleSseClient {
         );
         request.clear();
         request.putAll(merged == null ? Collections.emptyMap() : merged);
+    }
+
+    OpenAiSseDeltaParser buildSseDeltaParser(String providerKey, String modelKey, ModelProtocol protocol) {
+        return new OpenAiSseDeltaParser(objectMapper, resolveEffectiveCompat(providerKey, modelKey, protocol));
     }
 
     private OpenAiCompatConfig resolveEffectiveCompat(String providerKey, String modelKey, ModelProtocol protocol) {

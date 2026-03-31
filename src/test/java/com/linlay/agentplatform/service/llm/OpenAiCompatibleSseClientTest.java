@@ -5,6 +5,7 @@ import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.properties.LlmInteractionLogProperties;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
+import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.model.ModelProtocol;
 import com.linlay.agentplatform.model.ModelRegistryService;
@@ -134,6 +135,81 @@ class OpenAiCompatibleSseClientTest {
         assertThat(request).doesNotContainKey("reasoning_split");
         assertThat(request).containsEntry("gateway_mode", "model");
         assertThat(request).containsEntry("model_only", true);
+    }
+
+    @Test
+    void shouldUseModelCompatThinkTagFormatsInSseParser() throws Exception {
+        String modelCompat = """
+                compat:
+                  response:
+                    reasoningFormats:
+                      - REASONING_CONTENT
+                      - THINK_TAG_CONTENT
+                    thinkTag:
+                      start: "<think>"
+                      end: "</think>"
+                      stripFromContent: true
+                """;
+        OpenAiCompatibleSseClient client = client(
+                providerYaml("https://api.babelark.com", "/v1/chat/completions", null),
+                modelYaml("babelark-minimax-m2_7", "babelark", "MiniMax-M2.7", modelCompat)
+        );
+
+        LlmDelta delta = client.buildSseDeltaParser("babelark", "babelark-minimax-m2_7", ModelProtocol.OPENAI)
+                .parseOrNull("""
+                        data: {"choices":[{"delta":{"content":"<think>思考</think>答案"}}]}
+                        """);
+
+        assertThat(delta).isNotNull();
+        assertThat(delta.reasoning()).isEqualTo("思考");
+        assertThat(delta.content()).isEqualTo("答案");
+    }
+
+    @Test
+    void shouldOmitReasoningSplitForMiniMaxM27WhenModelCompatDisablesIt() throws Exception {
+        String providerCompat = """
+                request:
+                  whenReasoningEnabled:
+                    reasoning_split: true
+                """;
+        String modelCompat = """
+                compat:
+                  request:
+                    whenReasoningEnabled:
+                      reasoning_split: null
+                  response:
+                    reasoningFormats:
+                      - REASONING_CONTENT
+                      - THINK_TAG_CONTENT
+                    thinkTag:
+                      start: "<think>"
+                      end: "</think>"
+                      stripFromContent: true
+                """;
+        OpenAiCompatibleSseClient client = client(
+                providerYaml("https://api.minimaxi.com/v1", null, providerCompat),
+                modelYaml("minimax-m2_7", "minimax", "MiniMax-M2.7", modelCompat)
+        );
+
+        Map<String, Object> request = client.buildRequestBody(
+                "minimax-m2_7",
+                "minimax",
+                "MiniMax-M2.7",
+                "system",
+                List.of(),
+                "user",
+                List.of(),
+                false,
+                ToolChoice.AUTO,
+                null,
+                ComputePolicy.MEDIUM,
+                true,
+                4096
+        );
+
+        assertThat(request).containsEntry("enable_thinking", true);
+        assertThat(request).containsEntry("reasoning", Map.of("effort", "medium"));
+        assertThat(request).doesNotContainKey("reasoning_split");
     }
 
     @Test

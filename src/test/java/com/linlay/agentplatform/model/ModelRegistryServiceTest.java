@@ -92,6 +92,39 @@ class ModelRegistryServiceTest {
     }
 
     @Test
+    void shouldLoadModelLevelRequestCompatOverrideFromModelYaml() throws Exception {
+        Path modelsDir = tempDir.resolve("models");
+        Files.createDirectories(modelsDir);
+        Files.writeString(modelsDir.resolve("minimax-m2_7.yml"), """
+                key: minimax-m2_7
+                provider: minimax
+                protocol: OPENAI
+                modelId: MiniMax-M2.7
+                compat:
+                  request:
+                    whenReasoningEnabled:
+                      reasoning_split: null
+                  response:
+                    reasoningFormats:
+                      - REASONING_CONTENT
+                      - THINK_TAG_CONTENT
+                """);
+
+        ModelRegistryService service = new ModelRegistryService(
+                new ObjectMapper(),
+                modelProperties(modelsDir),
+                providerRegistry(Map.of("minimax", "https://example.com"))
+        );
+
+        ModelDefinition model = service.find("minimax-m2_7").orElseThrow();
+        assertThat(model.compat()).isNotNull();
+        assertThat(model.compat().request().whenReasoningEnabled())
+                .containsEntry("reasoning_split", null);
+        assertThat(model.compat().response().reasoningFormats())
+                .containsExactly(ReasoningFormat.REASONING_CONTENT, ReasoningFormat.THINK_TAG_CONTENT);
+    }
+
+    @Test
     void shouldRejectModelWhenProviderIsMissing() throws Exception {
         Path modelsDir = tempDir.resolve("models");
         Files.createDirectories(modelsDir);
