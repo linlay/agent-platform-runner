@@ -43,6 +43,9 @@ services:
       - type: bind
         source: ${CHATS_DIR:-./runtime/chats}
         target: /opt/chats
+      - type: bind
+        source: ${MEMORY_DIR:-./runtime/memory}
+        target: /opt/memory
     env_file:
       - .env
     networks:
