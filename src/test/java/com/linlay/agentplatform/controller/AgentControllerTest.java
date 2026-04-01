@@ -366,6 +366,28 @@ class AgentControllerTest {
     }
 
     @Test
+    void reactAgentDetailShouldReturnConfiguredControls() {
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/agent").queryParam("agentKey", "demoModeReact").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(0)
+                .jsonPath("$.data.key").isEqualTo("demoModeReact")
+                .jsonPath("$.data.mode").isEqualTo("REACT")
+                .jsonPath("$.data.controls.length()").isEqualTo(3)
+                .jsonPath("$.data.controls[0].key").isEqualTo("answer_style")
+                .jsonPath("$.data.controls[0].type").isEqualTo("select")
+                .jsonPath("$.data.controls[0].options[0].value").isEqualTo("concise")
+                .jsonPath("$.data.controls[1].key").isEqualTo("step_budget")
+                .jsonPath("$.data.controls[1].type").isEqualTo("number")
+                .jsonPath("$.data.controls[1].defaultValue").isEqualTo(6)
+                .jsonPath("$.data.controls[2].key").isEqualTo("enable_voice_progress")
+                .jsonPath("$.data.controls[2].type").isEqualTo("switch")
+                .jsonPath("$.data.controls[2].defaultValue").isEqualTo(true);
+    }
+
+    @Test
     void agentDetailShouldReturnBadRequestWhenAgentKeyMissing() {
         webTestClient.get()
                 .uri("/api/agent")
@@ -738,6 +760,38 @@ class AgentControllerTest {
         assertThat(joined).contains("\"type\":\"run.start\"");
         assertThat(joined).contains("\"type\":\"run.complete\"");
         assertThat(joined).contains("\"chatId\":\"" + chatId + "\"");
+    }
+
+    @Test
+    void queryShouldKeepConfiguredControlParamsVisible() {
+        FluxExchangeResult<String> result = webTestClient.post()
+                .uri("/api/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of(
+                        "agentKey", "demoModeReact",
+                        "message", "按 react 方式回答",
+                        "params", Map.of(
+                                "answer_style", "standard",
+                                "step_budget", 6,
+                                "enable_voice_progress", true
+                        )
+                ))
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
+                .returnResult(String.class);
+
+        List<String> chunks = result.getResponseBody()
+                .take(1600)
+                .collectList()
+                .block(Duration.ofSeconds(8));
+
+        assertThat(chunks).isNotNull();
+        String joined = String.join("", chunks);
+        assertThat(joined).contains("\"type\":\"request.query\"");
+        assertThat(joined).contains("\"answer_style\":\"standard\"");
+        assertThat(joined).contains("\"step_budget\":6");
+        assertThat(joined).contains("\"enable_voice_progress\":true");
     }
 
     @Test

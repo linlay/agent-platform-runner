@@ -22,7 +22,7 @@ public record AgentControl(
         String instruction,
         List<Option> options
 ) {
-    private static final Set<String> ALLOWED_TYPES = Set.of("number", "boolean", "select");
+    private static final Set<String> ALLOWED_TYPES = Set.of("number", "boolean", "select", "switch");
 
     public AgentControl {
         key = requireText(key, "controls[].key");
@@ -100,8 +100,8 @@ public record AgentControl(
         if (defaultValue == null) {
             return;
         }
-        if ("boolean".equals(type) && !(defaultValue instanceof Boolean)) {
-            throw new IllegalArgumentException("controls[].defaultValue must be boolean when type=boolean");
+        if (("boolean".equals(type) || "switch".equals(type)) && !(defaultValue instanceof Boolean)) {
+            throw new IllegalArgumentException("controls[].defaultValue must be boolean when type=" + type);
         }
         if ("number".equals(type) && !(defaultValue instanceof Number)) {
             throw new IllegalArgumentException("controls[].defaultValue must be number when type=number");

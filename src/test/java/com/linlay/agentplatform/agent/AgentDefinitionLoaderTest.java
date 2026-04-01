@@ -100,7 +100,7 @@ class AgentDefinitionLoaderTest {
                     label: 字数
                     defaultValue: 300
                   - key: enable_thinking
-                    type: boolean
+                    type: switch
                     label: 深度思考
                     defaultValue: true
                 mode: ONESHOT
@@ -115,6 +115,7 @@ class AgentDefinitionLoaderTest {
         assertThat(definition.controls().get(0).type()).isEqualTo("select");
         assertThat(definition.controls().get(0).options()).hasSize(2);
         assertThat(definition.controls().get(1).defaultValue()).isEqualTo(300);
+        assertThat(definition.controls().get(2).type()).isEqualTo("switch");
         assertThat(definition.controls().get(2).defaultValue()).isEqualTo(true);
     }
 
@@ -197,6 +198,10 @@ class AgentDefinitionLoaderTest {
                   - key: free_text
                     type: text
                     label: 文本
+                  - key: invalid_switch
+                    type: switch
+                    label: 开关
+                    defaultValue: yes
                 mode: ONESHOT
                 plain:
                   systemPrompt: test

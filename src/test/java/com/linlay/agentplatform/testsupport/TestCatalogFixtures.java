@@ -53,6 +53,26 @@ public final class TestCatalogFixtures {
                       color: indigo
                     modelConfig:
                       modelKey: bailian-qwen3-max
+                    controls:
+                      - key: answer_style
+                        type: select
+                        label: 输出风格
+                        defaultValue: standard
+                        options:
+                          - value: concise
+                            label: 简洁
+                          - value: standard
+                            label: 标准
+                          - value: detailed
+                            label: 详细
+                      - key: step_budget
+                        type: number
+                        label: 推理步数
+                        defaultValue: 6
+                      - key: enable_voice_progress
+                        type: switch
+                        label: 语音播报进展
+                        defaultValue: true
                     toolConfig:
                       backends:
                         - datetime
