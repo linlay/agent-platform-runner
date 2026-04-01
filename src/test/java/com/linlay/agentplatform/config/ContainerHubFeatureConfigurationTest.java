@@ -7,6 +7,7 @@ import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.McpProperties;
+import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
@@ -79,7 +80,8 @@ class ContainerHubFeatureConfigurationTest {
             ScheduleProperties.class,
             McpProperties.class,
             ProviderProperties.class,
-            OwnerProperties.class
+            OwnerProperties.class,
+            MemoryStorageProperties.class
     })
     @Import(ContainerHubFeatureConfiguration.class)
     static class ContainerHubFeatureTestConfiguration {

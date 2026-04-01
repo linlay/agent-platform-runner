@@ -906,7 +906,7 @@ class AgentControllerTest {
     }
 
     @Test
-    void queryShouldRejectInvalidChatId() {
+    void queryShouldAcceptNonUuidChatId() {
         webTestClient.post()
                 .uri("/api/query")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -916,8 +916,7 @@ class AgentControllerTest {
                         "message", "查询上海天气"
                 ))
                 .exchange()
-                .expectStatus().isBadRequest();
-                // query 接口为 SSE，错误时只校验状态码
+                .expectStatus().isOk();
     }
 
     @Test
@@ -1371,14 +1370,14 @@ class AgentControllerTest {
     }
 
     @Test
-    void chatShouldRejectInvalidChatId() {
+    void chatShouldAcceptNonUuidChatId() {
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/chat")
                         .queryParam("chatId", "not-a-uuid")
                         .build())
                 .exchange()
-                .expectStatus().isBadRequest();
+                .expectStatus().isNotFound();
     }
 
     @Test

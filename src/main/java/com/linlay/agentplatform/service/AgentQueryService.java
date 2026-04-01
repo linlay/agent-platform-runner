@@ -415,11 +415,7 @@ public class AgentQueryService {
         if (!StringUtils.hasText(raw)) {
             return UUID.randomUUID().toString();
         }
-        try {
-            return UUID.fromString(raw.trim()).toString();
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException(fieldName + " must be a valid UUID");
-        }
+        return raw.trim();
     }
 
     private String serializeScene(QueryRequest.Scene scene) {

@@ -15,6 +15,8 @@ public record ScheduledQueryDescriptor(
         String teamId,
         Environment environment,
         Query query,
+        String pushUrl,
+        String pushTargetId,
         String sourceFile
 ) {
     public ScheduledQueryDescriptor {

@@ -290,6 +290,9 @@ public class ScheduledQueryRegistryService {
 
         boolean enabled = !root.has("enabled") || root.path("enabled").asBoolean(true);
 
+        String pushUrl = normalizeNullable(root.path("pushUrl").asText(null));
+        String pushTargetId = normalizeNullable(root.path("pushTargetId").asText(null));
+
         return Optional.of(new ScheduledQueryDescriptor(
                 scheduleId,
                 name,
@@ -309,6 +312,8 @@ public class ScheduledQueryRegistryService {
                         normalizeScene(scene.orElse(null)),
                         Boolean.TRUE.equals(hidden.orElse(Boolean.FALSE)) ? Boolean.TRUE : null
                 ),
+                pushUrl,
+                pushTargetId,
                 file.toString()
         ));
     }

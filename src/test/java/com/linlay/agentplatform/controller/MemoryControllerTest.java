@@ -207,18 +207,15 @@ class MemoryControllerTest {
     }
 
     @Test
-    void rememberShouldRejectInvalidChatId() {
+    void rememberShouldAcceptNonUuidChatId() {
         webTestClient.post()
                 .uri("/api/remember")
                 .bodyValue(Map.of(
-                        "requestId", "remember_req_invalid_chat",
+                        "requestId", "remember_req_non_uuid_chat",
                         "chatId", "not-a-uuid"
                 ))
                 .exchange()
-                .expectStatus().isBadRequest()
-                .expectBody()
-                .jsonPath("$.code").isEqualTo(400)
-                .jsonPath("$.msg").isEqualTo("chatId must be a valid UUID");
+                .expectStatus().isNotFound();
     }
 
     @Test

@@ -26,9 +26,9 @@ public class ChatDataPathService {
 
     public String normalizeChatId(String chatId) {
         if (!StringHelpers.isValidChatId(chatId)) {
-            throw new IllegalArgumentException("chatId must be a valid UUID");
+            throw new IllegalArgumentException("chatId must not be empty");
         }
-        return UUID.fromString(chatId.trim()).toString();
+        return chatId.trim();
     }
 
     public Path resolveChatDir(String chatId) {

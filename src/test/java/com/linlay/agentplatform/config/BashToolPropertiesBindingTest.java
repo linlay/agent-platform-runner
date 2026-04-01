@@ -106,7 +106,7 @@ class BashToolPropertiesBindingTest {
                 .withPropertyValues(
                         "agent.tools.bash.working-directory=" + tempDir,
                         "agent.tools.bash.allowed-paths=" + tempDir,
-                        "agent.tools.bash.allowed-commands=cat,rg",
+                        "agent.tools.bash.allowed-commands=cat,grep",
                         "agent.tools.bash.path-checked-commands=cat",
                         "agent.tools.bash.shell-features-enabled=true",
                         "agent.tools.bash.shell-executable=bash",
@@ -121,7 +121,7 @@ class BashToolPropertiesBindingTest {
                     assertThat(properties.getMaxCommandChars()).isEqualTo(32000);
 
                     SystemBash bash = context.getBean(SystemBash.class);
-                    JsonNode result = bash.invoke(Map.of("command", "cat demo.txt | rg hello-shell"));
+                    JsonNode result = bash.invoke(Map.of("command", "cat demo.txt | grep hello-shell"));
                     assertThat(result.asText()).contains("exitCode: 0");
                     assertThat(result.asText()).contains("mode: shell");
                     assertThat(result.asText()).contains("hello-shell");

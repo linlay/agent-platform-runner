@@ -25,12 +25,10 @@ class ChatDataPathServiceTest {
     }
 
     @Test
-    void shouldRejectInvalidChatIdAndTraversal() {
+    void shouldAcceptNonUuidChatIdAndRejectTraversal() {
         ChatDataPathService service = newService();
 
-        assertThatThrownBy(() -> service.resolveChatDir("bad-chat-id"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("chatId");
+        assertThat(service.normalizeChatId("bad-chat-id")).isEqualTo("bad-chat-id");
         assertThatThrownBy(() -> service.normalizeRelativePath("../escape.png"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("relativePath");

@@ -12,6 +12,7 @@ import com.linlay.agentplatform.team.TeamRegistryService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
@@ -21,7 +22,9 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +34,9 @@ class ScheduledQueryDispatchServiceTest {
     void shouldDispatchTeamScopedAgentWithChatIdAndParams() {
         AgentQueryService agentQueryService = mock(AgentQueryService.class);
         TeamRegistryService teamRegistryService = mock(TeamRegistryService.class);
-        ScheduledQueryDispatchService service = new ScheduledQueryDispatchService(agentQueryService, teamRegistryService);
+        SchedulePushNotifier pushNotifier = mock(SchedulePushNotifier.class);
+        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        ScheduledQueryDispatchService service = new ScheduledQueryDispatchService(agentQueryService, teamRegistryService, pushNotifier, objectMapper);
         ListAppender<ILoggingEvent> appender = attachAppender();
 
         try {
@@ -93,6 +98,8 @@ class ScheduledQueryDispatchServiceTest {
                             new QueryRequest.Scene("https://example.com/app", "demo"),
                             true
                     ),
+                    null,
+                    null,
                     "/tmp/daily.yml"
             );
             service.dispatch(descriptor);
@@ -132,7 +139,9 @@ class ScheduledQueryDispatchServiceTest {
     void shouldDispatchViewportWeatherQueryToDemoViewport() {
         AgentQueryService agentQueryService = mock(AgentQueryService.class);
         TeamRegistryService teamRegistryService = mock(TeamRegistryService.class);
-        ScheduledQueryDispatchService service = new ScheduledQueryDispatchService(agentQueryService, teamRegistryService);
+        SchedulePushNotifier pushNotifier = mock(SchedulePushNotifier.class);
+        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        ScheduledQueryDispatchService service = new ScheduledQueryDispatchService(agentQueryService, teamRegistryService, pushNotifier, objectMapper);
 
         AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
                 null,
@@ -166,6 +175,8 @@ class ScheduledQueryDispatchServiceTest {
                 null,
                 new ScheduledQueryDescriptor.Environment("Asia/Shanghai"),
                 new ScheduledQueryDescriptor.Query(null, null, null, query, List.of(), Map.of(), null, null),
+                null,
+                null,
                 "/tmp/demo_viewport_weather_minutely.yml"
         );
 
@@ -186,7 +197,9 @@ class ScheduledQueryDispatchServiceTest {
     void shouldLogFailureWithScheduleNameAndCron() {
         AgentQueryService agentQueryService = mock(AgentQueryService.class);
         TeamRegistryService teamRegistryService = mock(TeamRegistryService.class);
-        ScheduledQueryDispatchService service = new ScheduledQueryDispatchService(agentQueryService, teamRegistryService);
+        SchedulePushNotifier pushNotifier = mock(SchedulePushNotifier.class);
+        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        ScheduledQueryDispatchService service = new ScheduledQueryDispatchService(agentQueryService, teamRegistryService, pushNotifier, objectMapper);
         ListAppender<ILoggingEvent> appender = attachAppender();
 
         try {
@@ -202,6 +215,8 @@ class ScheduledQueryDispatchServiceTest {
                     null,
                     new ScheduledQueryDescriptor.Environment("Asia/Shanghai"),
                     new ScheduledQueryDescriptor.Query(null, "123e4567-e89b-12d3-a456-426614174000", null, "hello", List.of(), Map.of(), null, null),
+                    null,
+                    null,
                     "/tmp/demo_viewport_weather_minutely.yml"
             );
 
@@ -214,6 +229,83 @@ class ScheduledQueryDispatchServiceTest {
         } finally {
             detachAppender(appender);
         }
+    }
+
+    @Test
+    void shouldPushContentWhenPushUrlIsConfigured() {
+        AgentQueryService agentQueryService = mock(AgentQueryService.class);
+        TeamRegistryService teamRegistryService = mock(TeamRegistryService.class);
+        SchedulePushNotifier pushNotifier = mock(SchedulePushNotifier.class);
+        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        ScheduledQueryDispatchService service = new ScheduledQueryDispatchService(agentQueryService, teamRegistryService, pushNotifier, objectMapper);
+
+        String chatId = "123e4567-e89b-12d3-a456-426614174000";
+        AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
+                null,
+                new StreamRequest.Query(
+                        "req_push", chatId, "user", "message",
+                        "demoModePlain", null, null, null, null, false, "chat", "run_push"
+                ),
+                new AgentRequest("message", UUID.randomUUID().toString(), "req_push", "run_push", Map.of())
+        );
+        when(agentQueryService.prepare(any(QueryRequest.class))).thenReturn(session);
+
+        Flux<ServerSentEvent<String>> sseStream = Flux.just(
+                ServerSentEvent.<String>builder().data("{\"type\":\"content.delta\",\"delta\":\"Hello \"}").build(),
+                ServerSentEvent.<String>builder().data("{\"type\":\"content.delta\",\"delta\":\"World\"}").build(),
+                ServerSentEvent.<String>builder().data("{\"type\":\"content.end\"}").build()
+        );
+        when(agentQueryService.stream(any(AgentQueryService.QuerySession.class))).thenReturn(sseStream);
+
+        ScheduledQueryDescriptor descriptor = new ScheduledQueryDescriptor(
+                "push_test", "Push Test", "test push", true,
+                "0 0 9 * * *", "demoModePlain", null,
+                new ScheduledQueryDescriptor.Environment(null),
+                new ScheduledQueryDescriptor.Query(null, chatId, null, "hello", List.of(), Map.of(), null, null),
+                "http://bridge:8080/api/push",
+                "990275",
+                "/tmp/push_test.yml"
+        );
+
+        service.dispatch(descriptor);
+
+        verify(pushNotifier).push(eq("http://bridge:8080/api/push"), eq("990275"), eq("Hello World"));
+    }
+
+    @Test
+    void shouldNotPushWhenPushUrlIsNull() {
+        AgentQueryService agentQueryService = mock(AgentQueryService.class);
+        TeamRegistryService teamRegistryService = mock(TeamRegistryService.class);
+        SchedulePushNotifier pushNotifier = mock(SchedulePushNotifier.class);
+        com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        ScheduledQueryDispatchService service = new ScheduledQueryDispatchService(agentQueryService, teamRegistryService, pushNotifier, objectMapper);
+
+        AgentQueryService.QuerySession session = new AgentQueryService.QuerySession(
+                null,
+                new StreamRequest.Query(
+                        "req_no_push", UUID.randomUUID().toString(), "user", "message",
+                        "demoModePlain", null, null, null, null, false, "chat", "run_no_push"
+                ),
+                new AgentRequest("message", UUID.randomUUID().toString(), "req_no_push", "run_no_push", Map.of())
+        );
+        when(agentQueryService.prepare(any(QueryRequest.class))).thenReturn(session);
+        when(agentQueryService.stream(any(AgentQueryService.QuerySession.class))).thenReturn(Flux.just(
+                ServerSentEvent.<String>builder().data("{\"type\":\"content.delta\",\"delta\":\"text\"}").build()
+        ));
+
+        ScheduledQueryDescriptor descriptor = new ScheduledQueryDescriptor(
+                "no_push", "No Push", "no push test", true,
+                "0 0 9 * * *", "demoModePlain", null,
+                new ScheduledQueryDescriptor.Environment(null),
+                new ScheduledQueryDescriptor.Query(null, null, null, "hello", List.of(), Map.of(), null, null),
+                null,
+                null,
+                "/tmp/no_push.yml"
+        );
+
+        service.dispatch(descriptor);
+
+        verify(pushNotifier, never()).push(any(), any(), any());
     }
 
     private ListAppender<ILoggingEvent> attachAppender() {

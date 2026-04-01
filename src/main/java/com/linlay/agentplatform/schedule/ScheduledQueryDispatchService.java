@@ -1,5 +1,7 @@
 package com.linlay.agentplatform.schedule;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.team.TeamDescriptor;
@@ -22,13 +24,19 @@ public class ScheduledQueryDispatchService {
 
     private final AgentQueryService agentQueryService;
     private final TeamRegistryService teamRegistryService;
+    private final SchedulePushNotifier pushNotifier;
+    private final ObjectMapper objectMapper;
 
     public ScheduledQueryDispatchService(
             AgentQueryService agentQueryService,
-            TeamRegistryService teamRegistryService
+            TeamRegistryService teamRegistryService,
+            SchedulePushNotifier pushNotifier,
+            ObjectMapper objectMapper
     ) {
         this.agentQueryService = agentQueryService;
         this.teamRegistryService = teamRegistryService;
+        this.pushNotifier = pushNotifier;
+        this.objectMapper = objectMapper;
     }
 
     public void dispatch(ScheduledQueryDescriptor descriptor) {
@@ -79,7 +87,22 @@ public class ScheduledQueryDispatchService {
                     session.request().chatId()
             );
             Flux<ServerSentEvent<String>> stream = agentQueryService.stream(session);
-            stream.blockLast();
+            String pushUrl = descriptor.pushUrl();
+            boolean shouldPush = StringUtils.hasText(pushUrl);
+            StringBuilder contentCollector = shouldPush ? new StringBuilder() : null;
+            stream.doOnNext(event -> {
+                if (shouldPush && event.data() != null) {
+                    try {
+                        JsonNode node = objectMapper.readTree(event.data());
+                        String type = node.path("type").asText("");
+                        if ("content.delta".equals(type)) {
+                            String delta = node.path("delta").asText("");
+                            contentCollector.append(delta);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            }).blockLast();
             log.info(
                     "Scheduled query completed scheduleId={}, scheduleName={}, cron={}, runId={}, chatId={}, agentKey={}, teamId={}",
                     descriptor.id(),
@@ -90,6 +113,12 @@ public class ScheduledQueryDispatchService {
                     session.request().agentKey(),
                     session.request().teamId()
             );
+            if (shouldPush && !contentCollector.isEmpty()) {
+                String pushTargetId = StringUtils.hasText(descriptor.pushTargetId())
+                        ? descriptor.pushTargetId()
+                        : session.request().chatId();
+                pushNotifier.push(pushUrl, pushTargetId, contentCollector.toString());
+            }
         } catch (Exception ex) {
             log.warn(
                     "Scheduled query failed scheduleId={}, scheduleName={}, cron={}, agentKey={}, teamId={}, chatId={}",

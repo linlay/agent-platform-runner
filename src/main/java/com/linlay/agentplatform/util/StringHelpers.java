@@ -35,14 +35,6 @@ public final class StringHelpers {
     }
 
     public static boolean isValidChatId(String chatId) {
-        if (!StringUtils.hasText(chatId)) {
-            return false;
-        }
-        try {
-            UUID.fromString(chatId.trim());
-            return true;
-        } catch (IllegalArgumentException ex) {
-            return false;
-        }
+        return StringUtils.hasText(chatId);
     }
 }

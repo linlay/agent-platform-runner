@@ -784,11 +784,11 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void loadChatShouldRejectInvalidChatId() {
+    void loadChatShouldAcceptNonUuidChatId() {
         ChatRecordStore store = newStore();
+        // non-UUID chatId is now accepted; loadChat returns empty for missing chat
         assertThatThrownBy(() -> store.loadChat("not-a-uuid", false))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("chatId must be a valid UUID");
+                .isInstanceOf(ChatNotFoundException.class);
     }
 
     @Test

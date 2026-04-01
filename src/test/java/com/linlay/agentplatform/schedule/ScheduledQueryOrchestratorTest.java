@@ -46,6 +46,8 @@ class ScheduledQueryOrchestratorTest {
                     null,
                     new ScheduledQueryDescriptor.Environment(null),
                     new ScheduledQueryDescriptor.Query(null, null, null, "hello", java.util.List.of(), Map.of(), null, null),
+                    null,
+                    null,
                     "/tmp/daily.yml"
             );
             when(registryService.snapshot()).thenReturn(Map.of("daily", descriptor)).thenReturn(Map.of("daily", descriptor)).thenReturn(Map.of());
@@ -134,6 +136,8 @@ class ScheduledQueryOrchestratorTest {
                             null,
                             null
                     ),
+                    null,
+                    null,
                     "/tmp/demo_viewport_weather_minutely.yml"
             );
             when(registryService.snapshot()).thenReturn(Map.of(descriptor.id(), descriptor));

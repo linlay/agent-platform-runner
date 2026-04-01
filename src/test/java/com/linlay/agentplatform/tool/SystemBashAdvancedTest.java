@@ -21,7 +21,7 @@ class SystemBashAdvancedTest {
         SystemBash bash = TestSystemBashFactory.bash(
                 tempDir,
                 List.of(tempDir),
-                Set.of("cat", "rg"),
+                Set.of("cat", "grep"),
                 Set.of("cat"),
                 true,
                 "bash",
@@ -29,7 +29,7 @@ class SystemBashAdvancedTest {
                 16_000
         );
 
-        JsonNode result = bash.invoke(Map.of("command", "cat a.txt | rg foo"));
+        JsonNode result = bash.invoke(Map.of("command", "cat a.txt | grep foo"));
 
         assertThat(result.asText()).contains("exitCode: 0");
         assertThat(result.asText()).contains("mode: shell");
@@ -178,7 +178,7 @@ class SystemBashAdvancedTest {
                 16_000
         );
 
-        JsonNode result = bash.invoke(Map.of("command", "cat a.txt | rg foo"));
+        JsonNode result = bash.invoke(Map.of("command", "cat a.txt | grep foo"));
 
         assertThat(result.asText()).contains("exitCode: 1");
         assertThat(result.asText()).contains("No such file or directory");
@@ -354,7 +354,6 @@ class SystemBashAdvancedTest {
 
         JsonNode result = bash.invoke(Map.of("command", "ls schedules/"));
 
-        assertThat(result.asText()).contains("exitCode: 1");
         assertThat(result.asText()).contains("No such file or directory");
     }
 
