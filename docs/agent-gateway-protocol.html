@@ -1136,9 +1136,9 @@
 							<ul class="field-list">
 								<li><span class="field-key">chatId</span>: string(UUID)</li>
 								<li><span class="field-key">chatName</span>: string｜可选</li>
+								<li><span class="field-key">chatImageToken</span>: string｜可选（用于访问当前 chat 作用域内图片资源）</li>
 								<li><span class="field-key">rawMessages</span>: object[]｜可选（若 includeRawMessages=true，可返回大模型原始消息）</li>
 								<li><span class="field-key">events</span>: BaseEvent[]（历史事件列表； start/delta/args/end -> snapshot, params&result保留）</li>
-								<li><span class="field-key">references</span>: Reference[]｜可选（该 chat 的引用池）</li>
 							</ul>
 						</td>
 					</tr>

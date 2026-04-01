@@ -58,7 +58,7 @@ public class ChatController {
                 chatImageToken,
                 detail.rawMessages(),
                 detail.events(),
-                detail.references()
+                null
         ));
     }
 }

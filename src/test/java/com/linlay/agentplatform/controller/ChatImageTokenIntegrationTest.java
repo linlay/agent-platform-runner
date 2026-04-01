@@ -203,6 +203,7 @@ class ChatImageTokenIntegrationTest {
         Map<String, Object> data = objectMapper.convertValue(root.get("data"), new TypeReference<>() {
         });
         assertThat(String.valueOf(data.get("chatImageToken"))).isNotBlank();
+        assertThat(data).doesNotContainKey("references");
     }
 
     @Test

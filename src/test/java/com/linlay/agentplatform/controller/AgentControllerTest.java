@@ -854,6 +854,7 @@ class AgentControllerTest {
         });
         Map<String, Object> data = objectMapper.convertValue(detailRoot.get("data"), new TypeReference<>() {
         });
+        assertThat(data).doesNotContainKey("references");
         List<Map<String, Object>> events = objectMapper.convertValue(data.get("events"), new TypeReference<>() {
         });
         Map<String, Object> requestQuery = events.stream()
@@ -1077,6 +1078,7 @@ class AgentControllerTest {
                 .jsonPath("$.data.chatId").isEqualTo(chatId)
                 .jsonPath("$.data.chatName").isEqualTo(message)
                 .jsonPath("$.data.rawMessages").doesNotExist()
+                .jsonPath("$.data.references").doesNotExist()
                 .jsonPath("$.data.events[?(@.type=='request.query')]").exists()
                 .jsonPath("$.data.events[?(@.type=='run.start')]").exists()
                 .jsonPath("$.data.events[?(@.type=='content.snapshot')]").exists()
@@ -1092,6 +1094,7 @@ class AgentControllerTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.data.rawMessages[0].role").isEqualTo("user")
+                .jsonPath("$.data.references").doesNotExist()
                 .jsonPath("$.data.events[?(@.type=='request.query')]").exists();
     }
 

@@ -136,7 +136,7 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 - **依赖感知热重载** — 基于 `WatchService + 防抖 + CatalogDiff + AgentDependencyIndex`，支持 `Provider → Model → Agent`、`MCP Tool → Agent`、`Tool → Agent` 级联刷新；`skills` 仅刷新技能注册表。
 - **MCP 可用性门控** — `McpServerAvailabilityGate` 记录失败窗口，`McpReconnectOrchestrator` 定时重试 due servers，并只刷新受影响 agent。
 - **响应格式统一** — 非 SSE 接口统一 `{"code": 0, "msg": "success", "data": {}}`；`/api/query` 结束时追加 `data:[DONE]` 传输层终止帧。
-- **会话详情稳定契约** — `GET /api/chat` 的 `data` 字段固定为 `chatId/chatName/rawMessages/events/references`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回。
+- **会话详情稳定契约** — `GET /api/chat` 的 `data` 字段固定为 `chatId/chatName/chatImageToken/rawMessages/events`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回。
 
 ## Agent Definition 文件格式
 
@@ -242,7 +242,7 @@ plain:
 - `GET /api/tools?tag=...&kind=backend|frontend|action`：返回 `ToolSummary[]`，字段为 `key/name/label/description/meta(kind/toolType/viewportKey/strict/sourceType/sourceKey)`。
 - `GET /api/tool?toolName=...`：返回 `ToolDetail`，字段为 `key/name/label/description/afterCallHint/parameters/meta`。
 - `GET /api/chats`：返回会话索引摘要，支持按 `agentKey` 与 `lastRunId` 增量查询。
-- `GET /api/chat?chatId=...`：返回稳定结构 `chatId/chatName/events/references`；`includeRawMessages=true` 时额外返回 `rawMessages`。
+- `GET /api/chat?chatId=...`：返回稳定结构 `chatId/chatName/chatImageToken/events`；`includeRawMessages=true` 时额外返回 `rawMessages`。
 - `POST /api/query`：启动一次 run；默认返回 SSE。
 - `POST /api/upload`：申请本地上传位，请求体字段为 `requestId/chatId?/type/name/sizeBytes/mimeType/sha256?`，响应外层为 `ApiResponse<UploadResponse>`；若未传 `chatId`，后端会先生成 chatId 并创建空 chat，其中短引用 ID 固定放在 `reference.id`。
 - `POST /api/submit`：提交 frontend tool 的人机参数，请求体固定为 `runId + toolId + params`。
