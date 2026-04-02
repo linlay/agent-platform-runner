@@ -9,6 +9,7 @@ import com.linlay.agentplatform.util.IdGenerators;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -24,6 +25,7 @@ public final class TurnTraceWriter {
     private int seqCounter;
     private boolean queryLineWritten;
     private ChatStorageTypes.PlanState latestPlan;
+    private ChatStorageTypes.ArtifactState latestArtifacts;
 
     public TurnTraceWriter(
             ChatStorageStore chatWindowMemoryStore,
@@ -56,11 +58,13 @@ public final class TurnTraceWriter {
 
             flushCurrentStep();
             currentStep = new StepAccumulator(newStage, newTaskId);
+            currentStep.artifacts = latestArtifacts;
             return;
         }
 
         if (currentStep == null) {
             currentStep = new StepAccumulator("oneshot", null);
+            currentStep.artifacts = latestArtifacts;
         }
 
         if (StringUtils.hasText(delta.reasoning())) {
@@ -155,6 +159,13 @@ public final class TurnTraceWriter {
             }
         }
 
+        if (delta.artifactPublishes() != null && !delta.artifactPublishes().isEmpty()) {
+            latestArtifacts = mergeArtifactState(latestArtifacts, delta.artifactPublishes());
+            if (currentStep != null) {
+                currentStep.artifacts = latestArtifacts;
+            }
+        }
+
         if (delta.usage() != null && !delta.usage().isEmpty() && currentStep != null) {
             currentStep.capturedUsage = delta.usage();
         }
@@ -204,6 +215,7 @@ public final class TurnTraceWriter {
                 currentStep.taskId,
                 stepSystem,
                 currentStep.plan,
+                currentStep.artifacts,
                 stepMessages
         );
 
@@ -272,6 +284,41 @@ public final class TurnTraceWriter {
         ChatStorageTypes.PlanState state = new ChatStorageTypes.PlanState();
         state.planId = planUpdate.planId().trim();
         state.tasks = List.copyOf(tasks);
+        return state;
+    }
+
+    private static ChatStorageTypes.ArtifactState mergeArtifactState(
+            ChatStorageTypes.ArtifactState current,
+            List<AgentDelta.ArtifactPublished> artifactPublishes
+    ) {
+        LinkedHashMap<String, ChatStorageTypes.ArtifactItemState> itemsById = new LinkedHashMap<>();
+        if (current != null && current.items != null) {
+            for (ChatStorageTypes.ArtifactItemState item : current.items) {
+                if (item == null || !StringUtils.hasText(item.artifactId)) {
+                    continue;
+                }
+                itemsById.put(item.artifactId.trim(), item);
+            }
+        }
+        for (AgentDelta.ArtifactPublished artifactPublished : artifactPublishes) {
+            if (artifactPublished == null || !StringUtils.hasText(artifactPublished.artifactId())) {
+                continue;
+            }
+            ChatStorageTypes.ArtifactItemState item = new ChatStorageTypes.ArtifactItemState();
+            item.artifactId = artifactPublished.artifactId().trim();
+            item.type = artifactPublished.artifact().type();
+            item.name = artifactPublished.artifact().name();
+            item.mimeType = artifactPublished.artifact().mimeType();
+            item.sizeBytes = artifactPublished.artifact().sizeBytes();
+            item.url = artifactPublished.artifact().url();
+            item.sha256 = artifactPublished.artifact().sha256();
+            itemsById.put(item.artifactId, item);
+        }
+        if (itemsById.isEmpty()) {
+            return null;
+        }
+        ChatStorageTypes.ArtifactState state = new ChatStorageTypes.ArtifactState();
+        state.items = List.copyOf(itemsById.values());
         return state;
     }
 }

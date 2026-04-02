@@ -42,6 +42,9 @@ final class StreamEventDispatcher {
         if (handleToolInputs(events, input, actor)) {
             return;
         }
+        if (handleArtifactInputs(events, input, actor)) {
+            return;
+        }
         if (handleActionInputs(events, input, actor)) {
             return;
         }
@@ -275,6 +278,28 @@ final class StreamEventDispatcher {
             payload.put("result", value.result());
             StreamEventSupport.putActor(payload, actor);
             events.add(next("action.result", payload));
+            return true;
+        }
+        return false;
+    }
+
+    private boolean handleArtifactInputs(List<StreamEvent> events, StreamInput input, RunActor actor) {
+        if (input instanceof StreamInput.ArtifactPublish value) {
+            ensureRunContext();
+            closeTextBlocks(events);
+            if (!context.chatId().equals(value.chatId())) {
+                throw new IllegalStateException("artifact.publish chatId does not match stream chatId");
+            }
+            if (!context.runId().equals(value.runId())) {
+                throw new IllegalStateException("artifact.publish runId does not match stream runId");
+            }
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("artifactId", value.artifactId());
+            payload.put("chatId", value.chatId());
+            payload.put("runId", value.runId());
+            payload.put("artifact", value.artifact());
+            StreamEventSupport.putActor(payload, actor);
+            events.add(next("artifact.publish", payload));
             return true;
         }
         return false;

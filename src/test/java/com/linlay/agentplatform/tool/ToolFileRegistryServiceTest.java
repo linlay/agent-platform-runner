@@ -202,6 +202,17 @@ class ToolFileRegistryServiceTest {
     }
 
     @Test
+    void shouldLoadArtifactPublishToolFromRenamedClasspathResource() {
+        ToolFileRegistryService service = new ToolFileRegistryService(new ObjectMapper());
+
+        ToolDescriptor descriptor = service.find("_artifact_publish_").orElseThrow();
+
+        assertThat(descriptor.label()).isEqualTo("发布产物");
+        assertThat(descriptor.sourceFile()).contains("_artifact_publish_.yml");
+        assertThat(descriptor.clientVisible()).isFalse();
+    }
+
+    @Test
     void shouldIgnoreScaffoldToolPlaceholder() throws Exception {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);

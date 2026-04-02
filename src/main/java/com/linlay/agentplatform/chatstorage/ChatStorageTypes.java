@@ -165,6 +165,8 @@ public final class ChatStorageTypes {
         public SystemSnapshot system;
         @JsonProperty("plan")
         public PlanState plan;
+        @JsonProperty("artifacts")
+        public ArtifactState artifacts;
         public List<StoredMessage> messages = new ArrayList<>();
     }
 
@@ -195,6 +197,23 @@ public final class ChatStorageTypes {
         public String planId;
         @JsonProperty("tasks")
         public List<PlanTaskState> tasks;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ArtifactState {
+        @JsonProperty("items")
+        public List<ArtifactItemState> items;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class ArtifactItemState {
+        public String artifactId;
+        public String type;
+        public String name;
+        public String mimeType;
+        public Long sizeBytes;
+        public String url;
+        public String sha256;
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -276,6 +295,7 @@ record ParsedStepLine(
         long updatedAt,
         ChatStorageTypes.SystemSnapshot system,
         ChatStorageTypes.PlanState plan,
+        ChatStorageTypes.ArtifactState artifacts,
         List<ChatStorageTypes.StoredMessage> messages
 ) implements ParsedLine {
 }

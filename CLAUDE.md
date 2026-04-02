@@ -705,6 +705,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `tool.args`：`toolId`, `delta`, `chunkIndex?`（字段名保持 `delta`，不使用 `args`）
 - `tool.end`：`toolId`
 - `tool.result`：`toolId`, `result`
+- `artifact.publish`：`artifactId`, `chatId`, `runId`, `artifact`（独立事件；`artifact` 仅含 `type/name/mimeType/sizeBytes/url/sha256`）
 - `tool.snapshot`：`toolId`, `toolName?`, `taskId?`, `toolType?`, `toolLabel?`, `toolDescription?`, `viewportKey?`, `arguments?`
 - `action.start`：`actionId`, `runId`, `taskId?`, `actionName?`, `description?`
 - `action.args`：`actionId`, `delta`
@@ -717,10 +718,11 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 
 - 无活跃 task 出错时：只发 `run.error`（不补 `task.fail`）。
 - plain 模式（当前无 plan）不应出现 `task.*`，叶子事件直接归属 `run`。
-- `GET /api/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件，并保留 `tool.result` / `action.result`。
+- `GET /api/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件，并保留 `tool.result` / `action.result` / `artifact.publish`。
 - 历史里每个 run 都保留一个终态事件：成功为 `run.complete`，失败为 `run.error`，取消为 `run.cancel`；`chat.start` 仅首次一次。
 - `/api/query` 在流式输出结束时追加传输层终止帧 `data:[DONE]`；该 sentinel 不属于 Event Model v2 业务事件，也不写入 chat 历史事件。
 - `RenderQueue` 只影响传输 flush 行为，不改变上述业务事件类型与字段契约。
+- `_artifact_publish_` 是隐藏的内置后端工具：接收 `path/name?/description?`，成功后发布 chat 资产并触发独立 `artifact.publish` 事件。
 
 ## Chat Storage V3.1（JSONL）
 
@@ -729,7 +731,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - 存储文件：`chats/{chatId}.jsonl`，JSONL 格式，**一行一个 step**，逐步增量写入。
 - 行类型通过 `_type` 字段区分：
   - `"query"`：用户原始请求行。必带 `chatId`、`runId`、`updatedAt`、`query`。
-  - `"step"`：一个执行步骤行。必带 `chatId`、`runId`、`_stage`、`_seq`、`updatedAt`、`messages`；可选 `taskId`、`system`、`plan`。
+  - `"step"`：一个执行步骤行。必带 `chatId`、`runId`、`_stage`、`_seq`、`updatedAt`、`messages`；可选 `taskId`、`system`、`plan`、`artifacts`。
 - `_stage` 标识步骤阶段：`"oneshot"` / `"react"` / `"plan"` / `"execute"` / `"summary"`。
 - `_seq` 全局递增序号，标识 run 内的步骤顺序。
 - `query` 保存完整 query 结构（`requestId/chatId/agentKey/role/message/references/params/scene/stream`）。

@@ -101,6 +101,7 @@ public class ChatStorageStore {
             String taskId,
             ChatStorageTypes.SystemSnapshot system,
             ChatStorageTypes.PlanState plan,
+            ChatStorageTypes.ArtifactState artifacts,
             List<ChatStorageTypes.RunMessage> runMessages
     ) {
         if (!isValidChatId(chatId) || runMessages == null || runMessages.isEmpty()) {
@@ -130,6 +131,7 @@ public class ChatStorageStore {
         line.updatedAt = System.currentTimeMillis();
         line.system = normalizedSystem;
         line.plan = storedMessageConverter.normalizePlanState(plan);
+        line.artifacts = storedMessageConverter.normalizeArtifactState(artifacts);
         line.messages = storedMessages;
         appendLine(chatId, line);
     }
@@ -158,6 +160,22 @@ public class ChatStorageStore {
         for (int i = lines.size() - 1; i >= 0; i--) {
             if (lines.get(i) instanceof ParsedStepLine step && step.system() != null) {
                 return step.system();
+            }
+        }
+        return null;
+    }
+
+    public ChatStorageTypes.ArtifactState loadLatestArtifactState(String chatId) {
+        if (!isValidChatId(chatId)) {
+            return null;
+        }
+        List<ParsedLine> lines = readAllParsedLines(chatId);
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            if (lines.get(i) instanceof ParsedStepLine step && step.artifacts() != null) {
+                ChatStorageTypes.ArtifactState normalized = storedMessageConverter.normalizeArtifactState(step.artifacts());
+                if (normalized != null && normalized.items != null && !normalized.items.isEmpty()) {
+                    return normalized;
+                }
             }
         }
         return null;
@@ -308,6 +326,14 @@ public class ChatStorageStore {
                     ? null
                     : objectMapper.treeToValue(planNode, ChatStorageTypes.PlanState.class);
 
+            JsonNode artifactsNode = null;
+            if (node.has("artifacts") && !node.get("artifacts").isNull()) {
+                artifactsNode = node.get("artifacts");
+            }
+            ChatStorageTypes.ArtifactState artifacts = artifactsNode == null
+                    ? null
+                    : objectMapper.treeToValue(artifactsNode, ChatStorageTypes.ArtifactState.class);
+
             List<ChatStorageTypes.StoredMessage> messages = new ArrayList<>();
             if (node.has("messages") && node.get("messages").isArray()) {
                 for (JsonNode msgNode : node.get("messages")) {
@@ -318,7 +344,7 @@ public class ChatStorageStore {
                 }
             }
 
-            return new ParsedStepLine(chatId, runId, stage, seq, taskId, updatedAt, system, plan, List.copyOf(messages));
+            return new ParsedStepLine(chatId, runId, stage, seq, taskId, updatedAt, system, plan, artifacts, List.copyOf(messages));
         } catch (Exception ignored) {
             return null;
         }

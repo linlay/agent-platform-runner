@@ -43,6 +43,7 @@ class ChatStorageStoreTest {
                 null,
                 systemSnapshot("gpt-5.2", "你是一个有用的助手", true),
                 null,
+                null,
                 List.of(
                         ChatStorageTypes.RunMessage.user("请帮我切换主题", 1770945237570L),
                         ChatStorageTypes.RunMessage.assistantReasoning("准备调用前端动作", 1770945237571L, 10L, null),
@@ -162,6 +163,7 @@ class ChatStorageStoreTest {
                         toolSnapshot("action", "switch_theme")
                 )),
                 null,
+                null,
                 List.of(
                         ChatStorageTypes.RunMessage.user("放烟花", 1772438369610L),
                         ChatStorageTypes.RunMessage.assistantToolCall(
@@ -212,6 +214,7 @@ class ChatStorageStoreTest {
                         toolSnapshot("function", "launch_fireworks")
                 )),
                 null,
+                null,
                 List.of(
                         ChatStorageTypes.RunMessage.user("执行动作", 1000L),
                         ChatStorageTypes.RunMessage.assistantToolCall(
@@ -252,7 +255,7 @@ class ChatStorageStoreTest {
         // Run 1
         store.appendQueryLine(chatId, "run_001", query("run_001", chatId, "u1"));
         store.appendStepLine(chatId, "run_001", "oneshot", 1, null,
-                systemSnapshot("gpt-5.2", "system", true), null,
+                systemSnapshot("gpt-5.2", "system", true), null, null,
                 List.of(
                         ChatStorageTypes.RunMessage.user("u1", 1000L),
                         ChatStorageTypes.RunMessage.assistantReasoning("r1", 1001L, 1L, null),
@@ -261,7 +264,7 @@ class ChatStorageStoreTest {
 
         // Run 2
         store.appendQueryLine(chatId, "run_002", query("run_002", chatId, "u2"));
-        store.appendStepLine(chatId, "run_002", "oneshot", 1, null, null, null,
+        store.appendStepLine(chatId, "run_002", "oneshot", 1, null, null, null, null,
                 List.of(
                         ChatStorageTypes.RunMessage.user("u2", 2000L),
                         ChatStorageTypes.RunMessage.assistantContent("a2", 2001L, 2L, null)
@@ -269,7 +272,7 @@ class ChatStorageStoreTest {
 
         // Run 3
         store.appendQueryLine(chatId, "run_003", query("run_003", chatId, "u3"));
-        store.appendStepLine(chatId, "run_003", "oneshot", 1, null, null, null,
+        store.appendStepLine(chatId, "run_003", "oneshot", 1, null, null, null, null,
                 List.of(
                         ChatStorageTypes.RunMessage.user("u3", 3000L),
                         ChatStorageTypes.RunMessage.assistantContent("a3", 3001L, 2L, null)
@@ -309,21 +312,21 @@ class ChatStorageStoreTest {
         // Step 1: with system
         store.appendQueryLine(chatId, "run_001", query("run_001", chatId, "第一轮"));
         store.appendStepLine(chatId, "run_001", "react", 1, null,
-                systemSnapshot("gpt-5.2", "你是一个有用的助手", true), null,
+                systemSnapshot("gpt-5.2", "你是一个有用的助手", true), null, null,
                 List.of(
                         ChatStorageTypes.RunMessage.user("第一轮", 1000L),
                         ChatStorageTypes.RunMessage.assistantContent("ok", 1001L, 1L, null)
                 ));
 
         // Step 2: without system (null)
-        store.appendStepLine(chatId, "run_001", "react", 2, null, null, null,
+        store.appendStepLine(chatId, "run_001", "react", 2, null, null, null, null,
                 List.of(
                         ChatStorageTypes.RunMessage.assistantContent("ok2", 2001L, 1L, null)
                 ));
 
         // Step 3: with different system
         store.appendStepLine(chatId, "run_001", "react", 3, null,
-                systemSnapshot("gpt-5.2", "你是另一个系统提示", true), null,
+                systemSnapshot("gpt-5.2", "你是另一个系统提示", true), null, null,
                 List.of(
                         ChatStorageTypes.RunMessage.assistantContent("ok3", 3001L, 1L, null)
                 ));
@@ -364,6 +367,7 @@ class ChatStorageStoreTest {
                         task("task0", "收集信息", "init"),
                         task("task1", "执行任务", "init")
                 )),
+                null,
                 List.of(
                         ChatStorageTypes.RunMessage.user("第一轮", 1000L),
                         ChatStorageTypes.RunMessage.assistantContent("ok", 1001L, 1L, null)
@@ -375,6 +379,7 @@ class ChatStorageStoreTest {
                         task("task0", "收集信息", "completed"),
                         task("task1", "执行任务", "init")
                 )),
+                null,
                 List.of(
                         ChatStorageTypes.RunMessage.assistantContent("done task0", 2001L, 1L, null)
                 ));
@@ -400,6 +405,53 @@ class ChatStorageStoreTest {
     }
 
     @Test
+    void shouldPersistArtifactStateOnStepLineAndLoadLatest() throws Exception {
+        ChatStorageProperties properties = new ChatStorageProperties();
+        properties.setDir(tempDir.resolve("chats").toString());
+        properties.setK(20);
+
+        ChatStorageStore store = new ChatStorageStore(objectMapper, properties);
+        String chatId = "123e4567-e89b-12d3-a456-426614174013";
+
+        store.appendQueryLine(chatId, "run_001", query("run_001", chatId, "生成文件"));
+        store.appendStepLine(chatId, "run_001", "execute", 1, "task0",
+                null,
+                null,
+                artifactState(List.of(
+                        artifactItem("asset_1", "file", "report.md", "text/markdown", 12L,
+                                "/api/resource?file=" + chatId + "%2Fartifacts%2Frun_001%2Freport.md", "sha-1")
+                )),
+                List.of(
+                        ChatStorageTypes.RunMessage.assistantContent("report ready", 1000L, 1L, null)
+                ));
+        store.appendStepLine(chatId, "run_001", "summary", 2, null,
+                null,
+                null,
+                artifactState(List.of(
+                        artifactItem("asset_1", "file", "report.md", "text/markdown", 12L,
+                                "/api/resource?file=" + chatId + "%2Fartifacts%2Frun_001%2Freport.md", "sha-1"),
+                        artifactItem("asset_2", "file", "outline.docx",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 24L,
+                                "/api/resource?file=" + chatId + "%2Foutline.docx", "sha-2")
+                )),
+                List.of(
+                        ChatStorageTypes.RunMessage.assistantContent("all done", 1001L, 1L, null)
+                ));
+
+        Path file = tempDir.resolve("chats").resolve(chatId + ".jsonl");
+        List<String> lines = Files.readAllLines(file).stream().filter(line -> !line.isBlank()).toList();
+        assertThat(lines).hasSize(3);
+        assertThat(lines.get(1)).contains("\"artifacts\":");
+        assertThat(lines.get(2)).contains("\"artifacts\":");
+
+        ChatStorageTypes.ArtifactState latest = store.loadLatestArtifactState(chatId);
+        assertThat(latest).isNotNull();
+        assertThat(latest.items).hasSize(2);
+        assertThat(latest.items.get(0).artifactId).isEqualTo("asset_1");
+        assertThat(latest.items.get(1).artifactId).isEqualTo("asset_2");
+    }
+
+    @Test
     void shouldLoadHistoryFromMultiStepReactRun() throws Exception {
         ChatStorageProperties properties = new ChatStorageProperties();
         properties.setDir(tempDir.resolve("chats").toString());
@@ -412,7 +464,7 @@ class ChatStorageStoreTest {
 
         // React step 1
         store.appendStepLine(chatId, "run_001", "react", 1, null,
-                systemSnapshot("qwen3-max", "sys", true), null,
+                systemSnapshot("qwen3-max", "sys", true), null, null,
                 List.of(
                         ChatStorageTypes.RunMessage.user("help", 1000L),
                         ChatStorageTypes.RunMessage.assistantToolCall("_bash_", "call_1", "{\"cmd\":\"ls\"}", 1001L, 10L, null),
@@ -420,7 +472,7 @@ class ChatStorageStoreTest {
                 ));
 
         // React step 2
-        store.appendStepLine(chatId, "run_001", "react", 2, null, null, null,
+        store.appendStepLine(chatId, "run_001", "react", 2, null, null, null, null,
                 List.of(
                         ChatStorageTypes.RunMessage.assistantContent("found file.txt", 2000L, 20L, null)
                 ));
@@ -446,15 +498,15 @@ class ChatStorageStoreTest {
         String runId = "run_010";
 
         store.appendQueryLine(chatId, runId, query(runId, chatId, "连续 step"));
-        store.appendStepLine(chatId, runId, "execute", 1, "task_1", null, null, List.of(
+        store.appendStepLine(chatId, runId, "execute", 1, "task_1", null, null, null, List.of(
                 ChatStorageTypes.RunMessage.user("连续 step", 1000L),
                 ChatStorageTypes.RunMessage.assistantReasoning("r1", 1001L, 5L, null),
                 ChatStorageTypes.RunMessage.assistantContent("c1", 1002L, 5L, null)
         ));
-        store.appendStepLine(chatId, runId, "execute", 2, "task_2", null, null, List.of(
+        store.appendStepLine(chatId, runId, "execute", 2, "task_2", null, null, null, List.of(
                 ChatStorageTypes.RunMessage.assistantContent("c2", 2000L, 5L, null)
         ));
-        store.appendStepLine(chatId, runId, "summary", 3, null, null, null, List.of(
+        store.appendStepLine(chatId, runId, "summary", 3, null, null, null, null, List.of(
                 ChatStorageTypes.RunMessage.assistantReasoning("r2", 3000L, 5L, null),
                 ChatStorageTypes.RunMessage.assistantContent("c3", 3001L, 5L, null)
         ));
@@ -543,6 +595,32 @@ class ChatStorageStoreTest {
         state.planId = planId;
         state.tasks = tasks;
         return state;
+    }
+
+    private ChatStorageTypes.ArtifactState artifactState(List<ChatStorageTypes.ArtifactItemState> items) {
+        ChatStorageTypes.ArtifactState state = new ChatStorageTypes.ArtifactState();
+        state.items = items;
+        return state;
+    }
+
+    private ChatStorageTypes.ArtifactItemState artifactItem(
+            String artifactId,
+            String type,
+            String name,
+            String mimeType,
+            Long sizeBytes,
+            String url,
+            String sha256
+    ) {
+        ChatStorageTypes.ArtifactItemState item = new ChatStorageTypes.ArtifactItemState();
+        item.artifactId = artifactId;
+        item.type = type;
+        item.name = name;
+        item.mimeType = mimeType;
+        item.sizeBytes = sizeBytes;
+        item.url = url;
+        item.sha256 = sha256;
+        return item;
     }
 
     private ChatStorageTypes.PlanTaskState task(String taskId, String description, String status) {

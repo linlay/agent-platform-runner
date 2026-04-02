@@ -114,6 +114,7 @@ public class ChatRecordStore {
                 node,
                 objectMapper.getTypeFactory().constructMapType(LinkedHashMap.class, String.class, Object.class)
         );
+        event = normalizePersistedEvent(type, event, chatId, runId);
         Path historyPath = resolveHistoryPath(chatId);
 
         Map<String, Object> line = new LinkedHashMap<>();
@@ -384,9 +385,61 @@ public class ChatRecordStore {
     private boolean isPersistedEventType(String type) {
         return "request.submit".equals(type)
                 || "request.steer".equals(type)
+                || "artifact.publish".equals(type)
                 || "run.cancel".equals(type)
                 || "run.error".equals(type)
                 || "run.complete".equals(type);
+    }
+
+    private Map<String, Object> normalizePersistedEvent(
+            String type,
+            Map<String, Object> event,
+            String chatId,
+            String runId
+    ) {
+        if (!"artifact.publish".equals(type) || event == null) {
+            return event;
+        }
+        LinkedHashMap<String, Object> normalized = new LinkedHashMap<>(event);
+        String artifactId = textValue(normalized.get("artifactId"));
+        Object artifactObject = normalized.get("artifact");
+        if (!StringUtils.hasText(artifactId) && artifactObject instanceof Map<?, ?> artifactMap) {
+            artifactId = textValue(artifactMap.get("id"));
+        }
+        if (StringUtils.hasText(artifactId)) {
+            normalized.put("artifactId", artifactId.trim());
+        } else {
+            normalized.remove("artifactId");
+        }
+        normalized.put("chatId", StringUtils.hasText(textValue(normalized.get("chatId"))) ? textValue(normalized.get("chatId")) : chatId);
+        normalized.put("runId", StringUtils.hasText(textValue(normalized.get("runId"))) ? textValue(normalized.get("runId")) : runId);
+        normalized.put("artifact", compactArtifactPayload(artifactObject));
+        normalized.remove("source");
+        return normalized;
+    }
+
+    private Map<String, Object> compactArtifactPayload(Object artifactObject) {
+        LinkedHashMap<String, Object> artifact = new LinkedHashMap<>();
+        if (!(artifactObject instanceof Map<?, ?> artifactMap)) {
+            return artifact;
+        }
+        putIfText(artifact, "type", artifactMap.get("type"));
+        putIfText(artifact, "name", artifactMap.get("name"));
+        putIfText(artifact, "mimeType", artifactMap.get("mimeType"));
+        Object sizeBytes = artifactMap.get("sizeBytes");
+        if (sizeBytes != null) {
+            artifact.put("sizeBytes", sizeBytes);
+        }
+        putIfText(artifact, "url", artifactMap.get("url"));
+        putIfText(artifact, "sha256", artifactMap.get("sha256"));
+        return artifact;
+    }
+
+    private void putIfText(Map<String, Object> target, String key, Object value) {
+        String text = textValue(value);
+        if (StringUtils.hasText(text)) {
+            target.put(key, text.trim());
+        }
     }
 
     private String textValue(JsonNode node) {
@@ -395,6 +448,13 @@ public class ChatRecordStore {
         }
         String text = node.asText();
         return StringUtils.hasText(text) ? text.trim() : null;
+    }
+
+    private String textValue(Object value) {
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            return text.trim();
+        }
+        return null;
     }
 
     private boolean isHiddenRun(Path historyPath, String runId) {

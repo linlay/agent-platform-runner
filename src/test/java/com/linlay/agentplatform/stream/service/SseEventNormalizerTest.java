@@ -115,6 +115,29 @@ class SseEventNormalizerTest {
     }
 
     @Test
+    void normalizeEventShouldKeepArtifactPublishAfterHiddenToolResultClosedTheLifecycle() {
+        ToolRegistry toolRegistry = mock(ToolRegistry.class);
+        when(toolRegistry.descriptor("_artifact_publish_")).thenReturn(Optional.of(hiddenTool("_artifact_publish_")));
+        SseEventNormalizer normalizer = newNormalizer(toolRegistry, mock(ViewportRegistryService.class), new FrontendToolProperties());
+        Set<String> hiddenToolIds = new HashSet<>();
+
+        ServerSentEvent<String> startEvent = ServerSentEvent.builder("""
+                {"type":"tool.start","toolName":"_artifact_publish_","toolId":"call_hidden_artifact_1","runId":"run_1"}
+                """).build();
+        ServerSentEvent<String> resultEvent = ServerSentEvent.builder("""
+                {"type":"tool.result","toolId":"call_hidden_artifact_1","result":"{\\"ok\\":true}"}
+                """).build();
+        ServerSentEvent<String> artifactEvent = ServerSentEvent.builder("""
+                {"type":"artifact.publish","artifactId":"asset_1","chatId":"chat_1","runId":"run_1","artifact":{"type":"file","name":"plan.md","url":"/api/resource?file=chat_1%2Fplan.md"}}
+                """).build();
+
+        assertThat(normalizer.normalizeEvent(startEvent, hiddenToolIds)).isNull();
+        assertThat(normalizer.normalizeEvent(resultEvent, hiddenToolIds)).isNull();
+        assertThat(hiddenToolIds).isEmpty();
+        assertThat(normalizer.normalizeEvent(artifactEvent, hiddenToolIds)).isNotNull();
+    }
+
+    @Test
     void normalizeEventShouldDropToolPayloadEventsByDefault() {
         SseEventNormalizer normalizer = newNormalizer(mock(ToolRegistry.class), mock(ViewportRegistryService.class), new FrontendToolProperties());
 

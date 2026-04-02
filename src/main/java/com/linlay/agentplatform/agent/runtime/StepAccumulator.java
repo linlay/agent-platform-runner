@@ -23,6 +23,7 @@ final class StepAccumulator {
     final List<ChatStorageTypes.RunMessage> orderedMessages = new ArrayList<>();
     final Map<String, ToolTrace> toolByCallId = new LinkedHashMap<>();
     ChatStorageTypes.PlanState plan;
+    ChatStorageTypes.ArtifactState artifacts;
     Map<String, Object> capturedUsage;
     String currentMsgId;
     boolean needNewMsgId;

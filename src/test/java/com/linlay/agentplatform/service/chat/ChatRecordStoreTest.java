@@ -677,6 +677,109 @@ class ChatRecordStoreTest {
     }
 
     @Test
+    void appendEventShouldPersistArtifactPublishAndExposePublishedAssetAsReference() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174188";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "产出物会话", 1707000600000L, 1707000600000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".jsonl");
+        writeJsonLine(historyPath, queryLine(chatId, "run_009", query("run_009", chatId, "生成报告", List.of())));
+        writeJsonLine(historyPath, stepLine(chatId, "run_009", "oneshot", 1, null,
+                1707000600000L,
+                List.of(
+                        userMessage("生成报告", 1707000600000L),
+                        assistantContentMessage("报告已生成", 1707000600001L)
+                )));
+
+        Path artifactPath = chatDir.resolve(chatId).resolve("artifacts").resolve("run_009").resolve("report.md");
+        Files.createDirectories(artifactPath.getParent());
+        Files.writeString(artifactPath, "# report\nok\n");
+
+        ChatRecordStore store = newStore();
+        store.appendEvent(chatId, objectMapper.writeValueAsString(Map.of(
+                "seq", 102,
+                "type", "artifact.publish",
+                "timestamp", 1707000600002L,
+                "artifactId", "asset_report_1",
+                "chatId", chatId,
+                "runId", "run_009",
+                "artifact", Map.of(
+                        "type", "file",
+                        "name", "report.md",
+                        "mimeType", "text/markdown",
+                        "url", "/api/resource?file=" + chatId + "%2Fartifacts%2Frun_009%2Freport.md"
+                )
+        )));
+
+        ChatDetailResponse detail = store.loadChat(chatId, false);
+        Map<String, Object> artifactPublish = detail.events().stream()
+                .filter(event -> "artifact.publish".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(artifactPublish).containsEntry("artifactId", "asset_report_1");
+        assertThat(artifactPublish).containsEntry("chatId", chatId);
+        assertThat(artifactPublish).containsEntry("runId", "run_009");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> artifact = (Map<String, Object>) artifactPublish.get("artifact");
+        assertThat(artifact).doesNotContainKeys("id", "meta");
+        assertThat(artifactPublish).doesNotContainKey("source");
+        assertThat(detail.references()).isNotNull();
+        assertThat(detail.references()).extracting(QueryRequest.Reference::name).contains("report.md");
+    }
+
+    @Test
+    void loadChatShouldReplayArtifactPublishFromStepArtifactsWithoutDuplicatingPersistedEvent() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174189";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "产出物快照会话", 1707000600000L, 1707000600000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".jsonl");
+        writeJsonLine(historyPath, queryLine(chatId, "run_010", query("run_010", chatId, "生成报告", List.of())));
+        writeJsonLine(historyPath, stepLine(chatId, "run_010", "execute", 1, "task0",
+                1707000600000L,
+                List.of(
+                        userMessage("生成报告", 1707000600000L),
+                        assistantContentMessage("报告已生成", 1707000600001L)
+                ),
+                null,
+                Map.of(
+                        "items", List.of(Map.of(
+                                "artifactId", "asset_report_2",
+                                "type", "file",
+                                "name", "report.md",
+                                "mimeType", "text/markdown",
+                                "url", "/api/resource?file=" + chatId + "%2Fartifacts%2Frun_010%2Freport.md"
+                        ))
+                )));
+
+        Path artifactPath = chatDir.resolve(chatId).resolve("artifacts").resolve("run_010").resolve("report.md");
+        Files.createDirectories(artifactPath.getParent());
+        Files.writeString(artifactPath, "# report\nok\n");
+
+        ChatRecordStore store = newStore();
+        store.appendEvent(chatId, objectMapper.writeValueAsString(Map.of(
+                "seq", 102,
+                "type", "artifact.publish",
+                "timestamp", 1707000600002L,
+                "artifactId", "asset_report_2",
+                "chatId", chatId,
+                "runId", "run_010",
+                "artifact", Map.of(
+                        "type", "file",
+                        "name", "report.md",
+                        "mimeType", "text/markdown",
+                        "url", "/api/resource?file=" + chatId + "%2Fartifacts%2Frun_010%2Freport.md"
+                )
+        )));
+
+        ChatDetailResponse detail = store.loadChat(chatId, false);
+        assertThat(detail.events().stream()
+                .filter(event -> "artifact.publish".equals(event.get("type"))))
+                .hasSize(1);
+    }
+
+    @Test
     void loadChatShouldPreserveLegacyRunCompleteErrorPayloadWithoutConversion() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174111";
         Path chatDir = tempDir.resolve("chats");
@@ -926,7 +1029,7 @@ class ChatRecordStoreTest {
             long updatedAt,
             List<Map<String, Object>> messages
     ) {
-        return stepLine(chatId, runId, stage, seq, taskId, updatedAt, messages, null);
+        return stepLine(chatId, runId, stage, seq, taskId, updatedAt, messages, null, null);
     }
 
     private Map<String, Object> stepLine(
@@ -938,6 +1041,20 @@ class ChatRecordStoreTest {
             long updatedAt,
             List<Map<String, Object>> messages,
             Map<String, Object> plan
+    ) {
+        return stepLine(chatId, runId, stage, seq, taskId, updatedAt, messages, plan, null);
+    }
+
+    private Map<String, Object> stepLine(
+            String chatId,
+            String runId,
+            String stage,
+            int seq,
+            String taskId,
+            long updatedAt,
+            List<Map<String, Object>> messages,
+            Map<String, Object> plan,
+            Map<String, Object> artifacts
     ) {
         Map<String, Object> line = new LinkedHashMap<>();
         line.put("_type", "step");
@@ -952,6 +1069,9 @@ class ChatRecordStoreTest {
         line.put("messages", messages);
         if (plan != null && !plan.isEmpty()) {
             line.put("plan", plan);
+        }
+        if (artifacts != null && !artifacts.isEmpty()) {
+            line.put("artifacts", artifacts);
         }
         return line;
     }

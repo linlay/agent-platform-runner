@@ -177,6 +177,20 @@ public class AgentDeltaToStreamInputMapper {
             }
         }
 
+        if (delta.artifactPublishes() != null && !delta.artifactPublishes().isEmpty()) {
+            for (AgentDelta.ArtifactPublished artifactPublished : delta.artifactPublishes()) {
+                if (artifactPublished == null) {
+                    continue;
+                }
+                inputs.add(new StreamInput.ArtifactPublish(
+                        artifactPublished.artifactId(),
+                        artifactPublished.chatId(),
+                        artifactPublished.runId(),
+                        artifactPublished.artifact()
+                ));
+            }
+        }
+
         if (delta.planUpdate() != null) {
             AgentDelta.PlanUpdate planUpdate = delta.planUpdate();
             inputs.add(new StreamInput.PlanUpdate(
@@ -238,6 +252,7 @@ public class AgentDeltaToStreamInputMapper {
                 || (delta.toolCalls() != null && !delta.toolCalls().isEmpty())
                 || (delta.toolEnds() != null && !delta.toolEnds().isEmpty())
                 || (delta.toolResults() != null && !delta.toolResults().isEmpty())
+                || (delta.artifactPublishes() != null && !delta.artifactPublishes().isEmpty())
                 || delta.planUpdate() != null
                 || delta.requestSubmit() != null
                 || delta.requestSteer() != null

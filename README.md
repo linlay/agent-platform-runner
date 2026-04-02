@@ -714,11 +714,14 @@ memoryConfig:
 
 - 当前端工具触发时，SSE `tool.start` / `tool.snapshot` 会包含 `toolType`、`viewportKey`、`toolTimeout`。
 - 若开启 `AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS=true`，同一次工具调用还会继续返回 `tool.args` / `tool.result`。
+- `artifact.publish` 是独立 SSE 事件，不属于 `tool.*` 生命周期；事件本身只保留 `artifactId/chatId/runId/artifact`，不再携带 `source`。
+- `_artifact_publish_` 是隐藏内置工具，可将运行中生成的文件发布为 chat 资产，并自动出现在后续 query 的 `references` 池中。
 - 默认等待超时 5 分钟（可配置）。
 - `POST /api/submit` 请求体：`runId` + `toolId` + `params`。
 - 成功命中后会释放对应 `runId + toolId` 的等待；未命中返回 `accepted=false`。
 - 动作工具触发 `action.start` 后不等待提交，直接返回 `"OK"` 给模型。
-- `tool.end` / `action.end` 必须紧跟各自最后一个 `args` 分片，不能延后到 `result` 前补发。
+- `tool.end` / `action.end` 表示该次调用生命周期结束；若执行层未显式提前关闭，`tool.end` 可由最终 `tool.result` 触发并紧邻其前发出。
+- 推荐的 artifact 发布顺序：`tool.start -> tool.args -> tool.end -> tool.result -> artifact.publish`；若工具是隐藏的 `_artifact_publish_`，客户端通常只看到最终的 `artifact.publish`。
 
 ### 运行中引导与中断
 

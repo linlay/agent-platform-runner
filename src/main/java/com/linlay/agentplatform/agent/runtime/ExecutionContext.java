@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 public class ExecutionContext {
 
@@ -45,9 +46,12 @@ public class ExecutionContext {
     private final List<ChatMessage> executeMessages;
     private final List<Map<String, Object>> toolRecords = new ArrayList<>();
     private final List<AgentDelta.PlanTask> planTasks = new ArrayList<>();
+    private final List<AgentDelta> deferredToolDeltas = new ArrayList<>();
     private String planId;
     private String activeTaskId;
     private SandboxSession sandboxSession;
+    private Consumer<AgentDelta> deltaEmitter;
+    private ToolInvocationContext activeToolInvocation;
 
     private int modelCalls;
     private int toolCalls;
@@ -128,6 +132,48 @@ public class ExecutionContext {
 
     public void clearSandboxSession() {
         this.sandboxSession = null;
+    }
+
+    public void bindDeltaEmitter(Consumer<AgentDelta> deltaEmitter) {
+        this.deltaEmitter = deltaEmitter;
+    }
+
+    public void clearDeltaEmitter() {
+        this.deltaEmitter = null;
+    }
+
+    public void emitDelta(AgentDelta delta) {
+        Consumer<AgentDelta> emitter = this.deltaEmitter;
+        if (emitter != null && delta != null) {
+            emitter.accept(delta);
+        }
+    }
+
+    public void deferToolDelta(AgentDelta delta) {
+        if (delta != null) {
+            deferredToolDeltas.add(delta);
+        }
+    }
+
+    public List<AgentDelta> drainDeferredToolDeltas() {
+        if (deferredToolDeltas.isEmpty()) {
+            return List.of();
+        }
+        List<AgentDelta> drained = List.copyOf(deferredToolDeltas);
+        deferredToolDeltas.clear();
+        return drained;
+    }
+
+    public ToolInvocationContext activeToolInvocation() {
+        return activeToolInvocation;
+    }
+
+    public void bindToolInvocation(ToolInvocationContext toolInvocationContext) {
+        this.activeToolInvocation = toolInvocationContext;
+    }
+
+    public void clearToolInvocation() {
+        this.activeToolInvocation = null;
     }
 
     public RunControl runControl() {
@@ -467,6 +513,13 @@ public class ExecutionContext {
         public SandboxSession(String sessionId, String environmentId, String defaultCwd) {
             this(sessionId, environmentId, defaultCwd, SandboxLevel.RUN);
         }
+    }
+
+    public record ToolInvocationContext(
+            String toolId,
+            String toolName,
+            String taskId
+    ) {
     }
 
     public static final class Builder {

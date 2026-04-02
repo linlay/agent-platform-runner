@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.model;
 
-import com.linlay.agentplatform.stream.model.ToolCallDelta;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.linlay.agentplatform.stream.model.ToolCallDelta;
 
 import java.util.List;
 import java.util.Map;
@@ -16,6 +16,7 @@ public record AgentDelta(
         List<ToolCallDelta> toolCalls,
         List<String> toolEnds,
         List<ToolResult> toolResults,
+        List<ArtifactPublished> artifactPublishes,
         PlanUpdate planUpdate,
         RequestSubmit requestSubmit,
         RequestSteer requestSteer,
@@ -52,6 +53,11 @@ public record AgentDelta(
         } else {
             toolResults = List.copyOf(toolResults);
         }
+        if (artifactPublishes == null) {
+            artifactPublishes = List.of();
+        } else {
+            artifactPublishes = List.copyOf(artifactPublishes);
+        }
     }
 
     public static AgentDelta reasoning(String delta) {
@@ -59,7 +65,7 @@ public record AgentDelta(
     }
 
     public static AgentDelta reasoning(String delta, String taskId) {
-        return new AgentDelta(delta, null, null, null, null, List.of(), List.of(), List.of(), null, null, null, null, normalizeTaskId(taskId), null, null, null, null);
+        return new AgentDelta(delta, null, null, null, null, List.of(), List.of(), List.of(), List.of(), null, null, null, null, normalizeTaskId(taskId), null, null, null, null);
     }
 
     public static AgentDelta content(String delta) {
@@ -67,7 +73,7 @@ public record AgentDelta(
     }
 
     public static AgentDelta content(String delta, String taskId) {
-        return new AgentDelta(null, delta, null, null, null, List.of(), List.of(), List.of(), null, null, null, null, normalizeTaskId(taskId), null, null, null, null);
+        return new AgentDelta(null, delta, null, null, null, List.of(), List.of(), List.of(), List.of(), null, null, null, null, normalizeTaskId(taskId), null, null, null, null);
     }
 
     public static AgentDelta userMessage(String message) {
@@ -75,7 +81,7 @@ public record AgentDelta(
     }
 
     public static AgentDelta userMessage(String message, String taskId) {
-        return new AgentDelta(null, null, message, null, null, List.of(), List.of(), List.of(), null, null, null, null, normalizeTaskId(taskId), null, null, null, null);
+        return new AgentDelta(null, null, message, null, null, List.of(), List.of(), List.of(), List.of(), null, null, null, null, normalizeTaskId(taskId), null, null, null, null);
     }
 
     public static AgentDelta toolCalls(List<ToolCallDelta> toolCalls) {
@@ -83,7 +89,7 @@ public record AgentDelta(
     }
 
     public static AgentDelta toolCalls(List<ToolCallDelta> toolCalls, String taskId) {
-        return new AgentDelta(null, null, null, null, null, toolCalls, List.of(), List.of(), null, null, null, null, normalizeTaskId(taskId), null, null, null, null);
+        return new AgentDelta(null, null, null, null, null, toolCalls, List.of(), List.of(), List.of(), null, null, null, null, normalizeTaskId(taskId), null, null, null, null);
     }
 
     public static AgentDelta toolEnd(String toolId) {
@@ -95,7 +101,7 @@ public record AgentDelta(
     }
 
     public static AgentDelta toolEnds(List<String> toolIds) {
-        return new AgentDelta(null, null, null, null, null, List.of(), toolIds, List.of(), null, null, null, null, null, null, null, null, null);
+        return new AgentDelta(null, null, null, null, null, List.of(), toolIds, List.of(), List.of(), null, null, null, null, null, null, null, null, null);
     }
 
     public static AgentDelta toolResult(String toolId, JsonNode result) {
@@ -111,11 +117,39 @@ public record AgentDelta(
     }
 
     public static AgentDelta toolResult(String toolId, String result) {
-        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(new ToolResult(toolId, result)), null, null, null, null, null, null, null, null, null);
+        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(new ToolResult(toolId, result)), List.of(), null, null, null, null, null, null, null, null, null);
+    }
+
+    public static AgentDelta artifactPublished(
+            String artifactId,
+            String chatId,
+            String runId,
+            ArtifactEventPayload artifact
+    ) {
+        return new AgentDelta(
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new ArtifactPublished(artifactId, chatId, runId, artifact)),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
     }
 
     public static AgentDelta planUpdate(String planId, String chatId, List<PlanTask> plan) {
-        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), new PlanUpdate(planId, chatId, plan), null, null, null, null, null, null, null, null);
+        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), List.of(), new PlanUpdate(planId, chatId, plan), null, null, null, null, null, null, null, null);
     }
 
     public static AgentDelta requestSubmit(
@@ -132,6 +166,7 @@ public record AgentDelta(
                 null,
                 null,
                 null,
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
@@ -157,6 +192,7 @@ public record AgentDelta(
                 List.of(),
                 List.of(),
                 List.of(),
+                List.of(),
                 null,
                 null,
                 new RequestSteer(requestId, steerId, message),
@@ -173,43 +209,43 @@ public record AgentDelta(
         String normalizedTaskId = requireTaskId(taskId, "task.start");
         String normalizedRunId = requireRunId(runId);
         TaskLifecycle lifecycle = new TaskLifecycle("start", normalizedTaskId, normalizedRunId, normalizeText(taskName), normalizeText(description), null);
-        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), null, null, null, lifecycle, normalizedTaskId, null, null, null, null);
+        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), List.of(), null, null, null, lifecycle, normalizedTaskId, null, null, null, null);
     }
 
     public static AgentDelta taskComplete(String taskId) {
         String normalizedTaskId = requireTaskId(taskId, "task.complete");
         TaskLifecycle lifecycle = new TaskLifecycle("complete", normalizedTaskId, null, null, null, null);
-        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), null, null, null, lifecycle, normalizedTaskId, null, null, null, null);
+        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), List.of(), null, null, null, lifecycle, normalizedTaskId, null, null, null, null);
     }
 
     public static AgentDelta taskCancel(String taskId) {
         String normalizedTaskId = requireTaskId(taskId, "task.cancel");
         TaskLifecycle lifecycle = new TaskLifecycle("cancel", normalizedTaskId, null, null, null, null);
-        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), null, null, null, lifecycle, normalizedTaskId, null, null, null, null);
+        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), List.of(), null, null, null, lifecycle, normalizedTaskId, null, null, null, null);
     }
 
     public static AgentDelta taskFail(String taskId, Map<String, Object> error) {
         String normalizedTaskId = requireTaskId(taskId, "task.fail");
         Map<String, Object> normalizedError = error == null ? Map.of("message", "Task failed") : Map.copyOf(error);
         TaskLifecycle lifecycle = new TaskLifecycle("fail", normalizedTaskId, null, null, null, normalizedError);
-        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), null, null, null, lifecycle, normalizedTaskId, null, null, null, null);
+        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), List.of(), null, null, null, lifecycle, normalizedTaskId, null, null, null, null);
     }
 
     public static AgentDelta finish(String finishReason) {
-        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), null, null, null, null, null, finishReason, null, null, null);
+        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, finishReason, null, null, null);
     }
 
     public static AgentDelta runError(RunError error) {
         Objects.requireNonNull(error, "error");
-        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), null, null, null, null, null, null, error, null, null);
+        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, null, error, null, null);
     }
 
     public static AgentDelta stageMarker(String marker) {
-        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), null, null, null, null, null, null, null, marker, null);
+        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, null, null, marker, null);
     }
 
     public static AgentDelta usage(Map<String, Object> usage) {
-        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), null, null, null, null, null, null, null, null, usage);
+        return new AgentDelta(null, null, null, null, null, List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, null, null, null, usage);
     }
 
     public AgentDelta withReasoningId(String value) {
@@ -222,6 +258,7 @@ public record AgentDelta(
                 toolCalls,
                 toolEnds,
                 toolResults,
+                artifactPublishes,
                 planUpdate,
                 requestSubmit,
                 requestSteer,
@@ -244,6 +281,7 @@ public record AgentDelta(
                 toolCalls,
                 toolEnds,
                 toolResults,
+                artifactPublishes,
                 planUpdate,
                 requestSubmit,
                 requestSteer,
@@ -300,6 +338,20 @@ public record AgentDelta(
             String toolId,
             String result
     ) {
+    }
+
+    public record ArtifactPublished(
+            String artifactId,
+            String chatId,
+            String runId,
+            ArtifactEventPayload artifact
+    ) {
+        public ArtifactPublished {
+            artifactId = requireText(artifactId, "artifactId");
+            chatId = requireText(chatId, "chatId");
+            runId = requireText(runId, "runId");
+            Objects.requireNonNull(artifact, "artifact");
+        }
     }
 
     public record PlanUpdate(

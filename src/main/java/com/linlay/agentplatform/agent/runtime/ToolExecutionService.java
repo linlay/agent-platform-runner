@@ -146,19 +146,19 @@ public class ToolExecutionService {
             Map<String, Object> resolvedArgs = toolArgumentResolver.resolveToolArguments(toolName, plannedArgs, records);
             String argsJson = toJson(resolvedArgs);
             preparedCalls.add(new PreparedToolCall(callId, toolName, toolType, resolvedArgs, argsJson));
-
-            if (emitToolCallDelta) {
-                deltas.add(AgentDelta.toolCalls(List.of(new ToolCallDelta(callId, toolType, toolName, argsJson)), taskId));
-                if (!isActionType(toolType)) {
-                    deltas.add(AgentDelta.toolEnd(callId));
-                }
-            }
         }
 
         for (PreparedToolCall call : preparedCalls) {
             failIfInterrupted(context);
             if (context != null) {
                 context.runControl().transitionState(RunLoopState.TOOL_EXECUTING);
+            }
+            if (emitToolCallDelta) {
+                appendDelta(
+                        deltas,
+                        preExecutionEmitter,
+                        AgentDelta.toolCalls(List.of(new ToolCallDelta(call.callId(), call.toolType(), call.toolName(), call.argsJson())), taskId)
+                );
             }
             long invokeStartNanos = System.nanoTime();
             toolInvocationLogger.logInvocationStart(
@@ -169,21 +169,30 @@ public class ToolExecutionService {
                     call.toolType(),
                     call.argsJson()
             );
-            FrontendToolHandler.InvokeResult invokeResult = invokeByKind(
-                    runId,
-                    call.callId(),
-                    call.toolName(),
-                    call.toolType(),
-                    call.resolvedArgs(),
-                    enabledToolsByName,
-                    context
-            );
+            FrontendToolHandler.InvokeResult invokeResult;
+            bindToolContext(context, call.callId(), call.toolName(), taskId, delta -> appendDelta(deltas, preExecutionEmitter, delta));
+            try {
+                invokeResult = invokeByKind(
+                        runId,
+                        call.callId(),
+                        call.toolName(),
+                        call.toolType(),
+                        call.resolvedArgs(),
+                        enabledToolsByName,
+                        context
+                );
+            } finally {
+                clearToolContext(context);
+            }
             if (invokeResult.submitDelta() != null) {
                 appendDelta(deltas, preExecutionEmitter, invokeResult.submitDelta());
             }
             JsonNode resultNode = invokeResult.resultNode();
             String resultText = toResultText(resultNode);
             deltas.add(AgentDelta.toolResult(call.callId(), resultText));
+            if (context != null) {
+                deltas.addAll(context.drainDeferredToolDeltas());
+            }
             records.add(buildToolRecord(call.callId(), call.toolName(), call.toolType(), call.resolvedArgs(), resultNode));
             events.add(new ToolExecutionEvent(call.callId(), call.toolName(), call.toolType(), call.argsJson(), resultText));
             toolInvocationLogger.logInvocationEnd(
@@ -222,6 +231,28 @@ public class ToolExecutionService {
             return;
         }
         deltas.add(delta);
+    }
+
+    private void bindToolContext(
+            ExecutionContext context,
+            String toolId,
+            String toolName,
+            String taskId,
+            Consumer<AgentDelta> deltaEmitter
+    ) {
+        if (context == null) {
+            return;
+        }
+        context.bindToolInvocation(new ExecutionContext.ToolInvocationContext(toolId, toolName, taskId));
+        context.bindDeltaEmitter(deltaEmitter);
+    }
+
+    private void clearToolContext(ExecutionContext context) {
+        if (context == null) {
+            return;
+        }
+        context.clearDeltaEmitter();
+        context.clearToolInvocation();
     }
 
     public List<com.linlay.agentplatform.service.llm.LlmService.LlmFunctionTool> enabledFunctionTools(Map<String, BaseTool> enabledToolsByName) {

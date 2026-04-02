@@ -6,6 +6,7 @@ import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
 import com.linlay.agentplatform.stream.service.StreamEventAssembler;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.model.ArtifactEventPayload;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 
@@ -384,6 +385,45 @@ class AgentDeltaToStreamInputMapperTest {
         assertThat(event.payload()).containsEntry("chatId", "chat_1");
         assertThat(event.payload()).containsEntry("runId", "run_1");
         assertThat(event.payload()).containsEntry("toolId", "call_frontend_1");
+    }
+
+    @Test
+    void shouldEmitArtifactPublishAfterToolResult() {
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", "chat_1", null, null);
+        ArtifactEventPayload artifact = new ArtifactEventPayload(
+                "file",
+                "report.md",
+                "text/markdown",
+                12L,
+                "/api/resource?file=chat_1%2Fartifacts%2Frun_1%2Freport.md",
+                "sha"
+        );
+        List<StreamEvent> events = assembleEvents(mapper, List.of(
+                AgentDelta.toolCalls(List.of(new ToolCallDelta(
+                        "tool_1",
+                        "function",
+                        "_artifact_publish_",
+                        "{\"path\":\"report.md\"}"
+                ))),
+                AgentDelta.toolEnd("tool_1"),
+                AgentDelta.toolResult("tool_1", "{\"ok\":true}"),
+                AgentDelta.artifactPublished(
+                        "asset_1",
+                        "chat_1",
+                        "run_1",
+                        artifact
+                )
+        ));
+
+        int toolEnd = indexOfToolEvent(events, "tool.end", "tool_1");
+        int artifactPublish = indexOfEvent(events, "artifact.publish", "artifactId", "asset_1");
+        int toolResult = indexOfToolEvent(events, "tool.result", "tool_1");
+
+        assertThat(toolEnd).isGreaterThanOrEqualTo(0);
+        assertThat(toolResult).isGreaterThan(toolEnd);
+        assertThat(artifactPublish).isGreaterThan(toolResult);
+        assertThat(events.get(artifactPublish).payload()).containsEntry("chatId", "chat_1");
+        assertThat(events.get(artifactPublish).payload()).containsEntry("runId", "run_1");
     }
 
     @Test

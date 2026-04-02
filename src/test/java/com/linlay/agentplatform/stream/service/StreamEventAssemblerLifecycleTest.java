@@ -3,6 +3,7 @@ package com.linlay.agentplatform.stream.service;
 import com.linlay.agentplatform.stream.model.StreamEvent;
 import com.linlay.agentplatform.stream.model.StreamInput;
 import com.linlay.agentplatform.stream.model.StreamRequest;
+import com.linlay.agentplatform.model.ArtifactEventPayload;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -61,6 +62,31 @@ class StreamEventAssemblerLifecycleTest {
         assertThat(errorPayload).containsEntry("code", "RUN_ERROR");
         assertThat(errorPayload).containsEntry("message", "boom");
         assertThat(errorPayload).containsEntry("retriable", false);
+    }
+
+    @Test
+    void artifactPublishShouldEmitIndependentRunScopedEvent() {
+        StreamEventAssembler.EventStreamState state = newQueryState();
+        ArtifactEventPayload artifact = new ArtifactEventPayload(
+                "file",
+                "report.md",
+                "text/markdown",
+                12L,
+                "/api/resource?file=chat_1%2Fartifacts%2Frun_1%2Freport.md",
+                null
+        );
+
+        List<StreamEvent> events = state.consume(new StreamInput.ArtifactPublish(
+                "asset_1",
+                "chat_1",
+                "run_1",
+                artifact
+        ));
+
+        assertThat(events).extracting(StreamEvent::type).containsExactly("artifact.publish");
+        assertThat(events.getFirst().payload()).containsEntry("artifactId", "asset_1");
+        assertThat(events.getFirst().payload()).containsEntry("chatId", "chat_1");
+        assertThat(events.getFirst().payload()).containsEntry("runId", "run_1");
     }
 
     private StreamEventAssembler.EventStreamState newQueryState() {

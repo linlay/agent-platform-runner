@@ -60,6 +60,7 @@ public final class TextBlockIdAssigner {
                 || (delta.toolCalls() != null && !delta.toolCalls().isEmpty())
                 || (delta.toolEnds() != null && !delta.toolEnds().isEmpty())
                 || (delta.toolResults() != null && !delta.toolResults().isEmpty())
+                || (delta.artifactPublishes() != null && !delta.artifactPublishes().isEmpty())
                 || delta.planUpdate() != null
                 || delta.requestSubmit() != null
                 || StringUtils.hasText(delta.finishReason());

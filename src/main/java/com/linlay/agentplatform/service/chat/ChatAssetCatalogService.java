@@ -117,6 +117,36 @@ public class ChatAssetCatalogService {
         return merged.isEmpty() ? List.of() : List.copyOf(merged.values());
     }
 
+    public QueryRequest.Reference buildReference(
+            String chatId,
+            String relativePath,
+            String displayName,
+            String sha256,
+            Map<String, Object> meta
+    ) {
+        String normalizedChatId = chatDataPathService.normalizeChatId(chatId);
+        String normalizedRelativePath = chatDataPathService.normalizeRelativePath(relativePath);
+        Path chatDir = chatDataPathService.resolveChatDir(normalizedChatId);
+        Path file = chatDir.resolve(normalizedRelativePath).normalize();
+        if (!file.startsWith(chatDir) || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IllegalArgumentException("Artifact file not found in chat assets: " + normalizedRelativePath);
+        }
+        String mimeType = guessContentType(file);
+        Map<String, Object> mergedMeta = meta == null || meta.isEmpty()
+                ? Map.of("relativePath", normalizedRelativePath)
+                : mergeMeta(meta, normalizedRelativePath);
+        return new QueryRequest.Reference(
+                stableReferenceId(normalizedChatId, normalizedRelativePath),
+                classifyType(mimeType),
+                StringUtils.hasText(displayName) ? displayName.trim() : file.getFileName().toString(),
+                mimeType,
+                sizeOf(file),
+                chatDataPathService.toAssetUrl(normalizedChatId, normalizedRelativePath),
+                StringUtils.hasText(sha256) ? sha256.trim() : null,
+                mergedMeta
+        );
+    }
+
     private java.util.Optional<QueryRequest.Reference> toReference(String chatId, Path chatDir, Path file) {
         try {
             Path relativePath = chatDir.relativize(file);
@@ -207,6 +237,20 @@ public class ChatAssetCatalogService {
         } catch (Exception ex) {
             return "asset_" + Math.abs((chatId + ":" + relativePath).hashCode());
         }
+    }
+
+    private Long sizeOf(Path file) {
+        try {
+            return Files.size(file);
+        } catch (IOException ex) {
+            return null;
+        }
+    }
+
+    private Map<String, Object> mergeMeta(Map<String, Object> meta, String relativePath) {
+        LinkedHashMap<String, Object> merged = new LinkedHashMap<>(meta);
+        merged.putIfAbsent("relativePath", relativePath);
+        return Map.copyOf(merged);
     }
 
     private void putIfPresent(LinkedHashMap<String, QueryRequest.Reference> merged, QueryRequest.Reference reference) {

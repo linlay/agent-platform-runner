@@ -13,9 +13,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 final class ChatHistoryFileReader {
@@ -76,6 +78,7 @@ final class ChatHistoryFileReader {
                     stepsByRunId.computeIfAbsent(runId, key -> new ArrayList<>());
                     eventsByRunId.computeIfAbsent(runId, key -> new ArrayList<>());
                 } else if ("step".equals(type)) {
+                    String chatId = node.path("chatId").asText(null);
                     long updatedAt = node.path("updatedAt").asLong(0);
                     String stage = node.path("_stage").asText(null);
                     int seq = node.path("_seq").asInt(0);
@@ -93,6 +96,11 @@ final class ChatHistoryFileReader {
                         plan = objectMapper.treeToValue(node.get("plan"), ChatStorageTypes.PlanState.class);
                     }
 
+                    ChatStorageTypes.ArtifactState artifacts = null;
+                    if (node.has("artifacts") && !node.get("artifacts").isNull()) {
+                        artifacts = objectMapper.treeToValue(node.get("artifacts"), ChatStorageTypes.ArtifactState.class);
+                    }
+
                     List<ChatStorageTypes.StoredMessage> messages = new ArrayList<>();
                     if (node.has("messages") && node.get("messages").isArray()) {
                         for (JsonNode msgNode : node.get("messages")) {
@@ -107,7 +115,7 @@ final class ChatHistoryFileReader {
                     }
 
                     stepsByRunId.computeIfAbsent(runId, key -> new ArrayList<>())
-                            .add(new StepEntry(stage, seq, taskId, updatedAt, system, plan, messages, lineIndex));
+                            .add(new StepEntry(chatId, stage, seq, taskId, updatedAt, system, plan, artifacts, messages, lineIndex));
                     eventsByRunId.computeIfAbsent(runId, key -> new ArrayList<>());
                 } else if ("event".equals(type)) {
                     JsonNode eventNode = node.has("event") && node.get("event").isObject()
@@ -132,6 +140,7 @@ final class ChatHistoryFileReader {
                             eventPayload.put("chatId", eventChatId);
                         }
                     }
+                    eventPayload = normalizePersistedEventPayload(eventType, eventPayload, textValue(node.get("chatId")), runId);
                     stepsByRunId.computeIfAbsent(runId, key -> new ArrayList<>());
                     eventsByRunId.computeIfAbsent(runId, key -> new ArrayList<>())
                             .add(new PersistedChatEvent(eventType, eventTimestamp, eventPayload, lineIndex));
@@ -143,8 +152,8 @@ final class ChatHistoryFileReader {
             for (Map.Entry<String, List<StepEntry>> entry : stepsByRunId.entrySet()) {
                 String runId = entry.getKey();
                 List<StepEntry> steps = entry.getValue();
-                List<PersistedChatEvent> persistedEvents = eventsByRunId.getOrDefault(runId, List.of());
-                if (steps.isEmpty() && persistedEvents.isEmpty()) {
+                List<PersistedChatEvent> explicitPersistedEvents = eventsByRunId.getOrDefault(runId, List.of());
+                if (steps.isEmpty() && explicitPersistedEvents.isEmpty()) {
                     continue;
                 }
                 if (!steps.isEmpty()) {
@@ -152,6 +161,9 @@ final class ChatHistoryFileReader {
                 }
 
                 Map<String, Object> query = queryByRunId.getOrDefault(runId, Map.of());
+                String resolvedChatId = resolveRunChatId(query, steps);
+                List<PersistedChatEvent> persistedEvents = new ArrayList<>(explicitPersistedEvents);
+                persistedEvents.addAll(syntheticArtifactEvents(runId, resolvedChatId, steps, explicitPersistedEvents));
                 long updatedAt = Math.max(
                         steps.stream().mapToLong(StepEntry::updatedAt).max().orElse(0),
                         persistedEvents.stream().mapToLong(PersistedChatEvent::timestamp).max().orElse(0)
@@ -230,9 +242,152 @@ final class ChatHistoryFileReader {
     private boolean isPersistedEventType(String type) {
         return "request.submit".equals(type)
                 || "request.steer".equals(type)
+                || "artifact.publish".equals(type)
                 || "run.cancel".equals(type)
                 || "run.error".equals(type)
                 || "run.complete".equals(type);
+    }
+
+    private String resolveRunChatId(Map<String, Object> query, List<StepEntry> steps) {
+        String queryChatId = textValue(query == null ? null : query.get("chatId"));
+        if (StringUtils.hasText(queryChatId)) {
+            return queryChatId;
+        }
+        for (StepEntry step : steps) {
+            if (step != null && StringUtils.hasText(step.chatId())) {
+                return step.chatId().trim();
+            }
+        }
+        return null;
+    }
+
+    private List<PersistedChatEvent> syntheticArtifactEvents(
+            String runId,
+            String chatId,
+            List<StepEntry> steps,
+            List<PersistedChatEvent> explicitPersistedEvents
+    ) {
+        if (steps == null || steps.isEmpty()) {
+            return List.of();
+        }
+        Set<String> explicitArtifactIds = new HashSet<>();
+        for (PersistedChatEvent event : explicitPersistedEvents) {
+            if (event == null || !"artifact.publish".equals(event.type())) {
+                continue;
+            }
+            String artifactId = textValue(event.payload().get("artifactId"));
+            if (StringUtils.hasText(artifactId)) {
+                explicitArtifactIds.add(artifactId.trim());
+            }
+        }
+
+        Set<String> emittedArtifactIds = new HashSet<>();
+        List<PersistedChatEvent> synthetic = new ArrayList<>();
+        for (StepEntry step : steps) {
+            if (step == null || step.artifacts() == null || step.artifacts().items == null || step.artifacts().items.isEmpty()) {
+                continue;
+            }
+            for (ChatStorageTypes.ArtifactItemState item : step.artifacts().items) {
+                if (item == null || !StringUtils.hasText(item.artifactId)) {
+                    continue;
+                }
+                String artifactId = item.artifactId.trim();
+                if (!emittedArtifactIds.add(artifactId)) {
+                    continue;
+                }
+                if (explicitArtifactIds.contains(artifactId)) {
+                    continue;
+                }
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("artifactId", artifactId);
+                if (StringUtils.hasText(chatId)) {
+                    payload.put("chatId", chatId);
+                }
+                payload.put("runId", runId);
+                payload.put("artifact", compactArtifactPayload(item));
+                synthetic.add(new PersistedChatEvent(
+                        "artifact.publish",
+                        step.updatedAt(),
+                        payload,
+                        step.lineIndex()
+                ));
+            }
+        }
+        return List.copyOf(synthetic);
+    }
+
+    private Map<String, Object> normalizePersistedEventPayload(
+            String eventType,
+            Map<String, Object> payload,
+            String fallbackChatId,
+            String fallbackRunId
+    ) {
+        if (!"artifact.publish".equals(eventType) || payload == null) {
+            return payload;
+        }
+        LinkedHashMap<String, Object> normalized = new LinkedHashMap<>(payload);
+        String artifactId = textValue(normalized.get("artifactId"));
+        Object artifactObject = normalized.get("artifact");
+        if (!StringUtils.hasText(artifactId) && artifactObject instanceof Map<?, ?> artifactMap) {
+            artifactId = textValue(artifactMap.get("id"));
+        }
+        if (StringUtils.hasText(artifactId)) {
+            normalized.put("artifactId", artifactId.trim());
+        } else {
+            normalized.remove("artifactId");
+        }
+        String chatId = textValue(normalized.get("chatId"));
+        if (!StringUtils.hasText(chatId)) {
+            chatId = fallbackChatId;
+        }
+        if (StringUtils.hasText(chatId)) {
+            normalized.put("chatId", chatId.trim());
+        }
+        String runId = textValue(normalized.get("runId"));
+        if (!StringUtils.hasText(runId)) {
+            runId = fallbackRunId;
+        }
+        if (StringUtils.hasText(runId)) {
+            normalized.put("runId", runId.trim());
+        }
+        normalized.put("artifact", compactArtifactPayload(artifactObject));
+        normalized.remove("source");
+        return normalized;
+    }
+
+    private Map<String, Object> compactArtifactPayload(Object artifactObject) {
+        LinkedHashMap<String, Object> artifact = new LinkedHashMap<>();
+        if (artifactObject instanceof ChatStorageTypes.ArtifactItemState item) {
+            putIfText(artifact, "type", item.type);
+            putIfText(artifact, "name", item.name);
+            putIfText(artifact, "mimeType", item.mimeType);
+            if (item.sizeBytes != null) {
+                artifact.put("sizeBytes", item.sizeBytes);
+            }
+            putIfText(artifact, "url", item.url);
+            putIfText(artifact, "sha256", item.sha256);
+            return artifact;
+        }
+        if (!(artifactObject instanceof Map<?, ?> artifactMap)) {
+            return artifact;
+        }
+        putIfText(artifact, "type", artifactMap.get("type"));
+        putIfText(artifact, "name", artifactMap.get("name"));
+        putIfText(artifact, "mimeType", artifactMap.get("mimeType"));
+        Object sizeBytes = artifactMap.get("sizeBytes");
+        if (sizeBytes != null) {
+            artifact.put("sizeBytes", sizeBytes);
+        }
+        putIfText(artifact, "url", artifactMap.get("url"));
+        putIfText(artifact, "sha256", artifactMap.get("sha256"));
+        return artifact;
+    }
+
+    private void putIfText(Map<String, Object> target, String key, Object value) {
+        String text = textValue(value);
+        if (StringUtils.hasText(text)) {
+            target.put(key, text.trim());
+        }
     }
 
     private String textValue(JsonNode node) {
@@ -243,13 +398,22 @@ final class ChatHistoryFileReader {
         return StringUtils.hasText(text) ? text.trim() : null;
     }
 
+    private String textValue(Object value) {
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            return text.trim();
+        }
+        return null;
+    }
+
     private record StepEntry(
+            String chatId,
             String stage,
             int seq,
             String taskId,
             long updatedAt,
             ChatStorageTypes.SystemSnapshot system,
             ChatStorageTypes.PlanState plan,
+            ChatStorageTypes.ArtifactState artifacts,
             List<ChatStorageTypes.StoredMessage> messages,
             int lineIndex
     ) {

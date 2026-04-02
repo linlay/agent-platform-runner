@@ -123,6 +123,37 @@ final class StoredMessageConverter {
         return state;
     }
 
+    ChatStorageTypes.ArtifactState normalizeArtifactState(ChatStorageTypes.ArtifactState source) {
+        if (source == null || source.items == null || source.items.isEmpty()) {
+            return null;
+        }
+        ChatStorageTypes.ArtifactState normalized = objectMapper.convertValue(source, ChatStorageTypes.ArtifactState.class);
+        if (normalized == null || normalized.items == null || normalized.items.isEmpty()) {
+            return null;
+        }
+        List<ChatStorageTypes.ArtifactItemState> items = new ArrayList<>();
+        for (ChatStorageTypes.ArtifactItemState item : normalized.items) {
+            if (item == null || !hasText(item.artifactId) || !hasText(item.type) || !hasText(item.name) || !hasText(item.url)) {
+                continue;
+            }
+            ChatStorageTypes.ArtifactItemState normalizedItem = new ChatStorageTypes.ArtifactItemState();
+            normalizedItem.artifactId = item.artifactId.trim();
+            normalizedItem.type = item.type.trim();
+            normalizedItem.name = item.name.trim();
+            normalizedItem.mimeType = nullable(item.mimeType);
+            normalizedItem.sizeBytes = item.sizeBytes;
+            normalizedItem.url = item.url.trim();
+            normalizedItem.sha256 = nullable(item.sha256);
+            items.add(normalizedItem);
+        }
+        if (items.isEmpty()) {
+            return null;
+        }
+        ChatStorageTypes.ArtifactState state = new ChatStorageTypes.ArtifactState();
+        state.items = List.copyOf(items);
+        return state;
+    }
+
     Set<String> extractActionToolNames(ChatStorageTypes.SystemSnapshot systemSnapshot) {
         if (systemSnapshot == null || systemSnapshot.tools == null || systemSnapshot.tools.isEmpty()) {
             return Set.of();

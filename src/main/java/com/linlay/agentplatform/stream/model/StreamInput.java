@@ -1,5 +1,7 @@
 package com.linlay.agentplatform.stream.model;
 
+import com.linlay.agentplatform.model.ArtifactEventPayload;
+
 import java.util.Map;
 
 public sealed interface StreamInput permits
@@ -13,6 +15,7 @@ public sealed interface StreamInput permits
         StreamInput.ToolArgs,
         StreamInput.ToolEnd,
         StreamInput.ToolResult,
+        StreamInput.ArtifactPublish,
         StreamInput.ActionArgs,
         StreamInput.ActionEnd,
         StreamInput.ActionResult,
@@ -95,6 +98,20 @@ public sealed interface StreamInput permits
         public ToolResult {
             requireNonBlank(toolId, "toolId");
             requireNonNull(result, "result");
+        }
+    }
+
+    record ArtifactPublish(
+            String artifactId,
+            String chatId,
+            String runId,
+            ArtifactEventPayload artifact
+    ) implements StreamInput {
+        public ArtifactPublish {
+            requireNonBlank(artifactId, "artifactId");
+            requireNonBlank(chatId, "chatId");
+            requireNonBlank(runId, "runId");
+            requireNonNull(artifact, "artifact");
         }
     }
 
