@@ -75,12 +75,14 @@ class AgentRegistryTest {
 
         assertThat(registry.listIds()).contains("demo_one");
         assertThatThrownBy(() -> registry.get("demo_two"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("AgentKey 不存在: demo_two");
 
         writeReactAgent(agentsDir, "demo_two", "Demo Two", "demo two", "_bash_", "你是 demo two");
 
         assertThatThrownBy(() -> registry.get("demo_two"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("AgentKey 不存在: demo_two");
 
         registry.refreshAgents();
         assertThat(registry.get("demo_two").id()).isEqualTo("demo_two");
@@ -90,7 +92,8 @@ class AgentRegistryTest {
 
         registry.refreshAgents();
         assertThatThrownBy(() -> registry.get("demo_two"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("AgentKey 不存在: demo_two");
     }
 
     @Test

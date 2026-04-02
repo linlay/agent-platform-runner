@@ -866,43 +866,121 @@ class AgentControllerTest {
 
     @Test
     void queryShouldRejectTeamIdWithoutAgentKey() {
-        webTestClient.post()
+        byte[] body = webTestClient.post()
                 .uri("/api/query")
                 .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
                 .bodyValue(Map.of(
                         "teamId", "a1b2c3d4e5f6",
                         "message", "missing agent"
                 ))
                 .exchange()
-                .expectStatus().isBadRequest();
+                .expectStatus().isBadRequest()
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+
+        assertJsonErrorBody(body, "agentKey is required when teamId is provided");
     }
 
     @Test
     void queryShouldRejectUnknownTeamId() {
-        webTestClient.post()
+        byte[] body = webTestClient.post()
                 .uri("/api/query")
                 .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
                 .bodyValue(Map.of(
                         "teamId", "deadbeefcafe",
                         "agentKey", "demoModeReact",
                         "message", "unknown team"
                 ))
                 .exchange()
-                .expectStatus().isBadRequest();
+                .expectStatus().isBadRequest()
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+
+        assertJsonErrorBody(body, "teamId not found: deadbeefcafe");
     }
 
     @Test
     void queryShouldRejectAgentOutsideTeam() {
-        webTestClient.post()
+        byte[] body = webTestClient.post()
                 .uri("/api/query")
                 .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
                 .bodyValue(Map.of(
                         "teamId", "a1b2c3d4e5f6",
                         "agentKey", "demoModePlanExecute",
                         "message", "outside team"
                 ))
                 .exchange()
-                .expectStatus().isBadRequest();
+                .expectStatus().isBadRequest()
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+
+        assertJsonErrorBody(body, "agentKey 'demoModePlanExecute' is not in team 'a1b2c3d4e5f6'");
+    }
+
+    @Test
+    void queryShouldReturnJsonBadRequestWhenAgentKeyMissingInCatalog() {
+        String chatId = "preflight-missing-agent";
+        byte[] body = webTestClient.post()
+                .uri("/api/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .bodyValue(Map.of(
+                        "chatId", chatId,
+                        "agentKey", "jiraWeeklyReportAssistant",
+                        "message", "hello"
+                ))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+
+        assertJsonErrorBody(body, "AgentKey 不存在: jiraWeeklyReportAssistant");
+        assertThat(asBodyText(body)).doesNotContain("Available:").doesNotContain("agentId");
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/chat").queryParam("chatId", chatId).build())
+                .exchange()
+                .expectStatus().isNotFound();
+    }
+
+    @Test
+    void queryShouldReturnJsonBadRequestWhenMessageBlank() {
+        byte[] body = webTestClient.post()
+                .uri("/api/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .bodyValue(Map.of(
+                        "agentKey", "demoModePlain",
+                        "message", ""
+                ))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+
+        Map<String, Object> root = parseJsonBody(body);
+        assertThat(root).containsEntry("code", 400);
+        assertThat(root).containsEntry("msg", "Validation failed");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) root.get("data");
+        assertThat(data).containsKey("fields");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> fields = (Map<String, Object>) data.get("fields");
+        assertThat(fields).containsKey("message");
+        assertThat(asBodyText(body)).doesNotContain("event:").doesNotContain("data:[DONE]");
     }
 
     @Test
@@ -1664,6 +1742,28 @@ class AgentControllerTest {
             }
         }
         return "";
+    }
+
+    private void assertJsonErrorBody(byte[] body, String messageFragment) {
+        Map<String, Object> root = parseJsonBody(body);
+        assertThat(root).containsEntry("code", 400);
+        assertThat(String.valueOf(root.get("msg"))).contains(messageFragment);
+        assertThat(asBodyText(body)).doesNotContain("event:").doesNotContain("data:[DONE]");
+    }
+
+    private Map<String, Object> parseJsonBody(byte[] body) {
+        assertThat(body).isNotNull();
+        try {
+            return objectMapper.readValue(body, new TypeReference<>() {
+            });
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    private String asBodyText(byte[] body) {
+        assertThat(body).isNotNull();
+        return new String(body, StandardCharsets.UTF_8);
     }
 
     private void writeJsonLine(Path path, Object value) throws Exception {

@@ -8,11 +8,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.support.WebExchangeBindException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
@@ -32,27 +34,36 @@ public class ApiExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Map<String, Object>>> handleIllegalArgument(IllegalArgumentException ex) {
         logHandled(HttpStatus.BAD_REQUEST, "illegal_argument", ex);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.failure(HttpStatus.BAD_REQUEST.value(), ex.getMessage()));
+        return json(HttpStatus.BAD_REQUEST, ApiResponse.failure(HttpStatus.BAD_REQUEST.value(), ex.getMessage()));
     }
 
     @ExceptionHandler(ChatNotFoundException.class)
     public ResponseEntity<ApiResponse<Map<String, Object>>> handleChatNotFound(ChatNotFoundException ex) {
         logHandled(HttpStatus.NOT_FOUND, "chat_not_found", ex);
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.failure(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
+        return json(HttpStatus.NOT_FOUND, ApiResponse.failure(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Map<String, Object>>> handleValidation(MethodArgumentNotValidException ex) {
+        return validationFailed(ex.getBindingResult().getFieldErrors(), ex);
+    }
+
+    @ExceptionHandler(WebExchangeBindException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleWebExchangeBind(WebExchangeBindException ex) {
+        return validationFailed(ex.getBindingResult().getFieldErrors(), ex);
+    }
+
+    private ResponseEntity<ApiResponse<Map<String, Object>>> validationFailed(
+            Iterable<FieldError> fieldErrors,
+            Exception ex
+    ) {
         Map<String, String> fields = new HashMap<>();
-        for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
+        for (FieldError fieldError : fieldErrors) {
             fields.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
         Map<String, Object> data = Map.of("fields", fields);
         logHandled(HttpStatus.BAD_REQUEST, "validation_failed", ex);
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.failure(HttpStatus.BAD_REQUEST.value(), "Validation failed", data));
+        return json(HttpStatus.BAD_REQUEST, ApiResponse.failure(HttpStatus.BAD_REQUEST.value(), "Validation failed", data));
     }
 
     @ExceptionHandler(ResponseStatusException.class)
@@ -65,15 +76,22 @@ public class ApiExceptionHandler {
             message = httpStatus != null ? httpStatus.getReasonPhrase() : "Request failed";
         }
         logHandled(statusCode, "response_status_exception", ex);
-        return ResponseEntity.status(statusCode)
-                .body(ApiResponse.failure(status, message));
+        return json(statusCode, ApiResponse.failure(status, message));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Map<String, Object>>> handleUnexpected(Exception ex) {
         logHandled(HttpStatus.INTERNAL_SERVER_ERROR, "unexpected_exception", ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.failure(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Internal server error"));
+        return json(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                ApiResponse.failure(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Internal server error")
+        );
+    }
+
+    private <T> ResponseEntity<ApiResponse<T>> json(HttpStatusCode statusCode, ApiResponse<T> body) {
+        return ResponseEntity.status(statusCode)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 
     private void logHandled(HttpStatusCode statusCode, String category, Exception ex) {

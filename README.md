@@ -18,17 +18,17 @@
 - `GET /api/resource?file={filename}&download=true|false`: 静态文件服务（图片 inline / 附件 download）
 - `POST /api/upload`: 本地文件一步上传（`multipart/form-data`），返回 `ApiResponse<UploadResponse>`
 - `GET /api/viewport?viewportKey=...`: 获取工具/动作视图内容
-- `POST /api/query`: 提问接口（默认返回标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
+- `POST /api/query`: 提问接口（成功时返回标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
 - `POST /api/submit`: Human-in-the-loop 提交接口
 - `POST /api/steer`: 运行中引导接口
 - `POST /api/interrupt`: 运行中断接口
 
 ## 返回格式约定
 
-- `POST /api/query` 返回 SSE event stream。
+- `POST /api/query` 成功时返回 SSE event stream；若在 SSE 尚未开始前发生请求级错误（如未知 `agentKey`、非法 `teamId`、参数校验失败），则返回普通 HTTP JSON 错误响应。
 - `/api/query` 流结束时会追加传输层终止帧 `data:[DONE]`（不属于业务事件模型，也不会出现在 `/api/chat` 的历史 `events` 中）。
 - 默认不会返回 `tool.args` / `tool.result`，仅保留 `tool.start` / `tool.end`；如需返回完整 tool payload，可设置 `AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS=true`。
-- `run.complete` 仅表示业务顺利完成；失败统一使用 `run.error`，其 `error` 包含稳定错误码、分类、作用域以及 `diagnostics`（如 `elapsedMs`、`timeoutMs`、`toolName`、`stage`）。
+- `run.complete` 仅表示业务顺利完成；已进入 SSE 的运行期失败使用 `run.error`，其 `error` 包含稳定错误码、分类、作用域以及 `diagnostics`（如 `elapsedMs`、`timeoutMs`、`toolName`、`stage`）。
 - 其它 JSON 接口统一返回：
 
 ```json

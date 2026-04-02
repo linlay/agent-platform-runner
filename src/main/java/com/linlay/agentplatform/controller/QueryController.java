@@ -20,6 +20,7 @@ import com.linlay.agentplatform.stream.service.SseFlushWriter;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -32,6 +33,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -66,43 +68,55 @@ public class QueryController {
         this.objectMapper = objectMapper;
     }
 
-    @PostMapping(value = "/query", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PostMapping("/query")
     public Mono<Void> query(
             @Valid @RequestBody QueryRequest request,
             ServerHttpResponse response,
             ServerWebExchange exchange
     ) {
-        AgentQueryService.QuerySession session = agentQueryService.prepare(
-                request,
-                chatImageTokenHelper.resolvePrincipal(exchange)
-        );
-        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_REQUEST_ID, session.request().requestId());
-        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_RUN_ID, session.request().runId());
-        Map<String, Object> bodySummary = new LinkedHashMap<>();
-        bodySummary.put("chatId", session.request().chatId());
-        if (StringUtils.hasText(session.request().agentKey())) {
-            bodySummary.put("agentKey", session.request().agentKey());
+        try {
+            AgentQueryService.QuerySession session = agentQueryService.prepare(
+                    request,
+                    chatImageTokenHelper.resolvePrincipal(exchange)
+            );
+            exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_REQUEST_ID, session.request().requestId());
+            exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_RUN_ID, session.request().runId());
+            Map<String, Object> bodySummary = new LinkedHashMap<>();
+            bodySummary.put("chatId", session.request().chatId());
+            if (StringUtils.hasText(session.request().agentKey())) {
+                bodySummary.put("agentKey", session.request().agentKey());
+            }
+            if (StringUtils.hasText(session.request().teamId())) {
+                bodySummary.put("teamId", session.request().teamId());
+            }
+            bodySummary.put("requestId", session.request().requestId());
+            bodySummary.put("runId", session.request().runId());
+            if (session.request().stream() != null) {
+                bodySummary.put("stream", session.request().stream());
+            }
+            bodySummary.put("messageChars", session.request().message() == null ? 0 : session.request().message().length());
+            exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_BODY_SUMMARY, bodySummary);
+            String chatImageToken = chatImageTokenHelper.issueChatImageToken(exchange, session.request().chatId());
+            Flux<ServerSentEvent<String>> stream = agentQueryService.stream(session);
+            if (StringUtils.hasText(chatImageToken)) {
+                stream = stream.map(event -> attachChatImageTokenForChatStart(event, chatImageToken));
+            }
+            stream = stream.concatWith(Flux.just(ServerSentEvent.<String>builder()
+                    .event(SSE_EVENT_MESSAGE)
+                    .data(SSE_DONE_SENTINEL)
+                    .build()));
+            return sseFlushWriter.write(response, stream);
+        } catch (IllegalArgumentException ex) {
+            log.warn("Reject /api/query before SSE start: {}", ex.getMessage());
+            return writeJsonFailure(response, HttpStatus.BAD_REQUEST, ApiResponse.failure(HttpStatus.BAD_REQUEST.value(), ex.getMessage()));
+        } catch (Exception ex) {
+            log.error("Fail /api/query before SSE start", ex);
+            return writeJsonFailure(
+                    response,
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    ApiResponse.failure(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Internal server error")
+            );
         }
-        if (StringUtils.hasText(session.request().teamId())) {
-            bodySummary.put("teamId", session.request().teamId());
-        }
-        bodySummary.put("requestId", session.request().requestId());
-        bodySummary.put("runId", session.request().runId());
-        if (session.request().stream() != null) {
-            bodySummary.put("stream", session.request().stream());
-        }
-        bodySummary.put("messageChars", session.request().message() == null ? 0 : session.request().message().length());
-        exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_BODY_SUMMARY, bodySummary);
-        String chatImageToken = chatImageTokenHelper.issueChatImageToken(exchange, session.request().chatId());
-        Flux<ServerSentEvent<String>> stream = agentQueryService.stream(session);
-        if (StringUtils.hasText(chatImageToken)) {
-            stream = stream.map(event -> attachChatImageTokenForChatStart(event, chatImageToken));
-        }
-        stream = stream.concatWith(Flux.just(ServerSentEvent.<String>builder()
-                .event(SSE_EVENT_MESSAGE)
-                .data(SSE_DONE_SENTINEL)
-                .build()));
-        return sseFlushWriter.write(response, stream);
     }
 
     @PostMapping("/submit")
@@ -204,5 +218,25 @@ public class QueryController {
             builder.retry(original.retry());
         }
         return builder.build();
+    }
+
+    private Mono<Void> writeJsonFailure(
+            ServerHttpResponse response,
+            HttpStatus status,
+            ApiResponse<?> body
+    ) {
+        response.setStatusCode(status);
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        try {
+            byte[] payload = objectMapper.writeValueAsBytes(body);
+            return response.writeWith(Mono.just(response.bufferFactory().wrap(payload)));
+        } catch (Exception ex) {
+            response.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+            response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+            byte[] fallback = """
+                    {"code":500,"msg":"Internal server error","data":{}}
+                    """.strip().getBytes(StandardCharsets.UTF_8);
+            return response.writeWith(Mono.just(response.bufferFactory().wrap(fallback)));
+        }
     }
 }

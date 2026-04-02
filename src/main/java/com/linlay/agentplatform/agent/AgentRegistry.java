@@ -140,7 +140,7 @@ public class AgentRegistry {
         Map<String, Agent> snapshot = agents;
         Agent agent = snapshot.get(id);
         if (agent == null) {
-            throw new IllegalArgumentException("Unknown agentId: " + id + ". Available: " + snapshot.keySet().stream().sorted().toList());
+            throw new IllegalArgumentException("AgentKey 不存在: " + id);
         }
         return agent;
     }
