@@ -354,7 +354,14 @@ public class AgentDefinitionLoader {
             case ONESHOT -> new AgentPromptFiles(
                     soulContent,
                     agentsContent,
-                    resolveDirectoryStagePrompt(agentDir, config == null ? null : config.getPlain(), "plain", "AGENTS.plain.md", true),
+                    resolveDirectoryPrompt(
+                            agentDir,
+                            config == null ? null : config.getPromptFiles(),
+                            "promptFile",
+                            config == null ? null : config.getPlain(),
+                            "plain.promptFile",
+                            agentsContent
+                    ),
                     null,
                     null,
                     null,
@@ -364,7 +371,14 @@ public class AgentDefinitionLoader {
                     soulContent,
                     agentsContent,
                     null,
-                    resolveDirectoryStagePrompt(agentDir, config == null ? null : config.getReact(), "react", "AGENTS.react.md", true),
+                    resolveDirectoryPrompt(
+                            agentDir,
+                            config == null ? null : config.getPromptFiles(),
+                            "promptFile",
+                            config == null ? null : config.getReact(),
+                            "react.promptFile",
+                            agentsContent
+                    ),
                     null,
                     null,
                     null
@@ -374,9 +388,24 @@ public class AgentDefinitionLoader {
                     agentsContent,
                     null,
                     null,
-                    resolveDirectoryStagePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getPlan(), "planExecute.plan", "AGENTS.plan.md", false),
-                    resolveDirectoryStagePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getExecute(), "planExecute.execute", "AGENTS.execute.md", false),
-                    resolveDirectoryStagePrompt(agentDir, config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getSummary(), "planExecute.summary", "AGENTS.summary.md", false)
+                    resolveDirectoryPrompt(
+                            agentDir,
+                            config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getPlan(),
+                            "planExecute.plan.promptFile",
+                            agentsContent
+                    ),
+                    resolveDirectoryPrompt(
+                            agentDir,
+                            config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getExecute(),
+                            "planExecute.execute.promptFile",
+                            agentsContent
+                    ),
+                    resolveDirectoryPrompt(
+                            agentDir,
+                            config == null || config.getPlanExecute() == null ? null : config.getPlanExecute().getSummary(),
+                            "planExecute.summary.promptFile",
+                            agentsContent
+                    )
             );
         };
     }
@@ -430,23 +459,54 @@ public class AgentDefinitionLoader {
         }
     }
 
-    private String resolveDirectoryStagePrompt(
+    private String resolveDirectoryPrompt(
+            Path agentDir,
+            List<String> promptFiles,
+            String fieldPath,
+            AgentConfigFile.StageConfig legacyStage,
+            String legacyFieldPath,
+            String agentsContent
+    ) {
+        String configured = loadPromptMarkdowns(agentDir, promptFiles, fieldPath);
+        if (StringUtils.hasText(configured)) {
+            return configured;
+        }
+        if (legacyStage != null) {
+            String legacy = loadPromptMarkdowns(agentDir, legacyStage.getPromptFiles(), legacyFieldPath);
+            if (StringUtils.hasText(legacy)) {
+                return legacy;
+            }
+        }
+        return StringUtils.hasText(agentsContent) ? agentsContent : null;
+    }
+
+    private String resolveDirectoryPrompt(
             Path agentDir,
             AgentConfigFile.StageConfig stage,
-            String stagePath,
-            String defaultPromptFile,
-            boolean allowSharedFallback
+            String fieldPath,
+            String agentsContent
     ) {
-        if (stage != null && StringUtils.hasText(stage.getPromptFile())) {
-            return loadPromptMarkdown(agentDir, stage.getPromptFile(), stagePath + ".promptFile");
+        if (stage != null) {
+            String configured = loadPromptMarkdowns(agentDir, stage.getPromptFiles(), fieldPath);
+            if (StringUtils.hasText(configured)) {
+                return configured;
+            }
         }
-        if (StringUtils.hasText(defaultPromptFile) && Files.isRegularFile(agentDir.resolve(defaultPromptFile))) {
-            return loadPromptMarkdown(agentDir, defaultPromptFile, stagePath + ".promptFile");
+        return StringUtils.hasText(agentsContent) ? agentsContent : null;
+    }
+
+    private String loadPromptMarkdowns(Path agentDir, List<String> rawPromptFiles, String fieldPath) {
+        if (rawPromptFiles == null || rawPromptFiles.isEmpty()) {
+            return null;
         }
-        if (allowSharedFallback && Files.isRegularFile(agentDir.resolve("AGENTS.md"))) {
-            return readOptionalMarkdown(agentDir.resolve("AGENTS.md"));
+        List<String> contents = new ArrayList<>();
+        for (String rawPromptFile : rawPromptFiles) {
+            String content = loadPromptMarkdown(agentDir, rawPromptFile, fieldPath);
+            if (StringUtils.hasText(content)) {
+                contents.add(content);
+            }
         }
-        return null;
+        return contents.isEmpty() ? null : String.join("\n\n", contents);
     }
 
     private String loadPromptMarkdown(Path agentDir, String rawPromptFile, String fieldPath) {
@@ -473,11 +533,10 @@ public class AgentDefinitionLoader {
         if (!fileName.endsWith(".md")) {
             throw new IllegalArgumentException(fieldPath + " must reference a .md file");
         }
-        String content = readOptionalMarkdown(resolved);
-        if (!StringUtils.hasText(content)) {
-            throw new IllegalArgumentException(fieldPath + " must reference an existing non-empty markdown file");
+        if (!Files.isRegularFile(resolved)) {
+            throw new IllegalArgumentException(fieldPath + " must reference an existing markdown file");
         }
-        return content;
+        return readOptionalMarkdown(resolved);
     }
 
     private boolean isHiddenEntry(Path path) {

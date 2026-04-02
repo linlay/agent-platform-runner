@@ -378,6 +378,67 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
+    void shouldPreferTopLevelPromptFileForDirectoryOneshotAgent() throws IOException {
+        Path agentDir = tempDir.resolve("dir_top_level_prompt");
+        Files.createDirectories(agentDir);
+        Files.writeString(agentDir.resolve("agent.yml"), """
+                key: dir_top_level_prompt
+                name: Dir Top Level Prompt
+                role: Dir Top Level Prompt
+                description: dir top level prompt
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                promptFile: CUSTOM.md
+                plain:
+                  promptFile: LEGACY.md
+                """);
+        Files.writeString(agentDir.resolve("AGENTS.md"), "shared prompt");
+        Files.writeString(agentDir.resolve("CUSTOM.md"), "custom prompt");
+        Files.writeString(agentDir.resolve("LEGACY.md"), "legacy prompt");
+
+        AgentDefinition definition = loadById().get("dir_top_level_prompt");
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.agentsContent()).isEqualTo("shared prompt");
+        OneshotMode mode = (OneshotMode) definition.agentMode();
+        assertThat(mode.stage().instructionsPrompt()).isEqualTo("custom prompt");
+        assertThat(mode.stage().primaryPrompt()).isEqualTo("custom prompt");
+    }
+
+    @Test
+    void shouldConcatenateTopLevelPromptFileArrayForDirectoryReactAgent() throws IOException {
+        Path agentDir = tempDir.resolve("dir_react_prompt_array");
+        Files.createDirectories(agentDir);
+        Files.writeString(agentDir.resolve("agent.yml"), """
+                key: dir_react_prompt_array
+                name: Dir React Prompt Array
+                role: Dir React Prompt Array
+                description: dir react prompt array
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: REACT
+                promptFile:
+                  - BASE.md
+                  - EMPTY.md
+                  - EXTRA.md
+                react:
+                  maxSteps: 9
+                """);
+        Files.writeString(agentDir.resolve("BASE.md"), "base prompt");
+        Files.writeString(agentDir.resolve("EMPTY.md"), "   \n");
+        Files.writeString(agentDir.resolve("EXTRA.md"), "extra prompt");
+
+        AgentDefinition definition = loadById().get("dir_react_prompt_array");
+
+        assertThat(definition).isNotNull();
+        ReactMode mode = (ReactMode) definition.agentMode();
+        assertThat(mode.maxSteps()).isEqualTo(9);
+        assertThat(mode.stage().instructionsPrompt()).isEqualTo("base prompt\n\nextra prompt");
+        assertThat(mode.stage().primaryPrompt()).isEqualTo("base prompt\n\nextra prompt");
+    }
+
+    @Test
     void shouldLoadPlanExecuteStageMarkdownFromDirectoryAgent() throws IOException {
         Path agentDir = tempDir.resolve("dir_plan");
         Files.createDirectories(agentDir);
@@ -409,6 +470,66 @@ class AgentDefinitionLoaderTest {
         assertThat(mode.planStage().instructionsPrompt()).isEqualTo("plan prompt file");
         assertThat(mode.executeStage().instructionsPrompt()).isEqualTo("execute prompt file");
         assertThat(mode.summaryStage().instructionsPrompt()).isEqualTo("summary prompt file");
+    }
+
+    @Test
+    void shouldConcatenatePlanExecutePromptArraysAndFallbackToAgentsMarkdown() throws IOException {
+        Path agentDir = tempDir.resolve("dir_plan_prompt_array");
+        Files.createDirectories(agentDir);
+        Files.writeString(agentDir.resolve("agent.yml"), """
+                key: dir_plan_prompt_array
+                name: Dir Plan Prompt Array
+                role: Dir Plan Prompt Array
+                description: dir plan prompt array
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: PLAN_EXECUTE
+                planExecute:
+                  plan:
+                    promptFile:
+                      - PLAN.base.md
+                      - PLAN.extra.md
+                  execute: {}
+                  summary:
+                    promptFile:
+                      - SUMMARY.base.md
+                      - SUMMARY.extra.md
+                """);
+        Files.writeString(agentDir.resolve("AGENTS.md"), "shared prompt");
+        Files.writeString(agentDir.resolve("PLAN.base.md"), "plan base");
+        Files.writeString(agentDir.resolve("PLAN.extra.md"), "plan extra");
+        Files.writeString(agentDir.resolve("SUMMARY.base.md"), "summary base");
+        Files.writeString(agentDir.resolve("SUMMARY.extra.md"), "summary extra");
+
+        AgentDefinition definition = loadById().get("dir_plan_prompt_array");
+
+        assertThat(definition).isNotNull();
+        PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
+        assertThat(mode.planStage().instructionsPrompt()).isEqualTo("plan base\n\nplan extra");
+        assertThat(mode.executeStage().instructionsPrompt()).isEqualTo("shared prompt");
+        assertThat(mode.summaryStage().instructionsPrompt()).isEqualTo("summary base\n\nsummary extra");
+    }
+
+    @Test
+    void shouldRejectHiddenPromptFileReferencedFromPromptFileArray() throws IOException {
+        Path agentDir = tempDir.resolve("dir_hidden_prompt_array");
+        Files.createDirectories(agentDir);
+        Files.writeString(agentDir.resolve("agent.yml"), """
+                key: dir_hidden_prompt_array
+                name: Dir Hidden Prompt Array
+                role: Dir Hidden Prompt Array
+                description: dir hidden prompt array
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: ONESHOT
+                promptFile:
+                  - SAFE.md
+                  - .hidden.md
+                """);
+        Files.writeString(agentDir.resolve("SAFE.md"), "safe prompt");
+        Files.writeString(agentDir.resolve(".hidden.md"), "hidden prompt");
+
+        assertThat(loadById()).doesNotContainKey("dir_hidden_prompt_array");
     }
 
     @Test

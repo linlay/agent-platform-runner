@@ -61,7 +61,7 @@ public final class AgentModeFactory {
                         defaultMaxTokens
                 );
                 if (isBlank(stage.primaryPrompt())) {
-                    throw new IllegalArgumentException("AGENTS.md is required for ONESHOT agents: " + file);
+                    throw new IllegalArgumentException("promptFile or AGENTS.md is required for ONESHOT agents: " + file);
                 }
                 yield new OneshotMode(stage, skillAppend, toolAppend, defaultBudget);
             }
@@ -77,7 +77,7 @@ public final class AgentModeFactory {
                         defaultMaxTokens
                 );
                 if (isBlank(stage.primaryPrompt())) {
-                    throw new IllegalArgumentException("AGENTS.md is required for REACT agents: " + file);
+                    throw new IllegalArgumentException("promptFile or AGENTS.md is required for REACT agents: " + file);
                 }
                 int maxSteps = react != null && react.getMaxSteps() != null ? react.getMaxSteps() : defaultReactMaxSteps;
                 yield new ReactMode(stage, maxSteps, skillAppend, toolAppend, defaultBudget);
@@ -117,7 +117,7 @@ public final class AgentModeFactory {
                         || isBlank(executeStage.primaryPrompt())
                         || isBlank(summaryStage.primaryPrompt())) {
                     throw new IllegalArgumentException(
-                            "planExecute.plan.promptFile, planExecute.execute.promptFile, and planExecute.summary.promptFile are required: " + file);
+                            "Each PLAN_EXECUTE stage requires promptFile or AGENTS.md: " + file);
                 }
                 int maxSteps = pe != null && pe.getMaxSteps() != null && pe.getMaxSteps() > 0
                         ? pe.getMaxSteps()

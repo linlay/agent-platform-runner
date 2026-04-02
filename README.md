@@ -467,9 +467,11 @@ AGENT_AUTH_JWKS_CACHE_SECONDS=300
 - 可通过 `AGENTS_DIR` 指定目录
 - Agent 配置只支持 YAML；若目录内仍有旧 `*.json`，启动和 refresh 都会 fail-fast
 - 同目录内 `agent.yml` 与 `agent.yaml` 同时存在时优先 `agent.yml`，并忽略对应 `agent.yaml`
-- 目录化 Agent 不再支持 `systemPrompt` 字段；`ONESHOT` / `REACT` 固定读取 `AGENTS.md`
-- `PLAN_EXECUTE` 的 `plan` / `execute` / `summary` 必须分别通过 `promptFile` 指定 markdown prompt
-- 目录化 Agent 可额外放置：`SOUL.md`、`AGENTS.md`、`AGENTS.plan.md`、`AGENTS.execute.md`、`AGENTS.summary.md`
+- `promptFile` 支持写成单个字符串或字符串数组；数组会按声明顺序读取，并用空行拼接
+- `ONESHOT` / `REACT` 推荐在顶层使用 `promptFile`；也兼容旧写法 `plain.promptFile` / `react.promptFile`
+- `PLAN_EXECUTE` 继续使用 `planExecute.plan|execute|summary.promptFile`
+- 未填写 `promptFile` 时，默认回退到同目录的 `AGENTS.md`
+- 目录化 Agent 可额外放置：`SOUL.md`、`AGENTS.md`，以及任意自定义 markdown prompt 文件
 - 运行时 system prompt 合并顺序为：`SOUL.md` → 当前阶段选中的 prompt markdown → runtime context / central memory → skills/tool appendix
 
 ### ONESHOT 示例
@@ -489,12 +491,20 @@ modelConfig:
   reasoning:
     enabled: false
 mode: ONESHOT
+promptFile:
+  - ROLE.md
+  - AGENTS.md
+```
+
+`agents/fortune_teller/ROLE.md`
+
+```md
+你是算命大师
 ```
 
 `agents/fortune_teller/AGENTS.md`
 
 ```md
-你是算命大师
 请先问出生日期
 ```
 
@@ -519,11 +529,12 @@ toolConfig:
   backends:
     - _bash_
     - datetime
+promptFile: AGENTS.react.md
 react:
   maxSteps: 60
 ```
 
-`agents/react_demo/AGENTS.md`
+`agents/react_demo/AGENTS.react.md`
 
 ```md
 你是算命大师
@@ -555,12 +566,19 @@ toolConfig:
     - datetime
 planExecute:
   plan:
-    promptFile: AGENTS.plan.md
+    promptFile:
+      - AGENTS.plan.base.md
+      - AGENTS.plan.md
     deepThinking: true
   execute:
-    promptFile: AGENTS.execute.md
-  summary:
-    promptFile: AGENTS.summary.md
+    # 未填写时默认回退 AGENTS.md
+  summary: {}
+```
+
+`agents/plan_execute_demo/AGENTS.plan.base.md`
+
+```md
+规划前先核对任务边界
 ```
 
 `agents/plan_execute_demo/AGENTS.plan.md`
@@ -569,16 +587,10 @@ planExecute:
 先规划
 ```
 
-`agents/plan_execute_demo/AGENTS.execute.md`
+`agents/plan_execute_demo/AGENTS.md`
 
 ```md
-再执行
-```
-
-`agents/plan_execute_demo/AGENTS.summary.md`
-
-```md
-最后总结
+执行与总结都默认使用这个共享 prompt
 ```
 
 ### Skills 配置示例

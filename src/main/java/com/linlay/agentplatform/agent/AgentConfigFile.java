@@ -30,6 +30,7 @@ public class AgentConfigFile {
     private MemoryConfig memoryConfig;
     private List<AgentControl> controls;
     private AgentRuntimeMode mode;
+    private List<String> promptFiles;
 
     private ToolChoice toolChoice;
     private AgentBudgetConfig budget;
@@ -142,6 +143,15 @@ public class AgentConfigFile {
 
     public void setMode(AgentRuntimeMode mode) {
         this.mode = mode;
+    }
+
+    public List<String> getPromptFiles() {
+        return promptFiles;
+    }
+
+    @JsonSetter("promptFile")
+    public void setPromptFile(JsonNode promptFile) {
+        this.promptFiles = parsePromptFiles(promptFile, "promptFile");
     }
 
     public ToolChoice getToolChoice() {
@@ -327,7 +337,7 @@ public class AgentConfigFile {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class StageConfig {
         private String systemPrompt;
-        private String promptFile;
+        private List<String> promptFiles;
         private boolean deepThinking;
         private AgentModelConfig modelConfig;
         private AgentToolConfig toolConfig;
@@ -348,12 +358,13 @@ public class AgentConfigFile {
             this.systemPrompt = systemPrompt;
         }
 
-        public String getPromptFile() {
-            return promptFile;
+        public List<String> getPromptFiles() {
+            return promptFiles;
         }
 
-        public void setPromptFile(String promptFile) {
-            this.promptFile = promptFile;
+        @JsonSetter("promptFile")
+        public void setPromptFile(JsonNode promptFile) {
+            this.promptFiles = parsePromptFiles(promptFile, "promptFile");
         }
 
         public boolean isDeepThinking() {
@@ -402,6 +413,40 @@ public class AgentConfigFile {
         public boolean isDeepThinkingProvided() {
             return deepThinkingProvided;
         }
+    }
+
+    private static List<String> parsePromptFiles(JsonNode promptFile, String fieldName) {
+        if (promptFile == null || promptFile.isNull()) {
+            return null;
+        }
+        if (promptFile.isTextual()) {
+            return normalizePromptFiles(List.of(promptFile.asText()));
+        }
+        if (promptFile.isArray()) {
+            List<String> values = new java.util.ArrayList<>();
+            for (JsonNode item : promptFile) {
+                if (item == null || item.isNull()) {
+                    continue;
+                }
+                if (!item.isTextual()) {
+                    throw new IllegalArgumentException(fieldName + " entries must be strings");
+                }
+                values.add(item.asText());
+            }
+            return normalizePromptFiles(values);
+        }
+        throw new IllegalArgumentException(fieldName + " must be a string or an array of strings");
+    }
+
+    private static List<String> normalizePromptFiles(List<String> rawPromptFiles) {
+        if (rawPromptFiles == null || rawPromptFiles.isEmpty()) {
+            return null;
+        }
+        List<String> normalized = rawPromptFiles.stream()
+                .map(value -> value == null ? null : value.trim())
+                .filter(value -> value != null && !value.isEmpty())
+                .toList();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
