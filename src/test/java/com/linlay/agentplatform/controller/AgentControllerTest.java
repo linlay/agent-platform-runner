@@ -34,6 +34,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
@@ -41,6 +42,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.FluxExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -64,6 +66,7 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import org.springframework.http.client.MultipartBodyBuilder;
 
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
@@ -882,6 +885,53 @@ class AgentControllerTest {
                 .getResponseBody();
 
         assertJsonErrorBody(body, "agentKey is required when teamId is provided");
+    }
+
+    @Test
+    void queryShouldRejectMissingAgentKeyForUploadCreatedUnboundChat() throws Exception {
+        MultipartBodyBuilder multipart = new MultipartBodyBuilder();
+        multipart.part("requestId", "req_upload_unbound_chat");
+        multipart.part("file", new ByteArrayResource("hello".getBytes(StandardCharsets.UTF_8)) {
+            @Override
+            public String getFilename() {
+                return "note.txt";
+            }
+        }).contentType(MediaType.TEXT_PLAIN);
+
+        byte[] uploadBody = webTestClient.post()
+                .uri("/api/upload")
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(BodyInserters.fromMultipartData(multipart.build()))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+        assertThat(uploadBody).isNotNull();
+
+        Map<String, Object> uploadRoot = objectMapper.readValue(uploadBody, new TypeReference<>() {
+        });
+        @SuppressWarnings("unchecked")
+        Map<String, Object> uploadData = (Map<String, Object>) uploadRoot.get("data");
+        String chatId = String.valueOf(uploadData.get("chatId"));
+        assertThat(chatId).isNotBlank();
+
+        byte[] queryBody = webTestClient.post()
+                .uri("/api/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .bodyValue(Map.of(
+                        "chatId", chatId,
+                        "message", "hello after upload"
+                ))
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+
+        assertJsonErrorBody(queryBody, "agentKey is required when chat is not yet bound");
     }
 
     @Test

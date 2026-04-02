@@ -18,14 +18,14 @@
 - `GET /api/resource?file={filename}&download=true|false`: 静态文件服务（图片 inline / 附件 download）
 - `POST /api/upload`: 本地文件一步上传（`multipart/form-data`），返回 `ApiResponse<UploadResponse>`
 - `GET /api/viewport?viewportKey=...`: 获取工具/动作视图内容
-- `POST /api/query`: 提问接口（成功时返回标准 SSE；`requestId` 可省略，缺省时等于 `runId`）
+- `POST /api/query`: 提问接口（成功时返回标准 SSE；`requestId` 可省略，缺省时等于 `runId`；未绑定 chat 的首个 query 必须显式携带 `agentKey`）
 - `POST /api/submit`: Human-in-the-loop 提交接口
 - `POST /api/steer`: 运行中引导接口
 - `POST /api/interrupt`: 运行中断接口
 
 ## 返回格式约定
 
-- `POST /api/query` 成功时返回 SSE event stream；若在 SSE 尚未开始前发生请求级错误（如未知 `agentKey`、非法 `teamId`、参数校验失败），则返回普通 HTTP JSON 错误响应。
+- `POST /api/query` 成功时返回 SSE event stream；若在 SSE 尚未开始前发生请求级错误（如未知 `agentKey`、未绑定 chat 缺少 `agentKey`、非法 `teamId`、参数校验失败），则返回普通 HTTP JSON 错误响应。
 - `/api/query` 流结束时会追加传输层终止帧 `data:[DONE]`（不属于业务事件模型，也不会出现在 `/api/chat` 的历史 `events` 中）。
 - 默认不会返回 `tool.args` / `tool.result`，仅保留 `tool.start` / `tool.end`；如需返回完整 tool payload，可设置 `AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS=true`。
 - `run.complete` 仅表示业务顺利完成；已进入 SSE 的运行期失败使用 `run.error`，其 `error` 包含稳定错误码、分类、作用域以及 `diagnostics`（如 `elapsedMs`、`timeoutMs`、`toolName`、`stage`）。
@@ -981,7 +981,9 @@ for f in *.md; do echo "$f"; done
 
 - 必填表单字段：`requestId`, `file`
 - 可选表单字段：`chatId`, `sha256`
-- `chatId` 为空时，后端会先生成新的 chatId，并立即创建一个空 chat；后续 upload/query 应复用这个 chatId
+- `chatId` 为空时，后端会先生成新的 chatId，并立即创建一个空绑定 chat；后续 upload/query 应复用这个 chatId
+- 该空绑定 chat 不会自动继承 agent；后续首个 `POST /api/query` 必须显式携带 `agentKey`
+- 只有 chat 已经绑定到某个 agent 后，后续 `POST /api/query` 才可以省略 `agentKey`
 - 响应字段：`requestId`, `chatId`, `upload`
 - `upload.id` 为 chat 内短 ID，采用 `r01/r02/...` 递增格式
 - `upload.type` 由后端根据文件 MIME 推断：`image/*` 为 `image`，其余为 `file`

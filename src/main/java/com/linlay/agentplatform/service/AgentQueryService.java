@@ -401,7 +401,7 @@ public class AgentQueryService {
 
     private Agent resolveAgent(String agentKey) {
         if (!StringUtils.hasText(agentKey)) {
-            return agentRegistry.defaultAgent();
+            throw new IllegalArgumentException("agentKey is required when chat is not yet bound");
         }
 
         String normalized = agentKey.trim();
@@ -572,7 +572,13 @@ public class AgentQueryService {
 
     private String resolveEffectiveAgentKey(QueryRequest request, String boundAgentKey, String effectiveTeamId) {
         if (!StringUtils.hasText(effectiveTeamId)) {
-            return StringUtils.hasText(boundAgentKey) ? boundAgentKey : request.agentKey();
+            if (StringUtils.hasText(boundAgentKey)) {
+                return boundAgentKey;
+            }
+            if (!StringUtils.hasText(request.agentKey())) {
+                throw new IllegalArgumentException("agentKey is required when chat is not yet bound");
+            }
+            return request.agentKey();
         }
         if (!StringUtils.hasText(request.agentKey())) {
             throw new IllegalArgumentException("agentKey is required when teamId is provided");

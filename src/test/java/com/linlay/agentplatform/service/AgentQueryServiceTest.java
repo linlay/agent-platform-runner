@@ -44,6 +44,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -91,6 +92,35 @@ class AgentQueryServiceTest {
         assertThat(session.agent().id()).isEqualTo("bound-agent");
         assertThat(session.request().agentKey()).isEqualTo("bound-agent");
         assertThat(session.agentRequest().query()).containsEntry("agentKey", "bound-agent");
+    }
+
+    @Test
+    void prepareShouldRejectMissingAgentKeyWhenChatIsNotYetBound() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        String chatId = UUID.randomUUID().toString();
+        when(chatRecordStore.findBoundAgentKey(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.findBoundTeamId(chatId)).thenReturn(Optional.empty());
+
+        AgentQueryService service = newService(
+                agentRegistry,
+                mock(StreamSseStreamer.class),
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
+        );
+
+        QueryRequest request = new QueryRequest("req-1", chatId, null, null, "user", "hello", null, null, null, true);
+
+        assertThatThrownBy(() -> service.prepare(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("agentKey is required when chat is not yet bound");
     }
 
     @Test
