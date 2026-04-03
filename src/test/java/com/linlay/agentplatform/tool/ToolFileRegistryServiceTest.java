@@ -210,6 +210,12 @@ class ToolFileRegistryServiceTest {
         assertThat(descriptor.label()).isEqualTo("发布产物");
         assertThat(descriptor.sourceFile()).contains("_artifact_publish_.yml");
         assertThat(descriptor.clientVisible()).isFalse();
+        assertThat(descriptor.parameters()).containsKey("properties");
+        assertThat(descriptor.parameters()).containsEntry("additionalProperties", false);
+        assertThat(descriptor.parameters()).containsEntry("required", java.util.List.of("artifacts"));
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> properties = (java.util.Map<String, Object>) descriptor.parameters().get("properties");
+        assertThat(properties).containsKey("artifacts");
     }
 
     @Test

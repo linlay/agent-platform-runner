@@ -25,7 +25,7 @@ public class DateTimeTool extends AbstractDeterministicTool {
 
     @Override
     public String name() {
-        return "datetime";
+        return "_datetime_";
     }
 
     @Override

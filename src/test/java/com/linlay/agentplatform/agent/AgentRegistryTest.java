@@ -102,12 +102,12 @@ class AgentRegistryTest {
         Files.createDirectories(agentsDir);
 
         writeOneshotAgent(agentsDir, "agent_alpha", "Agent Alpha", "alpha", "_bash_", "alpha");
-        writeOneshotAgent(agentsDir, "agent_beta", "Agent Beta", "beta", "datetime", "beta", "siliconflow-deepseek-v3_2");
+        writeOneshotAgent(agentsDir, "agent_beta", "Agent Beta", "beta", "_datetime_", "beta", "siliconflow-deepseek-v3_2");
 
         AgentRegistry registry = createRegistry(agentsDir);
 
         assertThat(registry.findAgentIdsByTools(Set.of("_bash_"))).containsExactly("agent_alpha");
-        assertThat(registry.findAgentIdsByTools(Set.of("datetime"))).containsExactly("agent_beta");
+        assertThat(registry.findAgentIdsByTools(Set.of("_datetime_"))).containsExactly("agent_beta");
         assertThat(registry.findAgentIdsByModels(Set.of("bailian-qwen3-max"))).containsExactly("agent_alpha");
         assertThat(registry.findAgentIdsByModels(Set.of("siliconflow-deepseek-v3_2"))).containsExactly("agent_beta");
     }

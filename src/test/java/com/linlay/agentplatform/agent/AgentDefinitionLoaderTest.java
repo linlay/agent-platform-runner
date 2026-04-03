@@ -1136,7 +1136,7 @@ class AgentDefinitionLoaderTest {
                 toolConfig:
                   backends:
                     - _bash_
-                    - datetime
+                    - _datetime_
                 mode: PLAN_EXECUTE
                 planExecute:
                   plan:
@@ -1156,7 +1156,7 @@ class AgentDefinitionLoaderTest {
         assertThat(mode.planStage().providerKey()).isEqualTo("bailian");
         assertThat(mode.planStage().model()).isEqualTo("qwen3-max");
         assertThat(mode.planStage().deepThinking()).isFalse();
-        assertThat(mode.planStage().tools()).containsExactlyInAnyOrder("_bash_", "datetime", "_plan_add_tasks_");
+        assertThat(mode.planStage().tools()).containsExactlyInAnyOrder("_bash_", "_datetime_", "_plan_add_tasks_");
 
         assertThat(mode.executeStage().providerKey()).isEqualTo("bailian");
         assertThat(mode.executeStage().model()).isEqualTo("qwen3-max");
@@ -1164,7 +1164,7 @@ class AgentDefinitionLoaderTest {
 
         assertThat(mode.summaryStage().providerKey()).isEqualTo("bailian");
         assertThat(mode.summaryStage().model()).isEqualTo("qwen3-max");
-        assertThat(mode.summaryStage().tools()).containsExactlyInAnyOrder("_bash_", "datetime");
+        assertThat(mode.summaryStage().tools()).containsExactlyInAnyOrder("_bash_", "_datetime_");
         assertThat(definition.tools()).contains("_plan_add_tasks_", "_plan_update_task_");
     }
 
@@ -1179,7 +1179,7 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 toolConfig:
                   backends:
-                    - datetime
+                    - _datetime_
                 skillConfig:
                   skills:
                     - docx
@@ -1198,9 +1198,9 @@ class AgentDefinitionLoaderTest {
 
         assertThat(definition).isNotNull();
         PlanExecuteMode mode = (PlanExecuteMode) definition.agentMode();
-        assertThat(mode.planStage().tools()).containsExactlyInAnyOrder("datetime", "_plan_add_tasks_", "_sandbox_bash_");
+        assertThat(mode.planStage().tools()).containsExactlyInAnyOrder("_datetime_", "_plan_add_tasks_", "_sandbox_bash_");
         assertThat(mode.executeStage().tools()).containsExactlyInAnyOrder("_plan_update_task_", "_sandbox_bash_");
-        assertThat(mode.summaryStage().tools()).containsExactlyInAnyOrder("datetime", "_sandbox_bash_");
+        assertThat(mode.summaryStage().tools()).containsExactlyInAnyOrder("_datetime_", "_sandbox_bash_");
         assertThat(definition.tools()).contains("_sandbox_bash_", "_plan_add_tasks_", "_plan_update_task_");
     }
 
@@ -1215,7 +1215,7 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 toolConfig:
                   backends:
-                    - datetime
+                    - _datetime_
                 contextConfig:
                   tags:
                     - memory
@@ -1264,7 +1264,7 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 toolConfig:
                   backends:
-                    - datetime
+                    - _datetime_
                 memoryConfig:
                   enabled: true
                 mode: PLAN_EXECUTE
@@ -1349,7 +1349,7 @@ class AgentDefinitionLoaderTest {
                   modelKey: bailian-qwen3-max
                 toolConfig:
                   backends:
-                    - datetime
+                    - _datetime_
                 mode: PLAN_EXECUTE
                 planExecute:
                   plan:

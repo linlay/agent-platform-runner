@@ -65,7 +65,7 @@
       "meta": {
         "model": "qwen3-max",
         "mode": "REACT",
-        "tools": ["datetime", "confirm_dialog"],
+        "tools": ["_datetime_", "confirm_dialog"],
         "skills": []
       }
     }
@@ -528,7 +528,7 @@ modelConfig:
 toolConfig:
   backends:
     - _bash_
-    - datetime
+    - _datetime_
 promptFile: AGENTS.react.md
 react:
   maxSteps: 60
@@ -563,7 +563,7 @@ modelConfig:
 toolConfig:
   backends:
     - _bash_
-    - datetime
+    - _datetime_
 planExecute:
   plan:
     promptFile:
@@ -737,7 +737,7 @@ memoryConfig:
 
 ### 系统内置资源
 
-- `tools/`：仅保留系统内置工具定义，例如 `_bash_`、`datetime`、`_sandbox_bash_`、plan tools、`confirm_dialog`。
+- `tools/`：仅保留系统内置工具定义，例如 `_bash_`、`_datetime_`、`_sandbox_bash_`、plan tools、`confirm_dialog`。
 - `viewports/`：保留系统内置 viewport 模板。
 - skill 与 schedule 不再提供任何内置 starter 内容，完全由 `runtime/skills-market/`、`runtime/schedules/` 或对应 `*_DIR` 覆盖目录提供。
 - runner 不再分发任何内置 demo viewport、UI action tool 或示例 agent。
@@ -745,7 +745,7 @@ memoryConfig:
 ### Java 内置工具
 
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
-- `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
+- `_datetime_`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
 
 ## Container Hub 工具说明
 

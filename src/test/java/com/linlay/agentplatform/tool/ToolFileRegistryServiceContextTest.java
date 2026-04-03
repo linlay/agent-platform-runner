@@ -28,7 +28,7 @@ class ToolFileRegistryServiceContextTest {
                     assertThat(context).hasSingleBean(ToolFileRegistryService.class);
 
                     ToolFileRegistryService service = context.getBean(ToolFileRegistryService.class);
-                    assertThat(service.find("datetime")).isPresent();
+                    assertThat(service.find("_datetime_")).isPresent();
                 });
     }
 

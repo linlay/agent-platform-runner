@@ -25,8 +25,8 @@ class ToolInvokerRouterTest {
     @Test
     void shouldRouteLocalToolsToLocalInvoker() {
         ToolRegistry toolRegistry = mock(ToolRegistry.class);
-        when(toolRegistry.descriptor("datetime")).thenReturn(Optional.of(new ToolDescriptor(
-                "datetime",
+        when(toolRegistry.descriptor("_datetime_")).thenReturn(Optional.of(new ToolDescriptor(
+                "_datetime_",
                 null,
                 "local",
                 "",
@@ -41,7 +41,7 @@ class ToolInvokerRouterTest {
                 "java://builtin"
         )));
         LocalToolInvoker localToolInvoker = mock(LocalToolInvoker.class);
-        when(localToolInvoker.invoke("datetime", Map.of("timezone", "Asia/Shanghai"), null))
+        when(localToolInvoker.invoke("_datetime_", Map.of("timezone", "Asia/Shanghai"), null))
                 .thenReturn(TextNode.valueOf("LOCAL_OK"));
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
@@ -51,8 +51,8 @@ class ToolInvokerRouterTest {
                 beanFactory.getBeanProvider(McpToolInvoker.class)
         );
 
-        assertThat(router.invoke("datetime", Map.of("timezone", "Asia/Shanghai"), null).asText()).isEqualTo("LOCAL_OK");
-        verify(localToolInvoker).invoke("datetime", Map.of("timezone", "Asia/Shanghai"), null);
+        assertThat(router.invoke("_datetime_", Map.of("timezone", "Asia/Shanghai"), null).asText()).isEqualTo("LOCAL_OK");
+        verify(localToolInvoker).invoke("_datetime_", Map.of("timezone", "Asia/Shanghai"), null);
     }
 
     @Test

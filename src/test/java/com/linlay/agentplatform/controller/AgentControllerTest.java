@@ -448,7 +448,7 @@ class AgentControllerTest {
         List<Map<String, Object>> data = (List<Map<String, Object>>) payload.get("data");
         assertThat(data).isNotNull();
         Map<String, Object> datetimeTool = data.stream()
-                .filter(item -> "datetime".equals(item.get("key")))
+                .filter(item -> "_datetime_".equals(item.get("key")))
                 .findFirst()
                 .orElseThrow();
         assertThat(datetimeTool.get("label")).isEqualTo("日期时间");
@@ -462,7 +462,7 @@ class AgentControllerTest {
                 .jsonPath("$.data[0].key").exists()
                 .jsonPath("$.data[0].meta.kind").exists()
                 .jsonPath("$.data[0].meta.sourceType").exists()
-                .jsonPath("$.data[?(@.key=='datetime')]").exists()
+                .jsonPath("$.data[?(@.key=='_datetime_')]").exists()
                 .jsonPath("$.data[?(@.key=='confirm_dialog')]").exists();
 
         webTestClient.get()
@@ -471,7 +471,7 @@ class AgentControllerTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.code").isEqualTo(0)
-                .jsonPath("$.data[?(@.key=='datetime')]").doesNotExist()
+                .jsonPath("$.data[?(@.key=='_datetime_')]").doesNotExist()
                 .jsonPath("$.data[?(@.key=='confirm_dialog')]").exists();
 
         webTestClient.get()

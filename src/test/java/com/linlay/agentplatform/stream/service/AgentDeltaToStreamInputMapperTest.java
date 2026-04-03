@@ -403,7 +403,7 @@ class AgentDeltaToStreamInputMapperTest {
                         "tool_1",
                         "function",
                         "_artifact_publish_",
-                        "{\"path\":\"report.md\"}"
+                        "{\"artifacts\":[{\"path\":\"report.md\"}]}"
                 ))),
                 AgentDelta.toolEnd("tool_1"),
                 AgentDelta.toolResult("tool_1", "{\"ok\":true}"),

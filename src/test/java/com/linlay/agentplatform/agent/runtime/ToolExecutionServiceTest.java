@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.agent.runtime;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentDefinition;
 import com.linlay.agentplatform.agent.PlannedToolCall;
@@ -568,8 +569,10 @@ class ToolExecutionServiceTest {
 
         Path sourceDir = Path.of("target/test-artifacts");
         Files.createDirectories(sourceDir);
-        Path sourceFile = sourceDir.resolve("publish-artifact-" + System.nanoTime() + ".md");
-        Files.writeString(sourceFile, "# report\nhello\n", StandardCharsets.UTF_8);
+        Path sourceFile1 = sourceDir.resolve("publish-artifact-" + System.nanoTime() + "-1.md");
+        Path sourceFile2 = sourceDir.resolve("publish-artifact-" + System.nanoTime() + "-2.md");
+        Files.writeString(sourceFile1, "# report\nhello\n", StandardCharsets.UTF_8);
+        Files.writeString(sourceFile2, "# summary\nworld\n", StandardCharsets.UTF_8);
 
         String chatId = "123e4567-e89b-12d3-a456-426614174222";
         ExecutionContext context = executionContext(
@@ -581,7 +584,17 @@ class ToolExecutionServiceTest {
         ToolExecutionService.ToolExecutionBatch batch = toolExecutionService.executeToolCalls(
                 List.of(new PlannedToolCall(
                         "_artifact_publish_",
-                        Map.of("path", sourceFile.toAbsolutePath().toString(), "description", "生成的报告"),
+                        Map.of("artifacts", List.of(
+                                Map.of(
+                                        "path", sourceFile1.toAbsolutePath().toString(),
+                                        "description", "生成的报告"
+                                ),
+                                Map.of(
+                                        "path", sourceFile2.toAbsolutePath().toString(),
+                                        "name", "summary.md",
+                                        "description", "生成的摘要"
+                                )
+                        )),
                         "call_artifact_publish_1"
                 )),
                 enabledTools(toolRegistry),
@@ -593,26 +606,133 @@ class ToolExecutionServiceTest {
 
         List<StreamEvent> events = assembleEvents(toolRegistry, chatId, "run_artifact_publish_1", batch.deltas());
         int toolEnd = indexOfEvent(events, "tool.end", "toolId", "call_artifact_publish_1");
-        int artifactPublish = indexOfEvent(events, "artifact.publish", "artifactId", null);
         int toolResult = indexOfEvent(events, "tool.result", "toolId", "call_artifact_publish_1");
+        List<StreamEvent> artifactPublishes = events.stream()
+                .filter(event -> "artifact.publish".equals(event.type()))
+                .toList();
 
         assertThat(toolEnd).isGreaterThanOrEqualTo(0);
         assertThat(toolResult).isGreaterThan(toolEnd);
-        assertThat(artifactPublish).isGreaterThan(toolResult);
+        assertThat(artifactPublishes).hasSize(2);
+        for (StreamEvent artifactEvent : artifactPublishes) {
+            int artifactPublish = events.indexOf(artifactEvent);
+            assertThat(artifactPublish).isGreaterThan(toolResult);
+            assertThat(artifactEvent.payload()).containsEntry("chatId", chatId);
+            assertThat(artifactEvent.payload()).containsEntry("runId", "run_artifact_publish_1");
+            assertThat(artifactEvent.payload()).doesNotContainKey("source");
+            ArtifactEventPayload artifact = (ArtifactEventPayload) artifactEvent.payload().get("artifact");
+            assertThat(artifact.url()).contains("/api/resource?file=");
+        }
 
-        StreamEvent artifactEvent = events.get(artifactPublish);
-        assertThat(artifactEvent.payload()).containsEntry("chatId", chatId);
-        assertThat(artifactEvent.payload()).containsEntry("runId", "run_artifact_publish_1");
-        assertThat(artifactEvent.payload()).doesNotContainKey("source");
-
-        ArtifactEventPayload artifact = (ArtifactEventPayload) artifactEvent.payload().get("artifact");
-        assertThat(artifact.url()).contains("/api/resource?file=");
         String result = singleToolResult(batch, "call_artifact_publish_1");
-        assertThat(result).contains("\"artifactId\"");
-        assertThat(result).contains("\"ok\":true");
+        JsonNode resultNode = objectMapper.readTree(result);
+        assertThat(resultNode.path("ok").asBoolean()).isTrue();
+        assertThat(resultNode.has("artifacts")).isTrue();
+        assertThat(resultNode.has("artifactId")).isFalse();
+        assertThat(resultNode.has("artifact")).isFalse();
+        assertThat(resultNode.size()).isEqualTo(2);
+        assertThat(resultNode.path("artifacts")).hasSize(2);
+        assertThat(resultNode.path("artifacts").get(0).path("artifactId").asText()).isNotBlank();
+        assertThat(resultNode.path("artifacts").get(0).has("artifact")).isTrue();
+        assertThat(resultNode.path("artifacts").get(1).path("artifactId").asText()).isNotBlank();
+        assertThat(resultNode.path("artifacts").get(1).has("artifact")).isTrue();
 
         Path publishedDir = tempDir.resolve("chats").resolve(chatId).resolve("artifacts").resolve("run_artifact_publish_1");
-        assertThat(Files.list(publishedDir).toList()).hasSize(1);
+        assertThat(countFiles(publishedDir)).isEqualTo(2);
+    }
+
+    @Test
+    void artifactPublishShouldRejectEmptyArtifactsArray() throws Exception {
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(
+                new PublishArtifactTool(new ArtifactPublishService(chatDataPathService(), chatAssetCatalogService()))
+        ));
+        ToolExecutionService toolExecutionService = new ToolExecutionService(
+                toolRegistry,
+                new ToolArgumentResolver(objectMapper),
+                objectMapper,
+                null,
+                null,
+                new LocalToolInvoker(toolRegistry)
+        );
+
+        String chatId = "123e4567-e89b-12d3-a456-426614174223";
+        ExecutionContext context = executionContext(
+                definition(List.of("_artifact_publish_"), Budget.DEFAULT),
+                new AgentRequest("test", chatId, null, "run_artifact_publish_empty"),
+                List.of()
+        );
+
+        ToolExecutionService.ToolExecutionBatch batch = toolExecutionService.executeToolCalls(
+                List.of(new PlannedToolCall(
+                        "_artifact_publish_",
+                        Map.of("artifacts", List.of()),
+                        "call_artifact_publish_empty"
+                )),
+                enabledTools(toolRegistry),
+                new ArrayList<>(),
+                "run_artifact_publish_empty",
+                context,
+                true
+        );
+
+        List<StreamEvent> events = assembleEvents(toolRegistry, chatId, "run_artifact_publish_empty", batch.deltas());
+        assertThat(events.stream().filter(event -> "artifact.publish".equals(event.type())).toList()).isEmpty();
+        String result = singleToolResult(batch, "call_artifact_publish_empty");
+        assertThat(result).contains("\"ok\":false");
+        assertThat(result).contains("artifacts must be a non-empty array");
+        Path publishedDir = tempDir.resolve("chats").resolve(chatId).resolve("artifacts").resolve("run_artifact_publish_empty");
+        assertThat(Files.exists(publishedDir)).isFalse();
+    }
+
+    @Test
+    void artifactPublishShouldFailWholeBatchWhenAnyPathIsInvalid() throws Exception {
+        ToolRegistry toolRegistry = new ToolRegistry(List.of(
+                new PublishArtifactTool(new ArtifactPublishService(chatDataPathService(), chatAssetCatalogService()))
+        ));
+        ToolExecutionService toolExecutionService = new ToolExecutionService(
+                toolRegistry,
+                new ToolArgumentResolver(objectMapper),
+                objectMapper,
+                null,
+                null,
+                new LocalToolInvoker(toolRegistry)
+        );
+
+        Path sourceDir = Path.of("target/test-artifacts");
+        Files.createDirectories(sourceDir);
+        Path sourceFile = sourceDir.resolve("publish-artifact-" + System.nanoTime() + "-valid.md");
+        Files.writeString(sourceFile, "# report\nhello\n", StandardCharsets.UTF_8);
+
+        String chatId = "123e4567-e89b-12d3-a456-426614174224";
+        ExecutionContext context = executionContext(
+                definition(List.of("_artifact_publish_"), Budget.DEFAULT),
+                new AgentRequest("test", chatId, null, "run_artifact_publish_invalid"),
+                List.of()
+        );
+
+        ToolExecutionService.ToolExecutionBatch batch = toolExecutionService.executeToolCalls(
+                List.of(new PlannedToolCall(
+                        "_artifact_publish_",
+                        Map.of("artifacts", List.of(
+                                Map.of("path", sourceFile.toAbsolutePath().toString()),
+                                Map.of("path", sourceDir.resolve("missing-file.md").toAbsolutePath().toString())
+                        )),
+                        "call_artifact_publish_invalid"
+                )),
+                enabledTools(toolRegistry),
+                new ArrayList<>(),
+                "run_artifact_publish_invalid",
+                context,
+                true
+        );
+
+        List<StreamEvent> events = assembleEvents(toolRegistry, chatId, "run_artifact_publish_invalid", batch.deltas());
+        assertThat(events.stream().filter(event -> "artifact.publish".equals(event.type())).toList()).isEmpty();
+        String result = singleToolResult(batch, "call_artifact_publish_invalid");
+        assertThat(result).contains("\"ok\":false");
+        assertThat(result).contains("Artifact path must point to an existing regular file");
+        Path publishedDir = tempDir.resolve("chats").resolve(chatId).resolve("artifacts").resolve("run_artifact_publish_invalid");
+        assertThat(Files.exists(publishedDir)).isFalse();
     }
 
     @Test
@@ -674,6 +794,22 @@ class ToolExecutionServiceTest {
                 .map(AgentDelta.ToolResult::result)
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private long countFiles(Path dir) throws Exception {
+        try (var files = Files.list(dir)) {
+            return files.count();
+        }
+    }
+
+    private ChatDataPathService chatDataPathService() {
+        ChatStorageProperties properties = new ChatStorageProperties();
+        properties.setDir(tempDir.resolve("chats").toString());
+        return new ChatDataPathService(properties);
+    }
+
+    private ChatAssetCatalogService chatAssetCatalogService() {
+        return new ChatAssetCatalogService(chatDataPathService());
     }
 
     private AgentDefinition definition() {

@@ -118,7 +118,7 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 | `model.api` | REST 契约：`ApiResponse`、`QueryRequest`、`SubmitRequest`、`SteerRequest`、`InterruptRequest`、`ChatDetailResponse` 等 |
 | `model.stream` | 流式领域模型：`AgentDelta`、`ToolCallDelta`、SSE payload 映射 |
 | `service` | `LlmService`、`AgentQueryService`、`ActiveRunService`、`ChatRecordStore`、`DirectoryWatchService`、MCP 同步与重连 |
-| `tool` | `BaseTool`、`ToolRegistry`、`ToolFileRegistryService`、内置 `_bash_` / `datetime` / `_sandbox_bash_` 等 |
+| `tool` | `BaseTool`、`ToolRegistry`、`ToolFileRegistryService`、内置 `_bash_` / `_datetime_` / `_sandbox_bash_` 等 |
 | `skill` | `SkillRegistryService`、`SkillDescriptor`、`SkillProperties`、运行时 prompt 注入 |
 | `schedule` | Schedule 注册、增量 reconcile、Cron dispatch |
 | `security` | `ApiJwtAuthWebFilter`、`ChatImageTokenService`、JWT/JWKS 本地与远程校验 |
@@ -157,7 +157,7 @@ modelConfig:
   top_p: 0.95
   max_tokens: 4096
 toolConfig:
-  backends: ["_bash_", "datetime"]
+  backends: ["_bash_", "_datetime_"]
   frontends: ["show_weather_card"]
   actions: ["switch_theme"]
 skillConfig:
@@ -224,7 +224,7 @@ modelConfig:
     enabled: true
     effort: MEDIUM
 toolConfig:
-  backends: ["_bash_", "datetime"]
+  backends: ["_bash_", "_datetime_"]
   frontends: ["show_weather_card"]
   actions: ["switch_theme"]
 mode: ONESHOT
@@ -477,7 +477,7 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `_sandbox_bash_`：在 Container Hub 沙箱环境中执行命令，受 `sandboxConfig` 与 `agent.tools.container-hub.*` 控制。
-- `datetime`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
+- `_datetime_`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
 - `_memory_write_`：写入 agent 持久化记忆，支持 `content/category/importance/tags`；同步最佳努力生成 embedding，失败时自动降级为 FTS-only。
 - `_memory_read_`：读取 agent 持久化记忆；支持按 `id` 精确读取或按 `category/limit/sort(recent|importance)` 列表读取。
 - `_memory_search_`：搜索 agent 持久化记忆；优先走 FTS5，embedding 可用时做向量+FTS 混合排序，返回 `score` 与 `matchType`。

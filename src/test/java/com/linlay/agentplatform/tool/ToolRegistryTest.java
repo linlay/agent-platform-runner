@@ -125,8 +125,8 @@ class ToolRegistryTest {
     void backendToolMetadataShouldOverrideNativeToolDefinition(@TempDir Path tempDir) throws IOException {
         Path toolsDir = tempDir.resolve("tools");
         Files.createDirectories(toolsDir);
-        Files.writeString(toolsDir.resolve("datetime.yml"), """
-                name: datetime
+        Files.writeString(toolsDir.resolve("_datetime_.yml"), """
+                name: _datetime_
                 label: 日期时间
                 description: city datetime from backend
                 type: function
@@ -157,14 +157,14 @@ class ToolRegistryTest {
         );
 
         BaseTool dateTimeMetadataTool = toolRegistry.list().stream()
-                .filter(tool -> "datetime".equals(tool.name()))
+                .filter(tool -> "_datetime_".equals(tool.name()))
                 .findFirst()
                 .orElseThrow();
 
         assertThat(dateTimeMetadataTool.description()).isEqualTo("city datetime from backend");
         assertThat(dateTimeMetadataTool.afterCallHint()).isEqualTo("use city datetime prompt");
         assertThat(dateTimeMetadataTool.parametersSchema().get("required")).isEqualTo(List.of("timezone"));
-        JsonNode result = toolRegistry.invoke("datetime", Map.of("timezone", "Asia/Shanghai"));
+        JsonNode result = toolRegistry.invoke("_datetime_", Map.of("timezone", "Asia/Shanghai"));
         assertThat(result.path("timezone").asText()).isEqualTo("Asia/Shanghai");
         assertThat(result.path("timezoneOffset").asText()).isEqualTo("UTC+8");
     }
@@ -370,7 +370,7 @@ class ToolRegistryTest {
     @Test
     void localToolShouldWinWhenMcpToolNameConflicts() {
         ToolDescriptor conflictDescriptor = new ToolDescriptor(
-                "datetime",
+                "_datetime_",
                 null,
                 "remote city time",
                 "",
@@ -386,7 +386,7 @@ class ToolRegistryTest {
         );
         McpToolSyncService mcpToolSyncService = mock(McpToolSyncService.class);
         when(mcpToolSyncService.list()).thenReturn(List.of(conflictDescriptor));
-        when(mcpToolSyncService.find("datetime")).thenReturn(java.util.Optional.of(conflictDescriptor));
+        when(mcpToolSyncService.find("_datetime_")).thenReturn(java.util.Optional.of(conflictDescriptor));
 
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("mcpToolSyncService", mcpToolSyncService);
@@ -396,12 +396,12 @@ class ToolRegistryTest {
                 beanFactory.getBeanProvider(McpToolSyncService.class)
         );
 
-        assertThat(toolRegistry.descriptor("datetime"))
+        assertThat(toolRegistry.descriptor("_datetime_"))
                 .isPresent()
                 .get()
                 .extracting(ToolDescriptor::sourceType)
                 .isEqualTo("local");
-        JsonNode result = toolRegistry.invoke("datetime", Map.of("timezone", "Asia/Shanghai"));
+        JsonNode result = toolRegistry.invoke("_datetime_", Map.of("timezone", "Asia/Shanghai"));
         assertThat(result.path("timezone").asText()).isEqualTo("Asia/Shanghai");
         assertThat(result.path("timezoneOffset").asText()).isEqualTo("UTC+8");
     }

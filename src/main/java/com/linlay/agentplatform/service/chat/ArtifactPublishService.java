@@ -13,7 +13,9 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -32,12 +34,36 @@ public class ArtifactPublishService {
         this.chatAssetCatalogService = chatAssetCatalogService;
     }
 
-    public Publication publish(
-            String rawPath,
-            String displayName,
-            String description,
-            ExecutionContext context
-    ) {
+    public List<Publication> publish(List<ArtifactRequest> requests, ExecutionContext context) {
+        if (requests == null || requests.isEmpty()) {
+            throw new IllegalArgumentException("artifacts must be a non-empty array");
+        }
+        PublishContext publishContext = requirePublishContext(context);
+        List<ResolvedArtifact> resolvedArtifacts = new ArrayList<>();
+        for (int index = 0; index < requests.size(); index++) {
+            ArtifactRequest request = requests.get(index);
+            if (request == null) {
+                throw new IllegalArgumentException("artifacts[" + index + "] must be an object");
+            }
+            Path sourcePath = resolveSourcePath(request.path(), publishContext.chatDir());
+            if (!Files.isRegularFile(sourcePath, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IllegalArgumentException("Artifact path must point to an existing regular file: " + request.path());
+            }
+            resolvedArtifacts.add(new ResolvedArtifact(
+                    sourcePath,
+                    request.name(),
+                    request.description()
+            ));
+        }
+
+        List<Publication> publications = new ArrayList<>(resolvedArtifacts.size());
+        for (ResolvedArtifact resolvedArtifact : resolvedArtifacts) {
+            publications.add(publishResolved(resolvedArtifact, publishContext));
+        }
+        return List.copyOf(publications);
+    }
+
+    private PublishContext requirePublishContext(ExecutionContext context) {
         if (context == null || context.request() == null) {
             throw new IllegalArgumentException("_artifact_publish_ requires an active execution context");
         }
@@ -50,41 +76,51 @@ public class ArtifactPublishService {
         String runId = requireText(context.request().runId(), "runId");
         Path chatDir = chatDataPathService.resolveChatDir(chatId);
         ensureDirectory(chatDir);
+        return new PublishContext(chatId, runId, chatDir);
+    }
 
-        Path sourcePath = resolveSourcePath(rawPath, chatDir);
-        if (!Files.isRegularFile(sourcePath, LinkOption.NOFOLLOW_LINKS)) {
-            throw new IllegalArgumentException("Artifact path must point to an existing regular file: " + rawPath);
-        }
-
-        Path publishedPath = sourcePath.startsWith(chatDir)
-                ? sourcePath
-                : materializeIntoChatAssets(sourcePath, chatDir, runId);
-        String relativePath = chatDir.relativize(publishedPath).toString().replace('\\', '/');
+    private Publication publishResolved(ResolvedArtifact resolvedArtifact, PublishContext context) {
+        Path publishedPath = resolvedArtifact.sourcePath().startsWith(context.chatDir())
+                ? resolvedArtifact.sourcePath()
+                : materializeIntoChatAssets(resolvedArtifact.sourcePath(), context.chatDir(), context.runId());
+        String relativePath = context.chatDir().relativize(publishedPath).toString().replace('\\', '/');
         String sha256 = sha256Hex(publishedPath);
 
         Map<String, Object> artifactMeta = new LinkedHashMap<>();
         artifactMeta.put("origin", "tool");
-        artifactMeta.put("sourcePath", sourcePath.toString());
+        artifactMeta.put("sourcePath", resolvedArtifact.sourcePath().toString());
         artifactMeta.put("publishedPath", relativePath);
-        if (StringUtils.hasText(description)) {
-            artifactMeta.put("description", description.trim());
+        if (StringUtils.hasText(resolvedArtifact.description())) {
+            artifactMeta.put("description", resolvedArtifact.description().trim());
         }
 
-        QueryRequest.Reference artifact = chatAssetCatalogService.buildReference(
-                chatId,
+        QueryRequest.Reference reference = chatAssetCatalogService.buildReference(
+                context.chatId(),
                 relativePath,
-                displayName,
+                resolvedArtifact.displayName(),
                 sha256,
                 artifactMeta
         );
 
         return new Publication(
-                artifact.id(),
-                chatId,
-                runId,
-                artifact,
-                ArtifactEventPayload.fromReference(artifact)
+                reference.id(),
+                context.chatId(),
+                context.runId(),
+                reference,
+                ArtifactEventPayload.fromReference(reference)
         );
+    }
+
+    public record ArtifactRequest(
+            String path,
+            String name,
+            String description
+    ) {
+        public ArtifactRequest {
+            path = normalizeText(path);
+            name = normalizeText(name);
+            description = normalizeText(description);
+        }
     }
 
     public record Publication(
@@ -93,6 +129,20 @@ public class ArtifactPublishService {
             String runId,
             QueryRequest.Reference artifact,
             ArtifactEventPayload eventArtifact
+    ) {
+    }
+
+    private record PublishContext(
+            String chatId,
+            String runId,
+            Path chatDir
+    ) {
+    }
+
+    private record ResolvedArtifact(
+            Path sourcePath,
+            String displayName,
+            String description
     ) {
     }
 
@@ -216,5 +266,9 @@ public class ArtifactPublishService {
             throw new IllegalArgumentException("Missing argument: " + fieldName);
         }
         return value.trim();
+    }
+
+    private static String normalizeText(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 }

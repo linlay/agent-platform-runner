@@ -75,7 +75,7 @@ public final class TestCatalogFixtures {
                         defaultValue: true
                     toolConfig:
                       backends:
-                        - datetime
+                        - _datetime_
                     mode: REACT
                     react:
                       systemPrompt: 请按 react 方式逐步处理
@@ -130,7 +130,7 @@ public final class TestCatalogFixtures {
                       modelKey: bailian-qwen3-max
                     toolConfig:
                       backends:
-                        - datetime
+                        - _datetime_
                     mode: REACT
                     react:
                       systemPrompt: 需要时触发视图工具
