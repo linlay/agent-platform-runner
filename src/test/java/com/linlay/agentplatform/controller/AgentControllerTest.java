@@ -1157,7 +1157,6 @@ class AgentControllerTest {
                         "references", List.of(Map.of(
                                 "id", "ref_001",
                                 "type", "url",
-                                "name", "doc",
                                 "url", "https://example.com/ref"
                         ))
                 ))
@@ -1205,7 +1204,7 @@ class AgentControllerTest {
                 .jsonPath("$.data.chatId").isEqualTo(chatId)
                 .jsonPath("$.data.chatName").isEqualTo(message)
                 .jsonPath("$.data.rawMessages").doesNotExist()
-                .jsonPath("$.data.references").doesNotExist()
+                .jsonPath("$.data.references[0].id").isEqualTo("ref_001")
                 .jsonPath("$.data.events[?(@.type=='request.query')]").exists()
                 .jsonPath("$.data.events[?(@.type=='run.start')]").exists()
                 .jsonPath("$.data.events[?(@.type=='content.snapshot')]").exists()
@@ -1221,7 +1220,7 @@ class AgentControllerTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.data.rawMessages[0].role").isEqualTo("user")
-                .jsonPath("$.data.references").doesNotExist()
+                .jsonPath("$.data.references[0].id").isEqualTo("ref_001")
                 .jsonPath("$.data.events[?(@.type=='request.query')]").exists();
     }
 
@@ -1587,7 +1586,7 @@ class AgentControllerTest {
     }
 
     @Test
-    void chatApiShouldReturnPlanUpdateWithSeq() throws Exception {
+    void chatApiShouldReturnPlanStateAtTopLevel() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174088";
         Path chatDir = Path.of(chatWindowMemoryProperties.getDir());
         Files.createDirectories(chatDir);
@@ -1653,19 +1652,84 @@ class AgentControllerTest {
         });
         List<Map<String, Object>> events = objectMapper.convertValue(data.get("events"), new TypeReference<>() {
         });
+        Map<String, Object> plan = objectMapper.convertValue(data.get("plan"), new TypeReference<>() {
+        });
 
-        Map<String, Object> planUpdate = events.stream()
-                .filter(event -> "plan.update".equals(event.get("type")))
-                .findFirst()
-                .orElseThrow();
+        assertThat(plan).containsEntry("planId", "plan_chat_001");
+        assertThat(plan.get("tasks")).isInstanceOf(List.class);
+        assertThat(events).extracting(event -> event.get("type")).doesNotContain("plan.update");
+    }
 
-        assertThat(planUpdate).containsEntry("type", "plan.update");
-        assertThat(planUpdate).containsEntry("planId", "plan_chat_001");
-        assertThat(planUpdate).containsEntry("chatId", chatId);
-        assertThat(planUpdate).containsKey("plan");
-        assertThat(planUpdate).containsKey("timestamp");
-        assertThat(planUpdate).containsKey("seq");
-        assertThat(planUpdate.get("seq")).isInstanceOf(Number.class);
+    @Test
+    void chatApiShouldReturnArtifactStateAtTopLevel() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174087";
+        Path chatDir = Path.of(chatWindowMemoryProperties.getDir());
+        Files.createDirectories(chatDir);
+        chatRecordStore.ensureChat(chatId, "demoModePlanExecute", "星策", "测试产物");
+
+        Map<String, Object> queryLine = new LinkedHashMap<>();
+        queryLine.put("_type", "query");
+        queryLine.put("chatId", chatId);
+        queryLine.put("runId", "run_artifact_001");
+        queryLine.put("updatedAt", 1707000600000L);
+        queryLine.put("query", Map.of(
+                "requestId", "req_artifact_001",
+                "chatId", chatId,
+                "role", "user",
+                "message", "测试产物",
+                "stream", true
+        ));
+        writeJsonLine(chatDir.resolve(chatId + ".jsonl"), queryLine);
+
+        Map<String, Object> eventLine = new LinkedHashMap<>();
+        eventLine.put("_type", "event");
+        eventLine.put("chatId", chatId);
+        eventLine.put("runId", "run_artifact_001");
+        eventLine.put("updatedAt", 1707000600002L);
+        eventLine.put("event", Map.of(
+                "seq", 9,
+                "type", "artifact.publish",
+                "timestamp", 1707000600002L,
+                "artifactId", "asset_report_1",
+                "chatId", chatId,
+                "runId", "run_artifact_001",
+                "artifact", Map.of(
+                        "type", "file",
+                        "name", "report.md",
+                        "mimeType", "text/markdown",
+                        "url", "/api/resource?file=" + chatId + "%2Fartifacts%2Frun_artifact_001%2Freport.md"
+                )
+        ));
+        writeJsonLine(chatDir.resolve(chatId + ".jsonl"), eventLine);
+
+        byte[] responseBody = webTestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/chat")
+                        .queryParam("chatId", chatId)
+                        .build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(responseBody).isNotNull();
+        Map<String, Object> root = objectMapper.readValue(responseBody, new TypeReference<>() {
+        });
+        Map<String, Object> data = objectMapper.convertValue(root.get("data"), new TypeReference<>() {
+        });
+        List<Map<String, Object>> events = objectMapper.convertValue(data.get("events"), new TypeReference<>() {
+        });
+        Map<String, Object> artifact = objectMapper.convertValue(data.get("artifact"), new TypeReference<>() {
+        });
+
+        assertThat(artifact.get("items")).isInstanceOf(List.class);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) artifact.get("items");
+        assertThat(items).hasSize(1);
+        assertThat(items.getFirst()).containsEntry("artifactId", "asset_report_1");
+        assertThat(items.getFirst()).containsEntry("name", "report.md");
+        assertThat(events).extracting(event -> event.get("type")).doesNotContain("artifact.publish");
     }
 
     @Test

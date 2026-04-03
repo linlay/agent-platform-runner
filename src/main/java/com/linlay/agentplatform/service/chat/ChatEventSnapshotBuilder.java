@@ -2,7 +2,6 @@ package com.linlay.agentplatform.service.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
-import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.springframework.util.StringUtils;
 
@@ -74,12 +73,6 @@ final class ChatEventSnapshotBuilder {
             runStartPayload.put("chatId", chatId);
             runStartPayload.put("agentKey", runAgentKey);
             events.add(event("run.start", timestampCursor, seq++, runStartPayload));
-
-            Map<String, Object> planUpdatePayload = planUpdatePayload(run.plan(), chatId);
-            if (!planUpdatePayload.isEmpty()) {
-                timestampCursor = normalizeEventTimestamp(timestampCursor + 1, timestampCursor);
-                events.add(event("plan.update", timestampCursor, seq++, planUpdatePayload));
-            }
 
             while (persistedIndex < persistedEvents.size()
                     && persistedEvents.get(persistedIndex).timestamp() <= timestampCursor) {
@@ -426,39 +419,6 @@ final class ChatEventSnapshotBuilder {
             data.putAll(payload);
         }
         return data;
-    }
-
-    private Map<String, Object> planUpdatePayload(
-            ChatStorageTypes.PlanState planState,
-            String chatId
-    ) {
-        if (planState == null
-                || !StringUtils.hasText(planState.planId)
-                || planState.tasks == null
-                || planState.tasks.isEmpty()) {
-            return Map.of();
-        }
-
-        List<Map<String, Object>> plan = new ArrayList<>();
-        for (ChatStorageTypes.PlanTaskState task : planState.tasks) {
-            if (task == null || !StringUtils.hasText(task.taskId) || !StringUtils.hasText(task.description)) {
-                continue;
-            }
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("taskId", task.taskId.trim());
-            item.put("description", task.description.trim());
-            item.put("status", AgentDelta.normalizePlanTaskStatus(task.status));
-            plan.add(item);
-        }
-        if (plan.isEmpty()) {
-            return Map.of();
-        }
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("planId", planState.planId.trim());
-        payload.put("chatId", StringUtils.hasText(chatId) ? chatId : null);
-        payload.put("plan", plan);
-        return payload;
     }
 
     private void putIfNonNull(Map<String, Object> node, String key, Object value) {

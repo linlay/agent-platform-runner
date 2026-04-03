@@ -224,8 +224,12 @@ class RuntimeContextPromptServiceTest {
             assertThat(prompt).doesNotContain("sandbox_schedules_dir:");
             assertThat(prompt).contains("chatId: chat-1");
             assertThat(prompt).contains("chatName: Demo Chat");
-            assertThat(prompt).contains("references: [");
-            assertThat(prompt).contains("{ id: \"ref-1\", sandboxPath: \"/workspace/notes.md\", name: \"notes.md\", sizeBytes: 42, mimeType: \"text/markdown\" }");
+            assertThat(prompt).contains("references:");
+            assertThat(prompt).contains("  - id: ref-1");
+            assertThat(prompt).contains("    sandboxPath: /workspace/notes.md");
+            assertThat(prompt).contains("    name: notes.md");
+            assertThat(prompt).contains("    sizeBytes: 42");
+            assertThat(prompt).contains("    mimeType: text/markdown");
             assertThat(prompt).contains("Runtime Context: Owner");
             assertThat(prompt).contains("--- file: BOOTSTRAP.md");
             assertThat(prompt).contains("--- file: OWNER.md");

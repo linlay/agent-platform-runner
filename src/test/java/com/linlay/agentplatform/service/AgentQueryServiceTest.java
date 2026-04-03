@@ -328,12 +328,60 @@ class AgentQueryServiceTest {
 
         assertThat(session.request().message()).isEqualTo("工作目录里的文件写的是什么内容");
         assertThat(session.agentRequest().message()).contains("工作目录里的文件写的是什么内容");
-        assertThat(session.agentRequest().message()).contains("#{{r01:参政议政.md}}");
+        assertThat(session.agentRequest().message()).contains("#{{r01}}");
         assertThat(session.agentRequest().query()).containsEntry("message", "工作目录里的文件写的是什么内容");
     }
 
     @Test
     void prepareShouldPreserveExplicitReferenceMarkers() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        Agent agent = mock(Agent.class);
+        when(agent.id()).thenReturn("demo-agent");
+        when(agent.name()).thenReturn("Demo Agent");
+        when(agentRegistry.get("demo-agent")).thenReturn(agent);
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        String chatId = UUID.randomUUID().toString();
+        String message = "#{{r01}} 写的是什么内容";
+        when(chatRecordStore.findBoundAgentKey(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.findBoundTeamId(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.ensureChat(chatId, "demo-agent", "Demo Agent", null, message))
+                .thenReturn(new ChatRecordStore.ChatSummary(chatId, "Chat Alpha", "demo-agent", null, 1L, 2L, "", "", 1, 2L, false));
+
+        AgentQueryService service = newService(
+                agentRegistry,
+                mock(StreamSseStreamer.class),
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
+        );
+
+        QueryRequest request = new QueryRequest(
+                "req-1",
+                chatId,
+                "demo-agent",
+                null,
+                "user",
+                message,
+                List.of(new QueryRequest.Reference("r01", "file", "参政议政.md", "text/markdown", 42L, null, null, "/workspace/参政议政.md", null)),
+                null,
+                null,
+                true
+        );
+
+        AgentQueryService.QuerySession session = service.prepare(request);
+
+        assertThat(session.agentRequest().message()).isEqualTo(message);
+    }
+
+    @Test
+    void prepareShouldPreserveLegacyReferenceMarkers() {
         AgentRegistry agentRegistry = mock(AgentRegistry.class);
         Agent agent = mock(Agent.class);
         when(agent.id()).thenReturn("demo-agent");

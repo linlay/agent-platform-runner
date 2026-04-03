@@ -600,7 +600,7 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void loadChatShouldReplayPlanUpdateWithSeq() throws Exception {
+    void loadChatShouldExposeLatestPlanStateAtTopLevel() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174017";
         Path chatDir = tempDir.resolve("chats");
         writeIndex(chatDir, chatId, "计划会话", 1707000500000L, 1707000500000L);
@@ -624,18 +624,10 @@ class ChatRecordStoreTest {
         ChatRecordStore store = newStore();
         ChatDetailResponse detail = store.loadChat(chatId, false);
 
-        Map<String, Object> planUpdate = detail.events().stream()
-                .filter(event -> "plan.update".equals(event.get("type")))
-                .findFirst()
-                .orElseThrow();
-
-        assertThat(planUpdate).containsEntry("type", "plan.update");
-        assertThat(planUpdate).containsEntry("planId", "plan_chat_001");
-        assertThat(planUpdate).containsEntry("chatId", chatId);
-        assertThat(planUpdate).containsKey("plan");
-        assertThat(planUpdate).containsKey("timestamp");
-        assertThat(planUpdate).containsKey("seq");
-        assertThat(planUpdate.get("seq")).isInstanceOf(Number.class);
+        assertThat(detail.plan()).isNotNull();
+        assertThat(detail.plan().planId).isEqualTo("plan_chat_001");
+        assertThat(detail.plan().tasks).hasSize(2);
+        assertThat(detail.events()).extracting(event -> event.get("type")).doesNotContain("plan.update");
     }
 
     @Test
@@ -679,7 +671,7 @@ class ChatRecordStoreTest {
     }
 
     @Test
-    void appendEventShouldPersistArtifactPublishAndExposePublishedAssetAsReference() throws Exception {
+    void appendEventShouldFoldArtifactPublishIntoTopLevelArtifactState() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174188";
         Path chatDir = tempDir.resolve("chats");
         writeIndex(chatDir, chatId, "产出物会话", 1707000600000L, 1707000600000L);
@@ -714,24 +706,17 @@ class ChatRecordStoreTest {
         )));
 
         ChatDetailResponse detail = store.loadChat(chatId, false);
-        Map<String, Object> artifactPublish = detail.events().stream()
-                .filter(event -> "artifact.publish".equals(event.get("type")))
-                .findFirst()
-                .orElseThrow();
-
-        assertThat(artifactPublish).containsEntry("artifactId", "asset_report_1");
-        assertThat(artifactPublish).containsEntry("chatId", chatId);
-        assertThat(artifactPublish).containsEntry("runId", "run_009");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> artifact = (Map<String, Object>) artifactPublish.get("artifact");
-        assertThat(artifact).doesNotContainKeys("id", "meta");
-        assertThat(artifactPublish).doesNotContainKey("source");
+        assertThat(detail.artifact()).isNotNull();
+        assertThat(detail.artifact().items).hasSize(1);
+        assertThat(detail.artifact().items.getFirst().artifactId).isEqualTo("asset_report_1");
+        assertThat(detail.artifact().items.getFirst().name).isEqualTo("report.md");
+        assertThat(detail.events()).extracting(event -> event.get("type")).doesNotContain("artifact.publish");
         assertThat(detail.references()).isNotNull();
         assertThat(detail.references()).extracting(QueryRequest.Reference::name).contains("report.md");
     }
 
     @Test
-    void loadChatShouldReplayArtifactPublishFromStepArtifactsWithoutDuplicatingPersistedEvent() throws Exception {
+    void loadChatShouldPreferLatestArtifactStateWithoutDuplicatingItems() throws Exception {
         String chatId = "123e4567-e89b-12d3-a456-426614174189";
         Path chatDir = tempDir.resolve("chats");
         writeIndex(chatDir, chatId, "产出物快照会话", 1707000600000L, 1707000600000L);
@@ -776,9 +761,55 @@ class ChatRecordStoreTest {
         )));
 
         ChatDetailResponse detail = store.loadChat(chatId, false);
-        assertThat(detail.events().stream()
-                .filter(event -> "artifact.publish".equals(event.get("type"))))
-                .hasSize(1);
+        assertThat(detail.artifact()).isNotNull();
+        assertThat(detail.artifact().items).hasSize(1);
+        assertThat(detail.artifact().items.getFirst().artifactId).isEqualTo("asset_report_2");
+        assertThat(detail.events()).extracting(event -> event.get("type")).doesNotContain("artifact.publish");
+    }
+
+    @Test
+    void loadChatShouldKeepLatestNonEmptyPlanAndArtifactAcrossRuns() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174190";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "多轮状态会话", 1707000600000L, 1707000600000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".jsonl");
+        writeJsonLine(historyPath, queryLine(chatId, "run_011", query("run_011", chatId, "第一轮", List.of())));
+        writeJsonLine(historyPath, stepLine(chatId, "run_011", "plan", 1, null,
+                1707000600000L,
+                List.of(
+                        userMessage("第一轮", 1707000600000L),
+                        assistantContentMessage("生成计划和产物", 1707000600001L)
+                ),
+                Map.of(
+                        "planId", "plan_chat_keep",
+                        "tasks", List.of(Map.of("taskId", "task0", "description", "保留状态", "status", "init"))
+                ),
+                Map.of(
+                        "items", List.of(Map.of(
+                                "artifactId", "asset_keep_1",
+                                "type", "file",
+                                "name", "keep.md",
+                                "mimeType", "text/markdown",
+                                "url", "/api/resource?file=" + chatId + "%2Fartifacts%2Frun_011%2Fkeep.md"
+                        ))
+                )));
+        writeJsonLine(historyPath, queryLine(chatId, "run_012", query("run_012", chatId, "第二轮", List.of())));
+        writeJsonLine(historyPath, stepLine(chatId, "run_012", "oneshot", 1, null,
+                1707000601000L,
+                List.of(
+                        userMessage("第二轮", 1707000601000L),
+                        assistantContentMessage("只回答，不更新状态", 1707000601001L)
+                )));
+
+        ChatRecordStore store = newStore();
+        ChatDetailResponse detail = store.loadChat(chatId, false);
+
+        assertThat(detail.plan()).isNotNull();
+        assertThat(detail.plan().planId).isEqualTo("plan_chat_keep");
+        assertThat(detail.artifact()).isNotNull();
+        assertThat(detail.artifact().items).hasSize(1);
+        assertThat(detail.artifact().items.getFirst().artifactId).isEqualTo("asset_keep_1");
     }
 
     @Test

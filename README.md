@@ -47,7 +47,8 @@
   - 工具列表：`data` 直接是 `tools[]`
   - 会话详情：`data` 直接是 `chat`
   - 视图详情：`data` 直接是视图内容（`html` 时为 `{ "html": "..." }`，`qlc` 时为 schema JSON）
-- `GET /api/chat` 默认始终返回 `events`；仅当 `includeRawMessages=true` 时才返回 `rawMessages`。
+- `GET /api/chat` 默认始终返回 `events`，并附带最新状态 `plan` / `artifact`；仅当 `includeRawMessages=true` 时才返回 `rawMessages`。
+- `GET /api/chat` 的历史 `events` 不再包含 `plan.update` / `artifact.publish`；这两个状态改为顶层 `data.plan` / `data.artifact`，但 `/api/query` 的实时 SSE 仍会发送它们。
 - 事件协议仅支持 Event Model v2，不兼容旧命名（如 `query.message`、`message.start|delta|end`、`message.snapshot`）。
 
 `GET /api/agents` 示例（`role` 为顶层字段）：
@@ -178,6 +179,27 @@
 {
   "chatId": "8cdb2094-9dbf-47d1-a17f-bc989a236a5c",
   "chatName": "元素碳的简介，100",
+  "plan": {
+    "planId": "plan_01",
+    "tasks": [
+      {
+        "taskId": "task_search",
+        "description": "检索资料并整理要点",
+        "status": "pending"
+      }
+    ]
+  },
+  "artifact": {
+    "items": [
+      {
+        "artifactId": "asset_01",
+        "type": "file",
+        "name": "result.md",
+        "mimeType": "text/markdown",
+        "url": "/api/resource?file=8cdb2094-9dbf-47d1-a17f-bc989a236a5c%2Fartifacts%2Frun_01%2Fresult.md"
+      }
+    ]
+  },
   "events": [
     {
       "seq": 1,
@@ -199,6 +221,11 @@
   "references": []
 }
 ```
+
+其中：
+
+- `plan` / `artifact` 表示整个 chat 当前最新的非空状态快照。
+- `events` 只保留历史过程与结果事件，不再重复包含 `plan.update` / `artifact.publish`。
 
 当 `includeRawMessages=true` 时，会额外返回：
 

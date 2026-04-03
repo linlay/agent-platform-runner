@@ -639,7 +639,7 @@ public class RuntimeContextPromptService {
         if (references == null || references.isEmpty()) {
             return;
         }
-        lines.add("references: [");
+        lines.add("references:");
         for (QueryRequest.Reference reference : references) {
             if (reference == null) {
                 continue;
@@ -652,22 +652,26 @@ public class RuntimeContextPromptService {
                 fields.add("sizeBytes: " + reference.sizeBytes());
             }
             appendReferenceField(fields, "mimeType", reference.mimeType());
-            lines.add("  { " + String.join(", ", fields) + " }");
+            if (fields.isEmpty()) {
+                continue;
+            }
+            lines.add("  - " + fields.getFirst());
+            for (int i = 1; i < fields.size(); i++) {
+                lines.add("    " + fields.get(i));
+            }
         }
-        lines.add("]");
     }
 
     private void appendReferenceField(List<String> fields, String key, String value) {
         if (StringUtils.hasText(value)) {
-            fields.add(key + ": " + quotePromptValue(value.trim()));
+            fields.add(key + ": " + sanitizeYamlScalar(value.trim()));
         }
     }
 
-    private String quotePromptValue(String value) {
-        return "\"" + value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                + "\"";
+    private String sanitizeYamlScalar(String value) {
+        return value
+                .replace("\r", "")
+                .replace("\n", "\\n");
     }
 
     private void appendIfPresent(List<String> sections, String content) {

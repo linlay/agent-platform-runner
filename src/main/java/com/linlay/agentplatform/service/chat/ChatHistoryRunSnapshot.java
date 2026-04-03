@@ -12,6 +12,7 @@ record ChatHistoryRunSnapshot(
         Map<String, Object> query,
         ChatStorageTypes.SystemSnapshot system,
         ChatStorageTypes.PlanState plan,
+        ChatStorageTypes.ArtifactState artifacts,
         List<ChatStorageTypes.StoredMessage> messages,
         List<PersistedChatEvent> persistedEvents,
         int lineIndex

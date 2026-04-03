@@ -640,8 +640,8 @@
 				<strong>引用（References）与文本标记（Markers）：</strong><br />
 				1) 所有引用统一放入 <span class="field-key">references</span> 数组，并用短 ID：<span class="field-key">id</span>
 				进行关联。<br />
-				2) 在 <span class="field-key">message</span> 中嵌入标记：<span class="field-key">#{{refid:name}}</span>，例如：<br />
-				<span class="field-key">"请总结 #{{f1:requirements.md}} 并解释 #{{i1:ui.png}} 中的流程"</span><br />
+				2) 在 <span class="field-key">message</span> 中嵌入标记：<span class="field-key">#{{refid}}</span>，例如：<br />
+				<span class="field-key">"请总结 #{{f1}} 并解释 #{{i1}} 中的流程"</span><br />
 				3) 同时建议在 <span class="field-key">references</span> 显式列出被本次问题依赖的引用（便于渲染、权限、优化）。<br />
 				4) 前端应优先直接发送带标记的 <span class="field-key">message</span>；若遗漏标记，网关可在执行前补齐引用提示，但不会改变原始请求结构。<br />
 				<ul class="mini-list">
@@ -671,7 +671,7 @@
 								<li><span class="field-key">id</span>: string（短 ID；本 chat 内唯一）例：<span class="field-key">"f1"</span> / <span
 										class="field-key">"i1"</span></li>
 								<li><span class="field-key">type</span>: <span class="field-key">"file"</span> | <span class="field-key">"image"</span></li>
-								<li><span class="field-key">name</span>: string（展示名）例：<span class="field-key">"requirements.md"</span></li>
+								<li><span class="field-key">name</span>: string｜可选（展示名；前端请求可省略，服务端生成的引用建议提供）例：<span class="field-key">"requirements.md"</span></li>
 								<li><span class="field-key">mimeType</span>: string（建议总是提供）</li>
 								<li><span class="field-key">sizeBytes</span>: number｜可选（上传/本地可得时提供）</li>
 								<li><span class="field-key">url</span>: string（网关可访问的地址；或可下载地址）</li>
@@ -768,7 +768,7 @@
 							<div class="event-name">UploadResponse</div>
 						</th>
 						<td>
-							<div class="event-desc">返回已完成上传的信息；JSON 响应外层仍为统一的 <code>ApiResponse&lt;UploadResponse&gt;</code>。前端可把 upload 映射到本地引用池，并在 query 时通过 #{{refid:name}} 或 references 使用</div>
+							<div class="event-desc">返回已完成上传的信息；JSON 响应外层仍为统一的 <code>ApiResponse&lt;UploadResponse&gt;</code>。前端可把 upload 映射到本地引用池，并在 query 时通过 #{{refid}} 或 references 使用</div>
 							<ul class="field-list">
 								<li><span class="field-key">requestId</span>: string</li>
 								<li><span class="field-key">chatId</span>: string(UUID)</li>
@@ -1140,7 +1140,10 @@
 								<li><span class="field-key">chatName</span>: string｜可选</li>
 								<li><span class="field-key">chatImageToken</span>: string｜可选（用于访问当前 chat 作用域内图片资源）</li>
 								<li><span class="field-key">rawMessages</span>: object[]｜可选（若 includeRawMessages=true，可返回大模型原始消息）</li>
-								<li><span class="field-key">events</span>: BaseEvent[]（历史事件列表； start/delta/args/end -> snapshot, params/result 以及 <code>artifact.publish</code> 保留）</li>
+								<li><span class="field-key">plan</span>: object｜可选（chat 当前最新计划状态，形如 <code>{planId,tasks}</code>）</li>
+								<li><span class="field-key">artifact</span>: object｜可选（chat 当前最新产物状态，形如 <code>{items:[...]}</code>）</li>
+								<li><span class="field-key">references</span>: object[]｜可选（query 引用与 chat 资产聚合后的引用池）</li>
+								<li><span class="field-key">events</span>: BaseEvent[]（历史事件列表； start/delta/args/end -&gt; snapshot，保留 params/result；<code>plan.update</code> / <code>artifact.publish</code> 不再出现在历史 events 中）</li>
 							</ul>
 						</td>
 					</tr>
@@ -2408,7 +2411,7 @@ data: [DONE]</code></pre>
       <!-- Upload + refs (not SSE; kept as request/response JSON) -->
       <div class="example-item">
         <div class="example-summary">
-          <span class="tag-id">#4</span> 文件 + 图片引用：Upload → Query（#{{refid:name}} 标记 + references）
+          <span class="tag-id">#4</span> 文件 + 图片引用：Upload → Query（#{{refid}} 标记 + references）
         </div>
         <div class="example-content">
           <pre class="json-block"><code>// 1) POST /api/upload (multipart/form-data)
@@ -2462,7 +2465,7 @@ data: [DONE]</code></pre>
   "chatId": "7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1",
   "agentKey": "agent_researcher",
   "role": "user",
-  "message": "请总结 #{{r01:requirements.md}} 的关键需求，并结合 #{{r02:ui.png}} 指出协议中可能遗漏的字段。",
+  "message": "请总结 #{{r01}} 的关键需求，并结合 #{{r02}} 指出协议中可能遗漏的字段。",
   "references": [
     {
       "id": "r01",
@@ -2492,7 +2495,7 @@ data: [DONE]</code></pre>
 
 	          <pre class="json-block"><code>// SSE (snippet)
 event: message
-data: {"seq":1,"type":"request.query","timestamp":1707000400,"requestId":"req_0002","chatId":"7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1","agentKey":"agent_researcher","role":"user","message":"请总结 #{{r01:requirements.md}} 的关键需求，并结合 #{{r02:ui.png}} 指出协议中可能遗漏的字段。","references":[{"id":"r01","type":"file","name":"requirements.md","sandboxPath":"/workspace/requirements.md"},{"id":"r02","type":"image","name":"ui.png","sandboxPath":"/workspace/ui.png"}],"scene":{"url":"https://app.example.com/workspace/protocol"},"stream":true}
+data: {"seq":1,"type":"request.query","timestamp":1707000400,"requestId":"req_0002","chatId":"7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1","agentKey":"agent_researcher","role":"user","message":"请总结 #{{r01}} 的关键需求，并结合 #{{r02}} 指出协议中可能遗漏的字段。","references":[{"id":"r01","type":"file","name":"requirements.md","sandboxPath":"/workspace/requirements.md"},{"id":"r02","type":"image","name":"ui.png","sandboxPath":"/workspace/ui.png"}],"scene":{"url":"https://app.example.com/workspace/protocol"},"stream":true}
 
 event: message
 data: {"seq":2,"type":"chat.start","timestamp":1707000401,"chatId":"7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1","chatName":"Protocol Review"}
@@ -2520,7 +2523,7 @@ data: [DONE]</code></pre>
   "chatId": "c40a08d0-b61d-4be0-99b5-3a9e8c7466c2",
   "agentKey": "agent_code_review",
   "role": "user",
-  "message": "请审查我选中的代码片段（见 #{{f1:app/src/main.ts}}），指出潜在 bug、边界条件与改进建议。",
+  "message": "请审查我选中的代码片段（见 #{{f1}}），指出潜在 bug、边界条件与改进建议。",
   "references": [
     {
       "id": "f1",
@@ -2543,7 +2546,7 @@ data: [DONE]</code></pre>
 
 	          <pre class="json-block"><code>// SSE (snippet)
 event: message
-data: {"seq":1,"type":"request.query","timestamp":1707000500,"requestId":"req_0003","chatId":"c40a08d0-b61d-4be0-99b5-3a9e8c7466c2","agentKey":"agent_code_review","role":"user","message":"请审查我选中的代码片段（见 #{{f1:app/src/main.ts}}），指出潜在 bug、边界条件与改进建议。","references":[{"id":"f1","type":"file","name":"app/src/main.ts"}],"params":{"switch":{"strictMode":true},"select":{"severity":"high"}},"scene":{"url":"https://app.example.com/ide/editor?file=app/src/main.ts"},"stream":true}
+data: {"seq":1,"type":"request.query","timestamp":1707000500,"requestId":"req_0003","chatId":"c40a08d0-b61d-4be0-99b5-3a9e8c7466c2","agentKey":"agent_code_review","role":"user","message":"请审查我选中的代码片段（见 #{{f1}}），指出潜在 bug、边界条件与改进建议。","references":[{"id":"f1","type":"file","name":"app/src/main.ts"}],"params":{"switch":{"strictMode":true},"select":{"severity":"high"}},"scene":{"url":"https://app.example.com/ide/editor?file=app/src/main.ts"},"stream":true}
 
 event: message
 data: {"seq":2,"type":"chat.start","timestamp":1707000501,"chatId":"c40a08d0-b61d-4be0-99b5-3a9e8c7466c2","chatName":"Code Review / main.ts"}
@@ -2571,7 +2574,7 @@ data: [DONE]</code></pre>
   "chatId": "9d81c2c8-2c0c-4f7e-a2f0-5f5fd0a9b6b1",
   "agentKey": "auto",
   "role": "user",
-  "message": "请解释截图 #{{i1:billing-error.png}} 的报错原因，并给出排查步骤。",
+  "message": "请解释截图 #{{i1}} 的报错原因，并给出排查步骤。",
   "references": [
     {
       "id": "i1",
@@ -2593,7 +2596,7 @@ data: [DONE]</code></pre>
 
 	          <pre class="json-block"><code>// SSE (snippet)
 event: message
-data: {"seq":1,"type":"request.query","timestamp":1707000600,"requestId":"req_0004","chatId":"9d81c2c8-2c0c-4f7e-a2f0-5f5fd0a9b6b1","agentKey":"auto","role":"user","message":"请解释截图 #{{i1:billing-error.png}} 的报错原因，并给出排查步骤。","references":[{"id":"i1","type":"image","name":"billing-error.png"}],"scene":{"url":"https://app.example.com/billing/checkout"},"stream":true}
+data: {"seq":1,"type":"request.query","timestamp":1707000600,"requestId":"req_0004","chatId":"9d81c2c8-2c0c-4f7e-a2f0-5f5fd0a9b6b1","agentKey":"auto","role":"user","message":"请解释截图 #{{i1}} 的报错原因，并给出排查步骤。","references":[{"id":"i1","type":"image","name":"billing-error.png"}],"scene":{"url":"https://app.example.com/billing/checkout"},"stream":true}
 
 event: message
 data: {"seq":2,"type":"chat.start","timestamp":1707000601,"chatId":"9d81c2c8-2c0c-4f7e-a2f0-5f5fd0a9b6b1","chatName":"Billing Error Triage"}

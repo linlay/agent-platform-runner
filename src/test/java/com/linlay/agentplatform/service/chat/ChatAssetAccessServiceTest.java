@@ -31,7 +31,7 @@ class ChatAssetAccessServiceTest {
 
         ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
         when(chatRecordStore.loadChat(chatId, false))
-                .thenReturn(new ChatDetailResponse(chatId, "chat", null, null, java.util.List.of(), null));
+                .thenReturn(new ChatDetailResponse(chatId, "chat", null, null, java.util.List.of(), null, null, null));
 
         ChatAssetAccessService service = new ChatAssetAccessService(chatRecordStore, newCatalogService());
 
@@ -51,6 +51,8 @@ class ChatAssetAccessServiceTest {
                         null,
                         null,
                         List.of(),
+                        null,
+                        null,
                         List.of(new QueryRequest.Reference(
                                 "ref-1",
                                 "image",

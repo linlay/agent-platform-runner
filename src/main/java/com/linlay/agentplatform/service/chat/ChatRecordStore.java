@@ -199,6 +199,8 @@ public class ChatRecordStore {
                     null,
                     rawMessages,
                     events,
+                    content.plan,
+                    content.artifact,
                     references
             );
         }
@@ -221,6 +223,12 @@ public class ChatRecordStore {
         );
 
         for (ChatHistoryRunSnapshot run : content.runs) {
+            if (run.plan() != null) {
+                content.plan = run.plan();
+            }
+            if (run.artifacts() != null) {
+                content.artifact = run.artifacts();
+            }
             for (ChatStorageTypes.StoredMessage message : run.messages()) {
                 Map<String, Object> raw = toRawMessageMap(run.runId(), message);
                 if (!raw.isEmpty()) {
@@ -543,5 +551,7 @@ public class ChatRecordStore {
         private final List<Map<String, Object>> rawMessages = new ArrayList<>();
         private final List<Map<String, Object>> events = new ArrayList<>();
         private final LinkedHashMap<String, QueryRequest.Reference> references = new LinkedHashMap<>();
+        private ChatStorageTypes.PlanState plan;
+        private ChatStorageTypes.ArtifactState artifact;
     }
 }

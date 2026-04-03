@@ -66,7 +66,7 @@ public class AgentQueryService {
     private static final String AUTO_AGENT = "auto";
     private static final String DEFAULT_AGENT = "default";
     private static final Pattern EVENT_TYPE_PATTERN = Pattern.compile("\"type\":\"([^\"]+)\"");
-    private static final Pattern REFERENCE_MARKER_PATTERN = Pattern.compile("#\\{\\{\\s*[-\\w]+\\s*:[^}]+}}");
+    private static final Pattern REFERENCE_MARKER_PATTERN = Pattern.compile("#\\{\\{\\s*[-\\w]+(?:\\s*:[^}]+)?\\s*}}");
     private static final Logger log = LoggerFactory.getLogger(AgentQueryService.class);
 
     private final AgentRegistry agentRegistry;
@@ -583,8 +583,7 @@ public class AgentQueryService {
 
     private String toReferenceMarker(QueryRequest.Reference reference) {
         String id = reference.id().trim();
-        String name = StringUtils.hasText(reference.name()) ? reference.name().trim() : id;
-        return "#{{" + id + ":" + name + "}}";
+        return "#{{" + id + "}}";
     }
 
     private String resolveEffectiveTeamId(String requestTeamId, String boundTeamId, String boundAgentKey) {
