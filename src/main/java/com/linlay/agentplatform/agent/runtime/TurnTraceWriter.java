@@ -189,8 +189,9 @@ public final class TurnTraceWriter {
         seqCounter++;
 
         List<ChatStorageTypes.RunMessage> stepMessages = new ArrayList<>();
-        if (seqCounter == 1 && StringUtils.hasText(request.message())) {
-            stepMessages.add(ChatStorageTypes.RunMessage.user(request.message(), System.currentTimeMillis()));
+        String originalUserMessage = originalUserMessage();
+        if (seqCounter == 1 && StringUtils.hasText(originalUserMessage)) {
+            stepMessages.add(ChatStorageTypes.RunMessage.user(originalUserMessage, System.currentTimeMillis()));
         }
         stepMessages.addAll(currentStep.runMessages());
         if (stepMessages.isEmpty()) {
@@ -238,6 +239,16 @@ public final class TurnTraceWriter {
             return null;
         }
         return endTs - startTs;
+    }
+
+    private String originalUserMessage() {
+        if (request.query() != null) {
+            Object value = request.query().get("message");
+            if (value instanceof String text && StringUtils.hasText(text)) {
+                return text.trim();
+            }
+        }
+        return StringUtils.hasText(request.message()) ? request.message().trim() : null;
     }
 
     private static String parseStage(String marker) {

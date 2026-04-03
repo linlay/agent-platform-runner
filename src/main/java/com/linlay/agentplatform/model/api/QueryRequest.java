@@ -48,6 +48,7 @@ public record QueryRequest(
             Long sizeBytes,
             String url,
             String sha256,
+            String sandboxPath,
             Map<String, Object> meta
     ) {
     }

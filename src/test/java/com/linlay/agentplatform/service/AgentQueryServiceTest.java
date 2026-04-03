@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.RuntimeContextPromptService;
 import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.agent.runtime.SandboxContextResolver;
+import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
 import com.linlay.agentplatform.config.properties.FrontendToolProperties;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.agent.Agent;
@@ -16,6 +17,7 @@ import com.linlay.agentplatform.model.RuntimeRequestContext;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.service.chat.ChatAssetCatalogService;
+import com.linlay.agentplatform.service.chat.ChatDataPathService;
 import com.linlay.agentplatform.service.chat.ChatRecordStore;
 import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
 import com.linlay.agentplatform.stream.autoconfigure.StreamSseProperties;
@@ -29,11 +31,14 @@ import com.linlay.agentplatform.tool.ToolKind;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -195,7 +200,7 @@ class AgentQueryServiceTest {
                 null,
                 "user",
                 "hello",
-                List.of(new QueryRequest.Reference("ref-1", "file", "notes.md", "text/markdown", 42L, null, null, null)),
+                List.of(new QueryRequest.Reference("ref-1", "file", "notes.md", "text/markdown", 42L, null, null, "/workspace/notes.md", null)),
                 Map.of("ignored", "value"),
                 new QueryRequest.Scene("https://example.com", "Example"),
                 true
@@ -249,6 +254,7 @@ class AgentQueryServiceTest {
                 1L,
                 "/api/resource?file=" + chatId + "%2Fcover.png",
                 null,
+                "/workspace/cover.png",
                 Map.of("relativePath", "cover.png")
         );
         when(chatAssetCatalogService.mergeWithChatAssets(chatId, List.of()))
@@ -274,6 +280,147 @@ class AgentQueryServiceTest {
         assertThat(session.request().references()).hasSize(1);
         assertThat(session.request().references().getFirst()).isEqualTo(localAsset);
         assertThat((List<?>) session.agentRequest().query().get("references")).hasSize(1);
+    }
+
+    @Test
+    void prepareShouldAppendReferenceMarkersWhenMissing() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        Agent agent = mock(Agent.class);
+        when(agent.id()).thenReturn("demo-agent");
+        when(agent.name()).thenReturn("Demo Agent");
+        when(agentRegistry.get("demo-agent")).thenReturn(agent);
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        String chatId = UUID.randomUUID().toString();
+        when(chatRecordStore.findBoundAgentKey(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.findBoundTeamId(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.ensureChat(chatId, "demo-agent", "Demo Agent", null, "工作目录里的文件写的是什么内容"))
+                .thenReturn(new ChatRecordStore.ChatSummary(chatId, "Chat Alpha", "demo-agent", null, 1L, 2L, "", "", 1, 2L, false));
+
+        AgentQueryService service = newService(
+                agentRegistry,
+                mock(StreamSseStreamer.class),
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
+        );
+
+        QueryRequest request = new QueryRequest(
+                "req-1",
+                chatId,
+                "demo-agent",
+                null,
+                "user",
+                "工作目录里的文件写的是什么内容",
+                List.of(new QueryRequest.Reference("r01", "file", "参政议政.md", "text/markdown", 42L, null, null, "/workspace/参政议政.md", null)),
+                null,
+                null,
+                true
+        );
+
+        AgentQueryService.QuerySession session = service.prepare(request);
+
+        assertThat(session.request().message()).isEqualTo("工作目录里的文件写的是什么内容");
+        assertThat(session.agentRequest().message()).contains("工作目录里的文件写的是什么内容");
+        assertThat(session.agentRequest().message()).contains("#{{r01:参政议政.md}}");
+        assertThat(session.agentRequest().query()).containsEntry("message", "工作目录里的文件写的是什么内容");
+    }
+
+    @Test
+    void prepareShouldPreserveExplicitReferenceMarkers() {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        Agent agent = mock(Agent.class);
+        when(agent.id()).thenReturn("demo-agent");
+        when(agent.name()).thenReturn("Demo Agent");
+        when(agentRegistry.get("demo-agent")).thenReturn(agent);
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        String chatId = UUID.randomUUID().toString();
+        String message = "#{{r01:参政议政.md}} 写的是什么内容";
+        when(chatRecordStore.findBoundAgentKey(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.findBoundTeamId(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.ensureChat(chatId, "demo-agent", "Demo Agent", null, message))
+                .thenReturn(new ChatRecordStore.ChatSummary(chatId, "Chat Alpha", "demo-agent", null, 1L, 2L, "", "", 1, 2L, false));
+
+        AgentQueryService service = newService(
+                agentRegistry,
+                mock(StreamSseStreamer.class),
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
+        );
+
+        QueryRequest request = new QueryRequest(
+                "req-1",
+                chatId,
+                "demo-agent",
+                null,
+                "user",
+                message,
+                List.of(new QueryRequest.Reference("r01", "file", "参政议政.md", "text/markdown", 42L, null, null, "/workspace/参政议政.md", null)),
+                null,
+                null,
+                true
+        );
+
+        AgentQueryService.QuerySession session = service.prepare(request);
+
+        assertThat(session.agentRequest().message()).isEqualTo(message);
+    }
+
+    @Test
+    void prepareShouldResolveSandboxPathForMergedChatAssets(@TempDir Path tempDir) throws Exception {
+        AgentRegistry agentRegistry = mock(AgentRegistry.class);
+        Agent agent = mock(Agent.class);
+        when(agent.id()).thenReturn("demo-agent");
+        when(agent.name()).thenReturn("Demo Agent");
+        when(agentRegistry.get("demo-agent")).thenReturn(agent);
+
+        ChatRecordStore chatRecordStore = mock(ChatRecordStore.class);
+        String chatId = UUID.randomUUID().toString();
+        when(chatRecordStore.findBoundAgentKey(chatId)).thenReturn(Optional.of("demo-agent"));
+        when(chatRecordStore.findBoundTeamId(chatId)).thenReturn(Optional.empty());
+        when(chatRecordStore.ensureChat(chatId, "demo-agent", "Demo Agent", null, "hello"))
+                .thenReturn(new ChatRecordStore.ChatSummary(chatId, "hello", "demo-agent", null, 1L, 2L, "", "", 1, 2L, false));
+
+        Files.createDirectories(tempDir.resolve(chatId));
+        Files.write(tempDir.resolve(chatId).resolve("cover.png"), new byte[]{1});
+        ChatStorageProperties chatStorageProperties = new ChatStorageProperties();
+        chatStorageProperties.setDir(tempDir.toString());
+        ChatAssetCatalogService chatAssetCatalogService = new ChatAssetCatalogService(new ChatDataPathService(chatStorageProperties));
+
+        AgentQueryService service = newService(
+                agentRegistry,
+                mock(StreamSseStreamer.class),
+                chatRecordStore,
+                mock(ToolRegistry.class),
+                new LoggingAgentProperties(),
+                chatAssetCatalogService,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                null,
+                new ContainerHubToolProperties()
+        );
+
+        QueryRequest request = new QueryRequest("req-1", chatId, "demo-agent", null, "user", "hello", List.of(), null, null, true);
+        AgentQueryService.QuerySession session = service.prepare(request);
+
+        assertThat(session.request().references()).hasSize(1);
+        assertThat(session.agentRequest().runtimeContext().references()).hasSize(1);
+        assertThat(session.agentRequest().runtimeContext().references().getFirst().sandboxPath()).isEqualTo("/workspace/cover.png");
     }
 
     @Test

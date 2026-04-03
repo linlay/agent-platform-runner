@@ -643,6 +643,7 @@
 				2) 在 <span class="field-key">message</span> 中嵌入标记：<span class="field-key">#{{refid:name}}</span>，例如：<br />
 				<span class="field-key">"请总结 #{{f1:requirements.md}} 并解释 #{{i1:ui.png}} 中的流程"</span><br />
 				3) 同时建议在 <span class="field-key">references</span> 显式列出被本次问题依赖的引用（便于渲染、权限、优化）。<br />
+				4) 前端应优先直接发送带标记的 <span class="field-key">message</span>；若遗漏标记，网关可在执行前补齐引用提示，但不会改变原始请求结构。<br />
 				<ul class="mini-list">
 					<li><span class="field-key">id</span>：要求“简短且在本 chat 内不重复”。推荐：文件用 <span class="field-key">f1,f2,...</span>；图片用
 						<span class="field-key">i1,i2,...</span>（或 base36 递增）。
@@ -675,6 +676,7 @@
 								<li><span class="field-key">sizeBytes</span>: number｜可选（上传/本地可得时提供）</li>
 								<li><span class="field-key">url</span>: string（网关可访问的地址；或可下载地址）</li>
 								<li><span class="field-key">sha256</span>: string｜可选（去重/校验/缓存）</li>
+								<li><span class="field-key">sandboxPath</span>: string｜可选（沙箱内可直接访问的路径）例：<span class="field-key">"/workspace/requirements.md"</span></li>
 								<li><span class="field-key">meta</span>: object｜可选（承载“来源差异”与增强信息）
 									<ul class="field-list">
 										<li><span class="field-key">origin</span>: "upload" | "workspace" | "clipboard" | "url"｜可选</li>
@@ -2470,6 +2472,7 @@ data: [DONE]</code></pre>
       "sizeBytes": 48291,
       "url": "/api/resource?file=7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1%2Frequirements.md",
       "sha256": "b9c3...e21a",
+      "sandboxPath": "/workspace/requirements.md",
       "meta": { "origin": "upload", "textExcerpt": "## Requests\n- query: chatId, agent, content..." }
     },
     {
@@ -2479,6 +2482,7 @@ data: [DONE]</code></pre>
       "mimeType": "image/png",
       "sizeBytes": 245991,
       "url": "/api/resource?file=7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1%2Fui.png",
+      "sandboxPath": "/workspace/ui.png",
       "meta": { "origin": "upload", "caption": "协议图：Query/Upload/Viewport/Submit 四类请求" }
     }
   ],
@@ -2488,7 +2492,7 @@ data: [DONE]</code></pre>
 
 	          <pre class="json-block"><code>// SSE (snippet)
 event: message
-data: {"seq":1,"type":"request.query","timestamp":1707000400,"requestId":"req_0002","chatId":"7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1","agentKey":"agent_researcher","role":"user","message":"请总结 #{{r01:requirements.md}} 的关键需求，并结合 #{{r02:ui.png}} 指出协议中可能遗漏的字段。","references":[{"id":"r01","type":"file","name":"requirements.md"},{"id":"r02","type":"image","name":"ui.png"}],"scene":{"url":"https://app.example.com/workspace/protocol"},"stream":true}
+data: {"seq":1,"type":"request.query","timestamp":1707000400,"requestId":"req_0002","chatId":"7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1","agentKey":"agent_researcher","role":"user","message":"请总结 #{{r01:requirements.md}} 的关键需求，并结合 #{{r02:ui.png}} 指出协议中可能遗漏的字段。","references":[{"id":"r01","type":"file","name":"requirements.md","sandboxPath":"/workspace/requirements.md"},{"id":"r02","type":"image","name":"ui.png","sandboxPath":"/workspace/ui.png"}],"scene":{"url":"https://app.example.com/workspace/protocol"},"stream":true}
 
 event: message
 data: {"seq":2,"type":"chat.start","timestamp":1707000401,"chatId":"7b09c3b3-8e6a-4df2-a7c4-3a6c2a1dc2c1","chatName":"Protocol Review"}

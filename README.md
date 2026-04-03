@@ -630,6 +630,7 @@ memoryConfig:
 - `memoryConfig.enabled` 只控制“成功 run 结束后是否自动沉淀一条 `run-summary` memory”，并在全局 memory 功能开启时自动暴露 `_memory_write_/_memory_read_/_memory_search_`。
 - 全局 `AGENT_MEMORY_ENABLED` 默认值为 `false`，未显式开启时 memory 功能整体关闭。
 - 正式 memory 根目录为 `MEMORY_DIR`；Phase 1 结构固定为 `memory.db + journal/YYYY-MM/YYYY-MM-DD.jsonl`。
+- `Runtime Context: Context` 中的 `references` 会以结构化数组注入 system prompt，并优先展示 `id/sandboxPath/name/sizeBytes/mimeType`；其中 `sandboxPath` 表示模型在沙箱内可直接访问的路径，例如 `/workspace/参政议政.md`。
 
 ## Models / 工具 / 视图 / 技能目录
 

@@ -167,7 +167,7 @@ class RuntimeContextPromptServiceTest {
                             "user",
                             "Demo Chat",
                             new QueryRequest.Scene("https://example.com", "Example"),
-                            List.of(new QueryRequest.Reference("ref-1", "file", "notes.md", "text/markdown", 42L, null, null, null)),
+                            List.of(new QueryRequest.Reference("ref-1", "file", "notes.md", "text/markdown", 42L, null, null, "/workspace/notes.md", null)),
                             new JwksJwtVerifier.JwtPrincipal("user-1", "device-1", "chat:write", Instant.parse("2026-03-20T10:15:30Z"), Instant.parse("2026-03-21T10:15:30Z")),
                             localPaths,
                             sandboxPaths,
@@ -224,7 +224,8 @@ class RuntimeContextPromptServiceTest {
             assertThat(prompt).doesNotContain("sandbox_schedules_dir:");
             assertThat(prompt).contains("chatId: chat-1");
             assertThat(prompt).contains("chatName: Demo Chat");
-            assertThat(prompt).contains("references: 1 item(s): notes.md (file)");
+            assertThat(prompt).contains("references: [");
+            assertThat(prompt).contains("{ id: \"ref-1\", sandboxPath: \"/workspace/notes.md\", name: \"notes.md\", sizeBytes: 42, mimeType: \"text/markdown\" }");
             assertThat(prompt).contains("Runtime Context: Owner");
             assertThat(prompt).contains("--- file: BOOTSTRAP.md");
             assertThat(prompt).contains("--- file: OWNER.md");

@@ -14,6 +14,8 @@ import java.util.UUID;
 @Service
 public class ChatDataPathService {
 
+    private static final String SANDBOX_WORKSPACE_DIR = "/workspace";
+
     private final Path dataDir;
 
     public ChatDataPathService(ChatStorageProperties properties) {
@@ -78,6 +80,10 @@ public class ChatDataPathService {
         String file = toChatAssetPath(chatId, relativePath);
         String encoded = URLEncoder.encode(file, StandardCharsets.UTF_8).replace("+", "%20");
         return "/api/resource?file=" + encoded;
+    }
+
+    public String toSandboxWorkspacePath(String relativePath) {
+        return SANDBOX_WORKSPACE_DIR + "/" + normalizeRelativePath(relativePath);
     }
 
     public String normalizeRelativePath(String relativePath) {

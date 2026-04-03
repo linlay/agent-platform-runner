@@ -342,10 +342,7 @@ public class RuntimeContextPromptService {
                     lines.add("scene: " + scene);
                 }
             }
-            String referenceSummary = summarizeReferences(runtimeContext.references());
-            if (StringUtils.hasText(referenceSummary)) {
-                lines.add("references: " + referenceSummary);
-            }
+            appendReferences(lines, runtimeContext.references());
         }
         return String.join("\n", lines);
     }
@@ -638,36 +635,39 @@ public class RuntimeContextPromptService {
         return String.join(", ", parts);
     }
 
-    private String summarizeReferences(List<QueryRequest.Reference> references) {
+    private void appendReferences(List<String> lines, List<QueryRequest.Reference> references) {
         if (references == null || references.isEmpty()) {
-            return "";
+            return;
         }
-        List<String> items = new ArrayList<>();
+        lines.add("references: [");
         for (QueryRequest.Reference reference : references) {
             if (reference == null) {
                 continue;
             }
-            StringBuilder item = new StringBuilder();
-            if (StringUtils.hasText(reference.name())) {
-                item.append(reference.name().trim());
-            } else if (StringUtils.hasText(reference.id())) {
-                item.append(reference.id().trim());
-            } else {
-                item.append("reference");
+            List<String> fields = new ArrayList<>();
+            appendReferenceField(fields, "id", reference.id());
+            appendReferenceField(fields, "sandboxPath", reference.sandboxPath());
+            appendReferenceField(fields, "name", reference.name());
+            if (reference.sizeBytes() != null) {
+                fields.add("sizeBytes: " + reference.sizeBytes());
             }
-            if (StringUtils.hasText(reference.type())) {
-                item.append(" (").append(reference.type().trim()).append(")");
-            }
-            items.add(item.toString());
-            if (items.size() >= 5) {
-                break;
-            }
+            appendReferenceField(fields, "mimeType", reference.mimeType());
+            lines.add("  { " + String.join(", ", fields) + " }");
         }
-        String summary = String.join("; ", items);
-        if (references.size() > items.size()) {
-            summary = summary + "; +" + (references.size() - items.size()) + " more";
+        lines.add("]");
+    }
+
+    private void appendReferenceField(List<String> fields, String key, String value) {
+        if (StringUtils.hasText(value)) {
+            fields.add(key + ": " + quotePromptValue(value.trim()));
         }
-        return references.size() + " item(s): " + summary;
+    }
+
+    private String quotePromptValue(String value) {
+        return "\"" + value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                + "\"";
     }
 
     private void appendIfPresent(List<String> sections, String content) {

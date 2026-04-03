@@ -1065,7 +1065,7 @@ class DefinitionDrivenAgentTest {
                     "user",
                     "Chat Demo",
                     new QueryRequest.Scene("https://example.com", "Example"),
-                    List.of(new QueryRequest.Reference("ref-1", "file", "notes.md", "text/markdown", 42L, null, null, null)),
+                    List.of(new QueryRequest.Reference("ref-1", "file", "notes.md", "text/markdown", 42L, null, null, "/workspace/notes.md", null)),
                     new JwksJwtVerifier.JwtPrincipal(
                             "user-1",
                             "device-1",

@@ -66,6 +66,7 @@ public class AgentQueryService {
     private static final String AUTO_AGENT = "auto";
     private static final String DEFAULT_AGENT = "default";
     private static final Pattern EVENT_TYPE_PATTERN = Pattern.compile("\"type\":\"([^\"]+)\"");
+    private static final Pattern REFERENCE_MARKER_PATTERN = Pattern.compile("#\\{\\{\\s*[-\\w]+\\s*:[^}]+}}");
     private static final Logger log = LoggerFactory.getLogger(AgentQueryService.class);
 
     private final AgentRegistry agentRegistry;
@@ -136,7 +137,9 @@ public class AgentQueryService {
                 : runId;
         String role = StringUtils.hasText(request.role()) ? request.role().trim() : "user";
         String effectiveAgentKey = agent.id();
+        String originalMessage = request.message();
         List<QueryRequest.Reference> mergedReferences = mergeReferences(chatId, request.references());
+        String effectiveMessage = buildEffectiveAgentMessage(originalMessage, mergedReferences);
         Map<String, Object> querySnapshot = buildQuerySnapshot(
                 request,
                 requestId,
@@ -151,7 +154,7 @@ public class AgentQueryService {
                 StringUtils.hasText(effectiveTeamId) ? null : agent.id(),
                 agent.name(),
                 effectiveTeamId,
-                request.message()
+                originalMessage
         );
         String chatName = summary.chatName();
         Map<String, Object> queryParams = mergeQueryParams(request.params(), summary.created());
@@ -159,7 +162,7 @@ public class AgentQueryService {
                 requestId,
                 chatId,
                 role,
-                request.message(),
+                originalMessage,
                 effectiveAgentKey,
                 effectiveTeamId,
                 mergedReferences.isEmpty() ? null : mergedReferences.stream().map(value -> (Object) value).toList(),
@@ -173,7 +176,7 @@ public class AgentQueryService {
         );
 
         AgentRequest agentRequest = new AgentRequest(
-                request.message(),
+                effectiveMessage,
                 chatId,
                 requestId,
                 runId,
@@ -556,6 +559,32 @@ public class AgentQueryService {
             log.warn("Failed to merge chat assets into query references chatId={}", chatId, ex);
             return references == null ? List.of() : List.copyOf(references);
         }
+    }
+
+    private String buildEffectiveAgentMessage(String message, List<QueryRequest.Reference> references) {
+        String original = message == null ? "" : message.trim();
+        if (!StringUtils.hasText(original) || references == null || references.isEmpty() || containsReferenceMarker(original)) {
+            return original;
+        }
+        List<String> markers = references.stream()
+                .filter(reference -> reference != null && StringUtils.hasText(reference.id()))
+                .map(this::toReferenceMarker)
+                .distinct()
+                .toList();
+        if (markers.isEmpty()) {
+            return original;
+        }
+        return original + "\n\n请结合这些引用回答：" + String.join("，", markers) + "。";
+    }
+
+    private boolean containsReferenceMarker(String message) {
+        return StringUtils.hasText(message) && REFERENCE_MARKER_PATTERN.matcher(message).find();
+    }
+
+    private String toReferenceMarker(QueryRequest.Reference reference) {
+        String id = reference.id().trim();
+        String name = StringUtils.hasText(reference.name()) ? reference.name().trim() : id;
+        return "#{{" + id + ":" + name + "}}";
     }
 
     private String resolveEffectiveTeamId(String requestTeamId, String boundTeamId, String boundAgentKey) {

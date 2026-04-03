@@ -671,7 +671,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 
 ### 2. 输入与会话事件
 
-- `request.query`：`requestId`, `chatId`, `role`, `message`, `agentKey?`（未绑定 chat 首个 query 必填）, `references?`, `params?`, `scene?`, `stream?`
+- `request.query`：`requestId`, `chatId`, `role`, `message`, `agentKey?`（未绑定 chat 首个 query 必填）, `references?`（`Reference` 支持 `sandboxPath`）, `params?`, `scene?`, `stream?`
 - `request.upload`：`requestId`, `chatId?`, `upload:{type,name,sizeBytes,mimeType,sha256?}`
 - `request.submit`：`requestId`, `chatId`, `runId`, `toolId`, `payload`, `viewId?`
 - `request.steer`：`requestId?`, `chatId`, `runId`, `steerId`, `message`, `role=user`

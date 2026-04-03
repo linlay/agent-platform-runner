@@ -59,6 +59,7 @@ class ChatAssetAccessServiceTest {
                                 1L,
                                 "/api/resource?file=" + chatId + "%2Fimage.png",
                                 null,
+                                "/workspace/image.png",
                                 null
                         ))
                 ));

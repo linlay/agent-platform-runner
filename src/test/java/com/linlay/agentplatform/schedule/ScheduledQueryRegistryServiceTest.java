@@ -73,6 +73,7 @@ class ScheduledQueryRegistryServiceTest {
                 null,
                 "https://example.com/doc",
                 null,
+                null,
                 null
         ));
         assertThat(descriptor.query().params()).containsEntry("k", "v");

@@ -92,6 +92,7 @@ class ScheduledQueryDispatchServiceTest {
                                     null,
                                     "https://example.com/doc",
                                     null,
+                                    null,
                                     null
                             )),
                             Map.of("x", 1),

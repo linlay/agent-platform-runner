@@ -76,6 +76,7 @@ public class ChatAssetCatalogService {
                     upload.sizeBytes(),
                     chatDataPathService.toAssetUrl(normalizedChatId, upload.relativePath()),
                     upload.sha256(),
+                    chatDataPathService.toSandboxWorkspacePath(upload.relativePath()),
                     Map.of(
                             "origin", "upload",
                             "relativePath", upload.relativePath()
@@ -108,7 +109,7 @@ public class ChatAssetCatalogService {
         LinkedHashMap<String, QueryRequest.Reference> merged = new LinkedHashMap<>();
         if (requestedReferences != null) {
             for (QueryRequest.Reference reference : requestedReferences) {
-                putIfPresent(merged, reference);
+                putIfPresent(merged, normalizeReference(chatId, reference));
             }
         }
         for (QueryRequest.Reference reference : listAssets(chatId)) {
@@ -143,6 +144,7 @@ public class ChatAssetCatalogService {
                 sizeOf(file),
                 chatDataPathService.toAssetUrl(normalizedChatId, normalizedRelativePath),
                 StringUtils.hasText(sha256) ? sha256.trim() : null,
+                chatDataPathService.toSandboxWorkspacePath(normalizedRelativePath),
                 mergedMeta
         );
     }
@@ -163,6 +165,7 @@ public class ChatAssetCatalogService {
                     Files.size(file),
                     chatDataPathService.toAssetUrl(chatId, normalizedRelativePath),
                     null,
+                    chatDataPathService.toSandboxWorkspacePath(normalizedRelativePath),
                     Map.of("relativePath", normalizedRelativePath)
             ));
         } catch (Exception ex) {
@@ -257,7 +260,141 @@ public class ChatAssetCatalogService {
         if (reference == null) {
             return;
         }
-        merged.putIfAbsent(dedupeKey(reference), reference);
+        String key = dedupeKey(reference);
+        QueryRequest.Reference existing = merged.get(key);
+        merged.put(key, existing == null ? reference : mergeReferences(existing, reference));
+    }
+
+    private QueryRequest.Reference normalizeReference(String chatId, QueryRequest.Reference reference) {
+        if (reference == null) {
+            return null;
+        }
+        String sandboxPath = normalizedSandboxPath(reference.sandboxPath());
+        if (!StringUtils.hasText(sandboxPath)) {
+            String relativePath = resolveRelativePath(chatId, reference);
+            if (StringUtils.hasText(relativePath)) {
+                sandboxPath = chatDataPathService.toSandboxWorkspacePath(relativePath);
+            }
+        }
+        if (sameText(reference.sandboxPath(), sandboxPath)) {
+            return reference;
+        }
+        return new QueryRequest.Reference(
+                reference.id(),
+                reference.type(),
+                reference.name(),
+                reference.mimeType(),
+                reference.sizeBytes(),
+                reference.url(),
+                reference.sha256(),
+                sandboxPath,
+                reference.meta()
+        );
+    }
+
+    private QueryRequest.Reference mergeReferences(QueryRequest.Reference primary, QueryRequest.Reference secondary) {
+        Map<String, Object> mergedMeta = mergeMetaMaps(primary.meta(), secondary.meta());
+        return new QueryRequest.Reference(
+                firstNonBlank(primary.id(), secondary.id()),
+                firstNonBlank(primary.type(), secondary.type()),
+                firstNonBlank(primary.name(), secondary.name()),
+                firstNonBlank(primary.mimeType(), secondary.mimeType()),
+                primary.sizeBytes() != null ? primary.sizeBytes() : secondary.sizeBytes(),
+                firstNonBlank(primary.url(), secondary.url()),
+                firstNonBlank(primary.sha256(), secondary.sha256()),
+                firstNonBlank(primary.sandboxPath(), secondary.sandboxPath()),
+                mergedMeta
+        );
+    }
+
+    private Map<String, Object> mergeMetaMaps(Map<String, Object> primary, Map<String, Object> secondary) {
+        if ((primary == null || primary.isEmpty()) && (secondary == null || secondary.isEmpty())) {
+            return null;
+        }
+        LinkedHashMap<String, Object> merged = new LinkedHashMap<>();
+        if (secondary != null) {
+            merged.putAll(secondary);
+        }
+        if (primary != null) {
+            merged.putAll(primary);
+        }
+        return Map.copyOf(merged);
+    }
+
+    private String resolveRelativePath(String chatId, QueryRequest.Reference reference) {
+        String metaRelativePath = relativePathFromMeta(reference.meta());
+        if (StringUtils.hasText(metaRelativePath)) {
+            return metaRelativePath;
+        }
+        if (!StringUtils.hasText(chatId)) {
+            return null;
+        }
+        String normalizedAssetPath = DataFilePathNormalizer.normalizeAssetReference(reference.url());
+        if (!chatDataPathService.belongsToChat(chatId, normalizedAssetPath)) {
+            return null;
+        }
+        try {
+            Path assetPath = Path.of(normalizedAssetPath);
+            if (assetPath.getNameCount() < 2) {
+                return null;
+            }
+            return assetPath.subpath(1, assetPath.getNameCount()).toString().replace('\\', '/');
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private String relativePathFromMeta(Map<String, Object> meta) {
+        if (meta == null || meta.isEmpty()) {
+            return null;
+        }
+        Object relativePath = meta.get("relativePath");
+        if (relativePath instanceof String text && StringUtils.hasText(text)) {
+            try {
+                return chatDataPathService.normalizeRelativePath(text);
+            } catch (IllegalArgumentException ex) {
+                return null;
+            }
+        }
+        Object filePath = meta.get("filePath");
+        if (!(filePath instanceof String text) || !StringUtils.hasText(text)) {
+            return null;
+        }
+        String trimmed = text.trim();
+        if (trimmed.startsWith("/workspace/")) {
+            trimmed = trimmed.substring("/workspace/".length());
+        } else if (trimmed.startsWith("/")) {
+            return null;
+        }
+        try {
+            return chatDataPathService.normalizeRelativePath(trimmed);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private String normalizedSandboxPath(String sandboxPath) {
+        if (!StringUtils.hasText(sandboxPath)) {
+            return null;
+        }
+        String trimmed = sandboxPath.trim();
+        if (trimmed.startsWith("/workspace/")) {
+            return chatDataPathService.toSandboxWorkspacePath(trimmed.substring("/workspace/".length()));
+        }
+        return trimmed;
+    }
+
+    private String firstNonBlank(String primary, String secondary) {
+        if (StringUtils.hasText(primary)) {
+            return primary.trim();
+        }
+        return StringUtils.hasText(secondary) ? secondary.trim() : null;
+    }
+
+    private boolean sameText(String left, String right) {
+        String normalizedLeft = StringUtils.hasText(left) ? left.trim() : null;
+        String normalizedRight = StringUtils.hasText(right) ? right.trim() : null;
+        return java.util.Objects.equals(normalizedLeft, normalizedRight);
     }
 
     private String dedupeKey(QueryRequest.Reference reference) {
