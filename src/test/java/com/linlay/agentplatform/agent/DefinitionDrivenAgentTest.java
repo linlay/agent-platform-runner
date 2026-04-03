@@ -3287,7 +3287,7 @@ class DefinitionDrivenAgentTest {
     }
 
     private List<StreamEvent> assembleEvents(String chatId, String runId, List<AgentDelta> deltas) {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper(runId, null, null, null);
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper(runId, null, null);
         StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
                 .begin(new StreamRequest.Query(
                         "req_" + runId,

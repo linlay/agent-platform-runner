@@ -20,8 +20,7 @@ public sealed interface StreamRequest permits StreamRequest.Query, StreamRequest
             Boolean stream,
             Boolean hidden,
             String chatName,
-            String runId,
-            RunActor actor
+            String runId
     ) implements StreamRequest {
 
         public Query {
@@ -45,7 +44,7 @@ public sealed interface StreamRequest permits StreamRequest.Query, StreamRequest
                 Boolean hidden,
                 String chatName
         ) {
-            this(requestId, chatId, role, message, agentKey, teamId, references, params, scene, stream, hidden, chatName, null, null);
+            this(requestId, chatId, role, message, agentKey, teamId, references, params, scene, stream, hidden, chatName, null);
         }
 
         public Query(
@@ -62,26 +61,9 @@ public sealed interface StreamRequest permits StreamRequest.Query, StreamRequest
                 String chatName,
                 String runId
         ) {
-            this(requestId, chatId, role, message, agentKey, teamId, references, params, scene, stream, null, chatName, runId, null);
+            this(requestId, chatId, role, message, agentKey, teamId, references, params, scene, stream, null, chatName, runId);
         }
 
-        public Query(
-                String requestId,
-                String chatId,
-                String role,
-                String message,
-                String agentKey,
-                String teamId,
-                List<Object> references,
-                Map<String, Object> params,
-                String scene,
-                Boolean stream,
-                Boolean hidden,
-                String chatName,
-                String runId
-        ) {
-            this(requestId, chatId, role, message, agentKey, teamId, references, params, scene, stream, hidden, chatName, runId, null);
-        }
     }
 
     record Upload(

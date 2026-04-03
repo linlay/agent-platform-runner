@@ -1208,6 +1208,7 @@ class AgentControllerTest {
                 .jsonPath("$.data.events[?(@.type=='request.query')]").exists()
                 .jsonPath("$.data.events[?(@.type=='run.start')]").exists()
                 .jsonPath("$.data.events[?(@.type=='content.snapshot')]").exists()
+                .jsonPath("$.data.events[?(@.type=='content.snapshot' && @.runId=='" + runId + "')]").exists()
                 .jsonPath("$.data.events[?(@.type=='run.complete')]").exists();
 
         webTestClient.get()
@@ -1247,7 +1248,9 @@ class AgentControllerTest {
 
         String joined = String.join("", chunks);
         String chatId = extractFirstValue(joined, "chatId");
+        String runId = extractFirstValue(joined, "runId");
         assertThat(chatId).isNotBlank();
+        assertThat(runId).isNotBlank();
         assertThat(joined).contains("\"type\":\"request.query\"");
         assertThat(joined).contains("\"hidden\":true");
 
@@ -1274,6 +1277,7 @@ class AgentControllerTest {
                 .jsonPath("$.data.events[?(@.type=='request.query')]").doesNotExist()
                 .jsonPath("$.data.events[?(@.type=='run.start')]").exists()
                 .jsonPath("$.data.events[?(@.type=='content.snapshot')]").exists()
+                .jsonPath("$.data.events[?(@.type=='content.snapshot' && @.runId=='" + runId + "')]").exists()
                 .jsonPath("$.data.events[?(@.type=='run.complete')]").exists();
 
         webTestClient.get()

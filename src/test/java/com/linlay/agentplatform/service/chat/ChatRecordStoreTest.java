@@ -64,7 +64,12 @@ class ChatRecordStoreTest {
                 .filter(event -> "run.start".equals(event.get("type")))
                 .findFirst()
                 .orElseThrow();
+        Map<String, Object> contentSnapshot = detail.events().stream()
+                .filter(event -> "content.snapshot".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow();
         assertThat(runStart).containsEntry("agentKey", "demo");
+        assertThat(contentSnapshot).containsEntry("runId", "run_001");
         assertThat(detail.events().getFirst()).containsKey("seq");
         assertThat(detail.references()).isNull();
     }
@@ -176,6 +181,26 @@ class ChatRecordStoreTest {
         assertThat(countType(detail.events(), "action.start")).isEqualTo(0);
         assertThat(countType(detail.events(), "action.args")).isEqualTo(0);
         assertThat(countType(detail.events(), "action.end")).isEqualTo(0);
+        assertThat(detail.events().stream()
+                .filter(event -> "reasoning.snapshot".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow())
+                .containsEntry("runId", "run_002");
+        assertThat(detail.events().stream()
+                .filter(event -> "tool.snapshot".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow())
+                .containsEntry("runId", "run_002");
+        assertThat(detail.events().stream()
+                .filter(event -> "action.snapshot".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow())
+                .containsEntry("runId", "run_002");
+        assertThat(detail.events().stream()
+                .filter(event -> "content.snapshot".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow())
+                .containsEntry("runId", "run_002");
     }
 
     @Test
@@ -205,6 +230,11 @@ class ChatRecordStoreTest {
         assertThat(detail.events()).extracting(event -> event.get("type"))
                 .doesNotContain("request.query")
                 .contains("chat.start", "run.start", "content.snapshot", "run.complete");
+        assertThat(detail.events().stream()
+                .filter(event -> "content.snapshot".equals(event.get("type")))
+                .findFirst()
+                .orElseThrow())
+                .containsEntry("runId", "run_hidden_001");
         assertThat(detail.rawMessages()).isNotNull();
         assertThat(detail.rawMessages().getFirst()).containsEntry("role", "user");
         assertThat(detail.references()).isNotNull();
@@ -248,6 +278,7 @@ class ChatRecordStoreTest {
 
         assertThat(toolSnapshots).hasSize(1);
         assertThat(toolSnapshots.getFirst())
+                .containsEntry("runId", "run_099")
                 .containsEntry("toolName", "bash")
                 .containsEntry("toolLabel", "bash label")
                 .containsEntry("toolDescription", "bash desc")
@@ -287,7 +318,9 @@ class ChatRecordStoreTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(toolSnapshot).containsEntry("toolDescription", "bash desc");
+        assertThat(toolSnapshot)
+                .containsEntry("runId", "run_198")
+                .containsEntry("toolDescription", "bash desc");
         assertThat(toolSnapshot).doesNotContainKey("toolLabel");
         assertThat(toolSnapshot).doesNotContainKey("toolParams");
     }

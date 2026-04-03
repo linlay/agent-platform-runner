@@ -1141,7 +1141,7 @@
 								<li><span class="field-key">chatImageToken</span>: string｜可选（用于访问当前 chat 作用域内图片资源）</li>
 								<li><span class="field-key">rawMessages</span>: object[]｜可选（若 includeRawMessages=true，可返回大模型原始消息）</li>
 								<li><span class="field-key">plan</span>: object｜可选（chat 当前最新计划状态，形如 <code>{planId,tasks}</code>）</li>
-								<li><span class="field-key">artifact</span>: object｜可选（chat 当前最新产物状态，形如 <code>{items:[...]}</code>）</li>
+								<li><span class="field-key">artifact</span>: object｜可选（chat 当前最新产物聚合状态，形如 <code>{items:[...]}</code>）</li>
 								<li><span class="field-key">references</span>: object[]｜可选（query 引用与 chat 资产聚合后的引用池）</li>
 								<li><span class="field-key">events</span>: BaseEvent[]（历史事件列表； start/delta/args/end -&gt; snapshot，保留 params/result；<code>plan.update</code> / <code>artifact.publish</code> 不再出现在历史 events 中）</li>
 							</ul>
@@ -1717,6 +1717,9 @@
 										<span class="field-key">reasoningId</span>: 推理的唯一标识
 									</li>
 									<li>
+										<span class="field-key">runId</span>: 运行实例ID
+									</li>
+									<li>
 										<span class="field-key">taskId</span>: 可选，任务ID
 									</li>
 									<li>
@@ -1808,6 +1811,9 @@
 										<span class="field-key">contentId</span>: 正文的唯一标识
 									</li>
 									<li>
+										<span class="field-key">runId</span>: 运行实例ID
+									</li>
+									<li>
 										<span class="field-key">taskId</span>: 可选，任务ID
 									</li>
 									<li>
@@ -1837,6 +1843,9 @@
 								<ul class="field-list">
 									<li>
 										<span class="field-key">toolId</span>: 工具的唯一标识
+									</li>
+									<li>
+										<span class="field-key">runId</span>: 运行实例ID
 									</li>
 									<li>
 										<span class="field-key">toolName</span>: 工具名称
@@ -1972,7 +1981,7 @@
 							</th>
 							<td>
 								<div class="event-desc">
-									独立产出物发布事件。它可以和某次工具调用有关联，但不属于 <code>tool.*</code> 生命周期。
+									独立产出物发布事件。它可以和某次工具调用有关联，但不属于 <code>tool.*</code> 生命周期；实时 SSE 中每个 artifact 各发送一条事件。
 								</div>
 								<ul class="field-list">
 									<li>
@@ -1996,7 +2005,10 @@
 					前端交互提交走 <code>POST /api/submit</code>；运行流里会记录为 <code>request.submit</code>，不会额外发一条独立的“工具参数事件”。
 				</div>
 				<div class="hint" style="margin-top: 6px;">
-					推荐的文件产出发布顺序：<code>tool.start -&gt; tool.args -&gt; tool.end -&gt; tool.result -&gt; artifact.publish</code>。若来源工具是隐藏的 <code>_artifact_publish_</code>，客户端通常只会看到 <code>artifact.publish</code>。
+					数组语义只出现在 <code>_artifact_publish_</code> 的请求参数、<code>tool.result</code> 返回值，以及 <code>GET /api/chat</code> 的聚合状态 <code>data.artifact.items[]</code> 中；<code>artifact.publish</code> 本身始终是单 artifact 事件。
+				</div>
+				<div class="hint" style="margin-top: 6px;">
+					推荐的文件产出发布顺序：<code>tool.start -&gt; tool.args -&gt; tool.end -&gt; tool.result -&gt; artifact.publish</code>。若来源工具是隐藏的 <code>_artifact_publish_</code>，批量发布时客户端会看到多条独立的 <code>artifact.publish</code>。
 				</div>
 			</div>
 
@@ -2018,6 +2030,9 @@
 								<ul class="field-list">
 									<li>
 										<span class="field-key">actionId</span>: 动作的唯一标识
+									</li>
+									<li>
+										<span class="field-key">runId</span>: 运行实例ID
 									</li>
 									<li>
 										<span class="field-key">actionName</span>: 动作名称
@@ -2763,8 +2778,16 @@ data: [DONE]</code></pre>
 {
   "name": "_artifact_publish_",
   "arguments": {
-    "path": "/workspace/reports/final-report.md",
-    "description": "最终交付报告"
+    "artifacts": [
+      {
+        "path": "/workspace/reports/final-report.md",
+        "description": "最终交付报告"
+      },
+      {
+        "path": "/workspace/reports/summary.md",
+        "name": "summary.md"
+      }
+    ]
   }
 }</code></pre>
 
@@ -2773,16 +2796,19 @@ event: message
 data: {"seq":9,"type":"tool.start","timestamp":1707000908,"toolId":"tool_publish_1","runId":"run_artifact_001","toolName":"_artifact_publish_"}
 
 event: message
-data: {"seq":10,"type":"tool.args","timestamp":1707000909,"toolId":"tool_publish_1","delta":"{\"path\":\"/workspace/reports/final-report.md\",\"description\":\"最终交付报告\"}","chunkIndex":0}
+data: {"seq":10,"type":"tool.args","timestamp":1707000909,"toolId":"tool_publish_1","delta":"{\"artifacts\":[{\"path\":\"/workspace/reports/final-report.md\",\"description\":\"最终交付报告\"},{\"path\":\"/workspace/reports/summary.md\",\"name\":\"summary.md\"}]}","chunkIndex":0}
 
 event: message
 data: {"seq":11,"type":"tool.end","timestamp":1707000910,"toolId":"tool_publish_1"}
 
 event: message
-data: {"seq":12,"type":"tool.result","timestamp":1707000911,"toolId":"tool_publish_1","result":"{\"ok\":true,\"artifactId\":\"asset_5d4c3b2a1f00\"}"}
+data: {"seq":12,"type":"tool.result","timestamp":1707000911,"toolId":"tool_publish_1","result":"{\"ok\":true,\"artifacts\":[{\"artifactId\":\"asset_5d4c3b2a1f00\",\"artifact\":{\"type\":\"file\",\"name\":\"final-report.md\",\"mimeType\":\"text/markdown\",\"url\":\"/api/resource?file=chat_artifact_001%2Fartifacts%2Frun_artifact_001%2Ffinal-report.md\"}},{\"artifactId\":\"asset_5d4c3b2a1f01\",\"artifact\":{\"type\":\"file\",\"name\":\"summary.md\",\"mimeType\":\"text/markdown\",\"url\":\"/api/resource?file=chat_artifact_001%2Fartifacts%2Frun_artifact_001%2Fsummary.md\"}}]}"}
 
 event: message
 data: {"seq":13,"type":"artifact.publish","timestamp":1707000912,"artifactId":"asset_5d4c3b2a1f00","chatId":"chat_artifact_001","runId":"run_artifact_001","artifact":{"type":"file","name":"final-report.md","mimeType":"text/markdown","url":"/api/resource?file=chat_artifact_001%2Fartifacts%2Frun_artifact_001%2Ffinal-report.md"}}
+
+event: message
+data: {"seq":14,"type":"artifact.publish","timestamp":1707000913,"artifactId":"asset_5d4c3b2a1f01","chatId":"chat_artifact_001","runId":"run_artifact_001","artifact":{"type":"file","name":"summary.md","mimeType":"text/markdown","url":"/api/resource?file=chat_artifact_001%2Fartifacts%2Frun_artifact_001%2Fsummary.md"}}
 
 event: message
 data: [DONE]</code></pre>

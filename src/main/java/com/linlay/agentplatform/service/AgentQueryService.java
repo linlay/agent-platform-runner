@@ -1,6 +1,4 @@
 package com.linlay.agentplatform.service;
-
-import com.linlay.agentplatform.stream.model.RunActor;
 import com.linlay.agentplatform.stream.model.StreamEnvelope;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.service.AgentDeltaToStreamInputMapper;
@@ -171,8 +169,7 @@ public class AgentQueryService {
                 request.stream(),
                 request.hidden(),
                 chatName,
-                runId,
-                RunActor.primary(agent.name())
+                runId
         );
 
         AgentRequest agentRequest = new AgentRequest(
@@ -237,8 +234,7 @@ public class AgentQueryService {
         Flux<StreamEnvelope> mappedInputs = new AgentDeltaToStreamInputMapper(
                 session.request().runId(),
                 session.request().chatId(),
-                toolRegistry,
-                session.request().actor()
+                toolRegistry
         )
                 .mapEnvelopes(deltas);
         if (activeSession != null) {

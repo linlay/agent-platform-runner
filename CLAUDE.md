@@ -136,7 +136,7 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 - **依赖感知热重载** — 基于 `WatchService + 防抖 + CatalogDiff + AgentDependencyIndex`，支持 `Provider → Model → Agent`、`MCP Tool → Agent`、`Tool → Agent` 级联刷新；`skills` 仅刷新技能注册表。
 - **MCP 可用性门控** — `McpServerAvailabilityGate` 记录失败窗口，`McpReconnectOrchestrator` 定时重试 due servers，并只刷新受影响 agent。
 - **响应格式统一** — 非 SSE 接口统一 `{"code": 0, "msg": "success", "data": {}}`；`/api/query` 结束时追加 `data:[DONE]` 传输层终止帧。
-- **会话详情稳定契约** — `GET /api/chat` 的 `data` 字段固定为 `chatId/chatName/chatImageToken/rawMessages/events/plan/artifact/references`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回；历史 `events` 不再包含 `plan.update` / `artifact.publish`。
+- **会话详情稳定契约** — `GET /api/chat` 的 `data` 字段固定为 `chatId/chatName/chatImageToken/rawMessages/events/plan/artifact/references`；`events` 必返，`rawMessages` 仅在 `includeRawMessages=true` 返回；其中 `data.artifact` 为聚合状态 `{items:[...]}`；历史 `events` 不再包含 `plan.update` / `artifact.publish`。
 
 ## Agent Definition 文件格式
 
@@ -693,11 +693,11 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `reasoning.start`：`reasoningId`, `runId`, `taskId?`
 - `reasoning.delta`：`reasoningId`, `delta`
 - `reasoning.end`：`reasoningId`
-- `reasoning.snapshot`：`reasoningId`, `text`, `taskId?`
+- `reasoning.snapshot`：`reasoningId`, `runId`, `text`, `taskId?`
 - `content.start`：`contentId`, `runId`, `taskId?`
 - `content.delta`：`contentId`, `delta`
 - `content.end`：`contentId`
-- `content.snapshot`：`contentId`, `text`, `taskId?`
+- `content.snapshot`：`contentId`, `runId`, `text`, `taskId?`
 
 ### 5. 工具与动作事件
 
@@ -705,24 +705,24 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `tool.args`：`toolId`, `delta`, `chunkIndex?`（字段名保持 `delta`，不使用 `args`）
 - `tool.end`：`toolId`
 - `tool.result`：`toolId`, `result`
-- `artifact.publish`：`artifactId`, `chatId`, `runId`, `artifact`（独立事件；`artifact` 仅含 `type/name/mimeType/sizeBytes/url/sha256`）
-- `tool.snapshot`：`toolId`, `toolName?`, `taskId?`, `toolType?`, `toolLabel?`, `toolDescription?`, `viewportKey?`, `arguments?`
+- `artifact.publish`：`artifactId`, `chatId`, `runId`, `artifact`（独立事件；`artifact` 仅含 `type/name/mimeType/sizeBytes/url/sha256`；实时 SSE 中每个 artifact 单独发送一条）
+- `tool.snapshot`：`toolId`, `runId`, `toolName?`, `taskId?`, `toolType?`, `toolLabel?`, `toolDescription?`, `viewportKey?`, `arguments?`
 - `action.start`：`actionId`, `runId`, `taskId?`, `actionName?`, `description?`
 - `action.args`：`actionId`, `delta`
 - `action.end`：`actionId`
 - `action.param`：`actionId`, `param`
 - `action.result`：`actionId`, `result`
-- `action.snapshot`：`actionId`, `actionName?`, `taskId?`, `description?`, `arguments?`
+- `action.snapshot`：`actionId`, `runId`, `actionName?`, `taskId?`, `description?`, `arguments?`
 
 ### 6. 补充行为约束
 
 - 无活跃 task 出错时：只发 `run.error`（不补 `task.fail`）。
 - plain 模式（当前无 plan）不应出现 `task.*`，叶子事件直接归属 `run`。
-- `GET /api/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件，并保留 `tool.result` / `action.result`；`plan.update` / `artifact.publish` 提升为顶层状态 `data.plan` / `data.artifact`。
+- `GET /api/chat` 历史事件需与新规则对齐；历史使用 `*.snapshot` 替代 `start/end/delta/args` 细粒度流事件，并保留 `tool.result` / `action.result`；`plan.update` / `artifact.publish` 提升为顶层状态 `data.plan` / `data.artifact`，其中 `data.artifact.items[]` 为聚合视图。
 - 历史里每个 run 都保留一个终态事件：成功为 `run.complete`，失败为 `run.error`，取消为 `run.cancel`；`chat.start` 仅首次一次。
 - `/api/query` 在流式输出结束时追加传输层终止帧 `data:[DONE]`；该 sentinel 不属于 Event Model v2 业务事件，也不写入 chat 历史事件。
 - `RenderQueue` 只影响传输 flush 行为，不改变上述业务事件类型与字段契约。
-- `_artifact_publish_` 是隐藏的内置后端工具：接收 `path/name?/description?`，成功后发布 chat 资产并触发独立 `artifact.publish` 事件。
+- `_artifact_publish_` 是隐藏的内置后端工具：接收 `artifacts[]`，每项为 `path/name?/description?`；成功时 `tool.result` 返回 `{ok,artifacts:[{artifactId,artifact},...]}`，并为每个产物触发独立 `artifact.publish` 事件。
 
 ## Chat Storage V3.1（JSONL）
 

@@ -4,8 +4,7 @@ import org.springframework.util.StringUtils;
 
 public record RunScope(
         String chatId,
-        String runId,
-        RunActor actor
+        String runId
 ) {
 
     public RunScope {
@@ -15,14 +14,9 @@ public record RunScope(
         if (!StringUtils.hasText(runId)) {
             throw new IllegalArgumentException("runId must not be blank");
         }
-        actor = actor == null ? RunActor.primary(null) : actor;
     }
 
-    public static RunScope primary(String chatId, String runId, String actorName) {
-        return new RunScope(chatId, runId, RunActor.primary(actorName));
-    }
-
-    public RunScope child(RunActor childActor) {
-        return new RunScope(chatId, runId, childActor);
+    public static RunScope primary(String chatId, String runId) {
+        return new RunScope(chatId, runId);
     }
 }

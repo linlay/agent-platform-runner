@@ -106,6 +106,7 @@ final class ChatEventSnapshotBuilder {
                             payload.put("reasoningId", StringUtils.hasText(message.reasoningId)
                                     ? message.reasoningId
                                     : run.runId() + "_r_" + reasoningIndex++);
+                            payload.put("runId", run.runId());
                             payload.put("text", text);
                             events.add(event("reasoning.snapshot", messageTs, seq++, payload));
                             timestampCursor = messageTs;
@@ -118,6 +119,7 @@ final class ChatEventSnapshotBuilder {
                             payload.put("contentId", StringUtils.hasText(message.contentId)
                                     ? message.contentId
                                     : run.runId() + "_c_" + contentIndex++);
+                            payload.put("runId", run.runId());
                             payload.put("text", text);
                             events.add(event("content.snapshot", messageTs, seq++, payload));
                             timestampCursor = messageTs;
@@ -144,6 +146,7 @@ final class ChatEventSnapshotBuilder {
                             Map<String, Object> payload = new LinkedHashMap<>();
                             payload.put(binding.action() ? "actionId" : "toolId", binding.id());
                             payload.put(binding.action() ? "actionName" : "toolName", toolCall.function.name);
+                            payload.put("runId", run.runId());
                             payload.put("arguments", toolCall.function.arguments);
 
                             if (!binding.action()) {

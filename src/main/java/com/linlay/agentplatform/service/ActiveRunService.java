@@ -37,7 +37,7 @@ public class ActiveRunService {
                 normalizedRunId,
                 normalizedChatId,
                 normalize(agentKey),
-                RunScope.primary(normalizedChatId, normalizedRunId, normalize(agentKey))
+                RunScope.primary(normalizedChatId, normalizedRunId)
         );
         sessionsByRunId.put(normalizedRunId, session);
         return session;
@@ -214,7 +214,7 @@ public class ActiveRunService {
             if (input == null) {
                 return;
             }
-            injectedInputs.tryEmitNext(StreamEnvelope.of(input, scope.actor()));
+            injectedInputs.tryEmitNext(StreamEnvelope.of(input));
         }
 
         public void completeInjectedInputs() {

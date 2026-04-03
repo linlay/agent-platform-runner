@@ -1,6 +1,5 @@
 package com.linlay.agentplatform.stream.service;
 
-import com.linlay.agentplatform.stream.model.RunActor;
 import com.linlay.agentplatform.stream.model.StreamEnvelope;
 import com.linlay.agentplatform.stream.model.StreamEvent;
 import com.linlay.agentplatform.stream.model.StreamInput;
@@ -36,7 +35,6 @@ public class StreamEventAssembler {
         private final String chatName;
         private final String runId;
         private final boolean emitChatStart;
-        private final RunActor requestActor;
         private final StreamEventStateData stateData;
         private final StreamEventDispatcher dispatcher;
 
@@ -50,9 +48,8 @@ public class StreamEventAssembler {
             this.emitChatStart = request instanceof StreamRequest.Query query
                     ? StreamEventSupport.resolveEmitChatStart(query.params())
                     : false;
-            this.requestActor = request instanceof StreamRequest.Query query ? query.actor() : null;
             this.stateData = new StreamEventStateData();
-            this.dispatcher = new StreamEventDispatcher(request, chatId, runId, requestActor, stateData, this::next);
+            this.dispatcher = new StreamEventDispatcher(request, chatId, runId, stateData, this::next);
             bootstrap();
         }
 
@@ -71,7 +68,7 @@ public class StreamEventAssembler {
             }
 
             try {
-                dispatcher.dispatch(events, envelope.input(), envelope.actor());
+                dispatcher.dispatch(events, envelope.input());
             } catch (RuntimeException ex) {
                 if (!dispatcher.hasRunContext()) {
                     throw ex;
@@ -82,7 +79,7 @@ public class StreamEventAssembler {
         }
 
         public List<StreamEvent> consume(StreamInput input) {
-            return consume(StreamEnvelope.of(input, requestActor));
+            return consume(StreamEnvelope.of(input));
         }
 
         public List<StreamEvent> complete() {
@@ -94,7 +91,7 @@ public class StreamEventAssembler {
                 stateData.setTerminated(true);
                 return events;
             }
-            dispatcher.complete(events, null, requestActor);
+            dispatcher.complete(events, null);
             return events;
         }
 
@@ -107,7 +104,7 @@ public class StreamEventAssembler {
                 return List.of();
             }
             List<StreamEvent> events = new ArrayList<>();
-            dispatcher.fail(events, ex, requestActor);
+            dispatcher.fail(events, ex);
             return events;
         }
 
@@ -137,14 +134,12 @@ public class StreamEventAssembler {
             StreamEventSupport.putIfNonNull(requestPayload, "scene", query.scene());
             StreamEventSupport.putIfNonNull(requestPayload, "stream", query.stream());
             StreamEventSupport.putIfNonNull(requestPayload, "hidden", query.hidden());
-            StreamEventSupport.putActor(requestPayload, query.actor());
             bootstrapEvents.add(next("request.query", requestPayload));
 
             if (emitChatStart) {
                 Map<String, Object> chatPayload = new LinkedHashMap<>();
                 chatPayload.put("chatId", query.chatId());
                 StreamEventSupport.putIfNonNull(chatPayload, "chatName", chatName);
-                StreamEventSupport.putActor(chatPayload, query.actor());
                 bootstrapEvents.add(next("chat.start", chatPayload));
             }
 
@@ -153,7 +148,6 @@ public class StreamEventAssembler {
             runPayload.put("runId", runId);
             runPayload.put("chatId", query.chatId());
             runPayload.put("agentKey", runAgentKey);
-            StreamEventSupport.putActor(runPayload, query.actor());
             bootstrapEvents.add(next("run.start", runPayload));
         }
 

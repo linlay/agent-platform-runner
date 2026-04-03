@@ -1,7 +1,6 @@
 package com.linlay.agentplatform.stream.service;
 
 import com.linlay.agentplatform.stream.model.StreamInput;
-import com.linlay.agentplatform.stream.model.RunActor;
 import com.linlay.agentplatform.stream.model.StreamEnvelope;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,7 +40,6 @@ public class AgentDeltaToStreamInputMapper {
     private final String runPrefix;
     private final String chatId;
     private final ToolRegistry toolRegistry;
-    private final RunActor actor;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private int reasoningSeq = 0;
@@ -49,11 +47,10 @@ public class AgentDeltaToStreamInputMapper {
     private String activeReasoningId;
     private String activeContentId;
 
-    public AgentDeltaToStreamInputMapper(String runId, String chatId, ToolRegistry toolRegistry, RunActor actor) {
+    public AgentDeltaToStreamInputMapper(String runId, String chatId, ToolRegistry toolRegistry) {
         this.runPrefix = hasText(runId) ? runId : "run";
         this.chatId = hasText(chatId) ? chatId.trim() : null;
         this.toolRegistry = toolRegistry;
-        this.actor = actor == null ? RunActor.primary(null) : actor;
     }
 
     public Flux<StreamEnvelope> mapEnvelopes(Flux<AgentDelta> deltas) {
@@ -63,7 +60,7 @@ public class AgentDeltaToStreamInputMapper {
 
     public List<StreamEnvelope> mapEnvelopesOrEmpty(AgentDelta delta) {
         return mapOrEmpty(delta).stream()
-                .map(input -> StreamEnvelope.of(input, actor))
+                .map(StreamEnvelope::of)
                 .toList();
     }
 

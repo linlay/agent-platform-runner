@@ -1,6 +1,5 @@
 package com.linlay.agentplatform.stream.service;
 
-import com.linlay.agentplatform.stream.model.RunActor;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 
 import java.util.LinkedHashMap;
@@ -82,15 +81,6 @@ final class StreamEventSupport {
         if (value != null) {
             payload.put(key, value);
         }
-    }
-
-    static void putActor(Map<String, Object> payload, RunActor actor) {
-        if (payload == null || actor == null || !actor.isPresent()) {
-            return;
-        }
-        putIfNonNull(payload, "actorId", actor.actorId());
-        putIfNonNull(payload, "actorType", actor.actorType());
-        putIfNonNull(payload, "actorName", actor.actorName());
     }
 
     static boolean shouldEmitToolType(String toolType) {

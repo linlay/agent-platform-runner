@@ -848,7 +848,7 @@ class ToolExecutionServiceTest {
             String runId,
             List<AgentDelta> deltas
     ) {
-        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper(runId, chatId, toolRegistry, null);
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper(runId, chatId, toolRegistry);
         StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
                 .begin(new StreamRequest.Query(
                         "req_1",

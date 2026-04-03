@@ -1,7 +1,5 @@
 package com.linlay.agentplatform.stream.service;
 
-import com.linlay.agentplatform.stream.model.RunActor;
-import com.linlay.agentplatform.stream.model.StreamEnvelope;
 import com.linlay.agentplatform.stream.model.StreamEvent;
 import com.linlay.agentplatform.stream.model.StreamInput;
 import com.linlay.agentplatform.stream.model.StreamRequest;
@@ -14,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class StreamEventAssemblerActorTest {
 
     @Test
-    void bootstrapAndRuntimeEventsShouldExposeActorFields() {
+    void bootstrapAndRuntimeEventsShouldNotExposeActorFields() {
         StreamEventAssembler.EventStreamState state = new StreamEventAssembler()
                 .begin(new StreamRequest.Query(
                         "req_1",
@@ -29,29 +27,21 @@ class StreamEventAssemblerActorTest {
                         true,
                         false,
                         "chat_1",
-                        "run_1",
-                        RunActor.commander("commander_1", "Commander")
+                        "run_1"
                 ));
 
         StreamEvent runStart = state.bootstrapEvents().stream()
                 .filter(event -> "run.start".equals(event.type()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(runStart.payload()).containsEntry("actorId", "commander_1");
-        assertThat(runStart.payload()).containsEntry("actorType", "commander");
-        assertThat(runStart.payload()).containsEntry("actorName", "Commander");
+        assertThat(runStart.payload()).doesNotContainKeys("actorId", "actorType", "actorName");
 
-        List<StreamEvent> contentEvents = state.consume(StreamEnvelope.of(
-                new StreamInput.ContentDelta("run_1_c_1", "hello", null),
-                RunActor.subagent("worker_1", "Worker")
-        ));
+        List<StreamEvent> contentEvents = state.consume(new StreamInput.ContentDelta("run_1_c_1", "hello", null));
 
         StreamEvent contentDelta = contentEvents.stream()
                 .filter(event -> "content.delta".equals(event.type()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(contentDelta.payload()).containsEntry("actorId", "worker_1");
-        assertThat(contentDelta.payload()).containsEntry("actorType", "subagent");
-        assertThat(contentDelta.payload()).containsEntry("actorName", "Worker");
+        assertThat(contentDelta.payload()).doesNotContainKeys("actorId", "actorType", "actorName");
     }
 }

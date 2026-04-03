@@ -47,8 +47,8 @@
   - 工具列表：`data` 直接是 `tools[]`
   - 会话详情：`data` 直接是 `chat`
   - 视图详情：`data` 直接是视图内容（`html` 时为 `{ "html": "..." }`，`qlc` 时为 schema JSON）
-- `GET /api/chat` 默认始终返回 `events`，并附带最新状态 `plan` / `artifact`；仅当 `includeRawMessages=true` 时才返回 `rawMessages`。
-- `GET /api/chat` 的历史 `events` 不再包含 `plan.update` / `artifact.publish`；这两个状态改为顶层 `data.plan` / `data.artifact`，但 `/api/query` 的实时 SSE 仍会发送它们。
+- `GET /api/chat` 默认始终返回 `events`，并附带最新状态 `plan` / `artifact`；其中 `data.artifact` 为聚合状态，形如 `{items:[...]}`；仅当 `includeRawMessages=true` 时才返回 `rawMessages`。
+- `GET /api/chat` 的历史 `events` 不再包含 `plan.update` / `artifact.publish`；这两个状态改为顶层 `data.plan` / `data.artifact`，但 `/api/query` 的实时 SSE 仍会发送它们；其中 `artifact.publish` 在实时流里仍按单个 artifact 独立发送。
 - 事件协议仅支持 Event Model v2，不兼容旧命名（如 `query.message`、`message.start|delta|end`、`message.snapshot`）。
 
 `GET /api/agents` 示例（`role` 为顶层字段）：
@@ -214,6 +214,7 @@
       "seq": 5,
       "type": "content.snapshot",
       "contentId": "8ad0081d-191b-4990-9432-664ea0c38c3e_c_0",
+      "runId": "8ad0081d-191b-4990-9432-664ea0c38c3e",
       "text": "碳是一种非金属元素...",
       "timestamp": 1770863186549
     }
@@ -742,14 +743,15 @@ memoryConfig:
 
 - 当前端工具触发时，SSE `tool.start` / `tool.snapshot` 会包含 `toolType`、`viewportKey`、`toolTimeout`。
 - 若开启 `AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS=true`，同一次工具调用还会继续返回 `tool.args` / `tool.result`。
-- `artifact.publish` 是独立 SSE 事件，不属于 `tool.*` 生命周期；事件本身只保留 `artifactId/chatId/runId/artifact`，不再携带 `source`。
-- `_artifact_publish_` 是隐藏内置工具，可将运行中生成的文件发布为 chat 资产，并自动出现在后续 query 的 `references` 池中。
+- `artifact.publish` 是独立 SSE 事件，不属于 `tool.*` 生命周期；事件本身只保留 `artifactId/chatId/runId/artifact`，不再携带 `source`；实时 SSE 中每个 artifact 各发一条 `artifact.publish`。
+- `_artifact_publish_` 是隐藏内置工具，请求参数为 `artifacts[]`（每项为 `{path,name?,description?}`），可将运行中生成的文件批量发布为 chat 资产，并自动出现在后续 query 的 `references` 池中。
 - 默认等待超时 5 分钟（可配置）。
 - `POST /api/submit` 请求体：`runId` + `toolId` + `params`。
 - 成功命中后会释放对应 `runId + toolId` 的等待；未命中返回 `accepted=false`。
 - 动作工具触发 `action.start` 后不等待提交，直接返回 `"OK"` 给模型。
 - `tool.end` / `action.end` 表示该次调用生命周期结束；若执行层未显式提前关闭，`tool.end` 可由最终 `tool.result` 触发并紧邻其前发出。
-- 推荐的 artifact 发布顺序：`tool.start -> tool.args -> tool.end -> tool.result -> artifact.publish`；若工具是隐藏的 `_artifact_publish_`，客户端通常只看到最终的 `artifact.publish`。
+- 若 `_artifact_publish_` 成功，`tool.result` 会返回 `{ok:true,artifacts:[{artifactId,artifact},...]}`；数组语义只出现在工具入参与 `tool.result`，以及 `GET /api/chat` 的聚合状态 `data.artifact.items[]` 中。
+- 推荐的 artifact 发布顺序：`tool.start -> tool.args -> tool.end -> tool.result -> artifact.publish`；若工具是隐藏的 `_artifact_publish_`，批量发布时客户端会看到多条独立的 `artifact.publish`。
 
 ### 运行中引导与中断
 
