@@ -623,7 +623,7 @@
 				<ul class="mini-list">
 					<li>
 						<strong>以下都是动词（动作类请求，建议 <span class="field-key">POST</span>）：</strong>
-						<span class="field-key">query</span> / <span class="field-key">upload</span> / <span class="field-key">submit</span>
+						<span class="field-key">query</span> / <span class="field-key">upload</span> / <span class="field-key">submit</span> / <span class="field-key">steer</span> / <span class="field-key">interrupt</span>
 					</li>
 					<li>
 						<strong>以下 GET 都是名词（资源类获取，建议 <span class="field-key">GET</span>）：</strong>
@@ -631,7 +631,7 @@
 					</li>
 					<li>
 						<strong>路径示例：</strong>
-						<code>/api/query</code>，<code>/api/upload</code>，<code>/api/submit</code>，
+						<code>/api/query</code>，<code>/api/upload</code>，<code>/api/submit</code>，<code>/api/steer</code>，<code>/api/interrupt</code>，
 						<code>/api/viewport</code>，<code>/api/resource</code>，<code>/api/agents</code>，<code>/api/agent</code>，<code>/api/chats</code>，<code>/api/chat</code>
 					</li>
 				</ul>
@@ -1151,9 +1151,9 @@
 								<li><span class="field-key">chatImageToken</span>: string｜可选（用于访问当前 chat 作用域内图片资源）</li>
 								<li><span class="field-key">rawMessages</span>: object[]｜可选（若 includeRawMessages=true，可返回大模型原始消息）</li>
 								<li><span class="field-key">plan</span>: object｜可选（chat 当前最新计划状态，形如 <code>{planId,tasks}</code>）</li>
-								<li><span class="field-key">artifact</span>: object｜可选（chat 当前最新产物聚合状态，形如 <code>{items:[...]}</code>）</li>
+								<li><span class="field-key">artifact</span>: object｜可选（chat 当前最新产物聚合状态，形如 <code>{items:[...]}</code>；由各次 run 发布到当前 chat 的资产集合）</li>
 								<li><span class="field-key">references</span>: object[]｜可选（query 引用与 chat 资产聚合后的引用池）</li>
-								<li><span class="field-key">events</span>: BaseEvent[]（历史事件列表； start/delta/args/end -&gt; snapshot，保留 params/result；<code>plan.update</code> / <code>artifact.publish</code> 不再出现在历史 events 中）</li>
+								<li><span class="field-key">events</span>: BaseEvent[]（历史事件列表； start/delta/args/end -&gt; snapshot，保留 params/result；<code>plan.update</code> / <code>artifact.publish</code> 不再出现在历史 events 中，前者折叠为 chat 级 <code>plan</code>，后者折叠为 chat 级 <code>artifact</code> 聚合态）</li>
 							</ul>
 						</td>
 					</tr>
@@ -1176,6 +1176,9 @@
 					<span class="tag tag-event">start/update</span>
 				</div>
 			</div>
+			<div class="hint" style="margin-top: 2px;">
+				<code>plan</code> 与 <code>artifact</code> 都是 chat 级状态；<code>run</code> 只表示 chat 内一次执行过程，并可向当前 chat 发布 artifact。
+			</div>
 
 			<!-- PLAN (Gold) -->
 			<div class="box plan">
@@ -1193,6 +1196,25 @@
 				<div class="plan-item">
 					<span>TaskElement 2</span>
 					<span style="opacity: 0.6">elementId</span>
+				</div>
+			</div>
+
+			<!-- ARTIFACT (Chat-level aggregate) -->
+			<div class="box artifact">
+				<div class="header">
+					<span class="node-name"><a href="#doc-artifact" class="node-link">ARTIFACT</a></span>
+					<div class="meta">
+						<span class="tag tag-id">artifactId, chatId, [runId]</span>
+						<span class="tag tag-event">publish</span>
+					</div>
+				</div>
+				<div class="plan-item">
+					<span>ArtifactItem 1</span>
+					<span style="opacity: 0.6">chat asset</span>
+				</div>
+				<div class="plan-item">
+					<span>ArtifactItem 2</span>
+					<span style="opacity: 0.6">published by run</span>
 				</div>
 			</div>
 
@@ -1246,14 +1268,6 @@
 						<div class="meta">
 							<span class="tag tag-id">actionId, runId, [taskId]</span>
 							<span class="tag tag-event">start/args/end/param/result/snapshot</span>
-						</div>
-					</div>
-
-					<div class="leaf-card artifact">
-						<span class="leaf-title"><a href="#doc-artifact" class="node-link">ARTIFACT</a></span>
-						<div class="meta">
-							<span class="tag tag-id">artifactId, runId, chatId</span>
-							<span class="tag tag-event">publish</span>
 						</div>
 					</div>
 
@@ -2011,17 +2025,17 @@
 							</th>
 							<td>
 								<div class="event-desc">
-									独立产出物发布事件；每个产物对应一条 <code>artifact.publish</code>。
+									向当前 chat 资产池发布产物的事件；每个产物对应一条 <code>artifact.publish</code>。
 								</div>
 								<ul class="field-list">
 									<li>
 										<span class="field-key">artifactId</span>: 产出物唯一标识
 									</li>
 									<li>
-										<span class="field-key">chatId</span>: 关联 chatId
+										<span class="field-key">chatId</span>: 归属的 chatId（产物进入该 chat 的资产集合）
 									</li>
 									<li>
-										<span class="field-key">runId</span>: 关联 runId
+										<span class="field-key">runId</span>: 来源 runId（表示由哪次 run 发布，可用于溯源，但不表示归属层级）
 									</li>
 									<li>
 										<span class="field-key">artifact</span>: 精简产物对象，仅包含 <code>type/name/mimeType/sizeBytes/url/sha256</code>
@@ -2032,10 +2046,10 @@
 					</tbody>
 				</table>
 				<div class="hint" style="margin-top: 6px;">
-					一次调用工具 <code>_artifact_publish_</code> 时，<code>artifacts[]</code> 里有几个产物，就会出现几条事件 <code>artifact.publish</code>。
+					一次调用工具 <code>_artifact_publish_</code> 时，<code>artifacts[]</code> 里有几个产物，就会出现几条事件 <code>artifact.publish</code>，并更新当前 chat 的 <code>artifact</code> 聚合态。
 				</div>
 				<div class="hint" style="margin-top: 6px;">
-					常见顺序是 <code>tool.start -&gt; tool.args -&gt; tool.end -&gt; tool.result -&gt; artifact.publish</code>；如果一次调用里有多个产物，<code>tool.result</code> 后会连续出现多条 <code>artifact.publish</code>。
+					常见顺序是 <code>tool.start -&gt; tool.args -&gt; tool.end -&gt; tool.result -&gt; artifact.publish</code>；如果一次调用里有多个产物，<code>tool.result</code> 后会连续出现多条 <code>artifact.publish</code>，这些事件共同补充当前 chat 的资产状态。
 				</div>
 			</div>
 
@@ -2798,7 +2812,7 @@ data: [DONE]</code></pre>
 
 	      <div class="example-item">
 	        <div class="example-summary">
-	          <span class="tag-id">#9</span> 文件产出物发布：一次 <code>_artifact_publish_</code> 工具调用可以发布多个文件，并通过多条独立 <code>artifact.publish</code> 事件声明为本次 run 的产出物
+	          <span class="tag-id">#9</span> 文件产出物发布：一次 <code>_artifact_publish_</code> 工具调用可以发布多个文件，并通过多条独立 <code>artifact.publish</code> 事件把这些文件发布到当前 chat；<code>runId</code> 仅用于标记来源 run
 	        </div>
 	        <div class="example-content">
 	          <pre class="json-block"><code>// 1) tool call (one invocation, multiple artifacts)
