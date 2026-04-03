@@ -699,13 +699,13 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `content.end`：`contentId`
 - `content.snapshot`：`contentId`, `runId`, `text`, `taskId?`
 
-### 5. 工具与动作事件
+### 5. 工具、产物与动作事件
 
 - `tool.start`：`toolId`, `runId`, `taskId?`, `toolName?`, `toolType?`, `toolLabel?`, `toolDescription?`, `viewportKey?`
 - `tool.args`：`toolId`, `delta`, `chunkIndex?`（字段名保持 `delta`，不使用 `args`）
 - `tool.end`：`toolId`
 - `tool.result`：`toolId`, `result`
-- `artifact.publish`：`artifactId`, `chatId`, `runId`, `artifact`（独立事件；`artifact` 仅含 `type/name/mimeType/sizeBytes/url/sha256`；实时 SSE 中每个 artifact 单独发送一条）
+- `artifact.publish`：`artifactId`, `chatId`, `runId`, `artifact`（独立事件；`artifact` 仅含 `type/name/mimeType/sizeBytes/url/sha256`；一次 `_artifact_publish_` 调用里有几个产物，就会发几条 `artifact.publish`）
 - `tool.snapshot`：`toolId`, `runId`, `toolName?`, `taskId?`, `toolType?`, `toolLabel?`, `toolDescription?`, `viewportKey?`, `arguments?`
 - `action.start`：`actionId`, `runId`, `taskId?`, `actionName?`, `description?`
 - `action.args`：`actionId`, `delta`
@@ -722,7 +722,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - 历史里每个 run 都保留一个终态事件：成功为 `run.complete`，失败为 `run.error`，取消为 `run.cancel`；`chat.start` 仅首次一次。
 - `/api/query` 在流式输出结束时追加传输层终止帧 `data:[DONE]`；该 sentinel 不属于 Event Model v2 业务事件，也不写入 chat 历史事件。
 - `RenderQueue` 只影响传输 flush 行为，不改变上述业务事件类型与字段契约。
-- `_artifact_publish_` 是隐藏的内置后端工具：接收 `artifacts[]`，每项为 `path/name?/description?`；成功时 `tool.result` 返回 `{ok,artifacts:[{artifactId,artifact},...]}`，并为每个产物触发独立 `artifact.publish` 事件。
+- `_artifact_publish_` 是隐藏的内置后端工具：接收 `artifacts[]`，每项为 `path/name?/description?`；成功时 `tool.result` 可返回 `{ok,artifacts:[{artifactId,artifact},...]}`。如果一次调用里有多个产物，实时流中就会出现多条 `artifact.publish`。
 
 ## Chat Storage V3.1（JSONL）
 

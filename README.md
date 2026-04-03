@@ -739,19 +739,20 @@ memoryConfig:
   - `viewports/get` 负责透传 payload
   - 不支持 viewports 协议的服务会被跳过并按配置自动重试
 
-### 前端 tool 提交流程
+### 前端 tool / artifact 事件
 
 - 当前端工具触发时，SSE `tool.start` / `tool.snapshot` 会包含 `toolType`、`viewportKey`、`toolTimeout`。
 - 若开启 `AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS=true`，同一次工具调用还会继续返回 `tool.args` / `tool.result`。
-- `artifact.publish` 是独立 SSE 事件，不属于 `tool.*` 生命周期；事件本身只保留 `artifactId/chatId/runId/artifact`，不再携带 `source`；实时 SSE 中每个 artifact 各发一条 `artifact.publish`。
+- `artifact.publish` 是独立 SSE 事件；事件只保留 `artifactId/chatId/runId/artifact`，不再携带 `source`。
 - `_artifact_publish_` 是隐藏内置工具，请求参数为 `artifacts[]`（每项为 `{path,name?,description?}`），可将运行中生成的文件批量发布为 chat 资产，并自动出现在后续 query 的 `references` 池中。
 - 默认等待超时 5 分钟（可配置）。
 - `POST /api/submit` 请求体：`runId` + `toolId` + `params`。
 - 成功命中后会释放对应 `runId + toolId` 的等待；未命中返回 `accepted=false`。
 - 动作工具触发 `action.start` 后不等待提交，直接返回 `"OK"` 给模型。
 - `tool.end` / `action.end` 表示该次调用生命周期结束；若执行层未显式提前关闭，`tool.end` 可由最终 `tool.result` 触发并紧邻其前发出。
-- 若 `_artifact_publish_` 成功，`tool.result` 会返回 `{ok:true,artifacts:[{artifactId,artifact},...]}`；数组语义只出现在工具入参与 `tool.result`，以及 `GET /api/chat` 的聚合状态 `data.artifact.items[]` 中。
-- 推荐的 artifact 发布顺序：`tool.start -> tool.args -> tool.end -> tool.result -> artifact.publish`；若工具是隐藏的 `_artifact_publish_`，批量发布时客户端会看到多条独立的 `artifact.publish`。
+- 若 `_artifact_publish_` 成功，`tool.result` 可能返回 `{ok:true,artifacts:[{artifactId,artifact},...]}`；这是该隐藏工具的返回结构。
+- 一次调用 `_artifact_publish_` 时，`artifacts[]` 里有几个产物，实时流里就会出现几条 `artifact.publish`。
+- 常见顺序是 `tool.start -> tool.args -> tool.end -> tool.result -> artifact.publish`；消费实时产物以 `artifact.publish` 为准，读取聚合状态看 `GET /api/chat.data.artifact.items[]`。
 
 ### 运行中引导与中断
 

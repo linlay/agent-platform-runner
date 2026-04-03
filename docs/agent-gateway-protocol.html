@@ -283,6 +283,10 @@
 			border-left: 3px solid var(--c-action-border);
 		}
 
+		.artifact {
+			border-left: 3px solid #a5f3fc;
+		}
+
 		/* 叶子节点 */
 		.leaf-card {
 			background-color: var(--c-leaf-bg);
@@ -389,6 +393,12 @@
 			background: var(--c-tool-bg);
 			border-color: var(--c-tool-border);
 			color: var(--c-tool-text);
+		}
+
+		.doc-header.artifact-style {
+			background: #ecfeff;
+			border-color: #a5f3fc;
+			color: #155e75;
 		}
 
 		.doc-header.action-style {
@@ -1239,6 +1249,14 @@
 						</div>
 					</div>
 
+					<div class="leaf-card artifact">
+						<span class="leaf-title"><a href="#doc-artifact" class="node-link">ARTIFACT</a></span>
+						<div class="meta">
+							<span class="tag tag-id">artifactId, runId, chatId</span>
+							<span class="tag tag-event">publish</span>
+						</div>
+					</div>
+
 					<!-- SOURCE -->
 					<div class="leaf-card source" style="margin-top: 4px">
 						<span class="leaf-title"><a href="#doc-source" class="node-link">SOURCE(未实现)</a></span>
@@ -1851,9 +1869,6 @@
 										<span class="field-key">toolName</span>: 工具名称
 									</li>
 									<li>
-										<span class="field-key">runId</span>: 运行实例ID
-									</li>
-									<li>
 										<span class="field-key">taskId</span>: 可选，任务ID
 									</li>
 									<li>
@@ -1926,6 +1941,9 @@
 										<span class="field-key">toolId</span>: 工具的唯一标识
 									</li>
 									<li>
+										<span class="field-key">runId</span>: 运行实例ID
+									</li>
+									<li>
 										<span class="field-key">toolName</span>: 工具名称
 									</li>
 									<li>
@@ -1973,6 +1991,18 @@
 								</ul>
 							</td>
 						</tr>
+					</tbody>
+				</table>
+				<div class="hint" style="margin-top: 6px;">
+					前端交互提交走 <code>POST /api/submit</code>；运行流里会记录为 <code>request.submit</code>，不会额外发一条独立的“工具参数事件”。
+				</div>
+			</div>
+
+			<!-- Artifact Events -->
+			<div id="doc-artifact" class="doc-section">
+				<div class="doc-header artifact-style">产物: Artifact Events</div>
+				<table class="event-table">
+					<tbody>
 						<tr>
 							<th>
 								<div class="event-name">
@@ -1981,7 +2011,7 @@
 							</th>
 							<td>
 								<div class="event-desc">
-									独立产出物发布事件。它可以和某次工具调用有关联，但不属于 <code>tool.*</code> 生命周期；实时 SSE 中每个 artifact 各发送一条事件。
+									独立产出物发布事件；每个产物对应一条 <code>artifact.publish</code>。
 								</div>
 								<ul class="field-list">
 									<li>
@@ -2002,13 +2032,10 @@
 					</tbody>
 				</table>
 				<div class="hint" style="margin-top: 6px;">
-					前端交互提交走 <code>POST /api/submit</code>；运行流里会记录为 <code>request.submit</code>，不会额外发一条独立的“工具参数事件”。
+					一次调用工具 <code>_artifact_publish_</code> 时，<code>artifacts[]</code> 里有几个产物，就会出现几条事件 <code>artifact.publish</code>。
 				</div>
 				<div class="hint" style="margin-top: 6px;">
-					数组语义只出现在 <code>_artifact_publish_</code> 的请求参数、<code>tool.result</code> 返回值，以及 <code>GET /api/chat</code> 的聚合状态 <code>data.artifact.items[]</code> 中；<code>artifact.publish</code> 本身始终是单 artifact 事件。
-				</div>
-				<div class="hint" style="margin-top: 6px;">
-					推荐的文件产出发布顺序：<code>tool.start -&gt; tool.args -&gt; tool.end -&gt; tool.result -&gt; artifact.publish</code>。若来源工具是隐藏的 <code>_artifact_publish_</code>，批量发布时客户端会看到多条独立的 <code>artifact.publish</code>。
+					常见顺序是 <code>tool.start -&gt; tool.args -&gt; tool.end -&gt; tool.result -&gt; artifact.publish</code>；如果一次调用里有多个产物，<code>tool.result</code> 后会连续出现多条 <code>artifact.publish</code>。
 				</div>
 			</div>
 
@@ -2036,9 +2063,6 @@
 									</li>
 									<li>
 										<span class="field-key">actionName</span>: 动作名称
-									</li>
-									<li>
-										<span class="field-key">runId</span>: 运行实例ID
 									</li>
 									<li>
 										<span class="field-key">taskId</span>: 可选，任务ID
@@ -2097,6 +2121,9 @@
 								<ul class="field-list">
 									<li>
 										<span class="field-key">actionId</span>: 动作的唯一标识
+									</li>
+									<li>
+										<span class="field-key">runId</span>: 运行实例ID
 									</li>
 									<li>
 										<span class="field-key">actionName</span>: 动作名称
@@ -2771,10 +2798,10 @@ data: [DONE]</code></pre>
 
 	      <div class="example-item">
 	        <div class="example-summary">
-	          <span class="tag-id">#9</span> 文件产出物发布：工具调用完成后，通过独立 <code>artifact.publish</code> 事件把文件声明为本次 run 的产出物
+	          <span class="tag-id">#9</span> 文件产出物发布：一次 <code>_artifact_publish_</code> 工具调用可以发布多个文件，并通过多条独立 <code>artifact.publish</code> 事件声明为本次 run 的产出物
 	        </div>
 	        <div class="example-content">
-	          <pre class="json-block"><code>// 1) tool call
+	          <pre class="json-block"><code>// 1) tool call (one invocation, multiple artifacts)
 {
   "name": "_artifact_publish_",
   "arguments": {
