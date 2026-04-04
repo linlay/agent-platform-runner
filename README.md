@@ -22,6 +22,8 @@
 - `POST /api/submit`: Human-in-the-loop 提交接口
 - `POST /api/steer`: 运行中引导接口
 - `POST /api/interrupt`: 运行中断接口
+- `POST /api/remember`: 从指定 `chatId` 的完整对话中抽取可长期保留的记忆，返回 `ApiResponse<RememberResponse>`
+- `POST /api/learn`: 学习接口预留，当前固定返回 `accepted=false`、`status="not_connected"`
 
 ## 返回格式约定
 
@@ -762,6 +764,12 @@ memoryConfig:
 - `POST /api/interrupt`
   - 请求体：`InterruptRequest(requestId?, chatId?, runId, agentKey?, teamId?, message?, planningMode?)`
   - 响应体：`InterruptResponse(accepted, status, runId, detail)`
+- `POST /api/remember`
+  - 请求体：`RememberRequest(requestId?, chatId)`
+  - 响应体：`RememberResponse(accepted, status, requestId, chatId, memoryPath, memoryRoot, memoryCount, detail, promptPreview, items, stored)`
+- `POST /api/learn`
+  - 请求体：`LearnRequest(requestId?, chatId, subjectKey?)`
+  - 响应体：`LearnResponse(accepted=false, status="not_connected", requestId, chatId, subjectKey, detail)`
 
 ## 内置能力
 

@@ -122,9 +122,9 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 | `skill` | `SkillRegistryService`、`SkillDescriptor`、`SkillProperties`、运行时 prompt 注入 |
 | `schedule` | Schedule 注册、增量 reconcile、Cron dispatch |
 | `security` | `ApiJwtAuthWebFilter`、`ChatImageTokenService`、JWT/JWKS 本地与远程校验 |
-| `controller` | REST API：`/api/agents`、`/api/teams`、`/api/skills`、`/api/tools`、`/api/tool`、`/api/chats`、`/api/chat`、`/api/query`、`/api/upload`、`/api/submit`、`/api/steer`、`/api/interrupt`、`/api/viewport`、`/api/resource` |
+| `controller` | REST API：`/api/agents`、`/api/teams`、`/api/skills`、`/api/tools`、`/api/tool`、`/api/chats`、`/api/chat`、`/api/query`、`/api/upload`、`/api/submit`、`/api/steer`、`/api/interrupt`、`/api/remember`、`/api/learn`、`/api/viewport`、`/api/resource` |
 | `chatstorage` | Chat Storage V3.1：JSONL 增量落盘与回放、滑动窗口（默认 `k=20`）、`StoredMessage` 转换 |
-| `service/memory` | Agent Memory 系统：按 agent 的 SQLite + FTS5 + 可选 embedding 混合检索持久化记忆 |
+| `service/memory` | Agent Memory 与 Remember 系统：按 agent 的 SQLite + FTS5 + 可选 embedding 混合检索持久化记忆，并提供 `GlobalMemoryRequestService` 驱动的 remember 抽取流程与 `RememberCaptureException` 异常 |
 | `service/embedding` | Embedding 服务：OpenAI-compatible `/v1/embeddings`，为 Agent Memory 提供向量化 |
 | `config` | 应用配置：`RuntimeDirectoryHostPaths`、`ConfigDirectorySupport`、`@ConfigurationProperties` 子包 |
 | `config/boot` | `ConfigDirectoryEnvironmentPostProcessor`：启动期外部配置目录加载 |
@@ -248,6 +248,8 @@ plain:
 - `POST /api/submit`：提交 frontend tool 的人机参数，请求体固定为 `runId + toolId + params`。
 - `POST /api/steer`：运行中追加用户引导，请求体为 `SteerRequest`；当 run 仍处于活跃状态时会写入 steer 队列并在下一个模型回合前注入。
 - `POST /api/interrupt`：运行中断，请求体为 `InterruptRequest`；成功后触发 `run.cancel`，并取消待处理 steer / frontend submit。
+- `POST /api/remember`：从指定 `chatId` 的完整对话快照中抽取可长期保留的记忆，请求体为 `RememberRequest { requestId?, chatId }`；成功时返回 `ApiResponse<RememberResponse>`，字段包含 `accepted/status/requestId/chatId/memoryPath/memoryRoot/memoryCount/detail/promptPreview/items/stored`；`promptPreview` 会返回系统提示词、用户提示词预览、计数与采样；失败时 `RememberCaptureException` 由全局异常处理器映射为 HTTP `500`。
+- `POST /api/learn`：学习接口预留，请求体为 `LearnRequest { requestId?, chatId, subjectKey? }`；当前始终返回 `ApiResponse<LearnResponse>`，其中 `accepted=false`、`status="not_connected"`。
 - `GET /api/viewport?viewportKey=...`：返回 viewport 内容；本地未命中时可回退到 viewport server。
 - `GET /api/resource?...`：提供静态文件访问，支持 chat image token 校验。
 - `/api/tool` 未命中 `toolName`、`kind` 非法时均返回 HTTP `400`（`ApiResponse.failure`）。
@@ -377,7 +379,12 @@ memoryConfig:
 | `agent/RuntimeContextTags.java` | tag 常量定义、normalize/validate |
 | `agent/RuntimeContextPromptService.java` | 各 tag 内容生成、`resolveWorkspacePaths()`、`resolveOwnerDir()` |
 | `service/memory/AgentMemoryStore.java` | agent 记忆 SQLite/FTS5/向量混合检索 |
+| `service/memory/GlobalMemoryRequestService.java` | LLM 驱动的 remember 抽取主逻辑，负责加载 chat、构造 prompt、解析 JSON 并写入 central memory/journal |
+| `service/memory/RememberCaptureException.java` | remember 流程异常，统一由 `ApiExceptionHandler` 映射为 HTTP `500` |
 | `agent/runtime/SandboxContextResolver.java` | sandbox tag 专用：environment prompt 拉取与校验 |
+| `controller/MemoryController.java` | `/api/remember`、`/api/learn` 入口，负责 request logging 摘要与返回封装 |
+| `config/properties/MemoryRememberProperties.java` | `memory.remember.*` 配置绑定 |
+| `config/properties/MemoryStorageProperties.java` | `memory.storage.*` 配置绑定 |
 | `model/RuntimeRequestContext.java` | 数据载体：`WorkspacePaths`、`SandboxContext`、`AgentDigest` |
 | `service/AgentQueryService.java` | 组装 `RuntimeRequestContext`（`buildRuntimeRequestContext()`）、条件解析 |
 | `agent/AgentDefinitionLoader.java` | 加载 agent 定义时收集 `contextTags`（`collectContextTags()`） |
@@ -499,6 +506,16 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
   - 两路分数做 min-max 归一化后按 `hybrid-vector-weight` / `hybrid-fts-weight` 融合
 - `dual-write-markdown=true` 且 agent 为目录化布局时，`_memory_write_` 会将新记忆追加写入 `memory/memory.md`；扁平 agent 不做 markdown 双写。
 - embedding 依赖 OpenAI-compatible `/v1/embeddings`；provider 缺失、超时、维度不匹配或请求失败时自动退化为 FTS-only，不阻断工具调用。
+
+### Remember Feature
+
+- 工作流：`POST /api/remember` → `MemoryController` 校验与记录 request 摘要 → `ChatRecordStore.loadChat(chatId, true)` 加载完整对话 → `GlobalMemoryRequestService` 构建 remember prompt → `LlmService.completeText(..., stage="remember")` → 解析返回 JSON → 写入 central memory SQLite 与 journal markdown。
+- 核心组件：`MemoryController`、`GlobalMemoryRequestService`、`AgentMemoryService`（journal 路径与 central memory 根目录）、`RememberCaptureException`、`MemoryRememberProperties`、`MemoryStorageProperties`。
+- Prompt 来源：系统提示词来自 `classpath:prompts/remember.txt`；用户提示词由 `GlobalMemoryRequestService.buildRememberUserPrompt()` 基于 `chatId/chatName/rawMessages/events/references` 组装；`classpath:prompts/learn.txt` 当前仅为 learn 预留。
+- 返回结构：成功响应为 `ApiResponse<RememberResponse>`，含 `promptPreview`（系统提示词、用户提示词预览、raw/event/reference 计数与采样）、`items`（候选记忆）和 `stored`（实际入库记录）。
+- Journal 格式：central memory 根目录为 `MEMORY_DIR`，journal 路径为 `{MEMORY_DIR}/journal/YYYY-MM/YYYY-MM-DD.md`，每条按 chat 追加 Markdown 记忆条目；`memoryPath` 返回相对 journal 路径，`memoryRoot` 返回根目录绝对路径。
+- 日志增强：`LlmCallLogger` 对 `stage="remember"` 的 prompt 做专用摘要，优先记录 `chatId/chatName/rawMessageCount/eventCount/referenceCount` 与采样，避免日志中完整展开对话快照。
+- 典型失败场景：`memory.remember.enabled=false`、`memory.remember.model-key` 未配置、model registry 未找到模型、LLM 超时、LLM 返回空字符串或非法 JSON；这些都会抛 `RememberCaptureException` 并返回 HTTP `500`。
 
 ### 工具参数模板
 
@@ -882,6 +899,10 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 | `CHAT_STORAGE_ACTION_TOOLS` | `chat.storage.action-tools` | （空） | action 工具白名单 |
 | `CHAT_STORAGE_INDEX_SQLITE_FILE` | `chat.storage.index.sqlite-file` | `chats.db` | SQLite 聊天索引文件名 |
 | `CHAT_STORAGE_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `chat.storage.index.auto-rebuild-on-incompatible-schema` | `true` | 索引 schema 不兼容时是否自动重建 |
+| `MEMORY_DIR` | `memory.storage.dir` | `runtime/memory` | 中央记忆存储根目录 |
+| `MEMORY_REMEMBER_ENABLED` | `memory.remember.enabled` | `true` | remember 抽取功能开关 |
+| `MEMORY_REMEMBER_MODEL_KEY` | `memory.remember.model-key` | （空） | remember 使用的模型 key |
+| `MEMORY_REMEMBER_TIMEOUT_MS` | `memory.remember.timeout-ms` | `60000` | remember LLM 调用超时（ms） |
 | `AGENT_MEMORY_ENABLED` | `agent.memory.agent-memory.enabled` | `false` | Agent Memory 总开关 |
 | `AGENT_MEMORY_DB_FILE_NAME` | `agent.memory.agent-memory.db-file-name` | `memory.db` | Agent Memory SQLite 文件名 |
 | `AGENT_MEMORY_CONTEXT_TOP_N` | `agent.memory.agent-memory.context-top-n` | `5` | `memory` tag 默认注入条数 |

@@ -53,7 +53,7 @@ final class ChatEventSnapshotBuilder {
             Map<String, Object> requestQueryPayload = buildRequestQueryPayload(chatId, run);
             String runAgentKey = requireRunStartAgentKey(chatId, run.runId(), requestQueryPayload.get("agentKey"), boundAgentKey);
             if (!run.hidden()) {
-                events.add(event("request.query", timestampCursor, seq++, requestQueryPayload));
+                events.add(SseEventFactory.event("request.query", timestampCursor, seq++, requestQueryPayload));
             }
 
             if (!emittedChatStart) {
@@ -63,7 +63,7 @@ final class ChatEventSnapshotBuilder {
                 if (StringUtils.hasText(chatName)) {
                     chatStartPayload.put("chatName", chatName);
                 }
-                events.add(event("chat.start", timestampCursor, seq++, chatStartPayload));
+                events.add(SseEventFactory.event("chat.start", timestampCursor, seq++, chatStartPayload));
                 emittedChatStart = true;
             }
 
@@ -72,13 +72,13 @@ final class ChatEventSnapshotBuilder {
             runStartPayload.put("runId", run.runId());
             runStartPayload.put("chatId", chatId);
             runStartPayload.put("agentKey", runAgentKey);
-            events.add(event("run.start", timestampCursor, seq++, runStartPayload));
+            events.add(SseEventFactory.event("run.start", timestampCursor, seq++, runStartPayload));
 
             while (persistedIndex < persistedEvents.size()
                     && persistedEvents.get(persistedIndex).timestamp() <= timestampCursor) {
                 PersistedChatEvent persisted = persistedEvents.get(persistedIndex++);
                 long persistedTs = normalizeEventTimestamp(persisted.timestamp(), timestampCursor);
-                events.add(event(persisted.type(), persistedTs, seq++, persisted.payload()));
+                events.add(SseEventFactory.event(persisted.type(), persistedTs, seq++, persisted.payload()));
                 terminalPersistedEventSeen = terminalPersistedEventSeen || isTerminalRunEvent(persisted.type());
                 timestampCursor = persistedTs;
             }
@@ -92,7 +92,7 @@ final class ChatEventSnapshotBuilder {
                         && persistedEvents.get(persistedIndex).timestamp() <= messageTs) {
                     PersistedChatEvent persisted = persistedEvents.get(persistedIndex++);
                     long persistedTs = normalizeEventTimestamp(persisted.timestamp(), timestampCursor);
-                    events.add(event(persisted.type(), persistedTs, seq++, persisted.payload()));
+                    events.add(SseEventFactory.event(persisted.type(), persistedTs, seq++, persisted.payload()));
                     terminalPersistedEventSeen = terminalPersistedEventSeen || isTerminalRunEvent(persisted.type());
                     timestampCursor = persistedTs;
                 }
@@ -108,7 +108,7 @@ final class ChatEventSnapshotBuilder {
                                     : run.runId() + "_r_" + reasoningIndex++);
                             payload.put("runId", run.runId());
                             payload.put("text", text);
-                            events.add(event("reasoning.snapshot", messageTs, seq++, payload));
+                            events.add(SseEventFactory.event("reasoning.snapshot", messageTs, seq++, payload));
                             timestampCursor = messageTs;
                         }
                     }
@@ -121,7 +121,7 @@ final class ChatEventSnapshotBuilder {
                                     : run.runId() + "_c_" + contentIndex++);
                             payload.put("runId", run.runId());
                             payload.put("text", text);
-                            events.add(event("content.snapshot", messageTs, seq++, payload));
+                            events.add(SseEventFactory.event("content.snapshot", messageTs, seq++, payload));
                             timestampCursor = messageTs;
                         }
                     }
@@ -160,7 +160,7 @@ final class ChatEventSnapshotBuilder {
                             }
 
                             timestampCursor = normalizeEventTimestamp(messageTs, timestampCursor);
-                            events.add(event(binding.action() ? "action.snapshot" : "tool.snapshot", timestampCursor, seq++, payload));
+                            events.add(SseEventFactory.event(binding.action() ? "action.snapshot" : "tool.snapshot", timestampCursor, seq++, payload));
                             messageTs = timestampCursor + 1;
                         }
                     }
@@ -203,13 +203,13 @@ final class ChatEventSnapshotBuilder {
                 payload.put(binding.action() ? "actionId" : "toolId", binding.id());
                 payload.put("result", result);
                 timestampCursor = normalizeEventTimestamp(messageTs, timestampCursor);
-                events.add(event(binding.action() ? "action.result" : "tool.result", timestampCursor, seq++, payload));
+                events.add(SseEventFactory.event(binding.action() ? "action.result" : "tool.result", timestampCursor, seq++, payload));
             }
 
             while (persistedIndex < persistedEvents.size()) {
                 PersistedChatEvent persisted = persistedEvents.get(persistedIndex++);
                 long persistedTs = normalizeEventTimestamp(persisted.timestamp(), timestampCursor);
-                events.add(event(persisted.type(), persistedTs, seq++, persisted.payload()));
+                events.add(SseEventFactory.event(persisted.type(), persistedTs, seq++, persisted.payload()));
                 terminalPersistedEventSeen = terminalPersistedEventSeen || isTerminalRunEvent(persisted.type());
                 timestampCursor = persistedTs;
             }
@@ -219,7 +219,7 @@ final class ChatEventSnapshotBuilder {
                 Map<String, Object> runCompletePayload = new LinkedHashMap<>();
                 runCompletePayload.put("runId", run.runId());
                 runCompletePayload.put("finishReason", "end_turn");
-                events.add(event("run.complete", timestampCursor, seq++, runCompletePayload));
+                events.add(SseEventFactory.event("run.complete", timestampCursor, seq++, runCompletePayload));
             }
         }
 
@@ -411,17 +411,6 @@ final class ChatEventSnapshotBuilder {
             return previous + 1;
         }
         return Math.max(candidate, previous + 1);
-    }
-
-    private Map<String, Object> event(String type, long timestamp, long seq, Map<String, Object> payload) {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("seq", seq);
-        data.put("type", type);
-        data.put("timestamp", timestamp);
-        if (payload != null && !payload.isEmpty()) {
-            data.putAll(payload);
-        }
-        return data;
     }
 
     private void putIfNonNull(Map<String, Object> node, String key, Object value) {

@@ -260,17 +260,6 @@ public class ChatRecordStore {
         return run.updatedAt();
     }
 
-    private Map<String, Object> event(String type, long timestamp, long seq, Map<String, Object> payload) {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("seq", seq);
-        data.put("type", type);
-        data.put("timestamp", timestamp);
-        if (payload != null && !payload.isEmpty()) {
-            data.putAll(payload);
-        }
-        return data;
-    }
-
     private Map<String, Object> planUpdatePayload(
             ChatStorageTypes.PlanState planState,
             String chatId

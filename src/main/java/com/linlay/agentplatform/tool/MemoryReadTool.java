@@ -44,19 +44,19 @@ public class MemoryReadTool extends AbstractDeterministicTool implements Context
 
     @Override
     public JsonNode invoke(Map<String, Object> args, ExecutionContext context) {
-        AgentDefinition definition = requireDefinition(context);
+        AgentDefinition definition = MemoryToolSupport.requireDefinition(context, name());
         JsonNode root = OBJECT_MAPPER.valueToTree(args == null ? Map.of() : args);
-        String id = readText(root, "id");
-        String category = readText(root, "category");
-        Integer limit = readInteger(root, "limit");
-        String sort = readText(root, "sort");
+        String id = ToolJsonHelper.readText(root, "id");
+        String category = ToolJsonHelper.readText(root, "category");
+        Integer limit = ToolJsonHelper.readInteger(root, "limit");
+        String sort = ToolJsonHelper.readText(root, "sort");
 
         ObjectNode result = OBJECT_MAPPER.createObjectNode();
         if (StringUtils.hasText(id)) {
             result.put("found", false);
             agentMemoryStore.read(definition.id(), definition.agentDir(), id).ifPresent(memory -> {
                 result.put("found", true);
-                result.set("memory", toJson(memory));
+                result.set("memory", MemoryToolSupport.toJson(memory));
             });
             return result;
         }
@@ -69,70 +69,9 @@ public class MemoryReadTool extends AbstractDeterministicTool implements Context
                 sort
         );
         ArrayNode items = OBJECT_MAPPER.createArrayNode();
-        memories.stream().map(this::toJson).forEach(items::add);
+        memories.stream().map(MemoryToolSupport::toJson).forEach(items::add);
         result.put("count", memories.size());
         result.set("results", items);
         return result;
-    }
-
-    private AgentDefinition requireDefinition(ExecutionContext context) {
-        if (context == null || context.definition() == null) {
-            throw new IllegalArgumentException("_memory_read_ requires an active agent execution context");
-        }
-        return context.definition();
-    }
-
-    private ObjectNode toJson(MemoryRecord record) {
-        ObjectNode node = OBJECT_MAPPER.createObjectNode();
-        node.put("id", record.id());
-        node.put("agentKey", record.agentKey());
-        node.put("subjectKey", record.subjectKey());
-        node.put("content", record.content());
-        node.put("sourceType", record.sourceType());
-        node.put("category", record.category());
-        node.put("importance", record.importance());
-        node.set("tags", OBJECT_MAPPER.valueToTree(record.tags()));
-        node.put("hasEmbedding", record.hasEmbedding());
-        if (record.embeddingModel() == null) {
-            node.putNull("embeddingModel");
-        } else {
-            node.put("embeddingModel", record.embeddingModel());
-        }
-        node.put("createdAt", record.createdAt());
-        node.put("updatedAt", record.updatedAt());
-        node.put("accessCount", record.accessCount());
-        if (record.lastAccessedAt() == null) {
-            node.putNull("lastAccessedAt");
-        } else {
-            node.put("lastAccessedAt", record.lastAccessedAt());
-        }
-        return node;
-    }
-
-    private String readText(JsonNode root, String fieldName) {
-        JsonNode node = root == null ? null : root.get(fieldName);
-        if (node == null || node.isNull() || !node.isValueNode()) {
-            return null;
-        }
-        String value = node.asText();
-        return StringUtils.hasText(value) ? value.trim() : null;
-    }
-
-    private Integer readInteger(JsonNode root, String fieldName) {
-        JsonNode node = root == null ? null : root.get(fieldName);
-        if (node == null || node.isNull()) {
-            return null;
-        }
-        if (node.isInt() || node.isLong()) {
-            return node.intValue();
-        }
-        if (node.isTextual() && StringUtils.hasText(node.asText())) {
-            try {
-                return Integer.parseInt(node.asText().trim());
-            } catch (NumberFormatException ex) {
-                throw new IllegalArgumentException("Invalid argument: " + fieldName + " must be an integer");
-            }
-        }
-        throw new IllegalArgumentException("Invalid argument: " + fieldName + " must be an integer");
     }
 }

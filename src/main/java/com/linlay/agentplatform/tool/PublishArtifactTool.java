@@ -7,7 +7,6 @@ import com.linlay.agentplatform.agent.runtime.ExecutionContext;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.service.chat.ArtifactPublishService;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,35 +72,13 @@ public class PublishArtifactTool extends AbstractDeterministicTool implements Co
             if (item == null || item.isNull() || !item.isObject()) {
                 throw new IllegalArgumentException("artifacts[" + index + "] must be an object");
             }
-            String path = requireText(item, "artifacts[" + index + "].path");
+            String path = ToolJsonHelper.requireText(item, "path", "artifacts[" + index + "].path");
             requests.add(new ArtifactPublishService.ArtifactRequest(
                     path,
-                    readText(item, "name"),
-                    readText(item, "description")
+                    ToolJsonHelper.readText(item, "name"),
+                    ToolJsonHelper.readText(item, "description")
             ));
         }
         return List.copyOf(requests);
-    }
-
-    private String requireText(JsonNode root, String fieldName) {
-        String fieldKey = fieldName;
-        int index = fieldName.lastIndexOf('.');
-        if (index >= 0 && index + 1 < fieldName.length()) {
-            fieldKey = fieldName.substring(index + 1);
-        }
-        String value = readText(root, fieldKey);
-        if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException("Missing argument: " + fieldName);
-        }
-        return value;
-    }
-
-    private String readText(JsonNode root, String fieldName) {
-        JsonNode node = root == null ? null : root.get(fieldName);
-        if (node == null || node.isNull() || !node.isValueNode()) {
-            return null;
-        }
-        String value = node.asText();
-        return StringUtils.hasText(value) ? value.trim() : null;
     }
 }

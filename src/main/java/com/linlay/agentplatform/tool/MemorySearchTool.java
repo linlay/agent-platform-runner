@@ -11,7 +11,6 @@ import com.linlay.agentplatform.service.memory.MemoryRecord;
 import com.linlay.agentplatform.service.memory.ScoredMemory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -45,11 +44,11 @@ public class MemorySearchTool extends AbstractDeterministicTool implements Conte
 
     @Override
     public JsonNode invoke(Map<String, Object> args, ExecutionContext context) {
-        AgentDefinition definition = requireDefinition(context);
+        AgentDefinition definition = MemoryToolSupport.requireDefinition(context, name());
         JsonNode root = OBJECT_MAPPER.valueToTree(args == null ? Map.of() : args);
-        String query = readRequiredText(root, "query");
-        String category = readText(root, "category");
-        Integer limit = readInteger(root, "limit");
+        String query = ToolJsonHelper.requireText(root, "query");
+        String category = ToolJsonHelper.readText(root, "category");
+        Integer limit = ToolJsonHelper.readInteger(root, "limit");
 
         List<ScoredMemory> results = agentMemoryStore.search(
                 definition.id(),
@@ -61,7 +60,7 @@ public class MemorySearchTool extends AbstractDeterministicTool implements Conte
         ArrayNode items = OBJECT_MAPPER.createArrayNode();
         for (ScoredMemory result : results) {
             ObjectNode item = OBJECT_MAPPER.createObjectNode();
-            item.set("memory", toJson(result.memory()));
+            item.set("memory", MemoryToolSupport.toJson(result.memory()));
             item.put("score", result.score());
             item.put("matchType", result.matchType());
             items.add(item);
@@ -70,74 +69,5 @@ public class MemorySearchTool extends AbstractDeterministicTool implements Conte
         payload.put("count", results.size());
         payload.set("results", items);
         return payload;
-    }
-
-    private AgentDefinition requireDefinition(ExecutionContext context) {
-        if (context == null || context.definition() == null) {
-            throw new IllegalArgumentException("_memory_search_ requires an active agent execution context");
-        }
-        return context.definition();
-    }
-
-    private ObjectNode toJson(MemoryRecord record) {
-        ObjectNode node = OBJECT_MAPPER.createObjectNode();
-        node.put("id", record.id());
-        node.put("agentKey", record.agentKey());
-        node.put("subjectKey", record.subjectKey());
-        node.put("content", record.content());
-        node.put("sourceType", record.sourceType());
-        node.put("category", record.category());
-        node.put("importance", record.importance());
-        node.set("tags", OBJECT_MAPPER.valueToTree(record.tags()));
-        node.put("hasEmbedding", record.hasEmbedding());
-        if (record.embeddingModel() == null) {
-            node.putNull("embeddingModel");
-        } else {
-            node.put("embeddingModel", record.embeddingModel());
-        }
-        node.put("createdAt", record.createdAt());
-        node.put("updatedAt", record.updatedAt());
-        node.put("accessCount", record.accessCount());
-        if (record.lastAccessedAt() == null) {
-            node.putNull("lastAccessedAt");
-        } else {
-            node.put("lastAccessedAt", record.lastAccessedAt());
-        }
-        return node;
-    }
-
-    private String readRequiredText(JsonNode root, String fieldName) {
-        String value = readText(root, fieldName);
-        if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException("Missing argument: " + fieldName);
-        }
-        return value;
-    }
-
-    private String readText(JsonNode root, String fieldName) {
-        JsonNode node = root == null ? null : root.get(fieldName);
-        if (node == null || node.isNull() || !node.isValueNode()) {
-            return null;
-        }
-        String value = node.asText();
-        return StringUtils.hasText(value) ? value.trim() : null;
-    }
-
-    private Integer readInteger(JsonNode root, String fieldName) {
-        JsonNode node = root == null ? null : root.get(fieldName);
-        if (node == null || node.isNull()) {
-            return null;
-        }
-        if (node.isInt() || node.isLong()) {
-            return node.intValue();
-        }
-        if (node.isTextual() && StringUtils.hasText(node.asText())) {
-            try {
-                return Integer.parseInt(node.asText().trim());
-            } catch (NumberFormatException ex) {
-                throw new IllegalArgumentException("Invalid argument: " + fieldName + " must be an integer");
-            }
-        }
-        throw new IllegalArgumentException("Invalid argument: " + fieldName + " must be an integer");
     }
 }
