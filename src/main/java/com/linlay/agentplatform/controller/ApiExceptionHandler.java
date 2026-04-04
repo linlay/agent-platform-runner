@@ -2,6 +2,7 @@ package com.linlay.agentplatform.controller;
 
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.model.api.ApiResponse;
+import com.linlay.agentplatform.service.memory.RememberCaptureException;
 import com.linlay.agentplatform.util.LoggingSanitizer;
 import com.linlay.agentplatform.service.chat.ChatNotFoundException;
 import org.slf4j.Logger;
@@ -41,6 +42,15 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiResponse<Map<String, Object>>> handleChatNotFound(ChatNotFoundException ex) {
         logHandled(HttpStatus.NOT_FOUND, "chat_not_found", ex);
         return json(HttpStatus.NOT_FOUND, ApiResponse.failure(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(RememberCaptureException.class)
+    public ResponseEntity<ApiResponse<Map<String, Object>>> handleRememberCapture(RememberCaptureException ex) {
+        logHandled(HttpStatus.INTERNAL_SERVER_ERROR, "remember_capture_failed", ex);
+        return json(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                ApiResponse.failure(HttpStatus.INTERNAL_SERVER_ERROR.value(), ex.getMessage())
+        );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

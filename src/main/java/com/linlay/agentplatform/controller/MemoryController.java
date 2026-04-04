@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -29,22 +30,26 @@ public class MemoryController {
     }
 
     @PostMapping("/remember")
-    public ApiResponse<RememberResponse> remember(@Valid @RequestBody RememberRequest request, ServerWebExchange exchange) {
+    public Mono<ApiResponse<RememberResponse>> remember(@Valid @RequestBody RememberRequest request, ServerWebExchange exchange) {
         exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_REQUEST_ID, request.requestId());
         exchange.getAttributes().put(ApiRequestLoggingWebFilter.ATTR_BODY_SUMMARY, bodySummary(
                 request.chatId(),
                 request.requestId()
         ));
-        GlobalMemoryRequestService.CaptureResult result = globalMemoryRequestService.captureRemember(request);
-        return ApiResponse.success(new RememberResponse(
-                true,
-                "captured",
-                result.requestId(),
-                result.chatId(),
-                result.memoryPath(),
-                result.memoryCount(),
-                result.detail()
-        ));
+        return globalMemoryRequestService.captureRemember(request)
+                .map(result -> ApiResponse.success(new RememberResponse(
+                        true,
+                        "captured",
+                        result.requestId(),
+                        result.chatId(),
+                        result.memoryPath(),
+                        result.memoryRoot(),
+                        result.memoryCount(),
+                        result.detail(),
+                        result.promptPreview(),
+                        result.items(),
+                        result.stored()
+                )));
     }
 
     @PostMapping("/learn")

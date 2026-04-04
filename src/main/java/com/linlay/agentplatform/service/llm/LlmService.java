@@ -145,7 +145,19 @@ public class LlmService {
             String userPrompt,
             String stage
     ) {
-        return completeTextInternal(providerKey, model, ModelProtocol.OPENAI, systemPrompt, userPrompt, stage);
+        return completeTextInternal(null, providerKey, model, ModelProtocol.OPENAI, systemPrompt, userPrompt, stage);
+    }
+
+    public Mono<String> completeText(
+            String modelKey,
+            String providerKey,
+            String model,
+            ModelProtocol protocol,
+            String systemPrompt,
+            String userPrompt,
+            String stage
+    ) {
+        return completeTextInternal(modelKey, providerKey, model, protocol, systemPrompt, userPrompt, stage);
     }
 
     private Flux<String> streamContentInternal(LlmCallSpec spec) {
@@ -187,10 +199,10 @@ public class LlmService {
                     spec.providerKey(), spec.model(), hasTools ? spec.tools().size() : 0);
             callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream request body:\n{}"),
                     safeJson(requestBody));
-            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream system prompt:\n{}"), callLogger.normalizePrompt(spec.systemPrompt()));
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream system prompt:\n{}"), callLogger.normalizePrompt(spec.stage(), spec.systemPrompt()));
             callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream history messages count={}"), spec.messages().size());
             callLogger.logHistoryMessages(log, traceId, spec.stage(), spec.messages());
-            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream user prompt:\n{}"), callLogger.normalizePrompt(spec.userPrompt()));
+            callLogger.info(log, callLogger.message(traceId, spec.stage(), "LLM delta stream user prompt:\n{}"), callLogger.normalizePrompt(spec.stage(), spec.userPrompt()));
 
             Flux<LlmDelta> deltaFlux = openAiCompatibleSseClient.streamDeltasRawSse(
                     spec.modelKey(),
@@ -250,6 +262,7 @@ public class LlmService {
     }
 
     private Mono<String> completeTextInternal(
+            String modelKey,
             String providerKey,
             String model,
             ModelProtocol protocol,
@@ -257,7 +270,8 @@ public class LlmService {
             String userPrompt,
             String stage
     ) {
-        return streamContentRawSse(
+        return openAiCompatibleSseClient.streamContentRawSse(
+                modelKey,
                 providerKey,
                 model,
                 protocol,

@@ -97,4 +97,22 @@ class LlmCallLoggerTest {
             logger.setLevel(originalLevel);
         }
     }
+
+    @Test
+    void shouldSummarizeRememberPromptWithoutDumpingFullChatPayload() {
+        LlmCallLogger callLogger = new LlmCallLogger();
+        String prompt = """
+                请从以下对话快照中抽取可长期保留的记忆，返回 JSON。
+
+                chat:
+                {"chatId":"chat-1","chatName":"demo","rawMessages":[{"role":"user","content":"alpha"},{"role":"assistant","content":"beta"}],"events":[{"type":"content.snapshot","text":"gamma"}],"references":[{"id":"r1","name":"ref-1"}]}
+                """;
+
+        String normalized = callLogger.normalizePrompt("remember", prompt);
+
+        assertThat(normalized).contains("rawMessageCount=2");
+        assertThat(normalized).contains("eventCount=1");
+        assertThat(normalized).contains("referenceCount=1");
+        assertThat(normalized).doesNotContain("\"rawMessages\":[{\"role\":\"user\",\"content\":\"alpha\"},{\"role\":\"assistant\",\"content\":\"beta\"}]");
+    }
 }

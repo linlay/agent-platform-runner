@@ -46,7 +46,7 @@ class AgentMemoryStoreTest {
         assertThat(read.accessCount()).isEqualTo(1);
         assertThat(read.lastAccessedAt()).isNotNull();
         assertThat(Files.exists(tempDir.resolve("memory/memory.db"))).isTrue();
-        assertThat(Files.exists(tempDir.resolve("memory/journal"))).isTrue();
+        assertThat(Files.exists(tempDir.resolve("memory/journal"))).isFalse();
     }
 
     @Test
@@ -99,6 +99,7 @@ class AgentMemoryStoreTest {
         store.write("flat-agent", null, "flat memory", null, 5, List.of());
 
         assertThat(Files.exists(tempDir.resolve("memory/memory.db"))).isTrue();
+        assertThat(Files.exists(tempDir.resolve("memory/journal"))).isFalse();
     }
 
     @Test
@@ -129,6 +130,30 @@ class AgentMemoryStoreTest {
         }
 
         assertThat(store.list("agent-d", agentDir, null, 20, "recent")).hasSize(10);
+    }
+
+    @Test
+    void shouldSkipJournalForMemoriesWithoutChatId() throws Exception {
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+        when(embeddingService.embed("db only memory")).thenReturn(Optional.empty());
+
+        AgentMemoryStore store = new AgentMemoryStore(properties(2), agentMemoryService(), embeddingService);
+
+        MemoryRecord record = store.write(new AgentMemoryStore.WriteRequest(
+                "agent-journal-skip",
+                "req-skip",
+                null,
+                null,
+                "db only memory",
+                "tool-write",
+                "general",
+                5,
+                List.of("skip")
+        ));
+
+        assertThat(record.content()).isEqualTo("db only memory");
+        assertThat(store.read("agent-journal-skip", tempDir.resolve("agent-journal-skip"), record.id())).isPresent();
+        assertThat(Files.exists(tempDir.resolve("memory/journal"))).isFalse();
     }
 
     private AgentMemoryProperties properties(int embeddingDimension) {

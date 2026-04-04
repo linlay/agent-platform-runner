@@ -1,5 +1,7 @@
 package com.linlay.agentplatform.service.llm;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
@@ -8,8 +10,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -19,6 +23,7 @@ class LlmCallLogger {
 
     private static final Logger log = LoggerFactory.getLogger(LlmCallLogger.class);
     private static final Pattern STAGE_TOKEN_SPLITTER = Pattern.compile("[^a-zA-Z0-9]+");
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final boolean enabled;
     private final boolean maskSensitive;
@@ -49,8 +54,70 @@ class LlmCallLogger {
         return sanitizeText(prompt == null ? "" : prompt);
     }
 
+    String normalizePrompt(String stage, String prompt) {
+        if ("remember".equals(compactStage(stage))) {
+            return summarizeRememberPrompt(prompt);
+        }
+        return normalizePrompt(prompt);
+    }
+
     String sanitizeText(String text) {
         return LlmLogSanitizer.maskText(text, maskSensitive);
+    }
+
+    String summarizeRememberPrompt(String prompt) {
+        String normalized = sanitizeText(prompt == null ? "" : prompt);
+        int markerIndex = normalized.indexOf("\nchat:\n");
+        if (markerIndex < 0) {
+            return normalized;
+        }
+        String prefix = normalized.substring(0, markerIndex).trim();
+        String payload = normalized.substring(markerIndex + "\nchat:\n".length()).trim();
+        return prefix + "\n\nchat: " + summarizeRememberPayload(payload);
+    }
+
+    private Map<String, Object> summarizeRememberPayload(String payload) {
+        String compactPayload = payload == null ? "" : payload.replaceAll("\\s+", " ").trim();
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(payload);
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("chatId", text(root, "chatId"));
+            summary.put("chatName", text(root, "chatName"));
+            summary.put("rawMessageCount", count(root, "rawMessages"));
+            summary.put("eventCount", count(root, "events"));
+            summary.put("referenceCount", count(root, "references"));
+            summary.put("rawMessageSample", sample(root, "rawMessages"));
+            summary.put("eventSample", sample(root, "events"));
+            summary.put("referenceSample", sample(root, "references"));
+            return summary;
+        } catch (Exception ignored) {
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("payloadChars", compactPayload.length());
+            fallback.put("payloadPreview", compactPayload.length() <= 120 ? compactPayload : compactPayload.substring(0, 104) + "...[truncated]");
+            return fallback;
+        }
+    }
+
+    private String text(JsonNode root, String field) {
+        JsonNode node = root == null ? null : root.path(field);
+        return node == null || node.isMissingNode() || node.isNull() ? null : node.asText();
+    }
+
+    private int count(JsonNode root, String field) {
+        JsonNode node = root == null ? null : root.path(field);
+        return node != null && node.isArray() ? node.size() : 0;
+    }
+
+    private String sample(JsonNode root, String field) {
+        JsonNode node = root == null ? null : root.path(field);
+        if (node == null || !node.isArray() || node.isEmpty()) {
+            return null;
+        }
+        String serialized = sanitizeText(node.get(0).toString()).replaceAll("\\s+", " ").trim();
+        if (serialized.length() <= 120) {
+            return serialized;
+        }
+        return serialized.substring(0, 104) + "...[truncated]";
     }
 
     String context(String traceId, String stage) {

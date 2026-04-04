@@ -657,7 +657,7 @@ memoryConfig:
 - `contextConfig.tags: [memory]` 只控制“是否把已存储 memory 摘要注入运行时上下文”。
 - `memoryConfig.enabled` 只控制“成功 run 结束后是否自动沉淀一条 `run-summary` memory”，并在全局 memory 功能开启时自动暴露 `_memory_write_/_memory_read_/_memory_search_`。
 - 全局 `AGENT_MEMORY_ENABLED` 默认值为 `false`，未显式开启时 memory 功能整体关闭。
-- 正式 memory 根目录为 `MEMORY_DIR`；Phase 1 结构固定为 `memory.db + journal/YYYY-MM/YYYY-MM-DD.jsonl`。
+- 正式 memory 根目录为 `MEMORY_DIR`；其中 `memory.db` 是唯一完整持久化存储，`journal/YYYY-MM/YYYY-MM-DD.md` 是按 chat 组织的面向人工查看的 daily memory log，仅记录带 `chatId` 的 memory。
 - `Runtime Context: Context` 中的 `references` 会以结构化数组注入 system prompt，并优先展示 `id/sandboxPath/name/sizeBytes/mimeType`；其中 `sandboxPath` 表示模型在沙箱内可直接访问的路径，例如 `/workspace/参政议政.md`。
 
 ## Models / 工具 / 视图 / 技能目录
@@ -911,7 +911,7 @@ for f in *.md; do echo "$f"; done
 | `ROOT_DIR` | `runtime/root` | 本地运行时的 runner 根目录；Docker 中仅作为宿主机挂载 source |
 | `SCHEDULES_DIR` | `runtime/schedules` | 本地运行时的 Schedule 目录；Docker 中仅作为宿主机挂载 source |
 | `CHATS_DIR` | `runtime/chats` | 本地运行时的聊天存储目录；Docker 中仅作为宿主机挂载 source |
-| `MEMORY_DIR` | `runtime/memory` | 本地运行时的 central memory 目录；包含 `memory.db` 与 `journal/`，Docker 中仅作为宿主机挂载 source |
+| `MEMORY_DIR` | `runtime/memory` | 本地运行时的 central memory 目录；包含完整存储 `memory.db` 与按 chat 组织、仅记录带 `chatId` memory 的 `journal/YYYY-MM/YYYY-MM-DD.md`，Docker 中仅作为宿主机挂载 source |
 | `PAN_DIR` | `runtime/pan` | 本地运行时的 pan 目录；Docker 中仅作为宿主机挂载 source |
 | `SKILLS_MARKET_DIR` | `runtime/skills-market` | 本地运行时的 Skill market 目录；Docker 中仅作为宿主机挂载 source |
 | `DATA_DIR` | `data` | 静态文件目录 |

@@ -1,6 +1,5 @@
 package com.linlay.agentplatform.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
@@ -54,7 +53,9 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-memory-skills-${random.uuid}",
                 "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-memory-schedules-${random.uuid}",
                 "agent.root.external-dir=${java.io.tmpdir}/agent-platform-runner-memory-root-${random.uuid}",
-                "memory.storage.dir=${java.io.tmpdir}/agent-platform-runner-memory-store-${random.uuid}"
+                "memory.storage.dir=${java.io.tmpdir}/agent-platform-runner-memory-store-${random.uuid}",
+                "memory.remember.model-key=remember-test-model",
+                "memory.remember.timeout-ms=100"
         }
 )
 @AutoConfigureWebTestClient
@@ -62,6 +63,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MemoryControllerTest {
 
     private static final Path TEST_PROVIDERS_DIR = prepareProvidersDir();
+    private static final Path TEST_MODELS_DIR = prepareModelsDir();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Autowired
@@ -79,6 +81,7 @@ class MemoryControllerTest {
     @DynamicPropertySource
     static void registerDynamicProperties(DynamicPropertyRegistry registry) {
         registry.add("agent.providers.external-dir", () -> TEST_PROVIDERS_DIR.toString());
+        registry.add("agent.models.external-dir", () -> TEST_MODELS_DIR.toString());
     }
 
     @TestConfiguration
@@ -94,6 +97,11 @@ class MemoryControllerTest {
 
                 @Override
                 public Mono<String> completeText(String providerKey, String model, String systemPrompt, String userPrompt) {
+                    assertThat(providerKey).isEqualTo("babelark");
+                    assertThat(model).isEqualTo("remember-model-id");
+                    if (userPrompt != null && userPrompt.contains("超时回复")) {
+                        return Mono.never();
+                    }
                     if (userPrompt != null && userPrompt.contains("新回复")) {
                         return Mono.just("{\"items\":[{\"summary\":\"用户确认新回复应保留为记忆\"}]}");
                     }
@@ -154,20 +162,35 @@ class MemoryControllerTest {
                 .jsonPath("$.data.status").isEqualTo("captured")
                 .jsonPath("$.data.runId").doesNotExist()
                 .jsonPath("$.data.memoryPath").isEqualTo(todayJournalRelativePath())
-                .jsonPath("$.data.memoryCount").isEqualTo(1);
+                .jsonPath("$.data.memoryRoot").isEqualTo(memoryRoot().toString())
+                .jsonPath("$.data.memoryCount").isEqualTo(1)
+                .jsonPath("$.data.items[0].summary").isEqualTo("用户首次对话的关键回复值得保留")
+                .jsonPath("$.data.items[0].subjectKey").isEqualTo("chat-memory-demo")
+                .jsonPath("$.data.stored[0].requestId").isEqualTo("remember_req_001")
+                .jsonPath("$.data.stored[0].chatId").isEqualTo(chatId)
+                .jsonPath("$.data.stored[0].agentKey").isEqualTo("_unknown")
+                .jsonPath("$.data.stored[0].summary").isEqualTo("用户首次对话的关键回复值得保留")
+                .jsonPath("$.data.promptPreview.chatName").exists()
+                .jsonPath("$.data.promptPreview.rawMessageCount").isEqualTo(2)
+                .jsonPath("$.data.promptPreview.referenceCount").isEqualTo(1)
+                .jsonPath("$.data.promptPreview.userPrompt").value(value -> {
+                    assertThat((String) value).contains("chat preview");
+                    assertThat((String) value).doesNotContain("\"rawMessages\"");
+                })
+                .jsonPath("$.data.detail").value(value -> assertThat((String) value).contains(memoryRoot().toString()));
 
         Path journalFile = memoryRoot().resolve(todayJournalRelativePath());
         assertThat(Files.exists(journalFile)).isTrue();
-        List<String> lines = Files.readAllLines(journalFile, StandardCharsets.UTF_8);
-        assertThat(lines).hasSize(1);
-
-        JsonNode root = OBJECT_MAPPER.readTree(lines.getFirst());
-        assertThat(root.path("requestId").asText()).isEqualTo("remember_req_001");
-        assertThat(root.path("chatId").asText()).isEqualTo(chatId);
-        assertThat(root.path("agentKey").asText()).isEqualTo("_unknown");
-        assertThat(root.path("subjectKey").asText()).isEqualTo("chat-memory-demo");
-        assertThat(root.path("sourceType").asText()).isEqualTo("remember");
-        assertThat(root.path("summary").asText()).contains("关键回复");
+        String markdown = Files.readString(journalFile, StandardCharsets.UTF_8);
+        assertThat(markdown).contains("## ");
+        assertThat(markdown).contains("主题：chat-memory-demo");
+        assertThat(markdown).contains("chatId: " + chatId);
+        assertThat(markdown).contains("agentKey: _unknown");
+        assertThat(markdown).contains("用户首次对话的关键回复值得保留");
+        assertThat(markdown).doesNotContain("requestId");
+        assertThat(markdown).doesNotContain("标签：remember");
+        assertThat(markdown).doesNotContain("sourceType");
+        assertThat(markdown).doesNotContain("importance");
         assertThat(Files.exists(memoryRoot().resolve("memory.db"))).isTrue();
     }
 
@@ -183,12 +206,15 @@ class MemoryControllerTest {
                         "chatId", chatId
                 ))
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.memoryCount").isEqualTo(1)
+                .jsonPath("$.data.stored[0].summary").isEqualTo("旧回复也被提炼成一条记忆");
 
         Path journalFile = memoryRoot().resolve(todayJournalRelativePath());
-        List<String> firstSnapshot = Files.readAllLines(journalFile, StandardCharsets.UTF_8);
-        assertThat(firstSnapshot).hasSize(1);
-        assertThat(firstSnapshot.getFirst()).contains("旧回复也被提炼成一条记忆");
+        String firstSnapshot = Files.readString(journalFile, StandardCharsets.UTF_8);
+        assertThat(firstSnapshot).contains("旧回复也被提炼成一条记忆");
+        assertThat(firstSnapshot.split("(?m)^## ").length - 1).isEqualTo(1);
 
         seedChat(chatId, "run-remember-2", "你好", "新回复", List.of());
 
@@ -199,11 +225,36 @@ class MemoryControllerTest {
                         "chatId", chatId
                 ))
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.memoryCount").isEqualTo(1)
+                .jsonPath("$.data.stored[0].summary").isEqualTo("用户确认新回复应保留为记忆");
 
-        List<String> secondSnapshot = Files.readAllLines(journalFile, StandardCharsets.UTF_8);
-        assertThat(secondSnapshot).hasSize(2);
-        assertThat(secondSnapshot.getLast()).contains("用户确认新回复应保留为记忆");
+        String secondSnapshot = Files.readString(journalFile, StandardCharsets.UTF_8);
+        assertThat(secondSnapshot).contains("旧回复也被提炼成一条记忆");
+        assertThat(secondSnapshot).contains("用户确认新回复应保留为记忆");
+        assertThat(secondSnapshot.split("(?m)^## ").length - 1).isEqualTo(2);
+    }
+
+    @Test
+    void rememberShouldReturn500WhenExtractionTimesOut() throws Exception {
+        String chatId = UUID.randomUUID().toString();
+        seedChat(chatId, "run-remember-timeout", "你好", "这是超时回复", List.of());
+
+        webTestClient.post()
+                .uri("/api/remember")
+                .bodyValue(Map.of(
+                        "requestId", "remember_req_timeout",
+                        "chatId", chatId
+                ))
+                .exchange()
+                .expectStatus().is5xxServerError()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo(500)
+                .jsonPath("$.msg").value(value -> assertThat((String) value).contains("timed out"));
+
+        Path journalFile = memoryRoot().resolve(todayJournalRelativePath());
+        assertThat(Files.exists(journalFile)).isFalse();
     }
 
     @Test
@@ -347,7 +398,7 @@ class MemoryControllerTest {
     private String todayJournalRelativePath() {
         LocalDate today = LocalDate.now();
         return "journal/" + today.getYear() + "-" + String.format("%02d", today.getMonthValue())
-                + "/" + today + ".jsonl";
+                + "/" + today + ".md";
     }
 
     private static Path prepareProvidersDir() {
@@ -370,6 +421,23 @@ class MemoryControllerTest {
                     baseUrl: https://example.com/v1
                     apiKey: test-siliconflow-key
                     defaultModel: test-siliconflow-model
+                    """);
+            return dir;
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    private static Path prepareModelsDir() {
+        try {
+            Path dir = Files.createTempDirectory("agent-platform-runner-memory-models-");
+            Files.writeString(dir.resolve("remember-test-model.yml"), """
+                    key: remember-test-model
+                    provider: babelark
+                    protocol: OPENAI
+                    modelId: remember-model-id
+                    isReasoner: true
+                    isFunction: true
                     """);
             return dir;
         } catch (IOException ex) {

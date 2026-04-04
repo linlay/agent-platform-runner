@@ -3,12 +3,14 @@ package com.linlay.agentplatform.service.memory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.ProviderConfig;
+import com.linlay.agentplatform.config.properties.MemoryRememberProperties;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.RememberRequest;
+import com.linlay.agentplatform.model.api.RememberResponse;
+import com.linlay.agentplatform.model.ModelDefinition;
+import com.linlay.agentplatform.model.ModelRegistryService;
 import com.linlay.agentplatform.service.chat.ChatRecordStore;
 import com.linlay.agentplatform.service.llm.LlmService;
-import com.linlay.agentplatform.service.llm.ProviderRegistryService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,16 +18,18 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 import org.springframework.util.StringUtils;
+import reactor.core.publisher.Mono;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 public class GlobalMemoryRequestService {
@@ -38,7 +42,8 @@ public class GlobalMemoryRequestService {
     private final AgentMemoryStore agentMemoryStore;
     private final com.linlay.agentplatform.agent.AgentMemoryService agentMemoryService;
     private final LlmService llmService;
-    private final ProviderRegistryService providerRegistryService;
+    private final ModelRegistryService modelRegistryService;
+    private final MemoryRememberProperties memoryRememberProperties;
     private final Map<String, String> prompts;
 
     public GlobalMemoryRequestService(
@@ -47,7 +52,8 @@ public class GlobalMemoryRequestService {
             ObjectProvider<AgentMemoryStore> agentMemoryStoreProvider,
             com.linlay.agentplatform.agent.AgentMemoryService agentMemoryService,
             LlmService llmService,
-            ProviderRegistryService providerRegistryService
+            ModelRegistryService modelRegistryService,
+            MemoryRememberProperties memoryRememberProperties
     ) {
         this.chatRecordStore = chatRecordStore;
         this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
@@ -61,42 +67,59 @@ public class GlobalMemoryRequestService {
                         null
                 ));
         this.llmService = llmService;
-        this.providerRegistryService = providerRegistryService;
+        this.modelRegistryService = modelRegistryService;
+        this.memoryRememberProperties = memoryRememberProperties == null ? new MemoryRememberProperties() : memoryRememberProperties;
         this.prompts = Map.of(
                 "remember", loadPrompt("prompts/remember.txt"),
                 "learn", loadPrompt("prompts/learn.txt")
         );
     }
 
-    public CaptureResult captureRemember(RememberRequest request) {
-        String requestId = normalizeRequestId(request == null ? null : request.requestId());
-        String chatId = requireText(request == null ? null : request.chatId(), "chatId");
-        ChatDetailResponse detail = chatRecordStore.loadChat(chatId, true);
-        String agentKey = chatRecordStore.findBoundAgentKey(chatId).filter(StringUtils::hasText).map(String::trim).orElse("_unknown");
-        List<RememberCandidate> candidates = extractRememberCandidates(detail);
+    public Mono<CaptureResult> captureRemember(RememberRequest request) {
+        return Mono.defer(() -> {
+            String requestId = normalizeRequestId(request == null ? null : request.requestId());
+            String chatId = requireText(request == null ? null : request.chatId(), "chatId");
+            ChatDetailResponse detail = chatRecordStore.loadChat(chatId, true);
+            String agentKey = chatRecordStore.findBoundAgentKey(chatId).filter(StringUtils::hasText).map(String::trim).orElse("_unknown");
+            RememberResponse.PromptPreviewResponse promptPreview = buildPromptPreview(detail);
+            RememberModelSelection selection = resolveRememberModelSelection();
+            String userPrompt = buildRememberUserPrompt(detail);
 
-        int stored = 0;
-        for (RememberCandidate candidate : candidates) {
-            if (!StringUtils.hasText(candidate.summary())) {
-                continue;
-            }
-            agentMemoryStore.write(new AgentMemoryStore.WriteRequest(
-                    agentKey,
+            log.info(
+                    "remember extraction start requestId={}, chatId={}, modelKey={}, providerKey={}, modelId={}, protocol={}, timeoutMs={}",
                     requestId,
                     chatId,
-                    candidate.subjectKey(),
-                    candidate.summary(),
-                    "remember",
-                    "remember",
-                    6,
-                    List.of("remember")
-            ));
-            stored++;
-        }
+                    selection.modelKey(),
+                    selection.providerKey(),
+                    selection.modelId(),
+                    selection.protocol(),
+                    selection.timeoutMs()
+            );
 
-        String relativePath = agentMemoryService.relativeJournalPath(LocalDate.now());
-        String detailMessage = stored == 0 ? "remember request captured with no extracted memory" : "remember request captured";
-        return new CaptureResult(requestId, chatId, relativePath, stored, detailMessage);
+            return extractRememberCandidates(selection, userPrompt)
+                    .map(candidates -> buildCaptureResult(requestId, chatId, agentKey, promptPreview, candidates))
+                    .onErrorMap(ex -> ex instanceof RememberCaptureException
+                            ? ex
+                            : new RememberCaptureException("remember extraction failed: " + safeReason(ex), ex))
+                    .doOnSuccess(result -> log.info(
+                            "remember extraction finished requestId={}, chatId={}, modelKey={}, memoryCount={}",
+                            requestId,
+                            chatId,
+                            selection.modelKey(),
+                            result.memoryCount()
+                    ))
+                    .doOnError(ex -> log.warn(
+                            "remember extraction failed requestId={}, chatId={}, modelKey={}, providerKey={}, modelId={}, timeoutMs={}, reason={}",
+                            requestId,
+                            chatId,
+                            selection.modelKey(),
+                            selection.providerKey(),
+                            selection.modelId(),
+                            selection.timeoutMs(),
+                            ex.getMessage(),
+                            ex
+                    ));
+        });
     }
 
     String prompt(String promptKey) {
@@ -107,32 +130,26 @@ public class GlobalMemoryRequestService {
         return value;
     }
 
-    private List<RememberCandidate> extractRememberCandidates(ChatDetailResponse detail) {
-        ProviderConfig provider = providerRegistryService == null
-                ? null
-                : providerRegistryService.list().stream()
-                .filter(config -> StringUtils.hasText(config.key()) && StringUtils.hasText(config.defaultModel()))
-                .findFirst()
-                .orElse(null);
-        if (provider == null || llmService == null) {
-            return List.of();
+    private Mono<List<RememberCandidate>> extractRememberCandidates(RememberModelSelection selection, String userPrompt) {
+        if (llmService == null) {
+            return Mono.error(new RememberCaptureException("remember extraction failed: llm service is not configured"));
         }
-        String userPrompt = buildRememberUserPrompt(detail);
-        try {
-            String raw = llmService.completeText(
-                            provider.key(),
-                            provider.defaultModel(),
-                            prompt(PROMPT_KEY_REMEMBER),
-                            userPrompt,
-                            PROMPT_KEY_REMEMBER
-                    )
-                    .toFuture()
-                    .get(30, TimeUnit.SECONDS);
-            return parseRememberCandidates(raw);
-        } catch (Exception ex) {
-            log.warn("Failed to extract remember memories, fallback to empty result", ex);
-            return List.of();
-        }
+        return llmService.completeText(
+                        selection.modelKey(),
+                        selection.providerKey(),
+                        selection.modelId(),
+                        selection.protocol(),
+                        prompt(PROMPT_KEY_REMEMBER),
+                        userPrompt,
+                        PROMPT_KEY_REMEMBER
+                )
+                .timeout(Duration.ofMillis(selection.timeoutMs()))
+                .onErrorMap(TimeoutException.class,
+                        ex -> new RememberCaptureException("remember extraction timed out after " + selection.timeoutMs() + " ms", ex))
+                .onErrorMap(ex -> ex instanceof RememberCaptureException
+                        ? ex
+                        : new RememberCaptureException("remember extraction failed: " + safeReason(ex), ex))
+                .map(this::parseRememberCandidates);
     }
 
     private String buildRememberUserPrompt(ChatDetailResponse detail) {
@@ -153,15 +170,57 @@ public class GlobalMemoryRequestService {
                 """.formatted(toJson(payload));
     }
 
+    private RememberResponse.PromptPreviewResponse buildPromptPreview(ChatDetailResponse detail) {
+        List<Map<String, Object>> rawMessages = detail.rawMessages() == null ? List.of() : detail.rawMessages();
+        List<Map<String, Object>> events = detail.events() == null ? List.of() : detail.events();
+        List<?> references = detail.references() == null ? List.of() : detail.references();
+        List<String> rawMessageSamples = sampleObjects(rawMessages);
+        List<String> eventSamples = sampleObjects(events);
+        List<String> referenceSamples = references.stream()
+                .limit(3)
+                .map(this::toCompactJson)
+                .map(this::truncatePreview)
+                .toList();
+        Map<String, Object> previewPayload = new LinkedHashMap<>();
+        previewPayload.put("chatId", detail.chatId());
+        previewPayload.put("chatName", detail.chatName());
+        previewPayload.put("rawMessageCount", rawMessages.size());
+        previewPayload.put("eventCount", events.size());
+        previewPayload.put("referenceCount", references.size());
+        previewPayload.put("rawMessageSamples", rawMessageSamples);
+        previewPayload.put("eventSamples", eventSamples);
+        previewPayload.put("referenceSamples", referenceSamples);
+        String previewJson = toJson(previewPayload);
+        return new RememberResponse.PromptPreviewResponse(
+                prompt(PROMPT_KEY_REMEMBER),
+                """
+                请从以下对话快照中抽取可长期保留的记忆，返回 JSON。
+                返回格式必须是：
+                {"items":[{"summary":"一句话总结","subjectKey":"可选，不确定可省略"}]}
+                只返回 JSON，不要输出 Markdown。
+
+                chat preview:
+                %s
+                """.formatted(previewJson),
+                detail.chatName(),
+                rawMessages.size(),
+                events.size(),
+                references.size(),
+                rawMessageSamples,
+                eventSamples,
+                referenceSamples
+        );
+    }
+
     private List<RememberCandidate> parseRememberCandidates(String raw) {
         if (!StringUtils.hasText(raw)) {
-            return List.of();
+            throw new RememberCaptureException("remember extraction failed: empty response");
         }
         try {
             JsonNode root = objectMapper.readTree(raw);
             JsonNode itemsNode = root.isArray() ? root : root.path("items");
             if (!itemsNode.isArray()) {
-                return List.of();
+                throw new RememberCaptureException("remember extraction failed: invalid response payload");
             }
             List<RememberCandidate> items = new ArrayList<>();
             for (JsonNode item : itemsNode) {
@@ -178,10 +237,75 @@ public class GlobalMemoryRequestService {
                 ));
             }
             return List.copyOf(items);
+        } catch (RememberCaptureException ex) {
+            throw ex;
         } catch (Exception ex) {
-            log.warn("Failed to parse remember extraction JSON, fallback to empty result");
-            return List.of();
+            throw new RememberCaptureException("remember extraction failed: invalid JSON response", ex);
         }
+    }
+
+    private CaptureResult buildCaptureResult(
+            String requestId,
+            String chatId,
+            String agentKey,
+            RememberResponse.PromptPreviewResponse promptPreview,
+            List<RememberCandidate> candidates
+    ) {
+        int stored = 0;
+        List<RememberResponse.StoredMemoryResponse> storedItems = new ArrayList<>();
+        for (RememberCandidate candidate : candidates) {
+            if (!StringUtils.hasText(candidate.summary())) {
+                continue;
+            }
+            MemoryRecord record = agentMemoryStore.write(new AgentMemoryStore.WriteRequest(
+                    agentKey,
+                    requestId,
+                    chatId,
+                    candidate.subjectKey(),
+                    candidate.summary(),
+                    "remember",
+                    "remember",
+                    6,
+                    List.of("remember")
+            ));
+            storedItems.add(toStoredMemoryResponse(record, requestId, chatId));
+            stored++;
+        }
+
+        String relativePath = agentMemoryService.relativeJournalPath(LocalDate.now());
+        String memoryRoot = agentMemoryService.resolveMemoryRoot().toString();
+        String detailMessage = stored == 0
+                ? "remember request captured with no extracted memory; memory root=" + memoryRoot
+                : "remember request captured; memory root=" + memoryRoot;
+        List<RememberResponse.RememberItemResponse> items = candidates.stream()
+                .map(candidate -> new RememberResponse.RememberItemResponse(candidate.summary(), candidate.subjectKey()))
+                .toList();
+        return new CaptureResult(requestId, chatId, relativePath, memoryRoot, stored, detailMessage, promptPreview, items, storedItems);
+    }
+
+    private RememberModelSelection resolveRememberModelSelection() {
+        if (!memoryRememberProperties.isEnabled()) {
+            throw new RememberCaptureException("remember extraction failed: remember is disabled");
+        }
+        String modelKey = normalizeNullable(memoryRememberProperties.getModelKey());
+        if (!StringUtils.hasText(modelKey)) {
+            throw new RememberCaptureException("remember extraction failed: remember modelKey is not configured");
+        }
+        if (modelRegistryService == null) {
+            throw new RememberCaptureException("remember extraction failed: model registry is not configured");
+        }
+        ModelDefinition model = modelRegistryService.find(modelKey).orElse(null);
+        if (model == null) {
+            throw new RememberCaptureException("remember extraction failed: remember modelKey not found: " + modelKey);
+        }
+        long timeoutMs = memoryRememberProperties.getTimeoutMs() > 0 ? memoryRememberProperties.getTimeoutMs() : 60_000L;
+        return new RememberModelSelection(
+                model.key(),
+                model.provider(),
+                model.modelId(),
+                model.protocol(),
+                timeoutMs
+        );
     }
 
     private String normalizeSummary(String summary) {
@@ -190,6 +314,50 @@ public class GlobalMemoryRequestService {
         }
         String normalized = summary.replaceAll("\\s+", " ").trim();
         return StringUtils.hasText(normalized) ? normalized : null;
+    }
+
+    private List<String> sampleObjects(List<Map<String, Object>> items) {
+        return items.stream()
+                .limit(3)
+                .map(this::toCompactJson)
+                .map(this::truncatePreview)
+                .toList();
+    }
+
+    private String toCompactJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Failed to serialize remember preview payload", ex);
+        }
+    }
+
+    private String truncatePreview(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= 160) {
+            return normalized;
+        }
+        return normalized.substring(0, 144) + "...[truncated]";
+    }
+
+    private RememberResponse.StoredMemoryResponse toStoredMemoryResponse(MemoryRecord record, String requestId, String chatId) {
+        return new RememberResponse.StoredMemoryResponse(
+                record.id(),
+                requestId,
+                chatId,
+                record.agentKey(),
+                record.subjectKey(),
+                record.content(),
+                record.sourceType(),
+                record.category(),
+                record.importance(),
+                record.tags(),
+                record.createdAt(),
+                record.updatedAt()
+        );
     }
 
     private String toJson(Object value) {
@@ -228,15 +396,33 @@ public class GlobalMemoryRequestService {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    private String safeReason(Throwable ex) {
+        String message = ex == null ? null : ex.getMessage();
+        return StringUtils.hasText(message) ? message.trim() : ex == null ? "unknown error" : ex.getClass().getSimpleName();
+    }
+
     private record RememberCandidate(String summary, String subjectKey) {
+    }
+
+    private record RememberModelSelection(
+            String modelKey,
+            String providerKey,
+            String modelId,
+            com.linlay.agentplatform.model.ModelProtocol protocol,
+            long timeoutMs
+    ) {
     }
 
     public record CaptureResult(
             String requestId,
             String chatId,
             String memoryPath,
+            String memoryRoot,
             int memoryCount,
-            String detail
+            String detail,
+            RememberResponse.PromptPreviewResponse promptPreview,
+            List<RememberResponse.RememberItemResponse> items,
+            List<RememberResponse.StoredMemoryResponse> stored
     ) {
     }
 }

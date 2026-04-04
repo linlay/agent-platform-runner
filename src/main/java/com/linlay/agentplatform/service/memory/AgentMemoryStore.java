@@ -1,7 +1,5 @@
 package com.linlay.agentplatform.service.memory;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentMemoryService;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.service.embedding.EmbeddingService;
@@ -49,7 +47,6 @@ public class AgentMemoryStore {
     private final AgentMemoryProperties properties;
     private final AgentMemoryService agentMemoryService;
     private final EmbeddingService embeddingService;
-    private final ObjectMapper objectMapper;
     private final Map<String, Object> dbLocks = new ConcurrentHashMap<>();
     private final Set<String> initializedDatabases = ConcurrentHashMap.newKeySet();
 
@@ -61,7 +58,6 @@ public class AgentMemoryStore {
         this.properties = properties == null ? new AgentMemoryProperties() : properties;
         this.agentMemoryService = agentMemoryService == null ? new AgentMemoryService() : agentMemoryService;
         this.embeddingService = embeddingService;
-        this.objectMapper = new ObjectMapper();
     }
 
     public record WriteRequest(
@@ -557,90 +553,10 @@ public class AgentMemoryStore {
     }
 
     private void rebuildFromJournal(Connection connection) {
-        Path journalRoot = agentMemoryService.resolveMemoryRoot().resolve("journal");
-        if (!Files.isDirectory(journalRoot)) {
-            return;
-        }
-        try (var stream = Files.walk(journalRoot)) {
-            stream.filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().endsWith(".jsonl"))
-                    .sorted()
-                    .forEach(path -> replayJournalFile(connection, path));
-        } catch (IOException ex) {
-            throw new IllegalStateException("Cannot rebuild memory database from journal: " + journalRoot, ex);
-        }
-    }
-
-    private void replayJournalFile(Connection connection, Path file) {
-        try {
-            List<String> lines = Files.readAllLines(file);
-            for (String line : lines) {
-                if (!StringUtils.hasText(line)) {
-                    continue;
-                }
-                JsonNode node = objectMapper.readTree(line);
-                replayJournalEntry(connection, node);
-            }
-        } catch (IOException ex) {
-            throw new IllegalStateException("Cannot read memory journal file: " + file, ex);
-        }
-    }
-
-    private void replayJournalEntry(Connection connection, JsonNode node) {
-        if (node == null || !node.isObject()) {
-            return;
-        }
-        String id = normalizeNullable(node.path("id").asText(null));
-        String agentKey = normalizeNullable(node.path("agentKey").asText(null));
-        String summary = normalizeNullable(node.path("summary").asText(null));
-        if (!StringUtils.hasText(id) || !StringUtils.hasText(agentKey) || !StringUtils.hasText(summary)) {
-            return;
-        }
-        String subjectKey = normalizeSubjectKey(
-                normalizeNullable(node.path("subjectKey").asText(null)),
-                normalizeNullable(node.path("chatId").asText(null)),
-                agentKey
+        log.info(
+                "Memory journal replay skipped: journal is now a human-readable log only, database path={}",
+                resolveDbPath()
         );
-        String sourceType = normalizeSourceType(node.path("sourceType").asText(null));
-        String category = normalizeCategory(node.path("category").asText(null));
-        int importance = normalizeImportance(node.path("importance").asInt(5));
-        List<String> tags = normalizeTags(readStringList(node.path("tags")));
-        long ts = node.path("ts").asLong(System.currentTimeMillis());
-        String requestId = normalizeNullable(node.path("requestId").asText(null));
-        String chatId = normalizeNullable(node.path("chatId").asText(null));
-        Optional<float[]> embedding = safeEmbed(summary);
-        try (PreparedStatement statement = connection.prepareStatement("""
-                INSERT OR IGNORE INTO MEMORIES (
-                  ID_, TS_, REQUEST_ID_, CHAT_ID_, AGENT_KEY_, SUBJECT_KEY_, SOURCE_TYPE_,
-                  SUMMARY_, CATEGORY_, IMPORTANCE_, TAGS_, EMBEDDING_, EMBEDDING_MODEL_,
-                  UPDATED_AT_, ACCESS_COUNT_, LAST_ACCESSED_AT_
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """)) {
-            statement.setString(1, id);
-            statement.setLong(2, ts);
-            setNullableText(statement, 3, requestId);
-            setNullableText(statement, 4, chatId);
-            statement.setString(5, agentKey);
-            statement.setString(6, subjectKey);
-            statement.setString(7, sourceType);
-            statement.setString(8, summary);
-            statement.setString(9, category);
-            statement.setInt(10, importance);
-            statement.setString(11, joinTags(tags));
-            if (embedding.isPresent()) {
-                statement.setBytes(12, serializeEmbedding(embedding.get()));
-                setNullableText(statement, 13, normalizeNullable(properties.getEmbeddingModel()));
-            } else {
-                statement.setNull(12, java.sql.Types.BLOB);
-                statement.setNull(13, java.sql.Types.VARCHAR);
-            }
-            statement.setLong(14, ts);
-            statement.setInt(15, 0);
-            statement.setNull(16, java.sql.Types.BIGINT);
-            statement.executeUpdate();
-        } catch (SQLException ex) {
-            throw new IllegalStateException("Cannot replay memory journal entry id=" + id, ex);
-        }
     }
 
     private Connection openConnection(Path dbPath) throws SQLException {
@@ -931,19 +847,6 @@ public class AgentMemoryStore {
     private Long nullableLong(ResultSet resultSet, String column) throws SQLException {
         long value = resultSet.getLong(column);
         return resultSet.wasNull() ? null : value;
-    }
-
-    private List<String> readStringList(JsonNode node) {
-        if (node == null || !node.isArray()) {
-            return List.of();
-        }
-        List<String> items = new ArrayList<>();
-        for (JsonNode item : node) {
-            if (item != null && item.isValueNode() && StringUtils.hasText(item.asText())) {
-                items.add(item.asText().trim());
-            }
-        }
-        return List.copyOf(items);
     }
 
     private record CandidateScore(MemoryRecord record, double score) {

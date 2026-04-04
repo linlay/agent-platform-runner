@@ -165,6 +165,10 @@ chat:
 memory:
   storage:
     dir: ${MEMORY_DIR:runtime/memory}
+  remember:
+    enabled: ${MEMORY_REMEMBER_ENABLED:true}
+    model-key: ${MEMORY_REMEMBER_MODEL_KEY:}
+    timeout-ms: ${MEMORY_REMEMBER_TIMEOUT_MS:60000}
 
 logging:
   pattern:

@@ -222,10 +222,10 @@ class OpenAiCompatibleSseClient {
             StringBuilder responseBuffer = new StringBuilder();
 
             callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream request start provider={}, model={}"), providerKey, model);
-            callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream system prompt:\n{}"), callLogger.normalizePrompt(systemPrompt));
+            callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream system prompt:\n{}"), callLogger.normalizePrompt(stage, systemPrompt));
             callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream history messages count={}"), historyMessages == null ? 0 : historyMessages.size());
             callLogger.logHistoryMessages(log, traceId, stage, historyMessages);
-            callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream user prompt:\n{}"), callLogger.normalizePrompt(userPrompt));
+            callLogger.info(log, callLogger.message(traceId, stage, "LLM raw SSE content stream user prompt:\n{}"), callLogger.normalizePrompt(stage, userPrompt));
 
             ProviderConfig config = resolveProviderConfig(providerKey);
             OpenAiCompatConfig compat = resolveEffectiveCompat(providerKey, modelKey, protocol);
