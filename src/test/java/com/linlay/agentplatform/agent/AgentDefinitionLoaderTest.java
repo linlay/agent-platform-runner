@@ -1230,15 +1230,13 @@ class AgentDefinitionLoaderTest {
                     systemPrompt: summary stage
                 """);
 
-        AgentMemoryProperties memoryProperties = new AgentMemoryProperties();
-        memoryProperties.setEnabled(true);
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(
                 new ObjectMapper(),
                 properties,
                 TestModelRegistryServices.standardRegistry(),
-                memoryProperties
+                new AgentMemoryProperties()
         );
 
         AgentDefinition definition = loader.loadAll().stream()
@@ -1278,15 +1276,13 @@ class AgentDefinitionLoaderTest {
                     systemPrompt: summary stage
                 """);
 
-        AgentMemoryProperties memoryProperties = new AgentMemoryProperties();
-        memoryProperties.setEnabled(true);
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(
                 new ObjectMapper(),
                 properties,
                 TestModelRegistryServices.standardRegistry(),
-                memoryProperties
+                new AgentMemoryProperties()
         );
 
         AgentDefinition definition = loader.loadAll().stream()
@@ -1302,7 +1298,7 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
-    void shouldSkipMemoryToolInjectionWhenMemoryFeatureDisabled() throws IOException {
+    void shouldInjectMemoryToolsWithoutGlobalMemoryMasterSwitch() throws IOException {
         writeYaml("memory_disabled.yml", """
                 key: memory_disabled
                 name: Memory Disabled
@@ -1317,15 +1313,13 @@ class AgentDefinitionLoaderTest {
                   systemPrompt: test
                 """);
 
-        AgentMemoryProperties memoryProperties = new AgentMemoryProperties();
-        memoryProperties.setEnabled(false);
         AgentProperties properties = new AgentProperties();
         properties.setExternalDir(tempDir.toString());
         AgentDefinitionLoader loader = new AgentDefinitionLoader(
                 new ObjectMapper(),
                 properties,
                 TestModelRegistryServices.standardRegistry(),
-                memoryProperties
+                new AgentMemoryProperties()
         );
 
         AgentDefinition definition = loader.loadAll().stream()
@@ -1333,9 +1327,9 @@ class AgentDefinitionLoaderTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(definition.tools()).doesNotContain("_memory_write_", "_memory_read_", "_memory_search_");
+        assertThat(definition.tools()).contains("_memory_write_", "_memory_read_", "_memory_search_");
         OneshotMode mode = (OneshotMode) definition.agentMode();
-        assertThat(mode.stage().tools()).doesNotContain("_memory_write_", "_memory_read_", "_memory_search_");
+        assertThat(mode.stage().tools()).contains("_memory_write_", "_memory_read_", "_memory_search_");
     }
 
     @Test

@@ -6,13 +6,11 @@ import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.service.embedding.EmbeddingService;
 import com.linlay.agentplatform.service.llm.ProviderRegistryService;
 import com.linlay.agentplatform.service.memory.AgentMemoryStore;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @Configuration
-@ConditionalOnProperty(prefix = "agent.memory", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AgentMemoryConfiguration {
 
     @Bean

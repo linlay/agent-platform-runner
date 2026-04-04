@@ -5,7 +5,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "agent.memory")
 public class AgentMemoryProperties {
 
-    private boolean enabled = false;
     private String dbFileName = "memory.db";
     private int contextTopN = 5;
     private int contextMaxChars = 4_000;
@@ -18,15 +17,8 @@ public class AgentMemoryProperties {
     private int embeddingDimension = 1_024;
     private int embeddingTimeoutMs = 15_000;
     private Storage storage = new Storage();
+    private AutoRemember autoRemember = new AutoRemember();
     private Remember remember = new Remember();
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
 
     public String getDbFileName() {
         return dbFileName;
@@ -124,6 +116,14 @@ public class AgentMemoryProperties {
         this.storage = storage == null ? new Storage() : storage;
     }
 
+    public AutoRemember getAutoRemember() {
+        return autoRemember;
+    }
+
+    public void setAutoRemember(AutoRemember autoRemember) {
+        this.autoRemember = autoRemember == null ? new AutoRemember() : autoRemember;
+    }
+
     public Remember getRemember() {
         return remember;
     }
@@ -145,11 +145,9 @@ public class AgentMemoryProperties {
         }
     }
 
-    public static class Remember {
+    public static class AutoRemember {
 
-        private boolean enabled = true;
-        private String modelKey = "";
-        private long timeoutMs = 60_000L;
+        private boolean enabled = false;
 
         public boolean isEnabled() {
             return enabled;
@@ -158,6 +156,12 @@ public class AgentMemoryProperties {
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
         }
+    }
+
+    public static class Remember {
+
+        private String modelKey = "";
+        private long timeoutMs = 60_000L;
 
         public String getModelKey() {
             return modelKey;

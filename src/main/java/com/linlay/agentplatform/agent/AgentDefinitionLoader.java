@@ -269,7 +269,7 @@ public class AgentDefinitionLoader {
                     file,
                     promptFiles,
                     this::resolveModelByKey,
-                    isMemoryFeatureEnabled(),
+                    true,
                     agentDefaultsProperties
             );
             RunSpec runSpec = agentMode.defaultRunSpec(config);
@@ -720,7 +720,7 @@ public class AgentDefinitionLoader {
     }
 
     private void addImplicitMemoryTools(List<String> tools, AgentConfigFile config) {
-        if (tools == null || !isMemoryFeatureEnabled() || !isAgentMemoryEnabled(config)) {
+        if (tools == null || !isAgentMemoryEnabled(config)) {
             return;
         }
         tools.addAll(DEFAULT_MEMORY_TOOLS);
@@ -730,10 +730,6 @@ public class AgentDefinitionLoader {
         return config != null
                 && config.getSkillConfig() != null
                 && normalizeNames(config.getSkillConfig().getSkills()).stream().findAny().isPresent();
-    }
-
-    private boolean isMemoryFeatureEnabled() {
-        return agentMemoryProperties == null || agentMemoryProperties.isEnabled();
     }
 
     private boolean isAgentMemoryEnabled(AgentConfigFile config) {

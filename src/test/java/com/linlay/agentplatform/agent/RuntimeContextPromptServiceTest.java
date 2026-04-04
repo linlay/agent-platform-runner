@@ -364,7 +364,6 @@ class RuntimeContextPromptServiceTest {
     void shouldRenderAgentMemorySectionFromRelevantSearch() {
         AgentMemoryStore store = mock(AgentMemoryStore.class);
         AgentMemoryProperties agentMemoryProperties = new AgentMemoryProperties();
-        agentMemoryProperties.setEnabled(true);
         agentMemoryProperties.setContextTopN(2);
         RuntimeContextPromptService service = newService("owner", null, store, agentMemoryProperties);
         when(store.topRelevant("context-agent", tempDir.resolve("agent"), "remember", 2)).thenReturn(List.of(
@@ -391,7 +390,6 @@ class RuntimeContextPromptServiceTest {
     void shouldTruncateAgentMemorySection() {
         AgentMemoryStore store = mock(AgentMemoryStore.class);
         AgentMemoryProperties agentMemoryProperties = new AgentMemoryProperties();
-        agentMemoryProperties.setEnabled(true);
         agentMemoryProperties.setContextTopN(1);
         agentMemoryProperties.setContextMaxChars(80);
         RuntimeContextPromptService service = newService("owner", null, store, agentMemoryProperties);

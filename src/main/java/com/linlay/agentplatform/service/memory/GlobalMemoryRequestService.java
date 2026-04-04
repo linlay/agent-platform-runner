@@ -284,9 +284,6 @@ public class GlobalMemoryRequestService {
     }
 
     private RememberModelSelection resolveRememberModelSelection() {
-        if (!memoryProperties.getRemember().isEnabled()) {
-            throw new RememberCaptureException("remember extraction failed: remember is disabled");
-        }
         String modelKey = normalizeNullable(memoryProperties.getRemember().getModelKey());
         if (!StringUtils.hasText(modelKey)) {
             throw new RememberCaptureException("remember extraction failed: remember modelKey is not configured");

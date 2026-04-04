@@ -14,7 +14,6 @@ import java.util.Map;
 public class AgentMemoryPropertyAliasEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 
     private static final Map<String, String> PROPERTY_ALIASES = Map.ofEntries(
-            Map.entry("agent.memory.agent-memory.enabled", "agent.memory.enabled"),
             Map.entry("agent.memory.agent-memory.db-file-name", "agent.memory.db-file-name"),
             Map.entry("agent.memory.agent-memory.context-top-n", "agent.memory.context-top-n"),
             Map.entry("agent.memory.agent-memory.context-max-chars", "agent.memory.context-max-chars"),
@@ -27,7 +26,8 @@ public class AgentMemoryPropertyAliasEnvironmentPostProcessor implements Environ
             Map.entry("agent.memory.agent-memory.embedding-dimension", "agent.memory.embedding-dimension"),
             Map.entry("agent.memory.agent-memory.embedding-timeout-ms", "agent.memory.embedding-timeout-ms"),
             Map.entry("memory.storage.dir", "agent.memory.storage.dir"),
-            Map.entry("memory.remember.enabled", "agent.memory.remember.enabled"),
+            Map.entry("agent.memory.remember.enabled", "agent.memory.auto-remember.enabled"),
+            Map.entry("memory.remember.enabled", "agent.memory.auto-remember.enabled"),
             Map.entry("memory.remember.model-key", "agent.memory.remember.model-key"),
             Map.entry("memory.remember.timeout-ms", "agent.memory.remember.timeout-ms")
     );

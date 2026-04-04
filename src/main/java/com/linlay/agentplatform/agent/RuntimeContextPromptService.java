@@ -463,7 +463,7 @@ public class RuntimeContextPromptService {
     }
 
     private String buildAgentMemorySection(AgentDefinition definition, AgentRequest request) {
-        if (definition == null || agentMemoryStore == null || agentMemoryProperties == null || !agentMemoryProperties.isEnabled()) {
+        if (definition == null || agentMemoryStore == null || agentMemoryProperties == null) {
             return "";
         }
         List<MemoryRecord> memories = StringUtils.hasText(request.message())

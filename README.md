@@ -314,6 +314,7 @@ docker compose up -d --build
 - `_sandbox_bash_` 创建 container-hub session 时，会直接从当前进程环境变量读取宿主机 `*_DIR` 作为 mount source；若容器内 Spring 路径已固定成 `/opt/...`，但环境里缺少对应宿主机路径，runner 会直接报配置错误。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
 - `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例；所有 `*_DIR` 都支持改成绝对宿主机路径。
+- `.env.example` 只保留基础 memory 配置面：`MEMORY_DIR`、`AGENT_MEMORY_AUTO_REMEMBER_ENABLED`、`AGENT_MEMORY_REMEMBER_MODEL_KEY`；其余 memory 调优参数继续使用内部默认值。
 - `.env.example` 默认把 `AGENT_CONTAINER_HUB_BASE_URL` 指向 `http://host.docker.internal:11960`，用于容器内访问宿主机上的 Container Hub；compose 同时注入 `host.docker.internal:host-gateway` 以兼容 Linux Docker。
 - Docker Compose / release bundle 会显式启用 `SPRING_PROFILES_ACTIVE=docker`，应用在该 profile 下固定使用容器内 `/opt/agents`、`/opt/chats`、`/opt/memory`、`/opt/root` 以及 `/opt/registries/{providers,models,mcp-servers,viewport-servers}` 等路径。
 - `compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
@@ -657,8 +658,10 @@ memoryConfig:
 - `sandbox` 是强依赖：若 environment prompt 缺失、为空或请求失败，本次请求会直接失败，并输出错误日志。
 - `all-agents`：注入全部已注册 agent 的 YAML 风格头部摘要，便于指挥官 agent 预先了解子 agent 能力边界。
 - `contextConfig.tags: [memory]` 只控制“是否把已存储 memory 摘要注入运行时上下文”。
-- `memoryConfig.enabled` 只控制“成功 run 结束后是否自动沉淀一条 `run-summary` memory”，并在全局 memory 功能开启时自动暴露 `_memory_write_/_memory_read_/_memory_search_`。
-- 全局 `AGENT_MEMORY_ENABLED` 默认值为 `false`，未显式开启时 memory 功能整体关闭。
+- `memoryConfig.enabled` 是 agent 级记忆能力开关；开启后会自动附带 `_memory_write_/_memory_read_/_memory_search_`，并在成功 run 结束后写入自动记忆。
+- `AGENT_MEMORY_AUTO_REMEMBER_ENABLED=false` 时，自动记忆写入 1 条轻量 `run-summary` memory。
+- `AGENT_MEMORY_AUTO_REMEMBER_ENABLED=true` 时，成功 run 会复用 remember 抽取链路，把完整 chat 提炼成长期记忆。
+- `POST /api/remember` 始终是手工触发入口，只要 `AGENT_MEMORY_REMEMBER_MODEL_KEY` 可用就可以调用，不受 auto remember 开关影响。
 - 正式 memory 根目录为 `MEMORY_DIR`；其中 `memory.db` 是唯一完整持久化存储，`journal/YYYY-MM/YYYY-MM-DD.md` 是按 chat 组织的面向人工查看的 daily memory log，仅记录带 `chatId` 的 memory。
 - `Runtime Context: Context` 中的 `references` 会以结构化数组注入 system prompt，并优先展示 `id/sandboxPath/name/sizeBytes/mimeType`；其中 `sandboxPath` 表示模型在沙箱内可直接访问的路径，例如 `/workspace/参政议政.md`。
 

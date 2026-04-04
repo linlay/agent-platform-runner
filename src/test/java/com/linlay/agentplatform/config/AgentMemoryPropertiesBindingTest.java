@@ -21,12 +21,11 @@ class AgentMemoryPropertiesBindingTest {
             .withUserConfiguration(TestConfig.class);
 
     @Test
-    void shouldDefaultAgentMemoryDisabled() {
+    void shouldDefaultAutoRememberDisabled() {
         contextRunner.run(context -> {
             AgentMemoryProperties properties = context.getBean(AgentMemoryProperties.class);
-            assertThat(properties.isEnabled()).isFalse();
             assertThat(properties.getStorage().getDir()).isEqualTo("runtime/memory");
-            assertThat(properties.getRemember().isEnabled()).isTrue();
+            assertThat(properties.getAutoRemember().isEnabled()).isFalse();
         });
     }
 
@@ -34,27 +33,25 @@ class AgentMemoryPropertiesBindingTest {
     void shouldBindAgentMemoryProperties() {
         contextRunner
                 .withPropertyValues(
-                        "agent.memory.enabled=true",
                         "agent.memory.db-file-name=agent-memory.sqlite",
                         "agent.memory.context-top-n=7",
                         "agent.memory.embedding-provider-key=openai-like",
                         "agent.memory.embedding-model=text-embedding-3-large",
                         "agent.memory.embedding-dimension=3072",
                         "agent.memory.storage.dir=/tmp/memory-new",
-                        "agent.memory.remember.enabled=false",
+                        "agent.memory.auto-remember.enabled=true",
                         "agent.memory.remember.model-key=remember-v2",
                         "agent.memory.remember.timeout-ms=9000"
                 )
                 .run(context -> {
                     AgentMemoryProperties properties = context.getBean(AgentMemoryProperties.class);
-                    assertThat(properties.isEnabled()).isTrue();
                     assertThat(properties.getDbFileName()).isEqualTo("agent-memory.sqlite");
                     assertThat(properties.getContextTopN()).isEqualTo(7);
                     assertThat(properties.getEmbeddingProviderKey()).isEqualTo("openai-like");
                     assertThat(properties.getEmbeddingModel()).isEqualTo("text-embedding-3-large");
                     assertThat(properties.getEmbeddingDimension()).isEqualTo(3072);
                     assertThat(properties.getStorage().getDir()).isEqualTo("/tmp/memory-new");
-                    assertThat(properties.getRemember().isEnabled()).isFalse();
+                    assertThat(properties.getAutoRemember().isEnabled()).isTrue();
                     assertThat(properties.getRemember().getModelKey()).isEqualTo("remember-v2");
                     assertThat(properties.getRemember().getTimeoutMs()).isEqualTo(9000L);
                 });
@@ -64,19 +61,17 @@ class AgentMemoryPropertiesBindingTest {
     void shouldBindDeprecatedPrefixesThroughAliasBridge() {
         contextRunner
                 .withPropertyValues(
-                        "agent.memory.agent-memory.enabled=true",
                         "agent.memory.agent-memory.db-file-name=agent-memory-legacy.sqlite",
                         "memory.storage.dir=/tmp/memory-legacy",
-                        "memory.remember.enabled=false",
+                        "memory.remember.enabled=true",
                         "memory.remember.model-key=remember-legacy",
                         "memory.remember.timeout-ms=12345"
                 )
                 .run(context -> {
                     AgentMemoryProperties properties = context.getBean(AgentMemoryProperties.class);
-                    assertThat(properties.isEnabled()).isTrue();
                     assertThat(properties.getDbFileName()).isEqualTo("agent-memory-legacy.sqlite");
                     assertThat(properties.getStorage().getDir()).isEqualTo("/tmp/memory-legacy");
-                    assertThat(properties.getRemember().isEnabled()).isFalse();
+                    assertThat(properties.getAutoRemember().isEnabled()).isTrue();
                     assertThat(properties.getRemember().getModelKey()).isEqualTo("remember-legacy");
                     assertThat(properties.getRemember().getTimeoutMs()).isEqualTo(12345L);
                 });
@@ -88,8 +83,10 @@ class AgentMemoryPropertiesBindingTest {
                 .withPropertyValues(
                         "agent.memory.db-file-name=agent-memory-new.sqlite",
                         "agent.memory.storage.dir=/tmp/memory-new",
+                        "agent.memory.auto-remember.enabled=false",
                         "agent.memory.remember.model-key=remember-new",
                         "agent.memory.agent-memory.db-file-name=agent-memory-legacy.sqlite",
+                        "agent.memory.remember.enabled=true",
                         "memory.storage.dir=/tmp/memory-legacy",
                         "memory.remember.model-key=remember-legacy"
                 )
@@ -97,6 +94,7 @@ class AgentMemoryPropertiesBindingTest {
                     AgentMemoryProperties properties = context.getBean(AgentMemoryProperties.class);
                     assertThat(properties.getDbFileName()).isEqualTo("agent-memory-new.sqlite");
                     assertThat(properties.getStorage().getDir()).isEqualTo("/tmp/memory-new");
+                    assertThat(properties.getAutoRemember().isEnabled()).isFalse();
                     assertThat(properties.getRemember().getModelKey()).isEqualTo("remember-new");
                 });
     }

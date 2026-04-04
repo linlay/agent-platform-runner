@@ -24,12 +24,14 @@ import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
 import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.model.api.RememberRequest;
 import com.linlay.agentplatform.agent.runtime.tool.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.service.memory.AgentMemoryService;
 import com.linlay.agentplatform.util.RunIdGenerator;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.memory.AgentMemoryStore;
+import com.linlay.agentplatform.service.memory.GlobalMemoryRequestService;
 import com.linlay.agentplatform.skill.SkillDescriptor;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.BaseTool;
@@ -73,6 +75,7 @@ public class DefinitionDrivenAgent implements Agent {
     private final AgentMemoryService agentMemoryService;
     private final AgentMemoryStore agentMemoryStore;
     private final AgentMemoryProperties agentMemoryProperties;
+    private final GlobalMemoryRequestService globalMemoryRequestService;
     private final ActiveRunService activeRunService;
     private final ContainerHubSandboxService containerHubSandboxService;
     private final AgentRunSnapshotLogger snapshotLogger;
@@ -107,6 +110,7 @@ public class DefinitionDrivenAgent implements Agent {
                 agentMemoryService,
                 null,
                 null,
+                null,
                 loggingAgentProperties,
                 toolInvoker,
                 activeRunService,
@@ -128,6 +132,7 @@ public class DefinitionDrivenAgent implements Agent {
             AgentMemoryService agentMemoryService,
             AgentMemoryStore agentMemoryStore,
             AgentMemoryProperties agentMemoryProperties,
+            GlobalMemoryRequestService globalMemoryRequestService,
             LoggingAgentProperties loggingAgentProperties,
             ToolInvoker toolInvoker,
             ActiveRunService activeRunService,
@@ -144,6 +149,7 @@ public class DefinitionDrivenAgent implements Agent {
         this.agentMemoryService = agentMemoryService == null ? new AgentMemoryService() : agentMemoryService;
         this.agentMemoryStore = agentMemoryStore;
         this.agentMemoryProperties = agentMemoryProperties == null ? new AgentMemoryProperties() : agentMemoryProperties;
+        this.globalMemoryRequestService = globalMemoryRequestService;
         this.activeRunService = activeRunService;
         this.containerHubSandboxService = containerHubSandboxService;
         this.runtimeContextPromptService = runtimeContextPromptService;
@@ -187,6 +193,7 @@ public class DefinitionDrivenAgent implements Agent {
             AgentMemoryService agentMemoryService,
             AgentMemoryStore agentMemoryStore,
             AgentMemoryProperties agentMemoryProperties,
+            GlobalMemoryRequestService globalMemoryRequestService,
             LoggingAgentProperties loggingAgentProperties,
             ToolInvoker toolInvoker,
             ActiveRunService activeRunService,
@@ -205,6 +212,7 @@ public class DefinitionDrivenAgent implements Agent {
                 agentMemoryService,
                 agentMemoryStore,
                 agentMemoryProperties,
+                globalMemoryRequestService,
                 loggingAgentProperties,
                 toolInvoker,
                 activeRunService,
@@ -267,6 +275,9 @@ public class DefinitionDrivenAgent implements Agent {
                 frontendSubmitCoordinator,
                 skillRegistryService == null ? new SkillRegistryService(new com.linlay.agentplatform.skill.SkillProperties()) : skillRegistryService,
                 new AgentMemoryService(),
+                null,
+                null,
+                null,
                 loggingAgentProperties,
                 toolInvoker,
                 activeRunService,
@@ -603,12 +614,35 @@ public class DefinitionDrivenAgent implements Agent {
 
     private void persistAutomaticMemory(ExecutionContext context) {
         if (context == null
-                || agentMemoryStore == null
                 || agentMemoryProperties == null
-                || !agentMemoryProperties.isEnabled()
                 || !definition.memoryEnabled()
                 || context.runControl() == null
                 || context.runControl().state() != com.linlay.agentplatform.agent.runtime.execution.RunLoopState.COMPLETED) {
+            return;
+        }
+        if (agentMemoryProperties.getAutoRemember().isEnabled()) {
+            persistAutomaticRemember(context);
+            return;
+        }
+        persistRunSummaryMemory(context);
+    }
+
+    private void persistAutomaticRemember(ExecutionContext context) {
+        if (globalMemoryRequestService == null || context.request() == null || !StringUtils.hasText(context.request().chatId())) {
+            return;
+        }
+        try {
+            globalMemoryRequestService.captureRemember(new RememberRequest(
+                    context.request().requestId(),
+                    context.request().chatId()
+            )).block();
+        } catch (Exception ex) {
+            log.warn("[agent:{}] failed to persist auto-remember memories", id(), ex);
+        }
+    }
+
+    private void persistRunSummaryMemory(ExecutionContext context) {
+        if (agentMemoryStore == null) {
             return;
         }
         String content = buildAutomaticMemoryContent(context);

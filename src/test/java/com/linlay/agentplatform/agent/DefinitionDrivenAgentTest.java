@@ -31,6 +31,7 @@ import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.RuntimeRequestContext;
+import com.linlay.agentplatform.model.api.RememberRequest;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.stream.service.AgentDeltaToStreamInputMapper;
@@ -39,6 +40,7 @@ import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.service.memory.AgentMemoryService;
 import com.linlay.agentplatform.service.memory.AgentMemoryStore;
+import com.linlay.agentplatform.service.memory.GlobalMemoryRequestService;
 import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.stream.model.StreamEvent;
@@ -64,6 +66,7 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.mock.env.MockEnvironment;
 import org.mockito.ArgumentCaptor;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.io.IOException;
 import java.io.ByteArrayOutputStream;
@@ -883,7 +886,6 @@ class DefinitionDrivenAgentTest {
                         null
                 ));
         AgentMemoryProperties memoryProperties = new AgentMemoryProperties();
-        memoryProperties.setEnabled(true);
         memoryProperties.setDualWriteMarkdown(false);
         LlmService llmService = new StubLlmService() {
             @Override
@@ -952,7 +954,6 @@ class DefinitionDrivenAgentTest {
         );
         AgentMemoryStore store = mock(AgentMemoryStore.class);
         AgentMemoryProperties memoryProperties = new AgentMemoryProperties();
-        memoryProperties.setEnabled(true);
         memoryProperties.setDualWriteMarkdown(false);
         LlmService llmService = new StubLlmService() {
             @Override
@@ -984,6 +985,77 @@ class DefinitionDrivenAgentTest {
 
         assertThat(deltas).isNotNull();
         verify(store, never()).write(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void shouldRunAutoRememberInsteadOfRunSummaryWhenAutoRememberEnabled() throws Exception {
+        Path agentDir = Files.createTempDirectory("auto-remember-success");
+        AgentDefinition definition = new AgentDefinition(
+                "autoRemember",
+                "autoRemember",
+                null,
+                "auto remember",
+                "auto role",
+                null,
+                "bailian",
+                "qwen3-max",
+                null,
+                AgentRuntimeMode.ONESHOT,
+                new RunSpec(ToolChoice.NONE, Budget.DEFAULT),
+                new OneshotMode(new StageSettings("你是测试助手", null, null, List.of(), false, ComputePolicy.MEDIUM), null, null),
+                List.of(),
+                List.of(),
+                List.of(),
+                null,
+                List.of(),
+                null,
+                null,
+                List.of(),
+                List.of(),
+                agentDir,
+                new AgentDefinition.MemoryConfig(true)
+        );
+        AgentMemoryStore store = mock(AgentMemoryStore.class);
+        GlobalMemoryRequestService globalMemoryRequestService = mock(GlobalMemoryRequestService.class);
+        when(globalMemoryRequestService.captureRemember(org.mockito.ArgumentMatchers.any(RememberRequest.class)))
+                .thenReturn(Mono.empty());
+        AgentMemoryProperties memoryProperties = new AgentMemoryProperties();
+        memoryProperties.getAutoRemember().setEnabled(true);
+        LlmService llmService = new StubLlmService() {
+            @Override
+            public Flux<LlmDelta> streamDeltas(LlmCallSpec spec) {
+                return Flux.just(new LlmDelta("这是最终回答", null, "stop"));
+            }
+        };
+
+        DefinitionDrivenAgent agent = createAgent(
+                definition,
+                llmService,
+                new ToolRegistry(List.of()),
+                objectMapper,
+                null,
+                null,
+                null,
+                new LoggingAgentProperties(),
+                null,
+                null,
+                null,
+                new RuntimeContextPromptService(),
+                store,
+                memoryProperties,
+                globalMemoryRequestService
+        );
+
+        List<AgentDelta> deltas = agent.stream(new AgentRequest("自动记忆这次执行", "chat-auto-remember", "req-auto-remember", null))
+                .collectList()
+                .block(Duration.ofSeconds(3));
+
+        assertThat(deltas).isNotNull();
+        verify(store, never()).write(org.mockito.ArgumentMatchers.any(AgentMemoryStore.WriteRequest.class));
+        ArgumentCaptor<RememberRequest> requestCaptor = ArgumentCaptor.forClass(RememberRequest.class);
+        verify(globalMemoryRequestService).captureRemember(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().requestId()).isEqualTo("req-auto-remember");
+        assertThat(requestCaptor.getValue().chatId()).isEqualTo("chat-auto-remember");
     }
 
     @Test
@@ -3088,6 +3160,7 @@ class DefinitionDrivenAgentTest {
                 containerHubSandboxService,
                 runtimeContextPromptService,
                 null,
+                null,
                 null
         );
     }
@@ -3108,6 +3181,42 @@ class DefinitionDrivenAgentTest {
             AgentMemoryStore agentMemoryStore,
             AgentMemoryProperties agentMemoryProperties
     ) {
+        return createAgent(
+                definition,
+                llmService,
+                toolRegistry,
+                objectMapper,
+                chatWindowMemoryStore,
+                frontendSubmitCoordinator,
+                skillRegistryService,
+                loggingAgentProperties,
+                toolInvoker,
+                activeRunService,
+                containerHubSandboxService,
+                runtimeContextPromptService,
+                agentMemoryStore,
+                agentMemoryProperties,
+                null
+        );
+    }
+
+    private DefinitionDrivenAgent createAgent(
+            AgentDefinition definition,
+            LlmService llmService,
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ChatStorageStore chatWindowMemoryStore,
+            FrontendSubmitCoordinator frontendSubmitCoordinator,
+            SkillRegistryService skillRegistryService,
+            LoggingAgentProperties loggingAgentProperties,
+            com.linlay.agentplatform.agent.runtime.tool.ToolInvoker toolInvoker,
+            com.linlay.agentplatform.service.ActiveRunService activeRunService,
+            ContainerHubSandboxService containerHubSandboxService,
+            RuntimeContextPromptService runtimeContextPromptService,
+            AgentMemoryStore agentMemoryStore,
+            AgentMemoryProperties agentMemoryProperties,
+            GlobalMemoryRequestService globalMemoryRequestService
+    ) {
         return new DefinitionDrivenAgent(
                 definition,
                 llmService,
@@ -3120,6 +3229,7 @@ class DefinitionDrivenAgentTest {
                 new AgentMemoryService(),
                 agentMemoryStore,
                 agentMemoryProperties,
+                globalMemoryRequestService,
                 loggingAgentProperties,
                 toolInvoker,
                 activeRunService,

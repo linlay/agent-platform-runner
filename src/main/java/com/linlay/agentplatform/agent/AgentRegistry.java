@@ -10,6 +10,7 @@ import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.memory.AgentMemoryService;
 import com.linlay.agentplatform.service.memory.AgentMemoryStore;
+import com.linlay.agentplatform.service.memory.GlobalMemoryRequestService;
 import com.linlay.agentplatform.agent.runtime.tool.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.skill.SkillRegistryService;
@@ -49,6 +50,7 @@ public class AgentRegistry {
     private final AgentMemoryService agentMemoryService;
     private final AgentMemoryStore agentMemoryStore;
     private final AgentMemoryProperties agentMemoryProperties;
+    private final GlobalMemoryRequestService globalMemoryRequestService;
     private final AgentDefaultsProperties agentDefaultsProperties;
     private final LoggingAgentProperties loggingAgentProperties;
     private final ToolInvokerRouter toolInvokerRouter;
@@ -75,6 +77,7 @@ public class AgentRegistry {
             AgentMemoryService agentMemoryService,
             ObjectProvider<AgentMemoryStore> agentMemoryStoreProvider,
             ObjectProvider<AgentMemoryProperties> agentMemoryPropertiesProvider,
+            ObjectProvider<GlobalMemoryRequestService> globalMemoryRequestServiceProvider,
             ObjectProvider<AgentDefaultsProperties> agentDefaultsPropertiesProvider,
             LoggingAgentProperties loggingAgentProperties,
             ToolInvokerRouter toolInvokerRouter,
@@ -93,6 +96,7 @@ public class AgentRegistry {
         this.agentMemoryService = agentMemoryService;
         this.agentMemoryStore = agentMemoryStoreProvider.getIfAvailable();
         this.agentMemoryProperties = agentMemoryPropertiesProvider.getIfAvailable();
+        this.globalMemoryRequestService = globalMemoryRequestServiceProvider.getIfAvailable();
         this.agentDefaultsProperties = agentDefaultsPropertiesProvider.getIfAvailable(AgentDefaultsProperties::new);
         this.loggingAgentProperties = loggingAgentProperties;
         this.toolInvokerRouter = toolInvokerRouter;
@@ -127,6 +131,7 @@ public class AgentRegistry {
                 new AgentMemoryService(),
                 new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(AgentMemoryStore.class),
                 new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(AgentMemoryProperties.class),
+                new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(GlobalMemoryRequestService.class),
                 new org.springframework.beans.factory.support.StaticListableBeanFactory().getBeanProvider(AgentDefaultsProperties.class),
                 loggingAgentProperties,
                 toolInvokerRouter,
@@ -285,6 +290,7 @@ public class AgentRegistry {
                 agentMemoryService,
                 agentMemoryStore,
                 agentMemoryProperties,
+                globalMemoryRequestService,
                 loggingAgentProperties,
                 toolInvokerRouter,
                 activeRunService,

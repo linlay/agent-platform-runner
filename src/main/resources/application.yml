@@ -37,7 +37,6 @@ agent:
     default-zone-id: ${AGENT_SCHEDULE_DEFAULT_ZONE_ID:}
     pool-size: ${AGENT_SCHEDULE_POOL_SIZE:4}
   memory:
-    enabled: ${AGENT_MEMORY_ENABLED:false}
     db-file-name: ${AGENT_MEMORY_DB_FILE_NAME:memory.db}
     context-top-n: ${AGENT_MEMORY_CONTEXT_TOP_N:5}
     context-max-chars: ${AGENT_MEMORY_CONTEXT_MAX_CHARS:4000}
@@ -51,8 +50,9 @@ agent:
     embedding-timeout-ms: ${AGENT_MEMORY_EMBEDDING_TIMEOUT_MS:15000}
     storage:
       dir: ${AGENT_MEMORY_STORAGE_DIR:${MEMORY_DIR:runtime/memory}}
+    auto-remember:
+      enabled: ${AGENT_MEMORY_AUTO_REMEMBER_ENABLED:${AGENT_MEMORY_REMEMBER_ENABLED:${MEMORY_REMEMBER_ENABLED:false}}}
     remember:
-      enabled: ${AGENT_MEMORY_REMEMBER_ENABLED:${MEMORY_REMEMBER_ENABLED:true}}
       model-key: ${AGENT_MEMORY_REMEMBER_MODEL_KEY:${MEMORY_REMEMBER_MODEL_KEY:}}
       timeout-ms: ${AGENT_MEMORY_REMEMBER_TIMEOUT_MS:${MEMORY_REMEMBER_TIMEOUT_MS:60000}}
   mcp-servers:
