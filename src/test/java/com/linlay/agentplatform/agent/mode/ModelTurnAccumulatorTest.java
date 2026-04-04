@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.agent.mode;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.runtime.ExecutionContext;
+import com.linlay.agentplatform.agent.runtime.execution.ExecutionContext;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.stream.model.LlmDelta;

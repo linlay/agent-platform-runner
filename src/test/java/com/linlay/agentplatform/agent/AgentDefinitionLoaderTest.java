@@ -6,8 +6,8 @@ import com.linlay.agentplatform.agent.mode.OneshotMode;
 import com.linlay.agentplatform.agent.mode.PlanExecuteMode;
 import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
-import com.linlay.agentplatform.agent.runtime.MountAccessMode;
-import com.linlay.agentplatform.agent.runtime.SandboxLevel;
+import com.linlay.agentplatform.agent.runtime.sandbox.MountAccessMode;
+import com.linlay.agentplatform.agent.runtime.sandbox.SandboxLevel;
 import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.model.ModelDefinition;
@@ -261,7 +261,7 @@ class AgentDefinitionLoaderTest {
         assertThat(definition).isNotNull();
         assertThat(definition.sandboxConfig().environmentId()).isEqualTo("shell");
         assertThat(definition.sandboxConfig().level()).isEqualTo(
-                com.linlay.agentplatform.agent.runtime.SandboxLevel.AGENT
+                com.linlay.agentplatform.agent.runtime.sandbox.SandboxLevel.AGENT
         );
     }
 

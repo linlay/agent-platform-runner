@@ -26,7 +26,7 @@ import com.linlay.agentplatform.security.ChatImageTokenService;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.chat.ChatRecordStore;
-import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.agent.runtime.tool.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.mcp.McpViewportService;
 import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
 import com.linlay.agentplatform.skill.SkillRegistryService;

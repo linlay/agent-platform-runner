@@ -1,8 +1,6 @@
 package com.linlay.agentplatform.service.memory;
 
-import com.linlay.agentplatform.agent.AgentMemoryService;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
-import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
 import com.linlay.agentplatform.service.embedding.EmbeddingService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -165,8 +163,8 @@ class AgentMemoryStoreTest {
     }
 
     private AgentMemoryService agentMemoryService() {
-        MemoryStorageProperties storageProperties = new MemoryStorageProperties();
-        storageProperties.setDir(tempDir.resolve("memory").toString());
+        AgentMemoryProperties storageProperties = new AgentMemoryProperties();
+        storageProperties.getStorage().setDir(tempDir.resolve("memory").toString());
         return new AgentMemoryService(storageProperties, new com.fasterxml.jackson.databind.ObjectMapper());
     }
 }

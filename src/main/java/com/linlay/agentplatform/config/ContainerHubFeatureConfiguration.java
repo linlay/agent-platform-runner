@@ -2,12 +2,12 @@ package com.linlay.agentplatform.config;
 
 import com.linlay.agentplatform.agent.AgentProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
-import com.linlay.agentplatform.agent.runtime.MountDirectoryConfig;
-import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
+import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubMountResolver;
+import com.linlay.agentplatform.agent.runtime.sandbox.MountDirectoryConfig;
+import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubSandboxService;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.properties.McpProperties;
-import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
@@ -20,8 +20,8 @@ import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.team.TeamProperties;
-import com.linlay.agentplatform.tool.ContainerHubClient;
-import com.linlay.agentplatform.tool.SystemContainerHubBash;
+import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubClient;
+import com.linlay.agentplatform.agent.runtime.sandbox.SystemContainerHubBash;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -60,7 +60,7 @@ public class ContainerHubFeatureConfiguration {
     @Bean
     public ContainerHubMountResolver containerHubMountResolver(
             ChatStorageProperties chatWindowMemoryProperties,
-            MemoryStorageProperties memoryStorageProperties,
+            AgentMemoryProperties agentMemoryProperties,
             RootProperties rootProperties,
             PanProperties panProperties,
             SkillProperties skillProperties,
@@ -78,7 +78,7 @@ public class ContainerHubFeatureConfiguration {
         RuntimeDirectoryHostPaths hostPaths = RuntimeDirectoryHostPaths.load(System.getenv());
         MountDirectoryConfig directories = new MountDirectoryConfig(
                 chatWindowMemoryProperties == null ? null : chatWindowMemoryProperties.getDir(),
-                memoryStorageProperties == null ? null : memoryStorageProperties.getDir(),
+                agentMemoryProperties == null ? null : agentMemoryProperties.getStorage().getDir(),
                 rootProperties == null ? null : rootProperties.getExternalDir(),
                 panProperties == null ? null : panProperties.getExternalDir(),
                 skillProperties == null ? null : skillProperties.getExternalDir(),

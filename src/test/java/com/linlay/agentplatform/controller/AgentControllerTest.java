@@ -9,7 +9,7 @@ import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.service.AgentQueryService;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.chat.ChatRecordStore;
-import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.agent.runtime.tool.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.service.mcp.McpToolSyncService;

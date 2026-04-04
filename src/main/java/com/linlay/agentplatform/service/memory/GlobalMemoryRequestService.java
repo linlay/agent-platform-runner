@@ -3,7 +3,7 @@ package com.linlay.agentplatform.service.memory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.properties.MemoryRememberProperties;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.RememberRequest;
 import com.linlay.agentplatform.model.api.RememberResponse;
@@ -40,24 +40,24 @@ public class GlobalMemoryRequestService {
     private final ChatRecordStore chatRecordStore;
     private final ObjectMapper objectMapper;
     private final AgentMemoryStore agentMemoryStore;
-    private final com.linlay.agentplatform.agent.AgentMemoryService agentMemoryService;
+    private final AgentMemoryService agentMemoryService;
     private final LlmService llmService;
     private final ModelRegistryService modelRegistryService;
-    private final MemoryRememberProperties memoryRememberProperties;
+    private final AgentMemoryProperties memoryProperties;
     private final Map<String, String> prompts;
 
     public GlobalMemoryRequestService(
             ChatRecordStore chatRecordStore,
             ObjectMapper objectMapper,
             ObjectProvider<AgentMemoryStore> agentMemoryStoreProvider,
-            com.linlay.agentplatform.agent.AgentMemoryService agentMemoryService,
+            AgentMemoryService agentMemoryService,
             LlmService llmService,
             ModelRegistryService modelRegistryService,
-            MemoryRememberProperties memoryRememberProperties
+            AgentMemoryProperties memoryProperties
     ) {
         this.chatRecordStore = chatRecordStore;
         this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
-        this.agentMemoryService = agentMemoryService == null ? new com.linlay.agentplatform.agent.AgentMemoryService() : agentMemoryService;
+        this.agentMemoryService = agentMemoryService == null ? new com.linlay.agentplatform.service.memory.AgentMemoryService() : agentMemoryService;
         this.agentMemoryStore = agentMemoryStoreProvider == null
                 ? new AgentMemoryStore(new com.linlay.agentplatform.config.properties.AgentMemoryProperties(), this.agentMemoryService, null)
                 : Optional.ofNullable(agentMemoryStoreProvider.getIfAvailable())
@@ -68,7 +68,7 @@ public class GlobalMemoryRequestService {
                 ));
         this.llmService = llmService;
         this.modelRegistryService = modelRegistryService;
-        this.memoryRememberProperties = memoryRememberProperties == null ? new MemoryRememberProperties() : memoryRememberProperties;
+        this.memoryProperties = memoryProperties == null ? new AgentMemoryProperties() : memoryProperties;
         this.prompts = Map.of(
                 "remember", loadPrompt("prompts/remember.txt"),
                 "learn", loadPrompt("prompts/learn.txt")
@@ -284,10 +284,10 @@ public class GlobalMemoryRequestService {
     }
 
     private RememberModelSelection resolveRememberModelSelection() {
-        if (!memoryRememberProperties.isEnabled()) {
+        if (!memoryProperties.getRemember().isEnabled()) {
             throw new RememberCaptureException("remember extraction failed: remember is disabled");
         }
-        String modelKey = normalizeNullable(memoryRememberProperties.getModelKey());
+        String modelKey = normalizeNullable(memoryProperties.getRemember().getModelKey());
         if (!StringUtils.hasText(modelKey)) {
             throw new RememberCaptureException("remember extraction failed: remember modelKey is not configured");
         }
@@ -298,7 +298,9 @@ public class GlobalMemoryRequestService {
         if (model == null) {
             throw new RememberCaptureException("remember extraction failed: remember modelKey not found: " + modelKey);
         }
-        long timeoutMs = memoryRememberProperties.getTimeoutMs() > 0 ? memoryRememberProperties.getTimeoutMs() : 60_000L;
+        long timeoutMs = memoryProperties.getRemember().getTimeoutMs() > 0
+                ? memoryProperties.getRemember().getTimeoutMs()
+                : 60_000L;
         return new RememberModelSelection(
                 model.key(),
                 model.provider(),

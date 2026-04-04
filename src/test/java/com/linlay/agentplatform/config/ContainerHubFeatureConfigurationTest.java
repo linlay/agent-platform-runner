@@ -2,12 +2,12 @@ package com.linlay.agentplatform.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentProperties;
-import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
-import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
+import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubMountResolver;
+import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubSandboxService;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.McpProperties;
-import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
@@ -20,8 +20,8 @@ import com.linlay.agentplatform.model.ModelProperties;
 import com.linlay.agentplatform.schedule.ScheduleProperties;
 import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.team.TeamProperties;
-import com.linlay.agentplatform.tool.ContainerHubClient;
-import com.linlay.agentplatform.tool.SystemContainerHubBash;
+import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubClient;
+import com.linlay.agentplatform.agent.runtime.sandbox.SystemContainerHubBash;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -81,7 +81,7 @@ class ContainerHubFeatureConfigurationTest {
             McpProperties.class,
             ProviderProperties.class,
             OwnerProperties.class,
-            MemoryStorageProperties.class
+            AgentMemoryProperties.class
     })
     @Import(ContainerHubFeatureConfiguration.class)
     static class ContainerHubFeatureTestConfiguration {

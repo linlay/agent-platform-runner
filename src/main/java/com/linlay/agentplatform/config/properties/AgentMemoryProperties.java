@@ -2,7 +2,7 @@ package com.linlay.agentplatform.config.properties;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "agent.memory.agent-memory")
+@ConfigurationProperties(prefix = "agent.memory")
 public class AgentMemoryProperties {
 
     private boolean enabled = false;
@@ -17,6 +17,8 @@ public class AgentMemoryProperties {
     private String embeddingModel = "";
     private int embeddingDimension = 1_024;
     private int embeddingTimeoutMs = 15_000;
+    private Storage storage = new Storage();
+    private Remember remember = new Remember();
 
     public boolean isEnabled() {
         return enabled;
@@ -112,5 +114,65 @@ public class AgentMemoryProperties {
 
     public void setEmbeddingTimeoutMs(int embeddingTimeoutMs) {
         this.embeddingTimeoutMs = embeddingTimeoutMs;
+    }
+
+    public Storage getStorage() {
+        return storage;
+    }
+
+    public void setStorage(Storage storage) {
+        this.storage = storage == null ? new Storage() : storage;
+    }
+
+    public Remember getRemember() {
+        return remember;
+    }
+
+    public void setRemember(Remember remember) {
+        this.remember = remember == null ? new Remember() : remember;
+    }
+
+    public static class Storage {
+
+        private String dir = "runtime/memory";
+
+        public String getDir() {
+            return dir;
+        }
+
+        public void setDir(String dir) {
+            this.dir = dir;
+        }
+    }
+
+    public static class Remember {
+
+        private boolean enabled = true;
+        private String modelKey = "";
+        private long timeoutMs = 60_000L;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getModelKey() {
+            return modelKey;
+        }
+
+        public void setModelKey(String modelKey) {
+            this.modelKey = modelKey;
+        }
+
+        public long getTimeoutMs() {
+            return timeoutMs;
+        }
+
+        public void setTimeoutMs(long timeoutMs) {
+            this.timeoutMs = timeoutMs;
+        }
     }
 }

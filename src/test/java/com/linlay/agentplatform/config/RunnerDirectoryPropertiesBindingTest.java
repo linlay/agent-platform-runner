@@ -3,7 +3,7 @@ package com.linlay.agentplatform.config;
 import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.config.properties.AppAuthProperties;
 import com.linlay.agentplatform.config.properties.McpProperties;
-import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
 import com.linlay.agentplatform.config.properties.ProviderProperties;
@@ -66,7 +66,7 @@ class RunnerDirectoryPropertiesBindingTest {
             assertThat(context.getBean(PanProperties.class).getExternalDir()).isEqualTo("runtime/pan");
             assertThat(context.getBean(OwnerProperties.class).getExternalDir()).isEqualTo("runtime/owner");
             assertThat(context.getBean(ChatStorageProperties.class).getDir()).isEqualTo("runtime/chats");
-            assertThat(context.getBean(MemoryStorageProperties.class).getDir()).isEqualTo("runtime/memory");
+            assertThat(context.getBean(AgentMemoryProperties.class).getStorage().getDir()).isEqualTo("runtime/memory");
         });
     }
 
@@ -112,7 +112,7 @@ class RunnerDirectoryPropertiesBindingTest {
             assertThat(context.getBean(PanProperties.class).getExternalDir()).isEqualTo("/opt/pan");
             assertThat(context.getBean(OwnerProperties.class).getExternalDir()).isEqualTo("/opt/owner");
             assertThat(context.getBean(ChatStorageProperties.class).getDir()).isEqualTo("/opt/chats");
-            assertThat(context.getBean(MemoryStorageProperties.class).getDir()).isEqualTo("/opt/memory");
+            assertThat(context.getBean(AgentMemoryProperties.class).getStorage().getDir()).isEqualTo("/opt/memory");
         }
     }
 
@@ -133,7 +133,7 @@ class RunnerDirectoryPropertiesBindingTest {
             PanProperties.class,
             OwnerProperties.class,
             ChatStorageProperties.class,
-            MemoryStorageProperties.class
+            AgentMemoryProperties.class
     })
     static class RunnerDirectoryConfiguration {
     }

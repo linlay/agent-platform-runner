@@ -2,8 +2,8 @@ package com.linlay.agentplatform.agent;
 
 import com.linlay.agentplatform.agent.mode.AgentMode;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
-import com.linlay.agentplatform.agent.runtime.MountAccessMode;
-import com.linlay.agentplatform.agent.runtime.SandboxLevel;
+import com.linlay.agentplatform.agent.runtime.sandbox.MountAccessMode;
+import com.linlay.agentplatform.agent.runtime.sandbox.SandboxLevel;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
 import com.linlay.agentplatform.model.ModelProtocol;
 

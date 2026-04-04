@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.service.memory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.config.properties.MemoryRememberProperties;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
 import com.linlay.agentplatform.model.api.ChatDetailResponse;
 import com.linlay.agentplatform.model.api.RememberRequest;
@@ -23,7 +23,7 @@ class GlobalMemoryRequestServiceTest {
         when(chatRecordStore.loadChat("chat-1", true)).thenReturn(chatDetail("chat-1"));
         when(chatRecordStore.findBoundAgentKey("chat-1")).thenReturn(Optional.of("agent-a"));
 
-        MemoryRememberProperties properties = new MemoryRememberProperties();
+        AgentMemoryProperties properties = new AgentMemoryProperties();
         GlobalMemoryRequestService service = new GlobalMemoryRequestService(
                 chatRecordStore,
                 new ObjectMapper(),
@@ -47,8 +47,8 @@ class GlobalMemoryRequestServiceTest {
         when(chatRecordStore.findBoundAgentKey("chat-1")).thenReturn(Optional.of("agent-a"));
         when(modelRegistryService.find("missing-model")).thenReturn(Optional.empty());
 
-        MemoryRememberProperties properties = new MemoryRememberProperties();
-        properties.setModelKey("missing-model");
+        AgentMemoryProperties properties = new AgentMemoryProperties();
+        properties.getRemember().setModelKey("missing-model");
         GlobalMemoryRequestService service = new GlobalMemoryRequestService(
                 chatRecordStore,
                 new ObjectMapper(),

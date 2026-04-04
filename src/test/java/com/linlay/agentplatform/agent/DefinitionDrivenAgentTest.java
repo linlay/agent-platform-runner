@@ -9,10 +9,10 @@ import com.linlay.agentplatform.agent.mode.PlanExecuteMode;
 import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
-import com.linlay.agentplatform.agent.runtime.ContainerHubMountResolver;
-import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
-import com.linlay.agentplatform.agent.runtime.LocalToolInvoker;
-import com.linlay.agentplatform.agent.runtime.MountDirectoryConfig;
+import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubMountResolver;
+import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubSandboxService;
+import com.linlay.agentplatform.agent.runtime.tool.LocalToolInvoker;
+import com.linlay.agentplatform.agent.runtime.sandbox.MountDirectoryConfig;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
@@ -23,7 +23,6 @@ import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
 import com.linlay.agentplatform.config.properties.FrontendToolProperties;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
-import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
 import com.linlay.agentplatform.config.properties.PanProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
@@ -35,9 +34,10 @@ import com.linlay.agentplatform.model.RuntimeRequestContext;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import com.linlay.agentplatform.security.JwksJwtVerifier;
 import com.linlay.agentplatform.stream.service.AgentDeltaToStreamInputMapper;
-import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.agent.runtime.tool.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
+import com.linlay.agentplatform.service.memory.AgentMemoryService;
 import com.linlay.agentplatform.service.memory.AgentMemoryStore;
 import com.linlay.agentplatform.skill.SkillProperties;
 import com.linlay.agentplatform.skill.SkillRegistryService;
@@ -46,8 +46,8 @@ import com.linlay.agentplatform.stream.model.StreamInput;
 import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.service.StreamEventAssembler;
 import com.linlay.agentplatform.tool.BaseTool;
-import com.linlay.agentplatform.tool.ContainerHubClient;
-import com.linlay.agentplatform.tool.SystemContainerHubBash;
+import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubClient;
+import com.linlay.agentplatform.agent.runtime.sandbox.SystemContainerHubBash;
 import com.linlay.agentplatform.tool.SystemPlanAddTasks;
 import com.linlay.agentplatform.tool.SystemPlanGetTasks;
 import com.linlay.agentplatform.tool.SystemPlanUpdateTask;
@@ -3013,7 +3013,7 @@ class DefinitionDrivenAgentTest {
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
-            com.linlay.agentplatform.agent.runtime.ToolInvoker toolInvoker
+            com.linlay.agentplatform.agent.runtime.tool.ToolInvoker toolInvoker
     ) {
         return createAgent(
                 definition,
@@ -3040,7 +3040,7 @@ class DefinitionDrivenAgentTest {
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
-            com.linlay.agentplatform.agent.runtime.ToolInvoker toolInvoker,
+            com.linlay.agentplatform.agent.runtime.tool.ToolInvoker toolInvoker,
             com.linlay.agentplatform.service.ActiveRunService activeRunService,
             ContainerHubSandboxService containerHubSandboxService
     ) {
@@ -3069,7 +3069,7 @@ class DefinitionDrivenAgentTest {
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
-            com.linlay.agentplatform.agent.runtime.ToolInvoker toolInvoker,
+            com.linlay.agentplatform.agent.runtime.tool.ToolInvoker toolInvoker,
             com.linlay.agentplatform.service.ActiveRunService activeRunService,
             ContainerHubSandboxService containerHubSandboxService,
             RuntimeContextPromptService runtimeContextPromptService
@@ -3101,7 +3101,7 @@ class DefinitionDrivenAgentTest {
             FrontendSubmitCoordinator frontendSubmitCoordinator,
             SkillRegistryService skillRegistryService,
             LoggingAgentProperties loggingAgentProperties,
-            com.linlay.agentplatform.agent.runtime.ToolInvoker toolInvoker,
+            com.linlay.agentplatform.agent.runtime.tool.ToolInvoker toolInvoker,
             com.linlay.agentplatform.service.ActiveRunService activeRunService,
             ContainerHubSandboxService containerHubSandboxService,
             RuntimeContextPromptService runtimeContextPromptService,
@@ -3182,8 +3182,8 @@ class DefinitionDrivenAgentTest {
         dataProperties.setExternalDir("data");
         ChatStorageProperties memoryProperties = new ChatStorageProperties();
         memoryProperties.setDir("chats");
-        MemoryStorageProperties storageProperties = new MemoryStorageProperties();
-        storageProperties.setDir("memory");
+        AgentMemoryProperties storageProperties = new AgentMemoryProperties();
+        storageProperties.getStorage().setDir("memory");
         return new RuntimeContextPromptService(environment, rootProperties, ownerProperties, dataProperties, memoryProperties, storageProperties, hostPaths);
     }
 

@@ -2,7 +2,7 @@ package com.linlay.agentplatform.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.runtime.McpToolInvoker;
+import com.linlay.agentplatform.agent.runtime.tool.McpToolInvoker;
 import com.linlay.agentplatform.config.properties.McpProperties;
 import com.linlay.agentplatform.config.properties.ViewportServerProperties;
 import com.linlay.agentplatform.service.mcp.McpServerAvailabilityGate;

@@ -4,27 +4,27 @@ import org.springframework.util.StringUtils;
 
 import java.util.Objects;
 
-final class ToolTrace {
+public final class ToolTrace {
 
-    final String toolCallId;
-    String toolName;
-    String toolType;
+    public final String toolCallId;
+    public String toolName;
+    public String toolType;
     private final StringBuilder arguments = new StringBuilder();
-    long firstSeenAt;
-    long resultAt;
-    boolean recorded;
+    public long firstSeenAt;
+    public long resultAt;
+    public boolean recorded;
 
-    ToolTrace(String toolCallId) {
+    public ToolTrace(String toolCallId) {
         this.toolCallId = Objects.requireNonNull(toolCallId);
     }
 
-    void appendArguments(String delta) {
+    public void appendArguments(String delta) {
         if (StringUtils.hasText(delta)) {
             arguments.append(delta);
         }
     }
 
-    String arguments() {
+    public String arguments() {
         return arguments.isEmpty() ? null : arguments.toString();
     }
 }

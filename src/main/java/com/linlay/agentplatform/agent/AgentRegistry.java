@@ -1,15 +1,16 @@
 package com.linlay.agentplatform.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
-import com.linlay.agentplatform.agent.runtime.ToolInvokerRouter;
+import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubSandboxService;
+import com.linlay.agentplatform.agent.runtime.tool.ToolInvokerRouter;
 import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.service.ActiveRunService;
+import com.linlay.agentplatform.service.memory.AgentMemoryService;
 import com.linlay.agentplatform.service.memory.AgentMemoryStore;
-import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.agent.runtime.tool.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.skill.SkillRegistryService;
 import com.linlay.agentplatform.tool.ToolFileRegistryService;

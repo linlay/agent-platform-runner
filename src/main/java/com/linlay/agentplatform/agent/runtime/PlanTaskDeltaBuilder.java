@@ -3,6 +3,8 @@ package com.linlay.agentplatform.agent.runtime;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.PlanToolConstants;
+import com.linlay.agentplatform.agent.runtime.execution.ExecutionContext;
+import com.linlay.agentplatform.agent.runtime.tool.ToolExecutionService;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.util.MapReaders;
 import com.linlay.agentplatform.util.StringHelpers;
@@ -16,19 +18,19 @@ import java.util.Map;
 /**
  * Extracted plan state/result helpers from ToolExecutionService.
  */
-final class PlanTaskDeltaBuilder {
+public final class PlanTaskDeltaBuilder {
 
     private final ObjectMapper objectMapper;
 
-    PlanTaskDeltaBuilder(ObjectMapper objectMapper) {
+    public PlanTaskDeltaBuilder(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
-    JsonNode planGetResult(ToolExecutionService.PlanState state) {
+    public JsonNode planGetResult(ToolExecutionService.PlanState state) {
         return objectMapper.getNodeFactory().textNode(planStateText(state));
     }
 
-    AgentDelta planUpdateDelta(
+    public AgentDelta planUpdateDelta(
             ExecutionContext context,
             String toolName,
             Map<String, Object> args,
@@ -70,7 +72,7 @@ final class PlanTaskDeltaBuilder {
         return null;
     }
 
-    String planStateText(ToolExecutionService.PlanState state) {
+    public String planStateText(ToolExecutionService.PlanState state) {
         StringBuilder text = new StringBuilder();
         text.append("计划ID: ").append(normalize(state.planId())).append('\n');
         text.append("任务列表:");

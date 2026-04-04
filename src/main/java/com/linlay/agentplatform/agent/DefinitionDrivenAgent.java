@@ -7,14 +7,14 @@ import com.linlay.agentplatform.agent.mode.PlanExecuteMode;
 import com.linlay.agentplatform.agent.mode.ReactMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
-import com.linlay.agentplatform.agent.runtime.ContainerHubSandboxService;
-import com.linlay.agentplatform.agent.runtime.ExecutionContext;
-import com.linlay.agentplatform.agent.runtime.RunControl;
-import com.linlay.agentplatform.agent.runtime.RunInputBroker;
+import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubSandboxService;
+import com.linlay.agentplatform.agent.runtime.execution.ExecutionContext;
+import com.linlay.agentplatform.agent.runtime.execution.RunControl;
+import com.linlay.agentplatform.agent.runtime.execution.RunInputBroker;
 import com.linlay.agentplatform.agent.runtime.SkillPromptBundle;
 import com.linlay.agentplatform.agent.runtime.TextBlockIdAssigner;
-import com.linlay.agentplatform.agent.runtime.ToolExecutionService;
-import com.linlay.agentplatform.agent.runtime.ToolInvoker;
+import com.linlay.agentplatform.agent.runtime.tool.ToolExecutionService;
+import com.linlay.agentplatform.agent.runtime.tool.ToolInvoker;
 import com.linlay.agentplatform.agent.runtime.TurnTraceWriter;
 import com.linlay.agentplatform.agent.mode.OrchestratorServices;
 import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
@@ -24,8 +24,9 @@ import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
 import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.model.AgentRequest;
 import com.linlay.agentplatform.model.AgentDelta;
-import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.agent.runtime.tool.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.service.llm.LlmService;
+import com.linlay.agentplatform.service.memory.AgentMemoryService;
 import com.linlay.agentplatform.util.RunIdGenerator;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.memory.AgentMemoryStore;
@@ -607,7 +608,7 @@ public class DefinitionDrivenAgent implements Agent {
                 || !agentMemoryProperties.isEnabled()
                 || !definition.memoryEnabled()
                 || context.runControl() == null
-                || context.runControl().state() != com.linlay.agentplatform.agent.runtime.RunLoopState.COMPLETED) {
+                || context.runControl().state() != com.linlay.agentplatform.agent.runtime.execution.RunLoopState.COMPLETED) {
             return;
         }
         String content = buildAutomaticMemoryContent(context);

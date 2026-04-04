@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.agent.runtime;
 
+import com.linlay.agentplatform.agent.runtime.execution.StepAccumulator;
 import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
 import com.linlay.agentplatform.chatstorage.ChatStorageStore;
 import com.linlay.agentplatform.model.AgentDelta;

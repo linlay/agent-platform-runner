@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.service.memory;
 
-import com.linlay.agentplatform.agent.AgentMemoryService;
+import com.linlay.agentplatform.service.memory.AgentMemoryService;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.service.embedding.EmbeddingService;
 import com.linlay.agentplatform.util.IdGenerators;

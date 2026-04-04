@@ -25,6 +25,7 @@ public final class RuntimeDirectoryHostPaths {
             "SCHEDULES_DIR",
             "CHATS_DIR",
             "MEMORY_DIR",
+            "AGENT_MEMORY_STORAGE_DIR",
             "ROOT_DIR",
             "PAN_DIR"
     );
@@ -57,7 +58,7 @@ public final class RuntimeDirectoryHostPaths {
         for (String key : RUNTIME_DIR_KEYS) {
             String value = environment.get(key);
             if (StringUtils.hasText(value)) {
-                values.put(key, value.trim());
+                values.put(normalizeRuntimeKey(key), value.trim());
             }
         }
         return values.isEmpty() ? Map.of() : Map.copyOf(values);
@@ -122,8 +123,15 @@ public final class RuntimeDirectoryHostPaths {
         }
         String value = stripMatchingQuotes(line.substring(equals + 1).trim());
         if (StringUtils.hasText(value)) {
-            values.put(key, value.trim());
+            values.put(normalizeRuntimeKey(key), value.trim());
         }
+    }
+
+    private static String normalizeRuntimeKey(String key) {
+        if ("AGENT_MEMORY_STORAGE_DIR".equals(key)) {
+            return "MEMORY_DIR";
+        }
+        return key;
     }
 
     private static String stripBom(String value) {

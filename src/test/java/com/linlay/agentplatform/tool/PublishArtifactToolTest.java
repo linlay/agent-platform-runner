@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.tool;
 
-import com.linlay.agentplatform.agent.runtime.ExecutionContext;
+import com.linlay.agentplatform.agent.runtime.execution.ExecutionContext;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.ArtifactEventPayload;
 import com.linlay.agentplatform.model.api.QueryRequest;

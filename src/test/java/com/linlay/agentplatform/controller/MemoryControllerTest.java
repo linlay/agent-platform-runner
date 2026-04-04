@@ -3,7 +3,7 @@ package com.linlay.agentplatform.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.agent.AgentProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
-import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
+import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.service.llm.LlmCallSpec;
 import com.linlay.agentplatform.service.llm.LlmService;
 import com.linlay.agentplatform.testsupport.StubLlmService;
@@ -53,9 +53,9 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-memory-skills-${random.uuid}",
                 "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-memory-schedules-${random.uuid}",
                 "agent.root.external-dir=${java.io.tmpdir}/agent-platform-runner-memory-root-${random.uuid}",
-                "memory.storage.dir=${java.io.tmpdir}/agent-platform-runner-memory-store-${random.uuid}",
-                "memory.remember.model-key=remember-test-model",
-                "memory.remember.timeout-ms=100"
+                "agent.memory.storage.dir=${java.io.tmpdir}/agent-platform-runner-memory-store-${random.uuid}",
+                "agent.memory.remember.model-key=remember-test-model",
+                "agent.memory.remember.timeout-ms=100"
         }
 )
 @AutoConfigureWebTestClient
@@ -73,7 +73,7 @@ class MemoryControllerTest {
     private ChatStorageProperties chatStorageProperties;
 
     @Autowired
-    private MemoryStorageProperties memoryStorageProperties;
+    private AgentMemoryProperties memoryStorageProperties;
 
     @Autowired
     private AgentProperties agentProperties;
@@ -125,7 +125,7 @@ class MemoryControllerTest {
     @BeforeEach
     void setUp() throws Exception {
         Files.createDirectories(Path.of(chatStorageProperties.getDir()));
-        Path memoryRoot = Path.of(memoryStorageProperties.getDir());
+        Path memoryRoot = Path.of(memoryStorageProperties.getStorage().getDir());
         if (Files.exists(memoryRoot)) {
             try (var stream = Files.walk(memoryRoot)) {
                 stream.sorted(java.util.Comparator.reverseOrder())
@@ -392,7 +392,7 @@ class MemoryControllerTest {
     }
 
     private Path memoryRoot() {
-        return Path.of(memoryStorageProperties.getDir());
+        return Path.of(memoryStorageProperties.getStorage().getDir());
     }
 
     private String todayJournalRelativePath() {

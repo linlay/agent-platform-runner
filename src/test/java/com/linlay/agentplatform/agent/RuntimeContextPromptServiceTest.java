@@ -3,8 +3,8 @@ package com.linlay.agentplatform.agent;
 import com.linlay.agentplatform.agent.mode.OneshotMode;
 import com.linlay.agentplatform.agent.mode.StageSettings;
 import com.linlay.agentplatform.agent.runtime.AgentRuntimeMode;
-import com.linlay.agentplatform.agent.runtime.MountAccessMode;
-import com.linlay.agentplatform.agent.runtime.SandboxLevel;
+import com.linlay.agentplatform.agent.runtime.sandbox.MountAccessMode;
+import com.linlay.agentplatform.agent.runtime.sandbox.SandboxLevel;
 import com.linlay.agentplatform.agent.runtime.policy.Budget;
 import com.linlay.agentplatform.agent.runtime.policy.ComputePolicy;
 import com.linlay.agentplatform.agent.runtime.policy.RunSpec;
@@ -12,7 +12,6 @@ import com.linlay.agentplatform.agent.runtime.policy.ToolChoice;
 import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import com.linlay.agentplatform.config.properties.DataProperties;
-import com.linlay.agentplatform.config.properties.MemoryStorageProperties;
 import com.linlay.agentplatform.config.properties.OwnerProperties;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
@@ -446,14 +445,16 @@ class RuntimeContextPromptServiceTest {
         dataProperties.setExternalDir("data");
         ChatStorageProperties memoryProperties = new ChatStorageProperties();
         memoryProperties.setDir("chats");
-        MemoryStorageProperties storageProperties = new MemoryStorageProperties();
-        storageProperties.setDir("memory");
+        AgentMemoryProperties storageProperties = new AgentMemoryProperties();
+        storageProperties.getStorage().setDir("memory");
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         if (agentMemoryStore != null) {
             beanFactory.addBean("agentMemoryStore", agentMemoryStore);
         }
         if (agentMemoryProperties != null) {
             beanFactory.addBean("agentMemoryProperties", agentMemoryProperties);
+        } else {
+            beanFactory.addBean("defaultAgentMemoryProperties", storageProperties);
         }
         return new RuntimeContextPromptService(
                 environment,
@@ -461,7 +462,6 @@ class RuntimeContextPromptServiceTest {
                 ownerProperties,
                 dataProperties,
                 memoryProperties,
-                storageProperties,
                 beanFactory.getBeanProvider(AgentMemoryStore.class),
                 beanFactory.getBeanProvider(AgentMemoryProperties.class)
         );

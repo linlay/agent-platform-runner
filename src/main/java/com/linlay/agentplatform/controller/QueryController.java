@@ -15,7 +15,7 @@ import com.linlay.agentplatform.model.api.SubmitResponse;
 import com.linlay.agentplatform.security.ChatImageTokenHelper;
 import com.linlay.agentplatform.service.ActiveRunService;
 import com.linlay.agentplatform.service.AgentQueryService;
-import com.linlay.agentplatform.agent.runtime.FrontendSubmitCoordinator;
+import com.linlay.agentplatform.agent.runtime.tool.FrontendSubmitCoordinator;
 import com.linlay.agentplatform.stream.service.SseFlushWriter;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
