@@ -16,8 +16,6 @@ import org.springframework.util.StringUtils;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -74,7 +72,7 @@ public class ChatImageTokenService {
 
     public VerifyResult verify(String token) {
         if (!StringUtils.hasText(token)) {
-            return VerifyResult.invalid(ERROR_CODE_INVALID, "chat image token missing");
+            return VerifyResult.invalid(ERROR_CODE_INVALID, "resource ticket missing");
         }
 
         SignedJWT jwt;
@@ -82,7 +80,7 @@ public class ChatImageTokenService {
             jwt = SignedJWT.parse(token.trim());
         } catch (Exception ex) {
             log.debug("chat image token parse failed token={}", maskToken(token));
-            return VerifyResult.invalid(ERROR_CODE_INVALID, "chat image token invalid");
+            return VerifyResult.invalid(ERROR_CODE_INVALID, "resource ticket invalid");
         }
 
         JWTClaimsSet claimsSet;
@@ -90,27 +88,27 @@ public class ChatImageTokenService {
             claimsSet = jwt.getJWTClaimsSet();
         } catch (Exception ex) {
             log.debug("chat image token claims parse failed token={}", maskToken(token));
-            return VerifyResult.invalid(ERROR_CODE_INVALID, "chat image token invalid");
+            return VerifyResult.invalid(ERROR_CODE_INVALID, "resource ticket invalid");
         }
 
-        if (!verifySignature(jwt, resolveSigningSecrets())) {
-            return VerifyResult.invalid(ERROR_CODE_INVALID, "chat image token invalid");
+        if (!verifySignature(jwt, properties.getSecret())) {
+            return VerifyResult.invalid(ERROR_CODE_INVALID, "resource ticket invalid");
         }
 
         Long expiresEpochSeconds = longClaim(claimsSet, "e");
         if (expiresEpochSeconds == null) {
-            return VerifyResult.invalid(ERROR_CODE_INVALID, "chat image token invalid");
+            return VerifyResult.invalid(ERROR_CODE_INVALID, "resource ticket invalid");
         }
         Instant expiresAt = Instant.ofEpochSecond(expiresEpochSeconds);
         if (expiresAt.isBefore(Instant.now())) {
-            return VerifyResult.invalid(ERROR_CODE_EXPIRED, "chat image token expired");
+            return VerifyResult.invalid(ERROR_CODE_EXPIRED, "resource ticket expired");
         }
 
         String uid = stringClaim(claimsSet, "u");
         String chatId = normalizeUuid(stringClaim(claimsSet, "c"));
 
         if (!StringUtils.hasText(uid) || !StringUtils.hasText(chatId)) {
-            return VerifyResult.invalid(ERROR_CODE_INVALID, "chat image token invalid");
+            return VerifyResult.invalid(ERROR_CODE_INVALID, "resource ticket invalid");
         }
 
         return VerifyResult.valid(new Claims(
@@ -123,38 +121,19 @@ public class ChatImageTokenService {
         ));
     }
 
-    private boolean verifySignature(SignedJWT jwt, List<String> secrets) {
-        if (secrets.isEmpty()) {
+    private boolean verifySignature(SignedJWT jwt, String secret) {
+        if (!StringUtils.hasText(secret)) {
             logMissingSecretOnce();
             return false;
         }
-        for (String secret : secrets) {
-            try {
-                if (jwt.verify(new MACVerifier(deriveSigningKey(secret)))) {
-                    return true;
-                }
-            } catch (JOSEException ex) {
-                log.debug("chat image token signature verification failed token={}", maskToken(jwt.serialize()));
-            } catch (Exception ex) {
-                log.debug("chat image token signature verification failed token={}", maskToken(jwt.serialize()));
-            }
+        try {
+            return jwt.verify(new MACVerifier(deriveSigningKey(secret.trim())));
+        } catch (JOSEException ex) {
+            log.debug("chat image token signature verification failed token={}", maskToken(jwt.serialize()));
+        } catch (Exception ex) {
+            log.debug("chat image token signature verification failed token={}", maskToken(jwt.serialize()));
         }
         return false;
-    }
-
-    private List<String> resolveSigningSecrets() {
-        List<String> secrets = new ArrayList<>();
-        if (StringUtils.hasText(properties.getSecret())) {
-            secrets.add(properties.getSecret().trim());
-        }
-        if (StringUtils.hasText(properties.getPreviousSecrets())) {
-            for (String item : properties.getPreviousSecrets().split(",")) {
-                if (StringUtils.hasText(item)) {
-                    secrets.add(item.trim());
-                }
-            }
-        }
-        return secrets;
     }
 
     private byte[] deriveSigningKey(String secret) throws Exception {

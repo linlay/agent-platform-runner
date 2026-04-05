@@ -98,7 +98,7 @@ public class ApiJwtAuthWebFilter implements WebFilter {
         if (!"/api/resource".equals(path)) {
             return false;
         }
-        if (!chatImageTokenProperties.isDataTokenValidationEnabled()) {
+        if (!chatImageTokenProperties.isResourceTicketEnabled()) {
             return true;
         }
         return exchange.getRequest().getQueryParams().containsKey("t");

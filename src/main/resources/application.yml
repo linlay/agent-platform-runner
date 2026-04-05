@@ -152,10 +152,9 @@ agent:
     max-age-seconds: 3600
   chat-image-token:
     secret: ${CHAT_IMAGE_TOKEN_SECRET:}
-    previous-secrets: ${CHAT_IMAGE_TOKEN_PREVIOUS_SECRETS:}
     ttl-seconds: ${CHAT_IMAGE_TOKEN_TTL_SECONDS:86400}
-    # when true, GET /api/resource?t=... performs token validation and may return 403 if token is invalid/expired
-    data-token-validation-enabled: ${CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED:true}
+    # when true, GET /api/resource?t=... treats t as a resource ticket and may return 403 if it is invalid/expired
+    resource-ticket-enabled: ${CHAT_RESOURCE_TICKET_ENABLED:true}
 
 chat:
   storage:

@@ -53,16 +53,16 @@ import java.util.Date;
                 "agent.auth.enabled=true",
                 "agent.auth.issuer=https://auth.example.local",
                 "agent.chat-image-token.secret=chat-image-token-secret-for-tests",
-                "agent.chat-image-token.data-token-validation-enabled=false",
-                "chat.storage.dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-chats-${random.uuid}",
-                "chat.storage.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-chats-db-${random.uuid}/chats.db",
-                "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-skills-${random.uuid}",
-                "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-data-token-toggle-schedules-${random.uuid}"
+                "agent.chat-image-token.resource-ticket-enabled=false",
+                "chat.storage.dir=${java.io.tmpdir}/agent-platform-runner-resource-ticket-toggle-chats-${random.uuid}",
+                "chat.storage.index.sqlite-file=${java.io.tmpdir}/agent-platform-runner-resource-ticket-toggle-chats-db-${random.uuid}/chats.db",
+                "agent.skills.external-dir=${java.io.tmpdir}/agent-platform-runner-resource-ticket-toggle-skills-${random.uuid}",
+                "agent.schedule.external-dir=${java.io.tmpdir}/agent-platform-runner-resource-ticket-toggle-schedules-${random.uuid}"
         }
 )
 @AutoConfigureWebTestClient
-@Import(DataApiTokenValidationToggleIntegrationTest.TestLlmServiceConfig.class)
-class DataApiTokenValidationToggleIntegrationTest {
+@Import(ResourceTicketToggleIntegrationTest.TestLlmServiceConfig.class)
+class ResourceTicketToggleIntegrationTest {
 
     private static RSAKey rsaKey;
     private static Path jwksFile;
@@ -104,8 +104,8 @@ class DataApiTokenValidationToggleIntegrationTest {
 
     @BeforeAll
     static void beforeAll() throws Exception {
-        rsaKey = new RSAKeyGenerator(2048).keyID("data-token-toggle-kid").generate();
-        jwksFile = Files.createTempFile("data-token-toggle-jwks-", ".json");
+        rsaKey = new RSAKeyGenerator(2048).keyID("resource-ticket-toggle-kid").generate();
+        jwksFile = Files.createTempFile("resource-ticket-toggle-jwks-", ".json");
         String jwks = new JWKSet(rsaKey.toPublicJWK()).toJSONObject().toString();
         Files.writeString(jwksFile, jwks, StandardCharsets.UTF_8);
     }
@@ -130,7 +130,7 @@ class DataApiTokenValidationToggleIntegrationTest {
     }
 
     @Test
-    void dataApiShouldAllowAccessWithoutAuthorizationWhenValidationDisabled() throws Exception {
+    void dataApiShouldAllowAccessWithoutAuthorizationWhenTicketDisabled() throws Exception {
         Files.write(Path.of(chatStorageProperties.getDir()).resolve("sample_photo.jpg"), createMinimalPng());
 
         webTestClient.get()
@@ -145,7 +145,7 @@ class DataApiTokenValidationToggleIntegrationTest {
     }
 
     @Test
-    void dataApiShouldIgnoreInvalidTokenQueryWhenValidationDisabled() throws Exception {
+    void dataApiShouldIgnoreInvalidTicketQueryWhenTicketDisabled() throws Exception {
         Files.write(Path.of(chatStorageProperties.getDir()).resolve("sample_photo.jpg"), createMinimalPng());
 
         webTestClient.get()
@@ -161,9 +161,9 @@ class DataApiTokenValidationToggleIntegrationTest {
     }
 
     @Test
-    void dataApiShouldStillAllowBearerCompatibilityWhenValidationDisabled() throws Exception {
+    void dataApiShouldStillAllowBearerCompatibilityWhenTicketDisabled() throws Exception {
         Files.write(Path.of(chatStorageProperties.getDir()).resolve("sample_photo.jpg"), createMinimalPng());
-        String authToken = issueAuthToken("user-data-token-toggle");
+        String authToken = issueAuthToken("user-resource-ticket-toggle");
 
         webTestClient.get()
                 .uri(uriBuilder -> uriBuilder

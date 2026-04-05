@@ -71,7 +71,7 @@ public class FileController {
     private final Path dataDir;
     private final ChatImageTokenService chatImageTokenService;
     private final ChatAssetAccessService chatAssetAccessService;
-    private final boolean dataTokenValidationEnabled;
+    private final boolean resourceTicketEnabled;
     private final LoggingAgentProperties loggingAgentProperties;
     private final ChatUploadService chatUploadService;
 
@@ -86,7 +86,7 @@ public class FileController {
         this.dataDir = chatDataPathService.dataDir();
         this.chatImageTokenService = chatImageTokenService;
         this.chatAssetAccessService = chatAssetAccessService;
-        this.dataTokenValidationEnabled = chatImageTokenProperties.isDataTokenValidationEnabled();
+        this.resourceTicketEnabled = chatImageTokenProperties.isResourceTicketEnabled();
         this.loggingAgentProperties = loggingAgentProperties;
         this.chatUploadService = chatUploadService;
     }
@@ -95,9 +95,9 @@ public class FileController {
     public Mono<ResponseEntity<?>> serveFile(
             @RequestParam("file") String file,
             @RequestParam(value = "download", required = false, defaultValue = "false") boolean download,
-            @RequestParam(value = "t", required = false) String chatImageToken
+            @RequestParam(value = "t", required = false) String resourceTicket
     ) {
-        VerifyResult verifyResult = null;
+        VerifyResult ticketVerifyResult = null;
         String filename = ResourcePathNormalizer.normalizeFileParam(file);
         if (filename == null) {
             return Mono.just(jsonResponse(HttpStatus.BAD_REQUEST, ApiResponse.failure(400, "Invalid file parameter")));
@@ -108,15 +108,15 @@ public class FileController {
             return Mono.just(jsonResponse(HttpStatus.BAD_REQUEST, ApiResponse.failure(400, "Invalid filename")));
         }
 
-        if (dataTokenValidationEnabled && chatImageToken != null) {
-            verifyResult = chatImageTokenService.verify(chatImageToken);
-            if (!verifyResult.valid()) {
-                logDataForbidden("token_invalid", filename, verifyResult.errorCode());
-                return Mono.just(forbiddenToken(verifyResult.message(), verifyResult.errorCode()));
+        if (resourceTicketEnabled && resourceTicket != null) {
+            ticketVerifyResult = chatImageTokenService.verify(resourceTicket);
+            if (!ticketVerifyResult.valid()) {
+                logDataForbidden("ticket_invalid", filename, ticketVerifyResult.errorCode());
+                return Mono.just(forbiddenToken(ticketVerifyResult.message(), ticketVerifyResult.errorCode()));
             }
-            if (!verifyResult.hasScope(ChatImageTokenService.DATA_READ_SCOPE)) {
+            if (!ticketVerifyResult.hasScope(ChatImageTokenService.DATA_READ_SCOPE)) {
                 logDataForbidden("scope_denied", filename, ChatImageTokenService.ERROR_CODE_INVALID);
-                return Mono.just(forbiddenToken("chat image token invalid", ChatImageTokenService.ERROR_CODE_INVALID));
+                return Mono.just(forbiddenToken("resource ticket invalid", ChatImageTokenService.ERROR_CODE_INVALID));
             }
         }
 
@@ -124,14 +124,14 @@ public class FileController {
             return Mono.just(jsonResponse(HttpStatus.NOT_FOUND, ApiResponse.failure(404, "File not found")));
         }
 
-        if (verifyResult != null) {
+        if (ticketVerifyResult != null) {
             boolean canRead = chatAssetAccessService.canRead(
-                    verifyResult.claims().chatId(),
+                    ticketVerifyResult.claims().chatId(),
                     filename
             );
             if (!canRead) {
                 logDataForbidden("asset_denied", filename, ChatImageTokenService.ERROR_CODE_INVALID);
-                return Mono.just(forbiddenToken("chat image token invalid", ChatImageTokenService.ERROR_CODE_INVALID));
+                return Mono.just(forbiddenToken("resource ticket invalid", ChatImageTokenService.ERROR_CODE_INVALID));
             }
         }
 
@@ -202,7 +202,7 @@ public class FileController {
     }
 
     private ResponseEntity<?> forbiddenToken(String message, String errorCode) {
-        String resolvedMessage = StringUtils.hasText(message) ? message : "chat image token invalid";
+        String resolvedMessage = StringUtils.hasText(message) ? message : "resource ticket invalid";
         String resolvedErrorCode = StringUtils.hasText(errorCode)
                 ? errorCode
                 : ChatImageTokenService.ERROR_CODE_INVALID;

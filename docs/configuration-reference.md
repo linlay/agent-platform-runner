@@ -88,7 +88,7 @@
 | `AGENT_AUTH_JWKS_URI` | `agent.auth.jwks-uri` | （空） | JWKS 地址 |
 | `AGENT_AUTH_ISSUER` | `agent.auth.issuer` | （空） | JWT issuer |
 | `CHAT_IMAGE_TOKEN_SECRET` | `agent.chat-image-token.secret` | （空） | 图片令牌签名密钥（为空则 token 机制禁用） |
-| `CHAT_IMAGE_TOKEN_PREVIOUS_SECRETS` | `agent.chat-image-token.previous-secrets` | （空） | 历史密钥列表（逗号分隔），用于密钥轮换验证 |
+| `CHAT_RESOURCE_TICKET_ENABLED` | `agent.chat-image-token.resource-ticket-enabled` | `true` | `/api/resource` 的 `t` resource ticket 开关（关闭后忽略 `t`） |
 
 说明：`agent.auth.local-public-key` 仍支持 YAML 内嵌 PEM；推荐改用 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE` 或 `agent.auth.local-public-key-file` 指向独立 PEM 文件。
 

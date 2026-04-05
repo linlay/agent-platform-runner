@@ -942,7 +942,7 @@ for f in *.md; do echo "$f"; done
 | `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `300000` | 前端工具提交超时 |
 | `AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS` | `false` | 是否向客户端返回 `tool.args` / `tool.result` |
 | `AGENT_AUTH_ENABLED` | `true` | JWT 认证开关 |
-| `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `true` | `/api/resource` 的 `t` 参数校验开关（关闭后忽略 `t`） |
+| `CHAT_RESOURCE_TICKET_ENABLED` | `true` | `/api/resource` 的 `t` ticket 开关（关闭后忽略 `t`） |
 | `CHAT_STORAGE_INDEX_SQLITE_FILE` | `chats.db` | 聊天索引 SQLite 文件路径（相对路径按 `CHATS_DIR` 解析） |
 | `CHAT_STORAGE_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `true` | sqlite 索引 schema 不兼容时是否自动备份并重建 |
 | `CHAT_STORAGE_K` | `20` | 滑动窗口大小 |
@@ -1010,12 +1010,12 @@ for f in *.md; do echo "$f"; done
   - Markdown `![图](aaa.jpg)` → `file=aaa.jpg`
 - 调用时请对 `file` 做 URL encode（尤其是 `/`、空格、中文等字符）。
 - 安全防护：拒绝路径穿越（`..`）、反斜杠（`\`）和符号链接。
-- 可选 `t` 参数用于 chat image token 校验；开关为 `agent.chat-image-token.data-token-validation-enabled`。
-- 当 `agent.chat-image-token.data-token-validation-enabled=true`（默认）时：
-  - 可通过 `t` 绕过 `/api/resource` 的 Bearer JWT 要求，并按 chat image token 校验访问范围。
+- 可选 `t` 参数表示 resource ticket；开关为 `agent.chat-image-token.resource-ticket-enabled`。
+- 当 `agent.chat-image-token.resource-ticket-enabled=true`（默认）时：
+  - 可通过 `t` 绕过 `/api/resource` 的 Bearer JWT 要求，并按 resource ticket 校验访问范围。
   - 不带 `t` 时，若开启了 `agent.auth.enabled=true`，则仍需 `Authorization: Bearer ...`。
-- 当 `agent.chat-image-token.data-token-validation-enabled=false` 时：
-  - `GET /api/resource` 直接放行，不再要求 chat image token，也不再要求 Bearer JWT。
+- 当 `agent.chat-image-token.resource-ticket-enabled=false` 时：
+  - `GET /api/resource` 直接放行，不再要求 resource ticket，也不再要求 Bearer JWT。
   - 该模式适合本地调试或可信内网环境，生产环境建议保持开启。
 
 ## 本地上传接口

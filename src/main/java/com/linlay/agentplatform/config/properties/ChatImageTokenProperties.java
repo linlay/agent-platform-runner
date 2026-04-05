@@ -6,9 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class ChatImageTokenProperties {
 
     private String secret;
-    private String previousSecrets;
     private long ttlSeconds = 86_400L;
-    private boolean dataTokenValidationEnabled = true;
+    private boolean resourceTicketEnabled = true;
 
     public String getSecret() {
         return secret;
@@ -16,14 +15,6 @@ public class ChatImageTokenProperties {
 
     public void setSecret(String secret) {
         this.secret = secret;
-    }
-
-    public String getPreviousSecrets() {
-        return previousSecrets;
-    }
-
-    public void setPreviousSecrets(String previousSecrets) {
-        this.previousSecrets = previousSecrets;
     }
 
     public long getTtlSeconds() {
@@ -34,11 +25,11 @@ public class ChatImageTokenProperties {
         this.ttlSeconds = ttlSeconds;
     }
 
-    public boolean isDataTokenValidationEnabled() {
-        return dataTokenValidationEnabled;
+    public boolean isResourceTicketEnabled() {
+        return resourceTicketEnabled;
     }
 
-    public void setDataTokenValidationEnabled(boolean dataTokenValidationEnabled) {
-        this.dataTokenValidationEnabled = dataTokenValidationEnabled;
+    public void setResourceTicketEnabled(boolean resourceTicketEnabled) {
+        this.resourceTicketEnabled = resourceTicketEnabled;
     }
 }
