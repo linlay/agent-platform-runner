@@ -22,10 +22,10 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.runtime.sandbox.ContainerHubClient;
-import com.linlay.agentplatform.agent.runtime.sandbox.SystemContainerHubBash;
+import com.linlay.agentplatform.engine.sandbox.ContainerHubClient;
+import com.linlay.agentplatform.engine.sandbox.SystemContainerHubBash;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
-import com.linlay.agentplatform.service.mcp.McpToolSyncService;
+import com.linlay.agentplatform.integration.mcp.McpToolSyncService;
 import com.linlay.agentplatform.config.properties.ToolProperties;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

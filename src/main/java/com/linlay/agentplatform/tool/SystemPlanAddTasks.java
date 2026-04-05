@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.linlay.agentplatform.agent.PlanToolConstants;
+import com.linlay.agentplatform.engine.runtime.PlanToolConstants;
 import com.linlay.agentplatform.util.IdGenerators;
 import com.linlay.agentplatform.util.MapReaders;
 import org.springframework.stereotype.Component;

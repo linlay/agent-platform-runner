@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.util;
 
-import com.linlay.agentplatform.service.llm.LlmLogSanitizer;
+import com.linlay.agentplatform.llm.LlmLogSanitizer;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

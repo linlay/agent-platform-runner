@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.model.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.linlay.agentplatform.chatstorage.ChatStorageTypes;
+import com.linlay.agentplatform.chat.storage.ChatStorageTypes;
 
 import java.util.List;
 import java.util.Map;

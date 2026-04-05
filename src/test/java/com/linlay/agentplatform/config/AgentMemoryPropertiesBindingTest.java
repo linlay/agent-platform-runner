@@ -1,9 +1,7 @@
 package com.linlay.agentplatform.config;
 
-import com.linlay.agentplatform.config.boot.AgentMemoryPropertyAliasEnvironmentPostProcessor;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.ConfigurationPropertiesAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -16,8 +14,6 @@ class AgentMemoryPropertiesBindingTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(ConfigurationPropertiesAutoConfiguration.class))
-            .withInitializer(context -> new AgentMemoryPropertyAliasEnvironmentPostProcessor()
-                    .postProcessEnvironment(context.getEnvironment(), new SpringApplication()))
             .withUserConfiguration(TestConfig.class);
 
     @Test
@@ -54,48 +50,6 @@ class AgentMemoryPropertiesBindingTest {
                     assertThat(properties.getAutoRemember().isEnabled()).isTrue();
                     assertThat(properties.getRemember().getModelKey()).isEqualTo("remember-v2");
                     assertThat(properties.getRemember().getTimeoutMs()).isEqualTo(9000L);
-                });
-    }
-
-    @Test
-    void shouldBindDeprecatedPrefixesThroughAliasBridge() {
-        contextRunner
-                .withPropertyValues(
-                        "agent.memory.agent-memory.db-file-name=agent-memory-legacy.sqlite",
-                        "memory.storage.dir=/tmp/memory-legacy",
-                        "memory.remember.enabled=true",
-                        "memory.remember.model-key=remember-legacy",
-                        "memory.remember.timeout-ms=12345"
-                )
-                .run(context -> {
-                    AgentMemoryProperties properties = context.getBean(AgentMemoryProperties.class);
-                    assertThat(properties.getDbFileName()).isEqualTo("agent-memory-legacy.sqlite");
-                    assertThat(properties.getStorage().getDir()).isEqualTo("/tmp/memory-legacy");
-                    assertThat(properties.getAutoRemember().isEnabled()).isTrue();
-                    assertThat(properties.getRemember().getModelKey()).isEqualTo("remember-legacy");
-                    assertThat(properties.getRemember().getTimeoutMs()).isEqualTo(12345L);
-                });
-    }
-
-    @Test
-    void shouldPreferNewKeysWhenOldAndNewPrefixesCoexist() {
-        contextRunner
-                .withPropertyValues(
-                        "agent.memory.db-file-name=agent-memory-new.sqlite",
-                        "agent.memory.storage.dir=/tmp/memory-new",
-                        "agent.memory.auto-remember.enabled=false",
-                        "agent.memory.remember.model-key=remember-new",
-                        "agent.memory.agent-memory.db-file-name=agent-memory-legacy.sqlite",
-                        "agent.memory.remember.enabled=true",
-                        "memory.storage.dir=/tmp/memory-legacy",
-                        "memory.remember.model-key=remember-legacy"
-                )
-                .run(context -> {
-                    AgentMemoryProperties properties = context.getBean(AgentMemoryProperties.class);
-                    assertThat(properties.getDbFileName()).isEqualTo("agent-memory-new.sqlite");
-                    assertThat(properties.getStorage().getDir()).isEqualTo("/tmp/memory-new");
-                    assertThat(properties.getAutoRemember().isEnabled()).isFalse();
-                    assertThat(properties.getRemember().getModelKey()).isEqualTo("remember-new");
                 });
     }
 

@@ -8,7 +8,7 @@ import com.linlay.agentplatform.config.properties.FrontendToolProperties;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import com.linlay.agentplatform.stream.autoconfigure.StreamSseProperties;
 import com.linlay.agentplatform.tool.ToolDescriptor;
-import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
+import com.linlay.agentplatform.integration.viewport.ViewportRegistryService;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;

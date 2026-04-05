@@ -1,0 +1,24 @@
+package com.linlay.agentplatform.catalog.skill;
+
+import com.linlay.agentplatform.util.StringHelpers;
+
+public record SkillDescriptor(
+        String id,
+        String name,
+        String description,
+        String prompt,
+        String sourceFile,
+        boolean promptTruncated
+) {
+    public SkillDescriptor {
+        id = normalize(id);
+        name = normalize(name);
+        description = normalize(description);
+        prompt = prompt == null ? "" : prompt;
+        sourceFile = sourceFile == null ? "" : sourceFile.trim();
+    }
+
+    private static String normalize(String value) {
+        return StringHelpers.trimToEmpty(value);
+    }
+}

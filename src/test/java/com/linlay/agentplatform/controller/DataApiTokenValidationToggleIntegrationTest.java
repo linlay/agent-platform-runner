@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.controller;
 
-import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
-import com.linlay.agentplatform.service.llm.LlmCallSpec;
-import com.linlay.agentplatform.service.llm.LlmService;
+import com.linlay.agentplatform.config.properties.ChatStorageProperties;
+import com.linlay.agentplatform.llm.LlmCallSpec;
+import com.linlay.agentplatform.llm.LlmService;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;

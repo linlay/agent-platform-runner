@@ -2,7 +2,7 @@ package com.linlay.agentplatform.config;
 
 import com.linlay.agentplatform.config.properties.LlmInteractionLogProperties;
 import io.netty.handler.logging.LogLevel;
-import com.linlay.agentplatform.service.llm.LlmLogSanitizer;
+import com.linlay.agentplatform.llm.LlmLogSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;

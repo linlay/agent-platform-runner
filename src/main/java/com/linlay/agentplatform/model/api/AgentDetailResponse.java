@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.model.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.linlay.agentplatform.agent.AgentControl;
+import com.linlay.agentplatform.engine.definition.AgentControl;
 
 import java.util.List;
 import java.util.Map;

@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.config;
 
-import com.linlay.agentplatform.agent.AgentProperties;
+import com.linlay.agentplatform.config.properties.AgentProperties;
 import com.linlay.agentplatform.config.properties.AppAuthProperties;
 import com.linlay.agentplatform.config.properties.McpProperties;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
@@ -11,11 +11,11 @@ import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.config.properties.ToolProperties;
 import com.linlay.agentplatform.config.properties.ViewportProperties;
 import com.linlay.agentplatform.config.properties.ViewportServerProperties;
-import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
-import com.linlay.agentplatform.model.ModelProperties;
-import com.linlay.agentplatform.schedule.ScheduleProperties;
-import com.linlay.agentplatform.skill.SkillProperties;
-import com.linlay.agentplatform.team.TeamProperties;
+import com.linlay.agentplatform.config.properties.ChatStorageProperties;
+import com.linlay.agentplatform.config.properties.ModelProperties;
+import com.linlay.agentplatform.config.properties.ScheduleProperties;
+import com.linlay.agentplatform.config.properties.SkillProperties;
+import com.linlay.agentplatform.config.properties.TeamProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;

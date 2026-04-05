@@ -1,8 +1,8 @@
 package com.linlay.agentplatform.controller;
 
-import com.linlay.agentplatform.agent.Agent;
-import com.linlay.agentplatform.agent.AgentDefinition;
-import com.linlay.agentplatform.agent.AgentRegistry;
+import com.linlay.agentplatform.engine.definition.Agent;
+import com.linlay.agentplatform.engine.definition.AgentDefinition;
+import com.linlay.agentplatform.engine.definition.AgentRegistry;
 import com.linlay.agentplatform.model.ModelProtocol;
 import com.linlay.agentplatform.model.api.AgentDetailResponse;
 import com.linlay.agentplatform.model.api.AgentListResponse;
@@ -11,10 +11,10 @@ import com.linlay.agentplatform.model.api.SkillListResponse;
 import com.linlay.agentplatform.model.api.TeamSummaryResponse;
 import com.linlay.agentplatform.model.api.ToolDetailResponse;
 import com.linlay.agentplatform.model.api.ToolListResponse;
-import com.linlay.agentplatform.skill.SkillDescriptor;
-import com.linlay.agentplatform.skill.SkillRegistryService;
-import com.linlay.agentplatform.team.TeamDescriptor;
-import com.linlay.agentplatform.team.TeamRegistryService;
+import com.linlay.agentplatform.catalog.skill.SkillDescriptor;
+import com.linlay.agentplatform.catalog.skill.SkillRegistryService;
+import com.linlay.agentplatform.catalog.team.TeamDescriptor;
+import com.linlay.agentplatform.catalog.team.TeamRegistryService;
 import com.linlay.agentplatform.tool.BaseTool;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolKind;

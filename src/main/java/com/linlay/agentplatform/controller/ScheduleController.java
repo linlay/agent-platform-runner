@@ -1,7 +1,7 @@
 package com.linlay.agentplatform.controller;
 
 import com.linlay.agentplatform.model.api.ApiResponse;
-import com.linlay.agentplatform.schedule.ScheduledQueryOrchestrator;
+import com.linlay.agentplatform.catalog.schedule.ScheduledQueryOrchestrator;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;

@@ -1,11 +1,11 @@
 package com.linlay.agentplatform.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.agent.AgentProperties;
-import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
+import com.linlay.agentplatform.config.properties.AgentProperties;
+import com.linlay.agentplatform.config.properties.ChatStorageProperties;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
-import com.linlay.agentplatform.service.llm.LlmCallSpec;
-import com.linlay.agentplatform.service.llm.LlmService;
+import com.linlay.agentplatform.llm.LlmCallSpec;
+import com.linlay.agentplatform.llm.LlmService;
 import com.linlay.agentplatform.testsupport.StubLlmService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

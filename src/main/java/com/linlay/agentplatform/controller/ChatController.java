@@ -6,7 +6,7 @@ import com.linlay.agentplatform.model.api.ChatSummaryResponse;
 import com.linlay.agentplatform.model.api.MarkChatReadRequest;
 import com.linlay.agentplatform.model.api.MarkChatReadResponse;
 import com.linlay.agentplatform.security.ChatImageTokenHelper;
-import com.linlay.agentplatform.service.chat.ChatRecordStore;
+import com.linlay.agentplatform.chat.history.ChatRecordStore;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;

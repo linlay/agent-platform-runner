@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.properties.FrontendToolProperties;
 import com.linlay.agentplatform.model.ViewportType;
-import com.linlay.agentplatform.service.viewport.ViewportRegistryService;
+import com.linlay.agentplatform.integration.viewport.ViewportRegistryService;
 import com.linlay.agentplatform.stream.autoconfigure.StreamSseProperties;
 import com.linlay.agentplatform.tool.ToolDescriptor;
 import com.linlay.agentplatform.tool.ToolRegistry;

@@ -1,0 +1,149 @@
+package com.linlay.agentplatform.engine.mode;
+
+import com.linlay.agentplatform.engine.definition.AgentConfigFile;
+import com.linlay.agentplatform.engine.prompt.SkillAppend;
+import com.linlay.agentplatform.engine.prompt.ToolAppend;
+import com.linlay.agentplatform.engine.runtime.AgentRuntimeMode;
+import com.linlay.agentplatform.engine.runtime.ExecutionContext;
+import com.linlay.agentplatform.engine.policy.Budget;
+import com.linlay.agentplatform.engine.policy.RunSpec;
+import com.linlay.agentplatform.engine.policy.ToolChoice;
+import com.linlay.agentplatform.model.AgentDelta;
+import com.linlay.agentplatform.tool.BaseTool;
+import reactor.core.publisher.FluxSink;
+
+import java.util.List;
+import java.util.Map;
+
+public final class ReactMode extends AgentMode {
+
+    private final StageSettings stage;
+    private final int maxSteps;
+
+    public ReactMode(StageSettings stage, int maxSteps, SkillAppend skillAppend, ToolAppend toolAppend) {
+        this(stage, maxSteps, skillAppend, toolAppend, Budget.DEFAULT);
+    }
+
+    public ReactMode(StageSettings stage, int maxSteps, SkillAppend skillAppend, ToolAppend toolAppend, Budget defaultBudget) {
+        super(stage == null ? "" : stage.primaryPrompt(), skillAppend, toolAppend, defaultBudget);
+        this.stage = stage;
+        this.maxSteps = maxSteps > 0 ? maxSteps : 60;
+    }
+
+    public StageSettings stage() {
+        return stage;
+    }
+
+    public int maxSteps() {
+        return maxSteps;
+    }
+
+    @Override
+    public AgentRuntimeMode runtimeMode() {
+        return AgentRuntimeMode.REACT;
+    }
+
+    @Override
+    public RunSpec defaultRunSpec(AgentConfigFile config) {
+        return new RunSpec(
+                config != null && config.getToolChoice() != null ? config.getToolChoice() : ToolChoice.AUTO,
+                resolveBudget(config)
+        );
+    }
+
+    @Override
+    public void run(
+            ExecutionContext context,
+            Map<String, BaseTool> enabledToolsByName,
+            OrchestratorServices services,
+            FluxSink<AgentDelta> sink
+    ) {
+        Map<String, BaseTool> configuredTools = services.selectTools(
+                enabledToolsByName.keySet().stream().toList(),
+                stage.tools(),
+                enabledToolsByName::get
+        );
+        Map<String, BaseTool> stageTools = services.allowsTool(context) ? configuredTools : Map.of();
+        int effectiveMaxSteps = maxSteps;
+        int retries = services.modelRetryCount(context, 1);
+        boolean emitReasoning = stage.reasoningEnabled();
+
+        for (int step = 1; step <= effectiveMaxSteps; step++) {
+            services.emit(sink, AgentDelta.stageMarker("react-step-" + step));
+            OrchestratorServices.ModelTurn turn = null;
+            for (int retry = 0; retry <= retries; retry++) {
+                turn = services.callModelTurnStreaming(
+                        context,
+                        stage,
+                        context.conversationMessages(),
+                        null,
+                        stageTools,
+                        services.toolExecutionService().enabledFunctionTools(stageTools),
+                        context.definition().runSpec().toolChoice(),
+                        retry == 0 ? "agent-react-step-" + step : "agent-react-step-" + step + "-retry-" + retry,
+                        false,
+                        emitReasoning,
+                        true,
+                        true,
+                        sink
+                );
+                if (!turn.toolCalls().isEmpty()) {
+                    break;
+                }
+                if (!services.requiresTool(context)) {
+                    break;
+                }
+            }
+
+            if (!turn.toolCalls().isEmpty()) {
+                services.executeToolsAndEmit(context, stageTools, turn.toolCalls(), sink);
+                continue;
+            }
+
+            if (services.requiresTool(context)) {
+                continue;
+            }
+
+            String finalText = services.normalize(turn.finalText());
+            if (finalText.isBlank()) {
+                continue;
+            }
+
+            services.appendAssistantMessage(context.conversationMessages(), finalText);
+            services.emitFinalAnswer(
+                    finalText,
+                    true,
+                    sink
+            );
+            return;
+        }
+
+        services.emit(sink, AgentDelta.stageMarker("react-step-" + (effectiveMaxSteps + 1)));
+        OrchestratorServices.ModelTurn finalTurn = services.callModelTurnStreaming(
+                context,
+                stage,
+                context.conversationMessages(),
+                null,
+                stageTools,
+                List.of(),
+                ToolChoice.NONE,
+                "agent-react-final",
+                false,
+                emitReasoning,
+                true,
+                true,
+                sink
+        );
+        String forced = services.normalize(finalTurn.finalText());
+        if (forced.isBlank()) {
+            services.emit(sink, AgentDelta.content("执行中断：达到最大步骤后仍未生成可用最终答案。"));
+            return;
+        }
+        services.appendAssistantMessage(context.conversationMessages(), forced);
+        services.emitFinalAnswer(
+                forced,
+                true,
+                sink
+        );
+    }
+}

@@ -1,11 +1,11 @@
 package com.linlay.agentplatform.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.service.memory.AgentMemoryService;
+import com.linlay.agentplatform.memory.AgentMemoryService;
 import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
-import com.linlay.agentplatform.service.embedding.EmbeddingService;
-import com.linlay.agentplatform.service.llm.ProviderRegistryService;
-import com.linlay.agentplatform.service.memory.AgentMemoryStore;
+import com.linlay.agentplatform.memory.embedding.EmbeddingService;
+import com.linlay.agentplatform.llm.ProviderRegistryService;
+import com.linlay.agentplatform.memory.store.AgentMemoryStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;

@@ -2,10 +2,10 @@ package com.linlay.agentplatform.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.chatstorage.ChatStorageProperties;
-import com.linlay.agentplatform.service.chat.ChatRecordStore;
-import com.linlay.agentplatform.service.llm.LlmCallSpec;
-import com.linlay.agentplatform.service.llm.LlmService;
+import com.linlay.agentplatform.config.properties.ChatStorageProperties;
+import com.linlay.agentplatform.chat.history.ChatRecordStore;
+import com.linlay.agentplatform.llm.LlmCallSpec;
+import com.linlay.agentplatform.llm.LlmService;
 import com.linlay.agentplatform.testsupport.StubLlmService;
 import com.linlay.agentplatform.testsupport.TestCatalogFixtures;
 import com.nimbusds.jose.JOSEException;

@@ -1,10 +1,10 @@
 package com.linlay.agentplatform.tool;
 
-import com.linlay.agentplatform.agent.runtime.execution.ExecutionContext;
+import com.linlay.agentplatform.engine.runtime.ExecutionContext;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.ArtifactEventPayload;
 import com.linlay.agentplatform.model.api.QueryRequest;
-import com.linlay.agentplatform.service.chat.ArtifactPublishService;
+import com.linlay.agentplatform.chat.event.ArtifactPublishService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

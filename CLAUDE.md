@@ -30,7 +30,7 @@ mvn test -Dtest=ClassName#methodName    # 运行单个测试方法
 
 ```text
 POST /api/query
-  → AgentController
+  → QueryController
   → AgentQueryService
   → ActiveRunService.register()
   → DefinitionDrivenAgent.stream()
@@ -111,29 +111,28 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 
 | 包 | 职责 |
 |---|------|
-| `agent` | Agent 接口、`DefinitionDrivenAgent` 主实现、`AgentRegistry`、YAML 定义加载、目录化 Agent prompt 组装 |
-| `agent.mode` | `AgentMode`（sealed：`OneshotMode` / `ReactMode` / `PlanExecuteMode`）、`OrchestratorServices` 流式编排、`StageSettings` |
-| `agent.runtime` | 运行时根包保留 `AgentRuntimeMode`、`PlanTaskDeltaBuilder`、`SkillPromptBundle`、`TextBlockIdAssigner`、`ToolTrace`、`TurnTraceWriter` 等共享支撑类型 |
-| `agent.runtime.execution` | `ExecutionContext`、`RunControl`、`RunInputBroker`、`RunLoopState`、`StepAccumulator` 等运行执行核心 |
-| `agent.runtime.tool` | `ToolExecutionService`、`ToolInvokerRouter`、`LocalToolInvoker`、`McpToolInvoker`、`FrontendSubmitCoordinator` 等工具执行引擎 |
-| `agent.runtime.sandbox` | `ContainerHubSandboxService`、`ContainerHubMountResolver`、`SandboxContextResolver`、`ContainerHubClient`、`SystemContainerHubBash` 等沙箱接入 |
-| `agent.runtime.exception` | `BudgetExceededException`、`FatalToolExecutionException`、`FrontendSubmitTimeoutException`、`ModelTimeoutException`、`RunInterruptedException` |
-| `agent.runtime.policy` | `RunSpec`、`ToolChoice`、`ComputePolicy`、`Budget` 等策略定义 |
+| `engine` | `DefinitionDrivenAgent` 主实现与 Agent 核心引擎入口 |
+| `engine.definition` | `AgentRegistry`、YAML 定义加载、目录化 Agent prompt 文件、依赖索引与定义模型 |
+| `engine.prompt` | `RuntimeContextPromptService`、`RuntimeContextTags`、`ToolAppend`、`SkillAppend` |
+| `engine.mode` | `AgentMode`（sealed：`OneshotMode` / `ReactMode` / `PlanExecuteMode`）、`OrchestratorServices`、`StageSettings` |
+| `engine.runtime` | `ExecutionContext`、`RunControl`、`RunInputBroker`、`RunLoopState`、`StepAccumulator`、`TurnTraceWriter` 等运行执行核心 |
+| `engine.runtime.tool` | `ToolExecutionService`、`ToolInvokerRouter`、`LocalToolInvoker`、`McpToolInvoker`、`FrontendSubmitCoordinator` 等工具执行引擎 |
+| `engine.sandbox` | `ContainerHubSandboxService`、`ContainerHubMountResolver`、`SandboxContextResolver`、`ContainerHubClient`、`SystemContainerHubBash` 等沙箱接入 |
+| `engine.exception` | `BudgetExceededException`、`FatalToolExecutionException`、`FrontendSubmitTimeoutException`、`ModelTimeoutException`、`RunInterruptedException` |
+| `engine.policy` | `RunSpec`、`ToolChoice`、`ComputePolicy`、`Budget` 等策略定义 |
+| `engine.query` | `AgentQueryService`、`ActiveRunService` |
 | `stream` | `StreamEventAssembler`、`StreamSseStreamer`、`RenderQueue`、H2A 传输整形 |
-| `model` | `AgentRequest`、`ModelProperties`、`ModelDefinition`、`ModelProtocol`、`ViewportType` |
+| `model` | `AgentRequest`、`ModelDefinition`、`ModelProtocol`、`ViewportType` |
 | `model.api` | REST 契约：`ApiResponse`、`QueryRequest`、`SubmitRequest`、`SteerRequest`、`InterruptRequest`、`ChatDetailResponse` 等 |
-| `model.stream` | 流式领域模型：`AgentDelta`、`ToolCallDelta`、SSE payload 映射 |
-| `service` | `LlmService`、`AgentQueryService`、`ActiveRunService`、`ChatRecordStore`、`DirectoryWatchService`、MCP 同步与重连 |
+| `llm` | `LlmService`、`OpenAiCompatibleSseClient`、`ProviderRegistryService`、`LlmCallLogger` |
+| `chat` | `history / upload / asset / index / event / storage` 六类会话与资源子域 |
+| `memory` | Agent Memory、Remember、Embedding 与 memory tools |
+| `integration` | MCP、Viewport、Remote Server 接入与重连 |
+| `catalog` | Skill、Team、Schedule 轻量注册中心 |
 | `tool` | `BaseTool`、`ToolRegistry`、`ToolFileRegistryService`、内置 `_bash_` / `_datetime_` 等通用工具与注册中心 |
-| `skill` | `SkillRegistryService`、`SkillDescriptor`、`SkillProperties`、运行时 prompt 注入 |
-| `schedule` | Schedule 注册、增量 reconcile、Cron dispatch |
 | `security` | `ApiJwtAuthWebFilter`、`ChatImageTokenService`、JWT/JWKS 本地与远程校验 |
-| `controller` | REST API：`/api/agents`、`/api/teams`、`/api/skills`、`/api/tools`、`/api/tool`、`/api/chats`、`/api/chat`、`/api/query`、`/api/upload`、`/api/submit`、`/api/steer`、`/api/interrupt`、`/api/remember`、`/api/learn`、`/api/viewport`、`/api/resource` |
-| `chatstorage` | Chat Storage V3.1：JSONL 增量落盘与回放、滑动窗口（默认 `k=20`）、`StoredMessage` 转换 |
-| `service/memory` | Agent Memory 与 Remember 系统：`AgentMemoryStore`、`AgentMemoryService`、`GlobalMemoryRequestService`、`RememberCaptureException` 等核心服务，负责 SQLite + FTS5 + embedding 混合检索与 central journal |
-| `service/memory/tool` | memory 工具集合：`MemoryWriteTool`、`MemoryReadTool`、`MemorySearchTool`、`MemoryToolSupport` |
-| `service/embedding` | Embedding 服务：OpenAI-compatible `/v1/embeddings`，为 Agent Memory 提供向量化 |
-| `config` | 应用配置：`RuntimeDirectoryHostPaths`、`ConfigDirectorySupport`、`@ConfigurationProperties` 子包 |
+| `controller` | REST API：`AgentCatalogController`、`ChatController`、`FileController`、`MemoryController`、`QueryController`、`ScheduleController`、`ViewportController` |
+| `config` | 应用配置：`RuntimeDirectoryHostPaths`、`ConfigDirectorySupport`、`DirectoryWatchService`、`@ConfigurationProperties` 子包 |
 | `config/boot` | `ConfigDirectoryEnvironmentPostProcessor`：启动期外部配置目录加载 |
 
 ### 关键设计
@@ -523,9 +522,9 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - 核心组件：`MemoryController`、`GlobalMemoryRequestService`、`AgentMemoryService`（journal 路径与 central memory 根目录）、`RememberCaptureException`、`AgentMemoryProperties.Remember`、`AgentMemoryProperties.Storage`。
 - Prompt 来源：系统提示词来自 `classpath:prompts/remember.txt`；用户提示词由 `GlobalMemoryRequestService.buildRememberUserPrompt()` 基于 `chatId/chatName/rawMessages/events/references` 组装；`classpath:prompts/learn.txt` 当前仅为 learn 预留。
 - 返回结构：成功响应为 `ApiResponse<RememberResponse>`，含 `promptPreview`（系统提示词、用户提示词预览、raw/event/reference 计数与采样）、`items`（候选记忆）和 `stored`（实际入库记录）。
-- Journal 格式：central memory 根目录为 `agent.memory.storage.dir`（公开环境变量推荐使用 `MEMORY_DIR`），journal 路径为 `{memoryRoot}/journal/YYYY-MM/YYYY-MM-DD.md`，每条按 chat 追加 Markdown 记忆条目；`memoryPath` 返回相对 journal 路径，`memoryRoot` 返回根目录绝对路径。
+- Journal 格式：central memory 根目录为 `agent.memory.storage.dir`（公开环境变量使用 `AGENT_MEMORY_STORAGE_DIR`），journal 路径为 `{memoryRoot}/journal/YYYY-MM/YYYY-MM-DD.md`，每条按 chat 追加 Markdown 记忆条目；`memoryPath` 返回相对 journal 路径，`memoryRoot` 返回根目录绝对路径。
 - 日志增强：`LlmCallLogger` 对 `stage="remember"` 的 prompt 做专用摘要，优先记录 `chatId/chatName/rawMessageCount/eventCount/referenceCount` 与采样，避免日志中完整展开对话快照。
-- 典型失败场景：`agent.memory.remember.model-key` 未配置、model registry 未找到模型、LLM 超时、LLM 返回空字符串或非法 JSON；旧键 `agent.memory.remember.enabled` / `memory.remember.enabled` 当前作为 `agent.memory.auto-remember.enabled` 的兼容别名保留一个版本周期；这些都会抛 `RememberCaptureException` 并返回 HTTP `500`。
+- 典型失败场景：`agent.memory.remember.model-key` 未配置、model registry 未找到模型、LLM 超时、LLM 返回空字符串或非法 JSON；这些都会抛 `RememberCaptureException` 并返回 HTTP `500`。
 
 ### 工具参数模板
 
@@ -934,7 +933,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 - 旧键已禁用：`agent.catalog.*`、`agent.viewport.*`、`agent.capability.*`、`agent.skill.*`、`agent.team.*`、`agent.model.*`、`agent.mcp.*`、`memory.chat.*`、`memory.chats.*`。
 - 旧环境变量已禁用：`AGENT_CONFIG_DIR`、`AGENT_AGENTS_EXTERNAL_DIR`、`AGENT_TEAMS_EXTERNAL_DIR`、`AGENT_MODELS_EXTERNAL_DIR`、`AGENT_PROVIDERS_EXTERNAL_DIR`、`AGENT_TOOLS_EXTERNAL_DIR`、`AGENT_SKILLS_EXTERNAL_DIR`、`AGENT_VIEWPORTS_EXTERNAL_DIR`、`AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_SCHEDULE_EXTERNAL_DIR`、`AGENT_DATA_EXTERNAL_DIR`、`MEMORY_CHATS_K`、`MEMORY_CHATS_CHARSET`、`MEMORY_CHATS_ACTION_TOOLS`、`MEMORY_CHATS_INDEX_SQLITE_FILE`、`MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` 等。
 - `CHATS_DIR` 保留不变。
-- Memory 兼容别名当前仍保留一个版本周期：`AGENT_MEMORY_REMEMBER_ENABLED` / `MEMORY_REMEMBER_ENABLED` -> `agent.memory.auto-remember.enabled`，以及 `MEMORY_REMEMBER_MODEL_KEY`、`MEMORY_REMEMBER_TIMEOUT_MS`、`agent.memory.agent-memory.*`；新键优先，下一大版本删除。
+- Memory 兼容别名已删除：仅保留 `AGENT_MEMORY_STORAGE_DIR`、`AGENT_MEMORY_AUTO_REMEMBER_ENABLED`、`AGENT_MEMORY_REMEMBER_MODEL_KEY`、`AGENT_MEMORY_REMEMBER_TIMEOUT_MS`。
 - 当前文档仅记录 `application.yml` 中实际使用的键；历史目录类兼容变量不再作为公开 contract。
 
 ### CORS（主配置默认）
@@ -971,9 +970,9 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 |--------|--------|
 | `logging.level.root` | `INFO` |
 | `logging.level.com.linlay.agentplatform` | `INFO` |
-| `logging.level.com.linlay.agentplatform.service.llm.LlmService` | `DEBUG` |
-| `logging.level.com.linlay.agentplatform.service.llm.OpenAiCompatibleSseClient` | `DEBUG` |
-| `logging.level.com.linlay.agentplatform.service.llm.LlmCallLogger` | `DEBUG` |
+| `logging.level.com.linlay.agentplatform.llm.LlmService` | `DEBUG` |
+| `logging.level.com.linlay.agentplatform.llm.OpenAiCompatibleSseClient` | `DEBUG` |
+| `logging.level.com.linlay.agentplatform.llm.LlmCallLogger` | `DEBUG` |
 | `logging.level.com.linlay.agentplatform.llm.wiretap` | `DEBUG` |
 | `logging.agent.request.enabled` | `true` |
 | `logging.agent.request.include-query` | `true` |

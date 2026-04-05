@@ -6,7 +6,7 @@ import com.linlay.agentplatform.model.api.LearnRequest;
 import com.linlay.agentplatform.model.api.LearnResponse;
 import com.linlay.agentplatform.model.api.RememberRequest;
 import com.linlay.agentplatform.model.api.RememberResponse;
-import com.linlay.agentplatform.service.memory.GlobalMemoryRequestService;
+import com.linlay.agentplatform.memory.remember.GlobalMemoryRequestService;
 import jakarta.validation.Valid;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;

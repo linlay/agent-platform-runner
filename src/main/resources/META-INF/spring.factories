@@ -1,3 +1,2 @@
 org.springframework.boot.env.EnvironmentPostProcessor=\
-com.linlay.agentplatform.config.boot.ConfigDirectoryEnvironmentPostProcessor,\
-com.linlay.agentplatform.config.boot.AgentMemoryPropertyAliasEnvironmentPostProcessor
+com.linlay.agentplatform.config.boot.ConfigDirectoryEnvironmentPostProcessor

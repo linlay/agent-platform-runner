@@ -2,9 +2,9 @@ package com.linlay.agentplatform.controller;
 
 import com.linlay.agentplatform.config.properties.LoggingAgentProperties;
 import com.linlay.agentplatform.model.api.ApiResponse;
-import com.linlay.agentplatform.service.memory.RememberCaptureException;
+import com.linlay.agentplatform.memory.remember.RememberCaptureException;
 import com.linlay.agentplatform.util.LoggingSanitizer;
-import com.linlay.agentplatform.service.chat.ChatNotFoundException;
+import com.linlay.agentplatform.chat.index.ChatNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;

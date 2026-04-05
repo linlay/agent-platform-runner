@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.config.properties;
 
-import com.linlay.agentplatform.agent.runtime.policy.Budget;
+import com.linlay.agentplatform.engine.policy.Budget;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "agent.defaults")
