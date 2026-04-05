@@ -59,9 +59,27 @@ POST /api/interrupt
   → run.cancel SSE
 ```
 
+### 核心技术能力
+
+- **H2A 双队列流式管道** — steer / interrupt / render buffering 一体化控制，既支持近实时输出，也支持有界缓冲与可取消的人机协作。
+- **定义驱动 + 依赖感知热重载** — YAML 驱动，按依赖精准刷新受影响 agent
+- **System Prompt 多层合并管线** — `SOUL.md → Runtime Context → AGENTS.md → memory → YAML prompt → skills/tool appendix`
+- **Container Hub 三级沙箱生命周期** — `RUN / AGENT / GLOBAL` 三级复用与销毁策略
+- **SSE 事件契约** — Event Model v2 统一事件字段与历史回放约束
+- **Chat Storage V3.1** — JSONL 增量落盘、按 run 滑动窗口、`_msgId` 关联
+- **Agent Memory 混合召回** — SQLite + FTS5 + embedding 向量检索 + markdown/journal 双写
+- **三种 Agent 执行模式** — `OneshotMode`、`ReactMode`、`PlanExecuteMode`
+- **Backend / Frontend / Action 多类型工具系统** — 同一 Function Calling 协议下走不同执行路径
+- **MCP Server 集成与可用性管理** — 目录式注册、可用性 gate、自动重连
+- **JWT + Chat Image Token 双层鉴权** — `/api/*` 走 JWT，`/api/resource` 支持 HMAC-SHA256 签名
+- **Budget / Compute Policy 资源限制** — run / model / tool 三层限制调用量与超时
+- **Bash 工具安全模型** — 白名单命令、路径白名单、按命令分级路径校验
+- **Schedule / Cron 定时编排** — YAML 定义 + Spring `CronTrigger` + 增量 reconcile
+- **Remember 记忆抽取** — 从 chat 快照中调用 LLM 提炼长期记忆
+
 ### H2A 双队列流式管道
 
-H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
+H2A 不是"零缓冲口号"，而是一个可控的流式传输层：
 
 - `RunInputBroker` 维护多类运行中输入：
   - `Steer` 队列：缓冲用户在 run 进行中追加的引导消息。
@@ -83,29 +101,6 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
   - `run.complete` / `run.cancel` / `run.error` 与心跳会强制 flush，不参与普通缓冲策略。
 
 关键类：`RunInputBroker`、`RunControl`、`RenderQueue`、`H2aProperties`、`ActiveRunService`
-
-### 核心技术能力
-
-#### 七项核心技术
-
-1. **H2A 双队列流式管道** — steer / interrupt / render buffering 一体化控制，既支持近实时输出，也支持有界缓冲与可取消的人机协作。
-2. **定义驱动 + 依赖感知热重载** — Agent / Model / Tool / Skill / Provider / Team / Schedule / MCP Server / Viewport 由外部 YAML 驱动，并按依赖精准刷新受影响 agent。
-3. **System Prompt 多层合并管线** — `SOUL.md → Runtime Context → AGENTS.md / AGENTS.<stage>.md → memory → YAML prompt → skills/tool appendix` 的分层提示词体系，支持通过 `contextConfig.tags` 按需注入运行时上下文。
-4. **Container Hub 三级沙箱生命周期** — `RUN / AGENT / GLOBAL` 三级复用与销毁策略，配合引用计数、空闲驱逐和平台目录挂载策略。
-5. **SSE 事件契约** — 围绕 Event Model v2 的统一事件字段、业务语义和历史回放约束。
-6. **Chat Storage V3.1** — JSONL 增量落盘、按 run 滑动窗口、`_msgId` 关联多消息拆分、真实 `_usage` 透传、reasoning 不回放。
-7. **Agent Memory 混合召回** — `service/memory` 提供 SQLite + FTS5 + embedding 向量检索 + markdown/journal 双写，支持 `memory` tag 摘要注入与 `memory/memory.md` 全量提示词补充。
-
-#### 八项重要技术
-
-8. **三种 Agent 执行模式** — `OneshotMode`、`ReactMode`、`PlanExecuteMode` 三种模式由 `sealed` 层级统一抽象。
-9. **Backend / Frontend / Action 多类型工具系统** — 同一 Function Calling 协议下走不同执行路径，支撑后端调用、前端渲染和即时动作。
-10. **MCP Server 集成与可用性管理** — 目录式注册、协议版本管理、可用性 gate、自动重连、依赖传播刷新。
-11. **JWT + Chat Image Token 双层鉴权** — `/api/*` 走 JWT，`/api/resource` 支持 HMAC-SHA256 签名的 chat image token 与密钥轮换。
-12. **Budget / Compute Policy 资源限制** — `RunSpec + Budget + ComputePolicy` 在 run / model / tool 三层限制调用量与超时。
-13. **Bash 工具安全模型** — 白名单命令、路径白名单、按命令分级路径校验、shell 特性开关、git 参数特化解析。
-14. **Schedule / Cron 定时编排** — YAML 定义 + Spring `CronTrigger` + 增量 reconcile，每次触发都走标准 `QueryRequest` 链路。
-15. **Remember 记忆抽取** — `POST /api/remember` 从完整 chat 快照中调用 LLM 提炼长期记忆，写入 central Agent Memory SQLite 与 journal markdown。
 
 ### 核心模块
 
@@ -146,77 +141,7 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 
 ## Agent Definition 文件格式
 
-### 完整 Schema
-
-```yaml
-key: agent_key
-name: agent_name
-role: 角色标签
-description: 描述
-icon: "emoji:🤖"
-modelConfig:
-  modelKey: bailian-qwen3-max
-  reasoning:
-    enabled: true
-    effort: MEDIUM
-  temperature: 0.7
-  top_p: 0.95
-  max_tokens: 4096
-toolConfig:
-  backends: ["_bash_", "_datetime_"]
-  frontends: ["show_weather_card"]
-  actions: ["switch_theme"]
-skillConfig:
-  skills: ["docx", "screenshot"]
-contextConfig:
-  tags: ["system", "context", "owner", "auth", "memory"]
-memoryConfig:
-  enabled: false
-mode: ONESHOT
-toolChoice: AUTO
-budget:
-  runTimeoutMs: 300000
-  model:
-    maxCalls: 30
-    timeoutMs: 120000
-    retryCount: 0
-  tool:
-    maxCalls: 50
-    timeoutMs: 300000
-    retryCount: 0
-sandboxConfig:
-  environmentId: shell
-  level: agent
-plain:
-  systemPrompt: 系统提示词
-  modelConfig:
-    modelKey: bailian-qwen3-max
-  toolConfig: null
-react:
-  systemPrompt: 系统提示词
-  maxSteps: 60
-planExecute:
-  plan:
-    systemPrompt: 规划提示词
-    deepThinking: true
-  execute:
-    systemPrompt: 执行提示词
-  summary:
-    systemPrompt: 总结提示词
-  maxSteps: 60
-runtimePrompts:
-  planExecute:
-    taskExecutionPromptTemplate: "..."
-  skill:
-    catalogHeader: "..."
-    disclosureHeader: "..."
-    instructionsLabel: "..."
-  toolAppendix:
-    toolDescriptionTitle: "..."
-    afterCallHintTitle: "..."
-```
-
-Agent Definition 仅支持 YAML，推荐新建 Agent 使用 `.yml`。前 4 行固定为 `key`、`name`、`role`、`description`，方便渐进式披露：
+Agent Definition 仅支持 YAML，推荐 `.yml`。前 4 行固定为 `key`、`name`、`role`、`description`。简化示例：
 
 ```yaml
 key: agent_key
@@ -240,7 +165,27 @@ plain:
     支持多行
 ```
 
-### Agent / Skill / Tool REST 契约
+### 配置继承与模式
+
+- **modelConfig**：支持外层默认 + stage 内层覆盖；内层优先。`provider/modelId/protocol` 由 `registries/models/<modelKey>.yml` 解析。
+- **toolConfig**：支持外层默认 + stage 覆盖；stage 显式 `null` 清空该 stage；`PLAN_EXECUTE` 强制工具不受 `null` 影响。
+- **模式配置块**：`ONESHOT` → `plain.systemPrompt`；`REACT` → `react.systemPrompt`；`PLAN_EXECUTE` → `planExecute.plan/execute.systemPrompt`。
+
+### contextConfig 七个 tag
+
+| Tag | 说明 |
+|-----|------|
+| `system` | 注入 OS、Java 版本、时区、当前日期等系统环境信息 |
+| `context` | 注入运行目录路径与当前会话上下文（chatId、runId、agentKey 等） |
+| `owner` | 注入 owner 目录下所有 Markdown 文件内容 |
+| `auth` | 注入 JWT 主体信息（subject、deviceId、scope 等） |
+| `sandbox` | 注入沙箱环境信息与 Container Hub environment prompt |
+| `all-agents` | 注入全部已注册 agent 的摘要（截断 12,000 字符） |
+| `memory` | 注入 agent SQLite memory 摘要（按语义相关性或 importance 取 top-N） |
+
+tag 名大小写不敏感。`sandbox`、`all-agents`、`memory` 仅在声明时才解析。tag 与 `.env` 目录配置、Docker 挂载无关。
+
+### REST 端点契约
 
 - `GET /api/agents`：返回 `AgentSummary[]`，顶层包含 `key/name/icon/description/role/meta`。
 - `GET /api/teams`：返回 `TeamSummaryResponse[]`，字段包含 `teamId/name/icon/agentKeys/meta.invalidAgentKeys/meta.defaultAgentKey/meta.defaultAgentKeyValid`。
@@ -260,167 +205,7 @@ plain:
 - `GET /api/resource?...`：提供静态文件访问，支持 chat image token 校验。
 - `/api/tool` 未命中 `toolName`、`kind` 非法时均返回 HTTP `400`（`ApiResponse.failure`）。
 
-### 模式配置块
-
-各模式对应配置块（至少需要一个）：
-
-- `ONESHOT` → `plain.systemPrompt`
-- `REACT` → `react.systemPrompt`
-- `PLAN_EXECUTE` → `planExecute.plan.systemPrompt` + `planExecute.execute.systemPrompt`
-
-### 配置规则
-
-**modelConfig 继承：**
-
-- 支持外层默认 + stage 内层覆盖；内层优先。
-- 外层 `modelConfig` 可省略，但“外层或任一 stage”至少要有一处 `modelConfig.modelKey`。
-- `provider/modelId/protocol` 不在 Agent Definition 文件中声明，统一由 `registries/models/<modelKey>.yml` 解析得到。
-
-**toolConfig 继承：**
-
-- 支持外层默认 + stage 覆盖。
-- 若 stage 显式 `toolConfig: null` 表示清空该 stage 普通工具集合。
-- `PLAN_EXECUTE` 强制工具不受 `toolConfig: null` 影响：plan 固定含 `_plan_add_tasks_`，execute 固定含 `_plan_update_task_`。
-- `_plan_get_tasks_` 仅在阶段显式配置时对模型可见；框架内部调度始终可读取 plan 快照。
-
-**skillConfig 配置：**
-
-- 使用 `skillConfig.skills` 声明 skills。
-
-**contextConfig 配置：**
-
-```yaml
-contextConfig:
-  tags:
-    - system
-    - context
-    - owner
-    - auth
-    - sandbox
-    - all-agents
-    - memory
-```
-
-支持 7 个 tag，不支持的 tag 在加载时被静默过滤。tag 名大小写不敏感，内部统一转为小写。tag 定义位于 `RuntimeContextTags.java`，运行时内容由 `RuntimeContextPromptService.buildPrompt()` 按声明顺序依次生成。
-
-**重要：tag 的存在与否与 `.env` 目录配置、Docker 容器挂载无关。** 例如，`owner` tag 不依赖 Container Hub 的 `/owner` 平台挂载是否配置；`context` tag 不依赖沙箱目录是否挂载。tag 读取的是 runner 进程本地可见的文件系统路径，Container Hub 挂载解析的是发给 Container Hub 的宿主机路径，两者通过不同管道消费同一组 `.env` 变量。
-
-**memoryConfig 配置：**
-
-```yaml
-memoryConfig:
-  enabled: true
-```
-
-- `memoryConfig.enabled` 默认 `false`
-- 开启后运行时会自动附带 `_memory_write_`、`_memory_read_`、`_memory_search_`
-- 当 `agent.memory.auto-remember.enabled=false` 时，成功 run 结束后自动沉淀 1 条 `run-summary` memory
-- 当 `agent.memory.auto-remember.enabled=true` 时，成功 run 结束后改为走 remember 抽取链路
-- `memoryConfig.enabled` 与 `contextConfig.tags: [memory]` 完全独立，前者不决定上下文注入，后者不决定自动记忆
-
-### tag 详细说明
-
-**`system`** — 注入系统环境信息（`RuntimeContextPromptService.buildSystemEnvironmentSection()`）
-- 内容：OS 名称与版本、CPU 架构、Java 版本、时区、locale、当前日期、当前日期时间、runner 工作目录
-- 数据来源：`System.getProperty()`、`ZonedDateTime.now()`、`Locale.getDefault()`
-- 无外部依赖，始终可用
-
-**`context`** — 注入运行目录与当前会话上下文（`RuntimeContextPromptService.buildContextSection()`）
-- 工作区路径（来自 Spring 属性）：`runtime_home`、`root_dir`、`agents_dir`、`chats_dir`、`data_dir`、`skills_market_dir`、`schedules_dir`、`owner_dir`、`chat_attachments_dir`
-- 请求上下文（来自 `AgentRequest` / `RuntimeRequestContext`）：`chatId`、`requestId`、`runId`、`agentKey`、`teamId`、`role`、`chatName`、`scene`、`references`
-- 路径解析：通过 `resolveWorkspacePaths()` 从 Spring `Environment` 读取 `agent.agents.external-dir` 等属性，Docker 模式下显示容器内路径（`/opt/agents` 等），本地模式下显示真实路径
-
-**`owner`** — 注入 owner 目录下所有 Markdown 文件内容（`RuntimeContextPromptService.buildOwnerSection()`）
-- 递归遍历 owner 目录下所有 `.md`/`.markdown` 文件，按相对路径字母序排列
-- 每个文件以 `--- file: <相对路径>` 分隔，完整读取文件内容（无截断）
-- 不可读的文件输出 `[UNREADABLE: <相对路径>]`
-- owner 目录解析：通过 `OwnerProperties.getExternalDir()`（Spring 属性 `agent.owner.external-dir`），与其他目录路径解析方式一致
-- 目录不存在或无 Markdown 文件时返回空串，不报错
-
-**`auth`** — 注入 JWT 主体信息（`RuntimeContextPromptService.buildAuthIdentitySection()`）
-- 内容：`subject`、`deviceId`、`scope`、`issuedAt`、`expiresAt`
-- 数据来源：请求头中的 JWT token，由 `JwksJwtVerifier` 解析为 `JwtPrincipal`
-- 未认证（principal 为 null）时返回空串
-
-**`sandbox`** — 注入沙箱环境信息与 environment prompt（`SandboxContextResolver.resolve()`）
-- 元数据：`environmentId`（实际生效）、`configuredEnvironmentId`（agent 配置）、`defaultEnvironmentId`（全局默认）、`level`、`container_hub_enabled`、`uses_sandbox_bash`、`extraMounts`
-- environment prompt：从 Container Hub `GET /api/environments/{environmentId}/agent-prompt` 拉取原文
-- **强依赖**：非 `shell` 环境中，environment prompt 缺失、为空或请求失败时抛 `IllegalStateException`，请求直接失败
-- `shell` 环境允许 prompt 缺失或为空（日志记录但不报错）
-- Container Hub 不可用（`containerHubClient` 为 null）时直接失败
-
-**`all-agents`** — 注入全部已注册 agent 的摘要（`AgentQueryService.buildAllAgentDigests()` + `RuntimeContextPromptService.buildAllAgentsSection()`）
-- 字段：`key/name/role/description/mode/modelKey/tools/skills/sandbox(environmentId+level)`
-- 格式：YAML 风格文本块，agent 间以 `---` 分隔
-- 截断：总字符数超过 12,000 时停止添加，附加 `[TRUNCATED: all-agents exceeds max chars=12000, included=N/M]`
-- 按 agent key 字母序排列
-
-**`memory`** — 注入 agent SQLite memory 摘要（`RuntimeContextPromptService.buildAgentMemorySection()` + `AgentMemoryStore`）
-- 有 `request.message()` 时按语义相关性取 `contextTopN`
-- 无 `request.message()` 时按 `importance desc` 取 `contextTopN`
-- 格式：`Runtime Context: Agent Memory`，每条包含 `id/category/importance/tags/content`
-- 总字符数超过 `agent.memory.context-max-chars` 时截断，并附带 `[TRUNCATED: agent-memory exceeds max chars=...]`
-- 仅控制“是否把已存储 memory 摘要注入运行时上下文”，不控制自动记忆或 memory tools 暴露
-- memory 功能关闭或无数据时返回空串，不影响 agent 运行
-
-### tag 条件解析
-
-`sandbox`、`all-agents` 和 `memory` 仅在 agent 声明了对应 tag 时才解析（通过 `requiresContextTag()` 判断，避免不必要的 HTTP 调用和注册表遍历）。`workspacePaths`（供 `system`、`context`、`owner` 使用）在每次请求中无条件构建。
-
-### tag 内容与路径来源关系
-
-| Tag | 路径/数据来源 | 与 `.env` `*_DIR` 的关系 |
-|-----|-------------|------------------------|
-| `system` | `System.getProperty()` | 无关 |
-| `context` | Spring 属性（`agent.*.external-dir`） | 间接：本地模式通过 `${*_DIR}` 占位符读取；Docker 模式被 `application-docker.yml` 字面量覆盖 |
-| `owner` | `OwnerProperties.getExternalDir()`（Spring 属性 `agent.owner.external-dir`） | 间接：与其他目录一致，本地通过 `${OWNER_DIR}` 占位符读取；Docker 模式被 `application-docker.yml` 覆盖为 `/opt/owner` |
-| `auth` | JWT token claims | 无关 |
-| `sandbox` | Container Hub HTTP API | 无关（读的是远端服务） |
-| `all-agents` | `AgentRegistry` 内存注册表 | 无关 |
-| `memory` | `AgentMemoryStore`（agent 专属 SQLite） | 间接：受 `agent.memory.*` 与 `agent.agents.external-dir` 影响 |
-
-### 关键实现文件
-
-| 文件 | 职责 |
-|------|------|
-| `agent/RuntimeContextTags.java` | tag 常量定义、normalize/validate |
-| `agent/RuntimeContextPromptService.java` | 各 tag 内容生成、`resolveWorkspacePaths()`、`resolveOwnerDir()` |
-| `service/memory/AgentMemoryStore.java` | agent 记忆 SQLite/FTS5/向量混合检索 |
-| `service/memory/AgentMemoryService.java` | central journal markdown 写入、memory 根目录与 journal 路径解析 |
-| `service/memory/GlobalMemoryRequestService.java` | LLM 驱动的 remember 抽取主逻辑，负责加载 chat、构造 prompt、解析 JSON 并写入 central memory/journal |
-| `service/memory/RememberCaptureException.java` | remember 流程异常，统一由 `ApiExceptionHandler` 映射为 HTTP `500` |
-| `chat/storage/ChatMessage.java` | chat 历史回放与 LLM 上下文共享的会话消息 sealed interface |
-| `chat/storage/StoredMessageConverter.java` | Chat Storage JSONL 与 `ChatMessage` 之间的转换与归一化 |
-| `chat/storage/ChatStorageStore.java` | chat 历史窗口读取、JSONL 增量落盘与回放入口 |
-| `chat/event/ArtifactEventPayload.java` | `artifact.publish` 事件载荷 record |
-| `chat/event/ArtifactPublishService.java` | artifact 文件落盘、校验与发布主逻辑 |
-| `agent/runtime/sandbox/SandboxContextResolver.java` | sandbox tag 专用：environment prompt 拉取与校验 |
-| `controller/MemoryController.java` | `/api/remember`、`/api/learn` 入口，负责 request logging 摘要与返回封装 |
-| `config/properties/AgentMemoryProperties.java` | `agent.memory.*` 聚合配置绑定，包含 `storage.*` 与 `remember.*` 子配置 |
-| `model/RuntimeRequestContext.java` | 数据载体：`WorkspacePaths`、`SandboxContext`、`AgentDigest` |
-| `service/AgentQueryService.java` | 组装 `RuntimeRequestContext`（`buildRuntimeRequestContext()`）、条件解析 |
-| `agent/AgentDefinitionLoader.java` | 加载 agent 定义时收集 `contextTags`（`collectContextTags()`） |
-
-**文件格式与优先级：**
-
-- `agents/` 支持扁平 YAML（`<key>.yml/.yaml`）与目录化 Agent（`<key>/agent.yml`）；推荐目录化布局。
-- 目录中若出现旧 `*.json` 会直接 fail-fast。
-- 同 basename 冲突时优先 `.yml`，并忽略对应 `.yaml`。
-- 前 4 行固定为 `key`、`name`、`role`、`description`，且必须从第 1 行开始、禁止前置空行 / 注释、必须是单行 inline value。
-- `ONESHOT` 只读取 `plain.promptFile`；`REACT` 只读取 `react.promptFile`；`PLAN_EXECUTE` 读取 `planExecute.plan|execute|summary.promptFile`。
-- 顶层 `promptFile` 不再作为 `ONESHOT` / `REACT` 的目录化 prompt 来源。
-- 目录化 Agent 可附带可选文件：`SOUL.md`、`AGENTS.md`、`AGENTS.plain.md`、`AGENTS.react.md`、`AGENTS.plan.md`、`AGENTS.execute.md`、`AGENTS.summary.md`、`memory/memory.md`。
-- 运行时 system prompt 合并顺序：`SOUL.md` → Runtime Context（按 `contextConfig.tags` 注入）→ `AGENTS.md` / stage 专属 `AGENTS.<stage>.md` → `memory/memory.md` → YAML stage `systemPrompt` → skills appendix → tool appendix。
-
-**多行 Prompt 写法：**
-
-- YAML 推荐使用 block scalar（`|` / `>`）。
-
-**步骤上限：**
-
-- `react.maxSteps` 控制 REACT 循环上限。
-- `planExecute.maxSteps` 控制 PLAN_EXECUTE 执行阶段步骤上限。
-- 根目录 `.env` / 环境变量可设置全局默认 budget 与默认 steps；agent.yml 中显式声明的 `budget` 和 `maxSteps` 优先于全局默认。
+完整 Schema、YAML 配置规则、tag 实现细节、sandboxConfig 配置、文件格式规则详见 [docs/agent-definition-reference.md](./docs/agent-definition-reference.md)。
 
 ## Models 目录（内部注册）
 
@@ -465,21 +250,13 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 | 后缀 | ToolKind | 说明 |
 |---|---|---|
-| `.backend` | `BACKEND` | 后端工具，模型通过 Function Calling 调用。`description` 用于 OpenAI tool schema，`after_call_hint` 用于注入 system prompt 的“工具调用后推荐指令”章节。 |
+| `.backend` | `BACKEND` | 后端工具，模型通过 Function Calling 调用。`description` 用于 OpenAI tool schema，`after_call_hint` 用于注入 system prompt 的"工具调用后推荐指令"章节。 |
 | `.action` | `ACTION` | 动作工具，触发前端行为（如主题切换、烟花特效）。不等待 `/api/submit`，直接返回 `"OK"`。 |
 | `.frontend` | `FRONTEND` | 前端工具定义文件，触发 UI 渲染并等待 `/api/submit` 提交；实际渲染内容由 `viewports/` 下 `.html/.qlc` 文件提供。 |
 
 工具定义文件为单文件单工具 YAML 对象。前 4 行固定为 `name`、`label`、`description`、`type`；旧的 `tools[]` 聚合文件不再支持。工具名冲突策略：冲突项会被跳过，其它项继续生效。
 
 若工具 YAML 顶层包含 `scaffold: true`，则仅作为目录化 Agent 的占位脚手架，不会被运行时注册。
-
-### toolConfig 继承规则
-
-- 顶层 `toolConfig.backends/frontends/actions` 定义默认工具集合。
-- 各 stage 可通过自身 `toolConfig` 覆盖：缺失则继承顶层，显式 `null` 则清空。
-- `PLAN_EXECUTE` 强制工具（`_plan_add_tasks_` / `_plan_update_task_`）不受 `toolConfig: null` 影响。
-- 若配置了 `skillConfig.skills`，运行时会自动附带 `_sandbox_bash_`；该隐式工具不受 `toolConfig: null` 影响。
-- 若 `memoryConfig.enabled=true`，运行时会自动附带 `_memory_write_`、`_memory_read_`、`_memory_search_`；该隐式工具同样不受 `toolConfig: null` 影响。
 
 ### 前端 tool 提交协议
 
@@ -499,39 +276,8 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 - `_bash_`：Shell 命令执行，需显式配置 `allowed-commands` 与 `allowed-paths` 白名单。
 - `_sandbox_bash_`：在 Container Hub 沙箱环境中执行命令，受 `sandboxConfig` 与 `agent.tools.container-hub.*` 控制。
 - `_datetime_`：获取当前或偏移后的日期时间；支持可选 `timezone` 与链式 `offset`，输出包含农历。`offset` 中 `M=月`、`m=分钟`，例如 `+10M+25D`、`+1D-3H+20m`。
-- `_memory_write_`：写入 agent 持久化记忆，支持 `content/category/importance/tags`；同步最佳努力生成 embedding，失败时自动降级为 FTS-only。
-- `_memory_read_`：读取 agent 持久化记忆；支持按 `id` 精确读取或按 `category/limit/sort(recent|importance)` 列表读取。
-- `_memory_search_`：搜索 agent 持久化记忆；优先走 FTS5，embedding 可用时做向量+FTS 混合排序，返回 `score` 与 `matchType`。
+- `_memory_write_` / `_memory_read_` / `_memory_search_`：agent 持久化记忆工具（`memoryConfig.enabled=true` 时自动暴露）。
 - `confirm_dialog`：前端确认对话框工具，声明位于 `src/main/resources/tools/confirm_dialog.yml`。
-
-## Agent Memory 系统
-
-- 现有文件型 `memory/memory.md` 仍保留，继续通过 `ExecutionContext.memoryPrompt` 注入，位置在 `AGENTS*.md` 之后、YAML stage prompt 之前。
-- 新增 SQLite agent memory：
-  - 目录化 agent：`<agentDir>/<db-file-name>`，默认 `memory.db`
-  - 扁平 agent：`<agent.agents.external-dir>/<agentKey>/<db-file-name>`
-- agent 级 `memoryConfig.enabled=true` 时，运行时自动暴露 memory tools；失败、取消、超时等非成功结束不会自动写入记忆。
-- `agent.memory.auto-remember.enabled=false` 时，成功 run 结束后写入 1 条 `run-summary` memory。
-- `agent.memory.auto-remember.enabled=true` 时，成功 run 结束后会复用 remember 抽取链路，把完整 chat 提炼成长期记忆。
-- `contextConfig.tags: [memory]` 只负责把 SQLite memory 摘要注入上下文，不负责开启自动记忆。
-- schema：单表 `MEMORIES` + `MEMORIES_FTS`（FTS5 外部内容模式）+ 触发器自动同步。
-- 查询策略：
-  - FTS5 BM25 候选
-  - embedding provider 可用时追加余弦相似度候选
-  - 两路分数做 min-max 归一化后按 `hybrid-vector-weight` / `hybrid-fts-weight` 融合
-- `dual-write-markdown=true` 且 agent 为目录化布局时，`_memory_write_` 会将新记忆追加写入 `memory/memory.md`；扁平 agent 不做 markdown 双写。
-- embedding 依赖 OpenAI-compatible `/v1/embeddings`；provider 缺失、超时、维度不匹配或请求失败时自动退化为 FTS-only，不阻断工具调用。
-
-### Remember Feature
-
-- 工作流：`POST /api/remember` → `MemoryController` 校验与记录 request 摘要 → `ChatRecordStore.loadChat(chatId, true)` 加载完整对话 → `GlobalMemoryRequestService` 构建 remember prompt → `LlmService.completeText(..., stage="remember")` → 解析返回 JSON → 写入 central memory SQLite 与 journal markdown。
-- 自动 remember：成功 run 且 `memoryConfig.enabled=true` 并且 `agent.memory.auto-remember.enabled=true` 时，`DefinitionDrivenAgent` 会在 flush chat trace 后复用同一条 `GlobalMemoryRequestService` 链路。
-- 核心组件：`MemoryController`、`GlobalMemoryRequestService`、`AgentMemoryService`（journal 路径与 central memory 根目录）、`RememberCaptureException`、`AgentMemoryProperties.Remember`、`AgentMemoryProperties.Storage`。
-- Prompt 来源：系统提示词来自 `classpath:prompts/remember.txt`；用户提示词由 `GlobalMemoryRequestService.buildRememberUserPrompt()` 基于 `chatId/chatName/rawMessages/events/references` 组装；`classpath:prompts/learn.txt` 当前仅为 learn 预留。
-- 返回结构：成功响应为 `ApiResponse<RememberResponse>`，含 `promptPreview`（系统提示词、用户提示词预览、raw/event/reference 计数与采样）、`items`（候选记忆）和 `stored`（实际入库记录）。
-- Journal 格式：central memory 根目录为 `agent.memory.storage.dir`（公开环境变量使用 `AGENT_MEMORY_STORAGE_DIR`），journal 路径为 `{memoryRoot}/journal/YYYY-MM/YYYY-MM-DD.md`，每条按 chat 追加 Markdown 记忆条目；`memoryPath` 返回相对 journal 路径，`memoryRoot` 返回根目录绝对路径。
-- 日志增强：`LlmCallLogger` 对 `stage="remember"` 的 prompt 做专用摘要，优先记录 `chatId/chatName/rawMessageCount/eventCount/referenceCount` 与采样，避免日志中完整展开对话快照。
-- 典型失败场景：`agent.memory.remember.model-key` 未配置、model registry 未找到模型、LLM 超时、LLM 返回空字符串或非法 JSON；这些都会抛 `RememberCaptureException` 并返回 HTTP `500`。
 
 ### 工具参数模板
 
@@ -541,6 +287,22 @@ execute 阶段每轮最多 1 个工具，完成后在更新回合调用 `_plan_u
 
 - Frontend / Action 当前仍是正式支持的第一类工具能力，现行 REST / SSE / submit 契约均以此为准。
 - CLI 模式替代 frontend / action 属于后续演进方向；在明确切换前，不以过渡实现替代本节规范。
+
+## Agent Memory 系统
+
+- 现有文件型 `memory/memory.md` 仍保留，继续通过 `ExecutionContext.memoryPrompt` 注入，位置在 `AGENTS*.md` 之后、YAML stage prompt 之前。
+- 新增 SQLite agent memory：目录化 agent 使用 `<agentDir>/memory.db`，扁平 agent 使用 `<agent.agents.external-dir>/<agentKey>/memory.db`。
+- agent 级 `memoryConfig.enabled=true` 时，运行时自动暴露 memory tools；失败、取消、超时等非成功结束不会自动写入记忆。
+- schema：单表 `MEMORIES` + `MEMORIES_FTS`（FTS5 外部内容模式）+ 触发器自动同步。
+- 查询策略：FTS5 BM25 候选 + embedding 余弦相似度候选（可用时），两路 min-max 归一化后按权重融合。
+- `dual-write-markdown=true` 且 agent 为目录化布局时，`_memory_write_` 会将新记忆追加写入 `memory/memory.md`；扁平 agent 不做 markdown 双写。
+- embedding 依赖 OpenAI-compatible `/v1/embeddings`；provider 缺失、超时、维度不匹配或请求失败时自动退化为 FTS-only，不阻断工具调用。
+
+### Remember Feature
+
+- 工作流：`POST /api/remember` → 加载完整对话 → LLM 提炼记忆 → 写入 central memory SQLite 与 journal markdown。
+- 自动 remember：成功 run 且 `memoryConfig.enabled=true` 并且 `agent.memory.auto-remember.enabled=true` 时触发。
+- 典型失败场景：`agent.memory.remember.model-key` 未配置、model registry 未找到模型、LLM 超时、LLM 返回空字符串或非法 JSON；这些都会抛 `RememberCaptureException` 并返回 HTTP `500`。
 
 ## Skills 系统
 
@@ -578,7 +340,7 @@ skillConfig:
 
 通过 `runtimePrompts.skill` 可自定义注入头：
 
-- `catalogHeader`：技能目录标题（默认：“可用 skills（目录摘要，按需使用，不要虚构不存在的 skill 或脚本）:”）
+- `catalogHeader`：技能目录标题（默认："可用 skills（目录摘要，按需使用，不要虚构不存在的 skill 或脚本）:"）
 - `disclosureHeader`：完整说明标题
 - `instructionsLabel`：指令字段标签
 
@@ -659,34 +421,11 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 | `AGENT` | `agent-{agentKey}` | 同 agentKey 复用，空闲超时后驱逐 | `ConcurrentHashMap.compute()` + `AtomicInteger` 引用计数 |
 | `GLOBAL` | `global-singleton` | 应用生命周期内单例，shutdown 时销毁 | `synchronized` + double-check locking |
 
-### 挂载目录映射
-
-默认仅挂载 5 个真实容器路径，其余平台目录需通过 `sandboxConfig.extraMounts` 显式声明。
-
-| 容器内路径 | RUN 宿主路径 | AGENT / GLOBAL 宿主路径 | 默认策略 | 默认模式 | 配置键（为空时 fallback） |
-|-----------|-------------|-------------------------|----------|----------|--------------------------|
-| `/workspace` | `{chatDataDir}/{chatId}` | `{chatDataDir}` | 默认挂载 | `rw` | `chat.storage.dir` |
-| `/root` | `{rootDir}` | `{rootDir}` | 默认挂载 | `rw` | `agent.root.external-dir` |
-| `/skills` | `{agentsDir}/{agentKey}/skills`（若存在，否则 `{skillsDir}`） | `{agentsDir}/{agentKey}/skills`（若存在，否则 `{skillsDir}`） | 默认挂载 | `ro` | `agent.skills.external-dir` |
-| `/pan` | `{panDir}` | `{panDir}` | 默认挂载 | `rw` | `agent.pan.external-dir` |
-| `/agent` | `{agentsDir}/{agentKey}` | `{agentsDir}/{agentKey}` | 默认挂载；仅目录化 agent 存在时挂载 | `ro` | `agent.agents.external-dir` |
-| `/tools` | `{toolsDir}` | `{toolsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.tools.external-dir` |
-| `/agents` | `{agentsDir}` | `{agentsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.agents.external-dir` |
-| `/models` | `{modelsDir}` | `{modelsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.models.external-dir` |
-| `/viewports` | `{viewportsDir}` | `{viewportsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.viewports.external-dir` |
-| `/viewport-servers` | `{viewportServersDir}` | `{viewportServersDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.viewport-servers.registry.external-dir` |
-| `/teams` | `{teamsDir}` | `{teamsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.teams.external-dir` |
-| `/schedules` | `{schedulesDir}` | `{schedulesDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.schedule.external-dir` |
-| `/mcp-servers` | `{mcpServersDir}` | `{mcpServersDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.mcp-servers.registry.external-dir` |
-| `/providers` | `{providersDir}` | `{providersDir}` | `extraMounts` 按需；敏感目录 | 显式 `mode` | `agent.providers.external-dir` |
-| `/chats` | `{chatDataDir}` | `{chatDataDir}` | `extraMounts` 按需 | 显式 `mode` | `chat.storage.dir` |
-| `/skills-market` | `{skillsDir}` | `{skillsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.skills.external-dir` |
-| `/owner` | `{agentsDir}/../owner` | `{agentsDir}/../owner` | `extraMounts` 按需 | 显式 `mode` | `agent.agents.external-dir` 的父目录 |
-
-### Agent Definition 中的 sandboxConfig
+默认挂载 5 个容器路径（`/workspace`、`/root`、`/skills`、`/pan`、`/agent`），其余平台目录需通过 `sandboxConfig.extraMounts` 显式声明。挂载原则：默认安全模式（`/skills` 与 `/agent` 只读，`/workspace`、`/root`、`/pan` 读写）；agent 就近原则（目录化 agent 优先挂载本地 skills）；按需显式原则（其余平台目录仅通过 extraMounts 恢复）。
 
 通过 `sandboxConfig` 配置沙箱参数（`environmentId`、`level`、`extraMounts`）。
-完整配置示例、平台简写表、挂载原则和约束规则详见 [docs/sandbox-config-reference.md](./docs/sandbox-config-reference.md)。
+sandboxConfig YAML 配置示例、平台简写表、挂载原则与约束规则详见 [docs/agent-definition-reference.md](./docs/agent-definition-reference.md)。
+挂载目录映射表详见 [docs/configuration-reference.md](./docs/configuration-reference.md)。
 
 ### 并发与销毁策略
 
@@ -695,14 +434,14 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - **GLOBAL**：`closeQuietly` 为 no-op；仅在 `DisposableBean.destroy()` 时停止。
 - **shutdown**：`destroy()` 关闭调度器，遍历停止所有 agent 和 global 会话。
 
-## SSE 事件契约（最新）
+## SSE 事件契约
 
-### 1. 基础字段（所有 SSE 事件）
+### 基础字段（所有 SSE 事件）
 
 - 必带字段：`seq`, `type`, `timestamp`
 - 不再输出：`rawEvent`
 
-### 2. 输入与会话事件
+### 输入与会话事件
 
 - `request.query`：`requestId`, `chatId`, `role`, `message`, `agentKey?`（未绑定 chat 首个 query 必填）, `references?`（`Reference` 支持 `sandboxPath`）, `params?`, `scene?`, `stream?`
 - `request.upload`：`requestId`, `chatId?`, `upload:{type,name,sizeBytes,mimeType,sha256?}`
@@ -710,7 +449,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `request.steer`：`requestId?`, `chatId`, `runId`, `steerId`, `message`, `role=user`
 - `chat.start`：`chatId`, `chatName?`（仅该 chat 首次 run 发送一次）
 
-### 3. 计划、运行与任务事件
+### 计划、运行与任务事件
 
 - `plan.create`：`planId`, `chatId`, `plan`
 - `plan.update`：`planId`, `chatId`, `plan`（总是带 `chatId`）
@@ -719,9 +458,9 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `run.cancel`：`runId`
 - `run.error`：`runId`, `error`
   - `error`：`code`, `message`, `scope`, `category`, `diagnostics?`
-- `task.*`：仅在“已有 plan 且显式 `task.start` 输入”时出现；不自动创建 task
+- `task.*`：仅在"已有 plan 且显式 `task.start` 输入"时出现；不自动创建 task
 
-### 4. 推理与内容事件
+### 推理与内容事件
 
 - `reasoning.start`：`reasoningId`, `runId`, `taskId?`
 - `reasoning.delta`：`reasoningId`, `delta`
@@ -732,7 +471,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `content.end`：`contentId`
 - `content.snapshot`：`contentId`, `runId`, `text`, `taskId?`
 
-### 5. 工具、产物与动作事件
+### 工具、产物与动作事件
 
 - `tool.start`：`toolId`, `runId`, `taskId?`, `toolName?`, `toolType?`, `toolLabel?`, `toolDescription?`, `viewportKey?`
 - `tool.args`：`toolId`, `delta`, `chunkIndex?`（字段名保持 `delta`，不使用 `args`）
@@ -747,7 +486,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `action.result`：`actionId`, `result`
 - `action.snapshot`：`actionId`, `runId`, `actionName?`, `taskId?`, `description?`, `arguments?`
 
-### 6. 补充行为约束
+### 补充行为约束
 
 - 无活跃 task 出错时：只发 `run.error`（不补 `task.fail`）。
 - plain 模式（当前无 plan）不应出现 `task.*`，叶子事件直接归属 `run`。
@@ -757,9 +496,7 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - `RenderQueue` 只影响传输 flush 行为，不改变上述业务事件类型与字段契约。
 - `_artifact_publish_` 是隐藏的内置后端工具：接收 `artifacts[]`，每项为 `path/name?/description?`；成功时 `tool.result` 可返回 `{ok,artifacts:[{artifactId,artifact},...]}`。如果一次调用里有多个产物，实时流中就会出现多条 `artifact.publish`。
 
-## Chat Storage V3.1（JSONL）
-
-以下为 V3 格式基础 + V3.1 增量改进的完整规范。
+## Chat Storage V3.1
 
 - 存储文件：`chats/{chatId}.jsonl`，JSONL 格式，**一行一个 step**，逐步增量写入。
 - 行类型通过 `_type` 字段区分：
@@ -777,27 +514,11 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 - action / tool 判定：通过 `chat.storage.action-tools` 白名单；命中写 `_actionId`，否则写 `_toolId`。
 - chat storage 回放约束：`reasoning_content` **不回传**给下一轮模型上下文。
 - 滑动窗口：`k=20` 单位仍然是 **run**；`trimToWindow` 按 `runId` 分组，保留最近 `k` 个 run 的所有行。
+- `_msgId`（格式 `m_xxxxxxxx`，8 位 hex）标识同一 LLM 响应拆分的多条 assistant 消息；同一模型回复中的 reasoning、content、tool_calls 消息共享相同 `_msgId`；tool result 到来后，下一个 reasoning / content delta 会重新生成 `_msgId`。
+- `tool_calls` 拆分规则：每条 `role=assistant` 的 `tool_calls` 数组只含 **1 个**工具调用；并行多工具调用拆分为多条 assistant 消息，通过共享 `_msgId` 关联。
+- `_toolId` 和 `_actionId` 写入 `StoredMessage` 外层（与 `_reasoningId`、`_contentId` 同级）；`StoredToolCall` 内层的 `_toolId` / `_actionId` 仅用于反序列化旧数据，新数据不再写入；读取时先查外层，再 fallback 内层。
 
-### V3.1 增量改进
-
-#### _msgId
-
-- 新增 `_msgId`（格式 `m_xxxxxxxx`，8 位 hex）标识同一 LLM 响应拆分的多条 assistant 消息。
-- 同一模型回复中的 reasoning、content、tool_calls 消息共享相同 `_msgId`。
-- tool result 到来后，下一个 reasoning / content delta 会重新生成 `_msgId`。
-
-#### tool_calls 拆分规则
-
-- 每条 `role=assistant` 的 `tool_calls` 数组只含 **1 个**工具调用。
-- 并行多工具调用拆分为多条 assistant 消息，通过共享 `_msgId` 关联。
-
-#### _toolId / _actionId 位置
-
-- `_toolId` 和 `_actionId` 写入 `StoredMessage` 外层（与 `_reasoningId`、`_contentId` 同级）。
-- `StoredToolCall` 内层的 `_toolId` / `_actionId` 仅用于反序列化旧 V3 数据，新数据不再写入。
-- 读取时先查外层，再 fallback 内层（兼容旧数据）。
-
-#### _toolId 生成规则
+**_toolId 生成规则：**
 
 | 工具类型 | 生成规则 |
 |----------|---------|
@@ -805,206 +526,31 @@ Container Hub 容器沙箱支持三种生命周期级别，通过 `sandboxConfig
 | frontend（`type=frontend`） | `t_` + 8 位 hex（系统生成） |
 | action（`type=action`） | `a_` + 8 位 hex（系统生成） |
 
-#### ID 前缀简化
+**ID 前缀：**
 
-| ID 类型 | 旧前缀 | 新前缀 |
-|---------|--------|--------|
-| reasoningId | `reasoning_` | `r_` |
-| contentId | `content_` | `c_` |
-| toolId (frontend) | `tool_` | `t_` |
-| actionId | `action_` | `a_` |
-| msgId | (新增) | `m_` |
+| ID 类型 | 前缀 |
+|---------|------|
+| reasoningId | `r_` |
+| contentId | `c_` |
+| toolId (frontend) | `t_` |
+| actionId | `a_` |
+| msgId | `m_` |
 
-SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_r_{seq}` / `{runId}_c_{seq}`。
+SSE 事件中的 reasoningId / contentId 格式：`{runId}_r_{seq}` / `{runId}_c_{seq}`。
 
-#### _usage 真实填充
+**_usage：**
 
 - 通过 `stream_options.include_usage=true` 请求 LLM provider 返回真实 usage 数据。
-- `LlmDelta` record 新增 `Map<String, Object> usage` 字段，SSE parser 解析最后一个 chunk 的 usage。
 - usage 通过管道穿透：`LlmDelta` → `AgentDelta` → `StepAccumulator.capturedUsage` → `RunMessage` → `StoredMessage._usage`。
-- 不再写入 placeholder null 值；当 LLM 未返回 usage 时 `_usage` 仍使用默认占位结构。
+- 当 LLM 未返回 usage 时 `_usage` 使用默认占位结构。
 
 ## Configuration
 
 主配置事实源：`src/main/resources/application.yml`。结构化覆盖配置来自 `configs/`，通过启动期扫描加载。
 
-### Spring / Server
+关键目录变量：`AGENTS_DIR`（`runtime/agents`）、`CHATS_DIR`（`runtime/chats`）、`REGISTRIES_DIR`（`runtime/registries`，含 `providers/models/mcp-servers/viewport-servers` 子目录）、`OWNER_DIR`（`runtime/owner`）、`SKILLS_MARKET_DIR`（`runtime/skills-market`）、`SCHEDULES_DIR`（`runtime/schedules`）。
 
-| 项 | 默认值 | 说明 |
-|----|--------|------|
-| `server.port` | `8080` | HTTP 端口（环境变量 `SERVER_PORT`） |
-| `spring.application.name` | `agent-platform-runner` | 服务名 |
-| `CONFIGS_DIR` | `./configs` 或 `/opt/configs` | 结构化配置目录；显式设置时优先生效 |
-
-### 核心环境变量
-
-#### Agent Catalog / Model / Registry
-
-| 环境变量 | 属性键 | 默认值 | 说明 |
-|---------|--------|-------|------|
-| `AGENTS_DIR` | `agent.agents.external-dir` | `runtime/agents` | Agent Definition 目录 |
-| `AGENT_AGENTS_REFRESH_INTERVAL_MS` | `agent.agents.refresh-interval-ms` | `10000` | Agent 目录刷新间隔（ms） |
-| `TEAMS_DIR` | `agent.teams.external-dir` | `runtime/teams` | Team 定义目录 |
-| `AGENT_TEAMS_REFRESH_INTERVAL_MS` | `agent.teams.refresh-interval-ms` | `30000` | Team 目录刷新间隔（ms） |
-| `OWNER_DIR` | `agent.owner.external-dir` | `runtime/owner` | Owner 目录，`owner` tag 从此目录读取 Markdown 文件 |
-| `REGISTRIES_DIR` | `agent.providers.external-dir` / `agent.models.external-dir` / `agent.mcp-servers.registry.external-dir` / `agent.viewport-servers.registry.external-dir` | `runtime/registries` | 动态 registry 根目录；子目录固定为 `providers`、`models`、`mcp-servers`、`viewport-servers`，模板建议放到独立的 `registries.example/*` |
-| `AGENT_PROVIDERS_REFRESH_INTERVAL_MS` | `agent.providers.refresh-interval-ms` | `30000` | Provider 目录刷新间隔（ms） |
-| `AGENT_MODELS_REFRESH_INTERVAL_MS` | `agent.models.refresh-interval-ms` | `30000` | Model 目录刷新间隔（ms） |
-
-#### H2A / Tools / Skills / Schedule
-
-| 环境变量 | 属性键 | 默认值 | 说明 |
-|---------|--------|-------|------|
-| `AGENT_H2A_RENDER_FLUSH_INTERVAL_MS` | `agent.h2a.render.flush-interval-ms` | `0` | H2A RenderQueue 时间窗口刷新 |
-| `AGENT_H2A_RENDER_MAX_BUFFERED_CHARS` | `agent.h2a.render.max-buffered-chars` | `0` | H2A RenderQueue 字符阈值刷新 |
-| `AGENT_H2A_RENDER_MAX_BUFFERED_EVENTS` | `agent.h2a.render.max-buffered-events` | `0` | H2A RenderQueue 事件数阈值刷新 |
-| `AGENT_H2A_RENDER_HEARTBEAT_PASS_THROUGH` | `agent.h2a.render.heartbeat-pass-through` | `true` | 心跳是否强制透传 |
-| `AGENT_TOOLS_FRONTEND_SUBMIT_TIMEOUT_MS` | `agent.tools.frontend.submit-timeout-ms` | `300000` | 前端工具提交等待超时（ms） |
-| `AGENT_BASH_WORKING_DIRECTORY` | `agent.tools.bash.working-directory` | 项目运行根目录（通常为 `configs/` 上级目录） | Bash 工具工作目录 |
-| `AGENT_BASH_ALLOWED_PATHS` | `agent.tools.bash.allowed-paths` | （空） | Bash 工具路径白名单（逗号分隔） |
-| `AGENT_BASH_ALLOWED_COMMANDS` | `agent.tools.bash.allowed-commands` | （空 = 拒绝执行） | Bash 允许命令列表（逗号分隔） |
-| `AGENT_BASH_PATH_CHECKED_COMMANDS` | `agent.tools.bash.path-checked-commands` | （空 = 默认等于 allowed-commands） | 启用路径校验的命令列表 |
-| `AGENT_BASH_PATH_CHECK_BYPASS_COMMANDS` | `agent.tools.bash.path-check-bypass-commands` | （空 = 默认关闭） | 跳过路径校验的命令列表 |
-| `AGENT_BASH_SHELL_FEATURES_ENABLED` | `agent.tools.bash.shell-features-enabled` | `false` | Bash 高级 shell 语法开关 |
-| `AGENT_BASH_SHELL_EXECUTABLE` | `agent.tools.bash.shell-executable` | `bash` | Shell 模式执行器 |
-| `AGENT_BASH_SHELL_TIMEOUT_MS` | `agent.tools.bash.shell-timeout-ms` | `10000` | Shell 模式超时（ms） |
-| `AGENT_BASH_MAX_COMMAND_CHARS` | `agent.tools.bash.max-command-chars` | `16000` | Bash 命令最大字符数 |
-| `AGENT_CONTAINER_HUB_ENABLED` | `agent.tools.container-hub.enabled` | `false` | 是否启用 Container Hub 沙箱 |
-| `AGENT_CONTAINER_HUB_BASE_URL` | `agent.tools.container-hub.base-url` | `模板示例: http://host.docker.internal:11960；代码默认: http://127.0.0.1:8080` | Container Hub 服务地址 |
-| `AGENT_CONTAINER_HUB_AUTH_TOKEN` | `agent.tools.container-hub.auth-token` | （空） | Container Hub Bearer Token |
-| `AGENT_CONTAINER_HUB_DEFAULT_ENVIRONMENT_ID` | `agent.tools.container-hub.default-environment-id` | （空） | 默认环境 ID |
-| `AGENT_CONTAINER_HUB_REQUEST_TIMEOUT_MS` | `agent.tools.container-hub.request-timeout-ms` | `30000` | Container Hub HTTP 调用超时（ms） |
-| `AGENT_CONTAINER_HUB_DEFAULT_SANDBOX_LEVEL` | `agent.tools.container-hub.default-sandbox-level` | `run` | 全局默认沙箱级别 |
-| `AGENT_CONTAINER_HUB_AGENT_IDLE_TIMEOUT_MS` | `agent.tools.container-hub.agent-idle-timeout-ms` | `600000` | agent 级别空闲驱逐超时（ms） |
-| `AGENT_CONTAINER_HUB_DESTROY_QUEUE_DELAY_MS` | `agent.tools.container-hub.destroy-queue-delay-ms` | `5000` | run 级别异步销毁延迟（ms） |
-| `ROOT_DIR` | `agent.root.external-dir` | `runtime/root` | 容器 `/root` 对应的 runner 根目录 |
-| `PAN_DIR` | `agent.pan.external-dir` | `runtime/pan` | 容器 `/pan` 对应的 runner 目录 |
-| `SKILLS_MARKET_DIR` | `agent.skills.external-dir` | `runtime/skills-market` | 技能目录 |
-| `AGENT_SKILLS_REFRESH_INTERVAL_MS` | `agent.skills.refresh-interval-ms` | `30000` | 技能刷新间隔（ms） |
-| `AGENT_SKILLS_MAX_PROMPT_CHARS` | `agent.skills.max-prompt-chars` | `8000` | 技能 prompt 最大字符数 |
-| `SCHEDULES_DIR` | `agent.schedule.external-dir` | `runtime/schedules` | 计划任务目录 |
-| `AGENT_SCHEDULE_ENABLED` | `agent.schedule.enabled` | `true` | 计划任务总开关 |
-| `AGENT_SCHEDULE_DEFAULT_ZONE_ID` | `agent.schedule.default-zone-id` | 系统时区 | 计划任务默认时区 |
-| `AGENT_SCHEDULE_POOL_SIZE` | `agent.schedule.pool-size` | `4` | 计划任务线程池大小 |
-
-#### MCP / Viewport Server / Auth / Memory / Logging
-
-| 环境变量 | 属性键 | 默认值 | 说明 |
-|---------|--------|-------|------|
-| `AGENT_MCP_SERVERS_ENABLED` | `agent.mcp-servers.enabled` | `true` | MCP server 总开关 |
-| `AGENT_MCP_SERVERS_PROTOCOL_VERSION` | `agent.mcp-servers.protocol-version` | `2025-06` | MCP 协议版本 |
-| `AGENT_MCP_SERVERS_CONNECT_TIMEOUT_MS` | `agent.mcp-servers.connect-timeout-ms` | `3000` | MCP 连接超时 |
-| `AGENT_MCP_SERVERS_RETRY` | `agent.mcp-servers.retry` | `1` | MCP 初始重试次数 |
-| `AGENT_MCP_SERVERS_RECONNECT_INTERVAL_MS` | `agent.mcp-servers.reconnect-interval-ms` | `60000` | 不可用 server 的自动重连间隔 |
-| `AGENT_VIEWPORT_SERVERS_ENABLED` | `agent.viewport-servers.enabled` | `true` | Viewport server 总开关 |
-| `AGENT_VIEWPORT_SERVERS_PROTOCOL_VERSION` | `agent.viewport-servers.protocol-version` | `2025-06` | Viewport server 协议版本 |
-| `AGENT_VIEWPORT_SERVERS_CONNECT_TIMEOUT_MS` | `agent.viewport-servers.connect-timeout-ms` | `3000` | Viewport server 连接超时 |
-| `AGENT_VIEWPORT_SERVERS_RETRY` | `agent.viewport-servers.retry` | `1` | Viewport server 初始重试次数 |
-| `AGENT_VIEWPORT_SERVERS_RECONNECT_INTERVAL_MS` | `agent.viewport-servers.reconnect-interval-ms` | `60000` | Viewport server 自动重连间隔 |
-| `AGENT_AUTH_ENABLED` | `agent.auth.enabled` | `true` | JWT 认证开关 |
-| `AGENT_AUTH_JWKS_URI` | `agent.auth.jwks-uri` | （空） | JWKS 地址 |
-| `AGENT_AUTH_ISSUER` | `agent.auth.issuer` | （空） | JWT issuer |
-| `AGENT_AUTH_JWKS_CACHE_SECONDS` | `agent.auth.jwks-cache-seconds` | （空） | JWKS 缓存秒数 |
-| `CHAT_IMAGE_TOKEN_SECRET` | `agent.chat-image-token.secret` | （空） | 图片令牌签名密钥（为空则 token 机制禁用） |
-| `CHAT_IMAGE_TOKEN_PREVIOUS_SECRETS` | `agent.chat-image-token.previous-secrets` | （空） | 历史密钥列表（逗号分隔），用于密钥轮换验证 |
-| `CHAT_IMAGE_TOKEN_TTL_SECONDS` | `agent.chat-image-token.ttl-seconds` | `86400` | 图片令牌过期秒数 |
-| `CHAT_IMAGE_TOKEN_DATA_TOKEN_VALIDATION_ENABLED` | `agent.chat-image-token.data-token-validation-enabled` | `true` | `/api/resource` 的 `t` 参数校验开关 |
-| `CHATS_DIR` | `chat.storage.dir` | `runtime/chats` | 聊天存储目录 |
-| `CHAT_STORAGE_K` | `chat.storage.k` | `20` | 滑动窗口大小（按 run） |
-| `CHAT_STORAGE_CHARSET` | `chat.storage.charset` | `UTF-8` | 聊天存储文件编码 |
-| `CHAT_STORAGE_ACTION_TOOLS` | `chat.storage.action-tools` | （空） | action 工具白名单 |
-| `CHAT_STORAGE_INDEX_SQLITE_FILE` | `chat.storage.index.sqlite-file` | `chats.db` | SQLite 聊天索引文件名 |
-| `CHAT_STORAGE_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` | `chat.storage.index.auto-rebuild-on-incompatible-schema` | `true` | 索引 schema 不兼容时是否自动重建 |
-| `AGENT_MEMORY_DB_FILE_NAME` | `agent.memory.db-file-name` | `memory.db` | Agent Memory SQLite 文件名 |
-| `AGENT_MEMORY_CONTEXT_TOP_N` | `agent.memory.context-top-n` | `5` | `memory` tag 默认注入条数 |
-| `AGENT_MEMORY_CONTEXT_MAX_CHARS` | `agent.memory.context-max-chars` | `4000` | `memory` tag 最大字符数 |
-| `AGENT_MEMORY_SEARCH_DEFAULT_LIMIT` | `agent.memory.search-default-limit` | `10` | memory tool 默认 limit |
-| `AGENT_MEMORY_HYBRID_VECTOR_WEIGHT` | `agent.memory.hybrid-vector-weight` | `0.7` | 混合检索向量分数权重 |
-| `AGENT_MEMORY_HYBRID_FTS_WEIGHT` | `agent.memory.hybrid-fts-weight` | `0.3` | 混合检索 FTS 分数权重 |
-| `AGENT_MEMORY_DUAL_WRITE_MARKDOWN` | `agent.memory.dual-write-markdown` | `true` | 是否将新记忆追加写入 `memory/memory.md` |
-| `AGENT_MEMORY_EMBEDDING_PROVIDER_KEY` | `agent.memory.embedding-provider-key` | （空） | embedding provider key |
-| `AGENT_MEMORY_EMBEDDING_MODEL` | `agent.memory.embedding-model` | （空） | embedding model |
-| `AGENT_MEMORY_EMBEDDING_DIMENSION` | `agent.memory.embedding-dimension` | `1024` | embedding 维度 |
-| `AGENT_MEMORY_EMBEDDING_TIMEOUT_MS` | `agent.memory.embedding-timeout-ms` | `15000` | embedding HTTP 超时（ms） |
-| `AGENT_MEMORY_STORAGE_DIR` | `agent.memory.storage.dir` | `runtime/memory` | 中央记忆存储根目录 |
-| `AGENT_MEMORY_AUTO_REMEMBER_ENABLED` | `agent.memory.auto-remember.enabled` | `false` | 成功 run 后是否自动触发 remember 抽取 |
-| `AGENT_MEMORY_REMEMBER_MODEL_KEY` | `agent.memory.remember.model-key` | （空） | remember 使用的模型 key |
-| `AGENT_MEMORY_REMEMBER_TIMEOUT_MS` | `agent.memory.remember.timeout-ms` | `60000` | remember LLM 调用超时（ms） |
-| `LOGGING_AGENT_LLM_INTERACTION_ENABLED` | `logging.agent.llm.interaction.enabled` | `true` | LLM 交互日志开关 |
-| `LOGGING_AGENT_LLM_INTERACTION_MASK_SENSITIVE` | `logging.agent.llm.interaction.mask-sensitive` | `true` | 日志脱敏开关 |
-
-说明：`agent.auth.local-public-key` 仍支持 YAML 内嵌 PEM；推荐改用 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE` 或 `agent.auth.local-public-key-file` 指向独立 PEM 文件。
-
-迁移说明（Breaking Change）：
-
-- 旧键已禁用：`agent.catalog.*`、`agent.viewport.*`、`agent.capability.*`、`agent.skill.*`、`agent.team.*`、`agent.model.*`、`agent.mcp.*`、`memory.chat.*`、`memory.chats.*`。
-- 旧环境变量已禁用：`AGENT_CONFIG_DIR`、`AGENT_AGENTS_EXTERNAL_DIR`、`AGENT_TEAMS_EXTERNAL_DIR`、`AGENT_MODELS_EXTERNAL_DIR`、`AGENT_PROVIDERS_EXTERNAL_DIR`、`AGENT_TOOLS_EXTERNAL_DIR`、`AGENT_SKILLS_EXTERNAL_DIR`、`AGENT_VIEWPORTS_EXTERNAL_DIR`、`AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_SCHEDULE_EXTERNAL_DIR`、`AGENT_DATA_EXTERNAL_DIR`、`MEMORY_CHATS_K`、`MEMORY_CHATS_CHARSET`、`MEMORY_CHATS_ACTION_TOOLS`、`MEMORY_CHATS_INDEX_SQLITE_FILE`、`MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` 等。
-- `CHATS_DIR` 保留不变。
-- Memory 兼容别名已删除：仅保留 `AGENT_MEMORY_STORAGE_DIR`、`AGENT_MEMORY_AUTO_REMEMBER_ENABLED`、`AGENT_MEMORY_REMEMBER_MODEL_KEY`、`AGENT_MEMORY_REMEMBER_TIMEOUT_MS`。
-- 当前文档仅记录 `application.yml` 中实际使用的键；历史目录类兼容变量不再作为公开 contract。
-
-### CORS（主配置默认）
-
-| 属性键 | 默认值 | 说明 |
-|--------|-------|------|
-| `agent.cors.enabled` | `false` | 默认关闭 CORS 过滤器 |
-| `agent.cors.path-pattern` | `/api/**` | CORS 匹配路径 |
-| `agent.cors.allowed-origin-patterns` | `http://localhost:8081` | 允许源（列表） |
-| `agent.cors.allowed-methods` | `GET,POST,PUT,PATCH,DELETE,OPTIONS` | 允许方法（列表） |
-| `agent.cors.allowed-headers` | `*` | 允许请求头 |
-| `agent.cors.exposed-headers` | `Content-Type` | 暴露响应头 |
-| `agent.cors.allow-credentials` | `false` | 是否允许凭证 |
-| `agent.cors.max-age-seconds` | `3600` | 预检缓存秒数 |
-
-### Provider 配置（通常在 `runtime/registries/providers/<provider>.yml`，外置共享目录时也保持 `registries/providers/<provider>.yml`）
-
-`agent.providers.<providerKey>` 支持：
-
-- `base-url`
-- `api-key`
-- `defaultModel`（可选，作为 provider 默认 model）
-- `protocols.<PROTOCOL>.endpoint-path`（可选，按线协议覆盖请求 endpoint 路径）
-
-说明：
-
-- provider 不再绑定 protocol；协议由 `registries/models/*.yml` 中 `protocol` 字段决定。
-- `OPENAI` 未显式配置 `protocols.OPENAI.endpoint-path` 时，会按 `base-url` 推导默认 completions 路径。
-- provider 只负责连接信息与 endpoint 组织，不负责声明 Agent 使用哪个协议。
-
-### Logging（主配置默认）
-
-| 属性键 | 默认值 |
-|--------|--------|
-| `logging.level.root` | `INFO` |
-| `logging.level.com.linlay.agentplatform` | `INFO` |
-| `logging.level.com.linlay.agentplatform.llm.LlmService` | `DEBUG` |
-| `logging.level.com.linlay.agentplatform.llm.OpenAiCompatibleSseClient` | `DEBUG` |
-| `logging.level.com.linlay.agentplatform.llm.LlmCallLogger` | `DEBUG` |
-| `logging.level.com.linlay.agentplatform.llm.wiretap` | `DEBUG` |
-| `logging.agent.request.enabled` | `true` |
-| `logging.agent.request.include-query` | `true` |
-| `logging.agent.request.include-body` | `false` |
-| `logging.agent.auth.enabled` | `true` |
-| `logging.agent.exception.enabled` | `true` |
-| `logging.agent.tool.enabled` | `true` |
-| `logging.agent.tool.include-args` | `false` |
-| `logging.agent.tool.include-result` | `false` |
-| `logging.agent.action.enabled` | `true` |
-| `logging.agent.action.include-args` | `false` |
-| `logging.agent.action.include-result` | `false` |
-| `logging.agent.viewport.enabled` | `true` |
-| `logging.agent.sse.enabled` | `false` |
-| `logging.agent.sse.include-payload` | `false` |
-| `logging.agent.sse.event-whitelist` | `` |
-| `logging.agent.llm.interaction.enabled` | `true` |
-
-## H2A 流式传输说明
-
-- H2A 的目标是“真实流式 + 可控缓冲 + 可取消”，而不是把“零缓冲”当成唯一正确答案。
-- 当 `flush-interval-ms / max-buffered-chars / max-buffered-events` 全部为 `0` 时，`RenderQueue` 退化为直通透传。
-- 当任一阈值大于 `0` 时，允许在不改变业务事件顺序与语义的前提下进行有界缓冲。
-- 终端事件 `run.complete / run.cancel / run.error` 与心跳始终具备更高 flush 优先级。
-- steer / interrupt 走运行中控制面；它们改变的是上下文注入和取消行为，不改变 SSE 业务事件模型本身。
+完整环境变量表、Provider 配置、挂载目录映射表与迁移说明详见 [docs/configuration-reference.md](./docs/configuration-reference.md)。
 
 ## 开发硬性要求（MUST）
 
@@ -1024,6 +570,8 @@ Agent 行为应由 LLM 推理和工具调用驱动（通过 prompt 引导），J
 
 ## 变更记录
 
+- 2026-04-05：CLAUDE.md 二次调整 — 还原 SSE 事件契约、Chat Storage V3.1 完整规范、REST API 契约至 CLAUDE.md；删除 `docs/sse-event-contract.md`、`docs/chat-storage-spec.md`、`docs/sandbox-config-reference.md`；sandboxConfig YAML 配置拆入 `docs/agent-definition-reference.md`，挂载目录映射表拆入 `docs/configuration-reference.md`，`docs/configuration-reference.md` 精简掉内部参数。
+- 2026-04-05：CLAUDE.md 瘦身重构，将 Agent Definition 参考移至 `docs/`。
 - 2026-04-05：完成目录清理与命名对齐。`ChatMessage` 迁移到 `chat/storage/`，`ArtifactEventPayload` 迁移到 `chat/event/`，并同步更新引用。
 - 2026-04-05：移除 `AgentDefinitionLoader` 中 `ONESHOT` / `REACT` 对顶层 `promptFile` 的 legacy 回退；目录化 prompt 契约收敛到 stage 级字段。
 - 2026-04-05：移除 schedule 顶层 `zoneId` / `params` 与 provider 顶层 `model` 的过渡兼容拦截；`ConfigDirectoryEnvironmentPostProcessor` 的启动期 deprecated key 守卫保持不变。

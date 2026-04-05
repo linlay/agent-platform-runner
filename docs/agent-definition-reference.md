@@ -94,25 +94,75 @@ plain:
     支持多行
 ```
 
-## Agent / Skill / Tool REST 契约
+## sandboxConfig 配置
 
-- `GET /api/agents`：返回 `AgentSummary[]`，顶层包含 `key/name/icon/description/role/meta`。
-- `GET /api/teams`：返回 `TeamSummaryResponse[]`，字段包含 `teamId/name/icon/agentKeys/meta.invalidAgentKeys/meta.defaultAgentKey/meta.defaultAgentKeyValid`。
-- `GET /api/skills?tag=...`：返回 `SkillSummary[]`，字段为 `key/name/description/meta.promptTruncated`。
-- `GET /api/tools?tag=...&kind=backend|frontend|action`：返回 `ToolSummary[]`，字段为 `key/name/label/description/meta(kind/toolType/viewportKey/strict/sourceType/sourceKey)`。
-- `GET /api/tool?toolName=...`：返回 `ToolDetail`，字段为 `key/name/label/description/afterCallHint/parameters/meta`。
-- `GET /api/chats`：返回会话索引摘要，支持按 `agentKey` 与 `lastRunId` 增量查询。
-- `GET /api/chat?chatId=...`：返回稳定结构 `chatId/chatName/chatImageToken/events/plan/artifact/references`；`includeRawMessages=true` 时额外返回 `rawMessages`。
-- `POST /api/query`：启动一次 run；默认返回 SSE。未绑定 chat 的首个 query 必须显式携带 `agentKey`。
-- `POST /api/upload`：申请本地上传位，请求体字段为 `requestId/chatId?/type/name/sizeBytes/mimeType/sha256?`，响应外层为 `ApiResponse<UploadResponse>`；若未传 `chatId`，后端会先生成 chatId 并创建空绑定 chat，其中短引用 ID 固定放在 `reference.id`。
-- `POST /api/submit`：提交 frontend tool 的人机参数，请求体固定为 `runId + toolId + params`。
-- `POST /api/steer`：运行中追加用户引导，请求体为 `SteerRequest`；当 run 仍处于活跃状态时会写入 steer 队列并在下一个模型回合前注入。
-- `POST /api/interrupt`：运行中断，请求体为 `InterruptRequest`；成功后触发 `run.cancel`，并取消待处理 steer / frontend submit。
-- `POST /api/remember`：从指定 `chatId` 的完整对话快照中抽取可长期保留的记忆，请求体为 `RememberRequest { requestId?, chatId }`；成功时返回 `ApiResponse<RememberResponse>`，字段包含 `accepted/status/requestId/chatId/memoryPath/memoryRoot/memoryCount/detail/promptPreview/items/stored`；`promptPreview` 会返回系统提示词、用户提示词预览、计数与采样；失败时 `RememberCaptureException` 由全局异常处理器映射为 HTTP `500`。
-- `POST /api/learn`：学习接口预留，请求体为 `LearnRequest { requestId?, chatId, subjectKey? }`；当前始终返回 `ApiResponse<LearnResponse>`，其中 `accepted=false`、`status="not_connected"`。
-- `GET /api/viewport?viewportKey=...`：返回 viewport 内容；本地未命中时可回退到 viewport server。
-- `GET /api/resource?...`：提供静态文件访问，支持 chat image token 校验。
-- `/api/tool` 未命中 `toolName`、`kind` 非法时均返回 HTTP `400`（`ApiResponse.failure`）。
+`sandboxConfig` 用于声明 Agent 的 Container Hub 沙箱参数，包括 `environmentId`、`level` 和 `extraMounts`。
+
+### sandboxConfig 完整示例
+
+```yaml
+sandboxConfig:
+  environmentId: shell
+  level: agent        # run / agent / global；为空时使用全局 default-sandbox-level
+  extraMounts:
+    - platform: models
+      mode: ro
+    - platform: tools
+      mode: rw
+    - platform: skills-market
+      mode: ro
+    - platform: chats
+      mode: ro
+    - platform: owner
+      mode: rw
+    - source: /abs/host/path
+      destination: /datasets
+      mode: ro
+    - destination: /skills
+      mode: rw
+```
+
+### extraMounts 平台简写
+
+| `platform` | 容器路径 |
+|-----------|----------|
+| `models` | `/models` |
+| `tools` | `/tools` |
+| `agents` | `/agents` |
+| `viewports` | `/viewports` |
+| `viewport-servers` | `/viewport-servers` |
+| `teams` | `/teams` |
+| `schedules` | `/schedules` |
+| `mcp-servers` | `/mcp-servers` |
+| `providers` | `/providers` |
+| `chats` | `/chats` |
+| `skills-market` | `/skills-market` |
+| `owner` | `/owner` |
+
+### 挂载原则
+
+- 默认最小集：默认只挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent`，不再默认暴露全量平台配置目录。
+- agent 就近原则：当前 agent 若采用目录化布局，默认挂载其自身目录到 `/agent`；扁平 YAML agent 不强制创建该挂载。
+- 本地优先原则：目录化 agent 在 `RUN/AGENT` 级别会优先把 `agents/<agentKey>/skills` 挂到 `/skills`；没有本地 skills 时才回落到共享 market。
+- 默认安全模式：`/skills` 与 `/agent` 默认只读；`/workspace`、`/root`、`/pan` 默认读写。
+- 按需显式原则：`/models`、`/tools`、`/agents`、`/viewports`、`/teams`、`/schedules`、`/mcp-servers`、`/providers`、`/chats`、`/skills-market`、`/owner` 仅能通过 `sandboxConfig.extraMounts` 显式恢复。
+- 模式显式原则：所有按需平台挂载和自定义挂载都必须显式声明 `mode: ro|rw`。
+- 基础挂载覆盖原则：若只想修改 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 的模式，可在 `extraMounts` 中只写 `destination + mode` 覆盖默认模式，不新增第二个挂载。
+- 最小暴露原则：agent 只应声明完成任务所必需的额外挂载，避免把无关目录带入沙箱。
+- 安全优先原则：custom mount 必须满足"源目录存在、目标路径为绝对路径、目标路径不冲突"；不满足时直接 fail-fast。
+- 敏感目录显式授权：`providers` 属于敏感挂载，即使在 `extraMounts` 中声明，也必须先有全局 `agent.providers.external-dir` 目录。
+
+### 约束规则
+
+- `platform` 未知时仅 warn 并跳过。
+- `platform` 挂载必须显式声明 `mode: ro|rw`。
+- custom mount 必须提供 `source + destination + mode`。
+- `platform: skills-market` 绑定的是共享 skill market，容器内路径固定为 `/skills-market`。
+- `platform: owner` 绑定的是 owner 目录；该目录内的正式 owner 文档位于 `owner/OWNER.md`。
+- 默认基础挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 可通过 `destination + mode` 覆盖默认模式。
+- custom mount 的 `destination` 必须是绝对路径，且不能与已有挂载冲突。
+- custom mount 的 `source` 必须是已存在目录。
+- `platform: providers` 只有在 `mounts.providers-dir` 已显式配置时才可用。
 
 ## 模式配置块
 
