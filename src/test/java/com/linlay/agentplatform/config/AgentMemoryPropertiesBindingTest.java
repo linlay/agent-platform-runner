@@ -4,9 +4,16 @@ import com.linlay.agentplatform.config.properties.AgentMemoryProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.ConfigurationPropertiesAutoConfiguration;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.PropertySource;
+import org.springframework.core.io.ClassPathResource;
+
+import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -51,6 +58,32 @@ class AgentMemoryPropertiesBindingTest {
                     assertThat(properties.getRemember().getModelKey()).isEqualTo("remember-v2");
                     assertThat(properties.getRemember().getTimeoutMs()).isEqualTo(9000L);
                 });
+    }
+
+    @Test
+    void shouldBindStorageDirFromMemoryDirEnvironmentVariable() {
+        contextRunner
+                .withInitializer(context -> loadApplicationYaml(context))
+                .withPropertyValues("MEMORY_DIR=/tmp/memory-env")
+                .run(context -> {
+                    AgentMemoryProperties properties = context.getBean(AgentMemoryProperties.class);
+                    assertThat(properties.getStorage().getDir()).isEqualTo("/tmp/memory-env");
+                    assertThat(Binder.get(context.getEnvironment())
+                            .bind("agent.memory.storage.dir", Bindable.of(String.class))
+                            .orElse(null))
+                            .isEqualTo("/tmp/memory-env");
+                });
+    }
+
+    private void loadApplicationYaml(org.springframework.context.ConfigurableApplicationContext context) {
+        try {
+            for (PropertySource<?> propertySource : new YamlPropertySourceLoader()
+                    .load("applicationConfig", new ClassPathResource("application.yml"))) {
+                context.getEnvironment().getPropertySources().addLast(propertySource);
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to load application.yml for test", ex);
+        }
     }
 
     @Configuration

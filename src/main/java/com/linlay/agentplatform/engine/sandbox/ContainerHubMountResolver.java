@@ -137,7 +137,7 @@ public class ContainerHubMountResolver {
     }
 
     private ResolvedPath resolveMemoryDir() {
-        return resolveHostBackedDirectory("AGENT_MEMORY_STORAGE_DIR", directories.memoryDir(), "memory-dir");
+        return resolveHostBackedDirectory("MEMORY_DIR", directories.memoryDir(), "memory-dir");
     }
 
     private ResolvedPath resolveGlobalSkillsDir() {

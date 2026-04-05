@@ -87,9 +87,9 @@ ARCH=amd64 make release
 - 配置模板：`configs/*.example.yml`
 - 配置模板：`configs/**/*.example.*`
 - runner 默认使用 `local-public-key.pem` 作为本地公钥文件；若要切换为纯 JWKS 模式，请将 `AGENT_AUTH_LOCAL_PUBLIC_KEY_FILE=` 置空并同时配置完整的 JWKS 三元组
-- 运行时目录约定：由 `.env` 中的 `*_DIR` 指向宿主机路径，其中动态注册目录统一收口到 `REGISTRIES_DIR=./runtime/registries`，其余目录默认回落到 `./runtime/owner`、`./runtime/agents`、`./runtime/teams`、`./runtime/root`、`./runtime/schedules`、`./runtime/chats`、`./runtime/pan`、`./runtime/skills-market`；所有这些 `*_DIR` 都可以改成绝对宿主机路径
-- release compose 通过 `env_file: .env` 直接把这些 `*_DIR` 暴露为容器环境变量，runner 会在创建 sandbox mount 时直接从进程环境读取宿主机路径
-- release compose 会显式设置 `SPRING_PROFILES_ACTIVE=docker`，应用在容器内固定读取 `/opt/agents`、`/opt/chats`、`/opt/root` 以及 `/opt/registries/{providers,models,mcp-servers,viewport-servers}` 等目录；`.env` 里的 `*_DIR` 只负责宿主机 bind mount source
+- 运行时目录约定：由 `.env` 中的 `*_DIR` 与 `MEMORY_DIR` 指向宿主机路径，其中动态注册目录统一收口到 `REGISTRIES_DIR=./runtime/registries`，其余目录默认回落到 `./runtime/owner`、`./runtime/agents`、`./runtime/teams`、`./runtime/root`、`./runtime/schedules`、`./runtime/chats`、`./runtime/memory`、`./runtime/pan`、`./runtime/skills-market`；这些目录变量都可以改成绝对宿主机路径
+- release compose 通过 `env_file: .env` 直接把这些目录变量暴露为容器环境变量，runner 会在创建 sandbox mount 时直接从进程环境读取宿主机路径
+- release compose 会显式设置 `SPRING_PROFILES_ACTIVE=docker`，应用在容器内固定读取 `/opt/agents`、`/opt/chats`、`/opt/memory`、`/opt/root` 以及 `/opt/registries/{providers,models,mcp-servers,viewport-servers}` 等目录；`.env` 里的目录变量只负责宿主机 bind mount source
 
 脚本会强校验版本格式：
 
@@ -168,7 +168,7 @@ RELEASE_BASE_IMAGE=<candidate-image> ARCH=arm64 make release
 - `.env.example`
 - `configs/` 下全部可安全分发的 `*.example.*` 模板
 
-脚本不会在 bundle 组装阶段预创建 `runtime/` 目录。宿主机上的运行时目录仍由 `.env` 里的 `*_DIR` 变量决定；如果没有覆盖，则默认回落到 `./runtime/*`。部署端首次执行 `./start.sh` 时，脚本会对最终生效的这些目录逐一执行 `mkdir -p`，因此无需在解压产物里提前塞入空目录骨架。若启用 `_sandbox_bash_` 且 Container Hub 运行在宿主机上，`.env` 中这些 `*_DIR` 应写成宿主机可直接访问的真实路径。
+脚本不会在 bundle 组装阶段预创建 `runtime/` 目录。宿主机上的运行时目录仍由 `.env` 里的目录变量决定；如果没有覆盖，则 `REGISTRIES_DIR` 默认回落到 `./runtime/registries`，`MEMORY_DIR` 默认回落到 `./runtime/memory`，其余目录默认回落到 `./runtime/*`。部署端首次执行 `./start.sh` 时，脚本会对最终生效的这些目录逐一执行 `mkdir -p`，因此无需在解压产物里提前塞入空目录骨架。若启用 `_sandbox_bash_` 且 Container Hub 运行在宿主机上，`.env` 中这些目录变量应写成宿主机可直接访问的真实路径。
 
 同时脚本会把 bundle 内 `.env.example` 的 `RUNNER_VERSION` 替换成当前构建版本，保证部署端复制后默认镜像标签和 bundle 内镜像一致。
 
@@ -248,8 +248,8 @@ docker network create zenmind-network   # 仅在网络尚不存在时执行
 
 - `start.sh` 会校验 `.env`、Docker、`docker compose` 和外部网络 `zenmind-network`
 - 若本机没有 `agent-platform-runner:$RUNNER_VERSION`，脚本会自动从 `images/agent-platform-runner.tar` 执行 `docker load`
-- 若 `*_DIR` 指向的宿主机目录不存在，脚本会在 `docker compose up -d` 之前自动创建，包括新的 `OWNER_DIR`
-- 容器内应用目录固定为 `/opt/*`；`*_DIR` 不再直接决定容器内 Spring 读取路径
+- 若目录变量指向的宿主机目录不存在，脚本会在 `docker compose up -d` 之前自动创建，包括 `MEMORY_DIR`
+- 容器内应用目录固定为 `/opt/*`；这些目录变量不再直接决定容器内 Spring 读取路径
 - release compose 继续接入 `zenmind-network`，与现有容器互联模型保持一致
 
 停止命令：

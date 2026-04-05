@@ -44,7 +44,7 @@ services:
         source: ${CHATS_DIR:-./runtime/chats}
         target: /opt/chats
       - type: bind
-        source: ${AGENT_MEMORY_STORAGE_DIR:-./runtime/memory}
+        source: ${MEMORY_DIR:-./runtime/memory}
         target: /opt/memory
     env_file:
       - .env

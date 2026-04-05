@@ -57,6 +57,7 @@ ensure_dir "${TEAMS_DIR:-$SCRIPT_DIR/runtime/teams}"
 ensure_dir "${ROOT_DIR:-$SCRIPT_DIR/runtime/root}"
 ensure_dir "${SCHEDULES_DIR:-$SCRIPT_DIR/runtime/schedules}"
 ensure_dir "${CHATS_DIR:-$SCRIPT_DIR/runtime/chats}"
+ensure_dir "${MEMORY_DIR:-$SCRIPT_DIR/runtime/memory}"
 ensure_dir "${PAN_DIR:-$SCRIPT_DIR/runtime/pan}"
 ensure_dir "${SKILLS_MARKET_DIR:-$SCRIPT_DIR/runtime/skills-market}"
 

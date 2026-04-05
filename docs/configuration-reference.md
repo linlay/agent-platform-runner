@@ -109,7 +109,7 @@
 |---------|--------|-------|------|
 | `AGENT_MEMORY_CONTEXT_TOP_N` | `agent.memory.context-top-n` | `5` | `memory` tag 默认注入条数 |
 | `AGENT_MEMORY_CONTEXT_MAX_CHARS` | `agent.memory.context-max-chars` | `4000` | `memory` tag 最大字符数 |
-| `AGENT_MEMORY_STORAGE_DIR` | `agent.memory.storage.dir` | `runtime/memory` | 中央记忆存储根目录 |
+| `MEMORY_DIR` | `agent.memory.storage.dir` | `runtime/memory` | 中央记忆存储根目录 |
 | `AGENT_MEMORY_AUTO_REMEMBER_ENABLED` | `agent.memory.auto-remember.enabled` | `false` | 成功 run 后是否自动触发 remember 抽取 |
 | `AGENT_MEMORY_REMEMBER_MODEL_KEY` | `agent.memory.remember.model-key` | （空） | remember 使用的模型 key |
 | `AGENT_MEMORY_REMEMBER_TIMEOUT_MS` | `agent.memory.remember.timeout-ms` | `60000` | remember LLM 调用超时（ms） |
@@ -145,5 +145,5 @@
 - 旧键已禁用：`agent.catalog.*`、`agent.viewport.*`、`agent.capability.*`、`agent.skill.*`、`agent.team.*`、`agent.model.*`、`agent.mcp.*`、`memory.chat.*`、`memory.chats.*`。
 - 旧环境变量已禁用：`AGENT_CONFIG_DIR`、`AGENT_AGENTS_EXTERNAL_DIR`、`AGENT_TEAMS_EXTERNAL_DIR`、`AGENT_MODELS_EXTERNAL_DIR`、`AGENT_PROVIDERS_EXTERNAL_DIR`、`AGENT_TOOLS_EXTERNAL_DIR`、`AGENT_SKILLS_EXTERNAL_DIR`、`AGENT_VIEWPORTS_EXTERNAL_DIR`、`AGENT_MCP_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_VIEWPORT_SERVERS_REGISTRY_EXTERNAL_DIR`、`AGENT_SCHEDULE_EXTERNAL_DIR`、`AGENT_DATA_EXTERNAL_DIR`、`MEMORY_CHATS_K`、`MEMORY_CHATS_CHARSET`、`MEMORY_CHATS_ACTION_TOOLS`、`MEMORY_CHATS_INDEX_SQLITE_FILE`、`MEMORY_CHATS_INDEX_AUTO_REBUILD_ON_INCOMPATIBLE_SCHEMA` 等。
 - `CHATS_DIR` 保留不变。
-- Memory 兼容别名已删除：仅保留 `AGENT_MEMORY_STORAGE_DIR`、`AGENT_MEMORY_AUTO_REMEMBER_ENABLED`、`AGENT_MEMORY_REMEMBER_MODEL_KEY`、`AGENT_MEMORY_REMEMBER_TIMEOUT_MS`。
+- Memory 兼容别名已删除：仅保留 `MEMORY_DIR`、`AGENT_MEMORY_AUTO_REMEMBER_ENABLED`、`AGENT_MEMORY_REMEMBER_MODEL_KEY`、`AGENT_MEMORY_REMEMBER_TIMEOUT_MS`；`AGENT_MEMORY_STORAGE_DIR` 已移除。
 - 当前文档仅记录 `application.yml` 中实际使用的键；历史目录类兼容变量不再作为公开 contract。

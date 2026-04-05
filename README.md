@@ -288,7 +288,7 @@ TEAMS_DIR=/Users/you/runtime/runner/teams
 ROOT_DIR=/Users/you/runtime/runner/root
 SCHEDULES_DIR=/Users/you/runtime/runner/schedules
 CHATS_DIR=/Users/you/runtime/runner/chats
-AGENT_MEMORY_STORAGE_DIR=/Users/you/runtime/runner/memory
+MEMORY_DIR=/Users/you/runtime/runner/memory
 PAN_DIR=/Users/you/runtime/runner/pan
 SKILLS_MARKET_DIR=/Users/you/runtime/runner/skills-market
 ```
@@ -308,20 +308,20 @@ docker compose up -d --build
 
 - `.env` 负责简单环境开关、端口和可配置运行目录（如 `HOST_PORT`、`AGENT_AUTH_ENABLED`、`AGENTS_DIR`、`OWNER_DIR`、`AGENT_CONTAINER_HUB_BASE_URL`）；`SERVER_PORT` 主要用于本地非 Docker 运行。
 - `configs/` 负责结构化业务配置，尤其是 auth、公钥文件、bash 与 container hub。
-- 运行时业务目录既可以保留在仓库内默认路径，也可以通过 `.env` 的 `*_DIR` 指向宿主机其他路径覆盖默认值；其中动态 registries 默认回落到 `REGISTRIES_DIR=./runtime/registries`，其余目录默认回落到 `./runtime/*`。
+- 运行时业务目录既可以保留在仓库内默认路径，也可以通过 `.env` 里的目录变量覆盖到宿主机其他路径；其中动态 registries 默认回落到 `REGISTRIES_DIR=./runtime/registries`，memory 默认回落到 `MEMORY_DIR=./runtime/memory`，其余目录默认回落到 `./runtime/*`。
 - 若把这四类动态注册目录外置到共享根目录，保持使用 `registries/` 作为它们的父目录命名，并把模板放到独立的 `registries.example/`。
-- 本地 `make run` 会先加载 `.env`，因此 `*_DIR` 会直接作为应用读取目录生效；Docker Compose 继续复用同一份 `.env`，同时把这些 `*_DIR` 暴露为容器环境变量并作为宿主机 bind mount source。
-- `_sandbox_bash_` 创建 container-hub session 时，会直接从当前进程环境变量读取宿主机 `*_DIR` 作为 mount source；若容器内 Spring 路径已固定成 `/opt/...`，但环境里缺少对应宿主机路径，runner 会直接报配置错误。
+- 本地 `make run` 会先加载 `.env`，因此这些目录变量会直接作为应用读取目录生效；Docker Compose 继续复用同一份 `.env`，同时把这些变量暴露为容器环境变量并作为宿主机 bind mount source。
+- `_sandbox_bash_` 创建 container-hub session 时，会直接从当前进程环境变量读取宿主机目录变量作为 mount source；若容器内 Spring 路径已固定成 `/opt/...`，但环境里缺少对应宿主机路径，runner 会直接报配置错误。
 - 默认 compose 会加入外部网络 `zenmind-network`；启动前需要确保该网络已存在。
-- `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例；所有 `*_DIR` 都支持改成绝对宿主机路径。
-- `.env.example` 只保留基础 memory 配置面：`AGENT_MEMORY_STORAGE_DIR`、`AGENT_MEMORY_AUTO_REMEMBER_ENABLED`、`AGENT_MEMORY_REMEMBER_MODEL_KEY`；其余 memory 调优参数继续使用内部默认值。
+- `.env.example` 的默认映射端口是 `11949`（`HOST_PORT`），用于容器化部署示例；所有目录变量（含 `MEMORY_DIR`）都支持改成绝对宿主机路径。
+- `.env.example` 只保留基础 memory 配置面：`MEMORY_DIR`、`AGENT_MEMORY_AUTO_REMEMBER_ENABLED`、`AGENT_MEMORY_REMEMBER_MODEL_KEY`；其余 memory 调优参数继续使用内部默认值。
 - `.env.example` 默认把 `AGENT_CONTAINER_HUB_BASE_URL` 指向 `http://host.docker.internal:11960`，用于容器内访问宿主机上的 Container Hub；compose 同时注入 `host.docker.internal:host-gateway` 以兼容 Linux Docker。
 - Docker Compose / release bundle 会显式启用 `SPRING_PROFILES_ACTIVE=docker`，应用在该 profile 下固定使用容器内 `/opt/agents`、`/opt/chats`、`/opt/memory`、`/opt/root` 以及 `/opt/registries/{providers,models,mcp-servers,viewport-servers}` 等路径。
 - `compose.yml` 使用 `ports: "${HOST_PORT}:8080"`：
   - `HOST_PORT` 为宿主机暴露端口（推荐使用）。
   - 容器内应用端口固定为 `8080`（由 `docker` profile 固定，不依赖 `.env` 中的 `SERVER_PORT`）。
-- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`REGISTRIES_DIR`、`OWNER_DIR`、`AGENTS_DIR`、`TEAMS_DIR`、`ROOT_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`AGENT_MEMORY_STORAGE_DIR`、`PAN_DIR`、`SKILLS_MARKET_DIR`。
-- Docker 容器内这些目录固定映射到 `/opt/*`，其中四类动态注册目录固定映射到 `/opt/registries/*`；`.env` 中的 `*_DIR` 不再直接决定容器内 Spring 绑定值。
+- compose 默认显式挂载 runner 固定的 `./configs -> /opt/configs`，并映射这些可配置运行目录：`REGISTRIES_DIR`、`OWNER_DIR`、`AGENTS_DIR`、`TEAMS_DIR`、`ROOT_DIR`、`SCHEDULES_DIR`、`CHATS_DIR`、`MEMORY_DIR`、`PAN_DIR`、`SKILLS_MARKET_DIR`。
+- Docker 容器内这些目录固定映射到 `/opt/*`，其中四类动态注册目录固定映射到 `/opt/registries/*`；`.env` 中这些目录变量不再直接决定容器内 Spring 绑定值。
 - `/owner` 平台挂载显式使用 `OWNER_DIR`；Docker 下容器内固定校验 `/opt/owner`，同时把宿主机 `OWNER_DIR` 传给 Container Hub 作为 mount source。
 - `data/` 仍受应用支持，但默认 Docker 基线不再挂载；只有在你的部署实际使用静态文件目录时，再按需扩展 compose。
 
@@ -346,7 +346,7 @@ ARCH=arm64 make release
 - release 会先在宿主机执行 `mvn -DskipTests clean package`，再构建只包含运行时的镜像
 - release bundle 内置 `images/agent-platform-runner.tar`、`compose.release.yml`、启动脚本、配置模板和 `.env.example`，不再预创建 `runtime/` 目录骨架
 - release bundle 继续依赖外部 Docker 网络 `zenmind-network`
-- `REGISTRIES_DIR` 默认指向 `./runtime/registries`，其余 `*_DIR` 仍默认指向 `./runtime/*`；若这些目录不存在，`./start.sh` 会按最终生效路径自动创建
+- `REGISTRIES_DIR` 默认指向 `./runtime/registries`，`MEMORY_DIR` 默认指向 `./runtime/memory`，其余 `*_DIR` 仍默认指向 `./runtime/*`；若这些目录不存在，`./start.sh` 会按最终生效路径自动创建
 - release 默认依赖宿主机 Maven 配置、宿主机网络与宿主机代理；源码仓库里的 `docker compose up -d --build` 仍然可能走容器内构建
 - release 基础镜像默认是 `eclipse-temurin:21-jre-jammy`
 - 可通过 `RELEASE_BASE_IMAGE` 直接替换远端镜像地址
@@ -431,7 +431,7 @@ RELEASE_BASE_IMAGE=<candidate-image> ARCH=arm64 make release
 - 可先复制环境变量示例：`cp .env.example .env`，再按环境调整端口与认证开关。
 - 再按实际存在的模板复制需要的 `configs/*.example.yml` 与 `configs/**/*.example.*` 为真实配置文件。
 - 运行时固定读取 runner 的 `configs/`；Docker 镜像工作目录为 `/opt`，容器内固定使用 `/opt/configs`。`CONFIGS_DIR` 不受支持，设置后会直接启动失败。
-- 目录型变量统一使用 `*_DIR` 命名；默认值中四类动态 registry 统一归到 `REGISTRIES_DIR=runtime/registries`，其余运行目录保持 `runtime/*` 相对目录。
+- 目录型变量统一使用 `*_DIR` 命名，memory 目录单独使用 `MEMORY_DIR`；默认值中四类动态 registry 统一归到 `REGISTRIES_DIR=runtime/registries`，memory 保持 `runtime/memory`，其余运行目录保持 `runtime/*` 相对目录。
 - `agent.cors.enabled` 在主配置中默认是 `false`，即默认不启用 CORS 过滤器。
 - `agent.cors.allowed-origin-patterns` 仅匹配请求头 `Origin`，当前服务不读取/校验 `Referer`。
 - provider 目录默认是项目根目录下的 `runtime/registries/providers/`（或 `REGISTRIES_DIR/providers` 覆盖目录），支持热加载，且仅扫描 `.yml/.yaml`。
@@ -663,7 +663,7 @@ memoryConfig:
 - `AGENT_MEMORY_AUTO_REMEMBER_ENABLED=false` 时，自动记忆写入 1 条轻量 `run-summary` memory。
 - `AGENT_MEMORY_AUTO_REMEMBER_ENABLED=true` 时，成功 run 会复用 remember 抽取链路，把完整 chat 提炼成长期记忆。
 - `POST /api/remember` 始终是手工触发入口，只要 `AGENT_MEMORY_REMEMBER_MODEL_KEY` 可用就可以调用，不受 auto remember 开关影响。
-- 正式 memory 根目录为 `AGENT_MEMORY_STORAGE_DIR`；其中 `memory.db` 是唯一完整持久化存储，`journal/YYYY-MM/YYYY-MM-DD.md` 是按 chat 组织的面向人工查看的 daily memory log，仅记录带 `chatId` 的 memory。
+- 正式 memory 根目录为 `MEMORY_DIR`；其中 `memory.db` 是唯一完整持久化存储，`journal/YYYY-MM/YYYY-MM-DD.md` 是按 chat 组织的面向人工查看的 daily memory log，仅记录带 `chatId` 的 memory。
 - `Runtime Context: Context` 中的 `references` 会以结构化数组注入 system prompt，并优先展示 `id/sandboxPath/name/sizeBytes/mimeType`；其中 `sandboxPath` 表示模型在沙箱内可直接访问的路径，例如 `/workspace/参政议政.md`。
 
 ## Models / 工具 / 视图 / 技能目录
@@ -682,7 +682,7 @@ memoryConfig:
   - skills-market: `runtime/skills-market/`（可通过 `SKILLS_MARKET_DIR` 覆盖）
   - schedules: `runtime/schedules/`（可通过 `SCHEDULES_DIR` 覆盖）
   - chats: `runtime/chats/`
-  - memory: `runtime/memory/`（可通过 `AGENT_MEMORY_STORAGE_DIR` 覆盖）
+  - memory: `runtime/memory/`（可通过 `MEMORY_DIR` 覆盖）
   - root: `runtime/root/`
   - pan: `runtime/pan/`
 - 四类动态注册目录默认归到 `registries/` 下，例如 `registries/providers/`、`registries/models/`、`registries/mcp-servers/`、`registries/viewport-servers/`；静态启动配置仍使用 runner 根目录 `configs/`。
@@ -806,8 +806,8 @@ default-environment-id: shell
 - `meta.sourceType` 在 `/api/tools` 与 `/api/tool?toolName=_sandbox_bash_` 中应表现为 `local`。
 - 建议通过 `.env` 中的 `AGENT_CONTAINER_HUB_BASE_URL` 配置 Container Hub 地址；容器化部署模板默认使用 `http://host.docker.internal:11960`。
 - `RUN` 级 sandbox 在创建 session 前会自动准备 `CHATS_DIR/<chatId>` 目录，并把它挂载到容器内的 `/workspace`。
-- sandbox mount source 会优先读取当前进程环境变量里的 `*_DIR`；在 Docker Compose / release bundle 中，这些值由 `env_file: .env` 直接注入容器。如果当前运行目录已被容器重写成 `/opt/...`，但环境里没有对应的宿主机 `*_DIR`，runner 会直接报配置错误。
-- 当 Container Hub 运行在宿主机时，建议把 `.env` 中的 `*_DIR` 写成该宿主机可直接访问的真实路径。
+- sandbox mount source 会优先读取当前进程环境变量里的目录变量；在 Docker Compose / release bundle 中，这些值由 `env_file: .env` 直接注入容器。如果当前运行目录已被容器重写成 `/opt/...`，但环境里没有对应的宿主机目录变量，runner 会直接报配置错误。
+- 当 Container Hub 运行在宿主机时，建议把 `.env` 中的这些目录变量写成该宿主机可直接访问的真实路径。
 - `/root` 与 `/pan` 分别来自 runner 全局目录 `ROOT_DIR` 与 `PAN_DIR`；`configs/container-hub.yml` 不再单独配置挂载源目录。
 
 挂载模式规则：
@@ -910,7 +910,7 @@ for f in *.md; do echo "$f"; done
 
 常用运维变量：
 
-- 目录型变量统一使用 `*_DIR` 命名；本地 `make run` 直接把这些值当作运行目录，Docker Compose 则把它们当作宿主机 bind source，并在容器内覆盖为 `/opt/...` 目标路径。对 sandbox mount 来说，`.env` 中的原始 `*_DIR` 仍然是宿主机 source-of-truth。
+- 目录型变量大多使用 `*_DIR` 命名，memory 目录使用 `MEMORY_DIR`；本地 `make run` 直接把这些值当作运行目录，Docker Compose 则把它们当作宿主机 bind source，并在容器内覆盖为 `/opt/...` 目标路径。对 sandbox mount 来说，`.env` 中的原始目录变量仍然是宿主机 source-of-truth。
 
 | 环境变量 | 默认值 | 说明 |
 |---------|-------|------|
@@ -923,7 +923,7 @@ for f in *.md; do echo "$f"; done
 | `ROOT_DIR` | `runtime/root` | 本地运行时的 runner 根目录；Docker 中仅作为宿主机挂载 source |
 | `SCHEDULES_DIR` | `runtime/schedules` | 本地运行时的 Schedule 目录；Docker 中仅作为宿主机挂载 source |
 | `CHATS_DIR` | `runtime/chats` | 本地运行时的聊天存储目录；Docker 中仅作为宿主机挂载 source |
-| `AGENT_MEMORY_STORAGE_DIR` | `runtime/memory` | 本地运行时的 central memory 目录；包含完整存储 `memory.db` 与按 chat 组织、仅记录带 `chatId` memory 的 `journal/YYYY-MM/YYYY-MM-DD.md`，Docker 中仅作为宿主机挂载 source |
+| `MEMORY_DIR` | `runtime/memory` | 本地运行时的 central memory 目录；包含完整存储 `memory.db` 与按 chat 组织、仅记录带 `chatId` memory 的 `journal/YYYY-MM/YYYY-MM-DD.md`，Docker 中仅作为宿主机挂载 source |
 | `PAN_DIR` | `runtime/pan` | 本地运行时的 pan 目录；Docker 中仅作为宿主机挂载 source |
 | `SKILLS_MARKET_DIR` | `runtime/skills-market` | 本地运行时的 Skill market 目录；Docker 中仅作为宿主机挂载 source |
 | `DATA_DIR` | `data` | 静态文件目录 |
