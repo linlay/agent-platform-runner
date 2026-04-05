@@ -1,6 +1,6 @@
 package com.linlay.agentplatform.stream.model;
 
-import com.linlay.agentplatform.model.ArtifactEventPayload;
+import com.linlay.agentplatform.chat.event.ArtifactEventPayload;
 
 import java.util.Map;
 

@@ -3,7 +3,7 @@ package com.linlay.agentplatform.chat.storage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.properties.ChatStorageProperties;
-import com.linlay.agentplatform.model.ChatMessage;
+import com.linlay.agentplatform.chat.storage.ChatMessage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

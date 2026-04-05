@@ -125,7 +125,7 @@ H2A 不是“零缓冲口号”，而是一个可控的流式传输层：
 | `model` | `AgentRequest`、`ModelDefinition`、`ModelProtocol`、`ViewportType` |
 | `model.api` | REST 契约：`ApiResponse`、`QueryRequest`、`SubmitRequest`、`SteerRequest`、`InterruptRequest`、`ChatDetailResponse` 等 |
 | `llm` | `LlmService`、`OpenAiCompatibleSseClient`、`ProviderRegistryService`、`LlmCallLogger` |
-| `chat` | `history / upload / asset / index / event / storage` 六类会话与资源子域 |
+| `chat` | `history / upload / asset / index / event / storage` 六类会话与资源子域；`ChatMessage` 与 `ArtifactEventPayload` 归属该域 |
 | `memory` | Agent Memory、Remember、Embedding 与 memory tools |
 | `integration` | MCP、Viewport、Remote Server 接入与重连 |
 | `catalog` | Skill、Team、Schedule 轻量注册中心 |
@@ -389,6 +389,11 @@ memoryConfig:
 | `service/memory/AgentMemoryService.java` | central journal markdown 写入、memory 根目录与 journal 路径解析 |
 | `service/memory/GlobalMemoryRequestService.java` | LLM 驱动的 remember 抽取主逻辑，负责加载 chat、构造 prompt、解析 JSON 并写入 central memory/journal |
 | `service/memory/RememberCaptureException.java` | remember 流程异常，统一由 `ApiExceptionHandler` 映射为 HTTP `500` |
+| `chat/storage/ChatMessage.java` | chat 历史回放与 LLM 上下文共享的会话消息 sealed interface |
+| `chat/storage/StoredMessageConverter.java` | Chat Storage JSONL 与 `ChatMessage` 之间的转换与归一化 |
+| `chat/storage/ChatStorageStore.java` | chat 历史窗口读取、JSONL 增量落盘与回放入口 |
+| `chat/event/ArtifactEventPayload.java` | `artifact.publish` 事件载荷 record |
+| `chat/event/ArtifactPublishService.java` | artifact 文件落盘、校验与发布主逻辑 |
 | `agent/runtime/sandbox/SandboxContextResolver.java` | sandbox tag 专用：environment prompt 拉取与校验 |
 | `controller/MemoryController.java` | `/api/remember`、`/api/learn` 入口，负责 request logging 摘要与返回封装 |
 | `config/properties/AgentMemoryProperties.java` | `agent.memory.*` 聚合配置绑定，包含 `storage.*` 与 `remember.*` 子配置 |
@@ -402,6 +407,8 @@ memoryConfig:
 - 目录中若出现旧 `*.json` 会直接 fail-fast。
 - 同 basename 冲突时优先 `.yml`，并忽略对应 `.yaml`。
 - 前 4 行固定为 `key`、`name`、`role`、`description`，且必须从第 1 行开始、禁止前置空行 / 注释、必须是单行 inline value。
+- `ONESHOT` 只读取 `plain.promptFile`；`REACT` 只读取 `react.promptFile`；`PLAN_EXECUTE` 读取 `planExecute.plan|execute|summary.promptFile`。
+- 顶层 `promptFile` 不再作为 `ONESHOT` / `REACT` 的目录化 prompt 来源。
 - 目录化 Agent 可附带可选文件：`SOUL.md`、`AGENTS.md`、`AGENTS.plain.md`、`AGENTS.react.md`、`AGENTS.plan.md`、`AGENTS.execute.md`、`AGENTS.summary.md`、`memory/memory.md`。
 - 运行时 system prompt 合并顺序：`SOUL.md` → Runtime Context（按 `contextConfig.tags` 注入）→ `AGENTS.md` / stage 专属 `AGENTS.<stage>.md` → `memory/memory.md` → YAML stage `systemPrompt` → skills appendix → tool appendix。
 
@@ -1016,3 +1023,7 @@ SSE 事件中的 reasoningId / contentId 同步使用新前缀格式：`{runId}_
 Agent 行为应由 LLM 推理和工具调用驱动（通过 prompt 引导），Java 层只负责编排、流式传输、预算控制、输入控制面和工具执行管理。
 
 ## 变更记录
+
+- 2026-04-05：完成目录清理与命名对齐。`ChatMessage` 迁移到 `chat/storage/`，`ArtifactEventPayload` 迁移到 `chat/event/`，并同步更新引用。
+- 2026-04-05：移除 `AgentDefinitionLoader` 中 `ONESHOT` / `REACT` 对顶层 `promptFile` 的 legacy 回退；目录化 prompt 契约收敛到 stage 级字段。
+- 2026-04-05：移除 schedule 顶层 `zoneId` / `params` 与 provider 顶层 `model` 的过渡兼容拦截；`ConfigDirectoryEnvironmentPostProcessor` 的启动期 deprecated key 守卫保持不变。

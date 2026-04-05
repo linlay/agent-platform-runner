@@ -382,7 +382,7 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
-    void shouldPreferTopLevelPromptFileForDirectoryOneshotAgent() throws IOException {
+    void shouldUsePlainPromptFileForDirectoryOneshotAgent() throws IOException {
         Path agentDir = tempDir.resolve("dir_top_level_prompt");
         Files.createDirectories(agentDir);
         Files.writeString(agentDir.resolve("agent.yml"), """
@@ -406,12 +406,12 @@ class AgentDefinitionLoaderTest {
         assertThat(definition).isNotNull();
         assertThat(definition.agentsContent()).isEqualTo("shared prompt");
         OneshotMode mode = (OneshotMode) definition.agentMode();
-        assertThat(mode.stage().instructionsPrompt()).isEqualTo("custom prompt");
-        assertThat(mode.stage().primaryPrompt()).isEqualTo("custom prompt");
+        assertThat(mode.stage().instructionsPrompt()).isEqualTo("legacy prompt");
+        assertThat(mode.stage().primaryPrompt()).isEqualTo("legacy prompt");
     }
 
     @Test
-    void shouldConcatenateTopLevelPromptFileArrayForDirectoryReactAgent() throws IOException {
+    void shouldFallbackToAgentsMarkdownWhenReactPromptFileIsOnlyConfiguredAtTopLevel() throws IOException {
         Path agentDir = tempDir.resolve("dir_react_prompt_array");
         Files.createDirectories(agentDir);
         Files.writeString(agentDir.resolve("agent.yml"), """
@@ -429,6 +429,7 @@ class AgentDefinitionLoaderTest {
                 react:
                   maxSteps: 9
                 """);
+        Files.writeString(agentDir.resolve("AGENTS.md"), "shared prompt");
         Files.writeString(agentDir.resolve("BASE.md"), "base prompt");
         Files.writeString(agentDir.resolve("EMPTY.md"), "   \n");
         Files.writeString(agentDir.resolve("EXTRA.md"), "extra prompt");
@@ -438,8 +439,8 @@ class AgentDefinitionLoaderTest {
         assertThat(definition).isNotNull();
         ReactMode mode = (ReactMode) definition.agentMode();
         assertThat(mode.maxSteps()).isEqualTo(9);
-        assertThat(mode.stage().instructionsPrompt()).isEqualTo("base prompt\n\nextra prompt");
-        assertThat(mode.stage().primaryPrompt()).isEqualTo("base prompt\n\nextra prompt");
+        assertThat(mode.stage().instructionsPrompt()).isEqualTo("shared prompt");
+        assertThat(mode.stage().primaryPrompt()).isEqualTo("shared prompt");
     }
 
     @Test

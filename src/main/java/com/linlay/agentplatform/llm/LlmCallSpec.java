@@ -2,7 +2,7 @@ package com.linlay.agentplatform.llm;
 
 import com.linlay.agentplatform.engine.policy.ComputePolicy;
 import com.linlay.agentplatform.engine.policy.ToolChoice;
-import com.linlay.agentplatform.model.ChatMessage;
+import com.linlay.agentplatform.chat.storage.ChatMessage;
 import com.linlay.agentplatform.model.ModelProtocol;
 import reactor.core.publisher.Mono;
 

@@ -6,7 +6,7 @@ import com.linlay.agentplatform.stream.model.StreamRequest;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
 import com.linlay.agentplatform.stream.service.StreamEventAssembler;
 import com.linlay.agentplatform.model.AgentDelta;
-import com.linlay.agentplatform.model.ArtifactEventPayload;
+import com.linlay.agentplatform.chat.event.ArtifactEventPayload;
 import com.linlay.agentplatform.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
 

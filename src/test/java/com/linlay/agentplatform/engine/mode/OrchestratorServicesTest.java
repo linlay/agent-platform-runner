@@ -16,7 +16,7 @@ import com.linlay.agentplatform.engine.policy.ToolChoice;
 import com.linlay.agentplatform.config.properties.AgentDefaultsProperties;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.AgentRequest;
-import com.linlay.agentplatform.model.ChatMessage;
+import com.linlay.agentplatform.chat.storage.ChatMessage;
 import com.linlay.agentplatform.model.ModelProtocol;
 import com.linlay.agentplatform.llm.LlmCallSpec;
 import com.linlay.agentplatform.llm.LlmService;

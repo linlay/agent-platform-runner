@@ -139,12 +139,6 @@ public class ProviderRegistryService {
             if (!StringUtils.hasText(baseUrl)) {
                 throw new IllegalStateException("Skip provider '" + key + "' without baseUrl: " + file);
             }
-            if (root.has("model")) {
-                throw new IllegalStateException(
-                        "Skip provider '%s' because legacy field 'model' is no longer supported; use 'defaultModel' instead: %s"
-                                .formatted(key, file)
-                );
-            }
 
             Map<ModelProtocol, ProtocolConfig> protocols = new LinkedHashMap<>();
             JsonNode protocolsNode = root.path("protocols");

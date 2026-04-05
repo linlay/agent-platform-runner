@@ -20,7 +20,7 @@ import com.linlay.agentplatform.config.properties.PanProperties;
 import com.linlay.agentplatform.config.RuntimeDirectoryHostPaths;
 import com.linlay.agentplatform.config.properties.RootProperties;
 import com.linlay.agentplatform.model.AgentRequest;
-import com.linlay.agentplatform.model.ChatMessage;
+import com.linlay.agentplatform.chat.storage.ChatMessage;
 import com.linlay.agentplatform.config.properties.SkillProperties;
 import org.junit.jupiter.api.Test;
 

@@ -359,8 +359,6 @@ public class AgentDefinitionLoader {
                     agentsContent,
                     resolveDirectoryPrompt(
                             agentDir,
-                            config == null ? null : config.getPromptFiles(),
-                            "promptFile",
                             config == null ? null : config.getPlain(),
                             "plain.promptFile",
                             agentsContent
@@ -376,8 +374,6 @@ public class AgentDefinitionLoader {
                     null,
                     resolveDirectoryPrompt(
                             agentDir,
-                            config == null ? null : config.getPromptFiles(),
-                            "promptFile",
                             config == null ? null : config.getReact(),
                             "react.promptFile",
                             agentsContent
@@ -460,27 +456,6 @@ public class AgentDefinitionLoader {
             log.warn("Failed to inspect per-agent skill scaffold marker: {}", skillFile, ex);
             return false;
         }
-    }
-
-    private String resolveDirectoryPrompt(
-            Path agentDir,
-            List<String> promptFiles,
-            String fieldPath,
-            AgentConfigFile.StageConfig legacyStage,
-            String legacyFieldPath,
-            String agentsContent
-    ) {
-        String configured = loadPromptMarkdowns(agentDir, promptFiles, fieldPath);
-        if (StringUtils.hasText(configured)) {
-            return configured;
-        }
-        if (legacyStage != null) {
-            String legacy = loadPromptMarkdowns(agentDir, legacyStage.getPromptFiles(), legacyFieldPath);
-            if (StringUtils.hasText(legacy)) {
-                return legacy;
-            }
-        }
-        return StringUtils.hasText(agentsContent) ? agentsContent : null;
     }
 
     private String resolveDirectoryPrompt(

@@ -1,4 +1,4 @@
-package com.linlay.agentplatform.model;
+package com.linlay.agentplatform.chat.event;
 
 import com.linlay.agentplatform.model.api.QueryRequest;
 

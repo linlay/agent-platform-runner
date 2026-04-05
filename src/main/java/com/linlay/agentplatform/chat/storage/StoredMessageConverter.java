@@ -3,7 +3,6 @@ package com.linlay.agentplatform.chat.storage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.properties.ChatStorageProperties;
 import com.linlay.agentplatform.model.AgentDelta;
-import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.util.IdGenerators;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.springframework.util.StringUtils;

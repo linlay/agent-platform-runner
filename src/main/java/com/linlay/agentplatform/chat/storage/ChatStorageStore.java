@@ -3,7 +3,6 @@ package com.linlay.agentplatform.chat.storage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linlay.agentplatform.config.properties.ChatStorageProperties;
-import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.util.StringHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

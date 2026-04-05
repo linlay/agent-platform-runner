@@ -4,6 +4,7 @@ import com.linlay.agentplatform.engine.definition.AgentConfigFile;
 import com.linlay.agentplatform.engine.runtime.PlanToolConstants;
 import com.linlay.agentplatform.engine.prompt.SkillAppend;
 import com.linlay.agentplatform.engine.prompt.ToolAppend;
+import com.linlay.agentplatform.chat.storage.ChatMessage;
 import com.linlay.agentplatform.engine.runtime.AgentRuntimeMode;
 import com.linlay.agentplatform.engine.runtime.ExecutionContext;
 import com.linlay.agentplatform.engine.runtime.tool.ToolExecutionService;
@@ -11,7 +12,6 @@ import com.linlay.agentplatform.engine.policy.Budget;
 import com.linlay.agentplatform.engine.policy.RunSpec;
 import com.linlay.agentplatform.engine.policy.ToolChoice;
 import com.linlay.agentplatform.model.AgentDelta;
-import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.tool.BaseTool;
 import reactor.core.publisher.FluxSink;
 

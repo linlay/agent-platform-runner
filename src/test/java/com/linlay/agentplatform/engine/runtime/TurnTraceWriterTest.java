@@ -5,7 +5,7 @@ import com.linlay.agentplatform.config.properties.ChatStorageProperties;
 import com.linlay.agentplatform.chat.storage.ChatStorageStore;
 import com.linlay.agentplatform.model.AgentDelta;
 import com.linlay.agentplatform.model.AgentRequest;
-import com.linlay.agentplatform.model.ChatMessage;
+import com.linlay.agentplatform.chat.storage.ChatMessage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

@@ -94,7 +94,7 @@ class ProviderRegistryServiceTest {
     }
 
     @Test
-    void shouldRejectLegacyModelFieldInProviderYaml() throws Exception {
+    void shouldIgnoreLegacyModelFieldInProviderYaml() throws Exception {
         Path providersDir = tempDir.resolve("providers");
         Files.createDirectories(providersDir);
         Files.writeString(providersDir.resolve("bailian.yml"), """
@@ -104,10 +104,10 @@ class ProviderRegistryServiceTest {
                 model: qwen3.5-plus
                 """);
 
-        assertThatThrownBy(() -> new ProviderRegistryService(providerProperties(providersDir)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("legacy field 'model' is no longer supported")
-                .hasMessageContaining("use 'defaultModel' instead");
+        ProviderRegistryService service = new ProviderRegistryService(providerProperties(providersDir));
+
+        assertThat(service.find("bailian")).isPresent();
+        assertThat(service.find("bailian").orElseThrow().defaultModel()).isBlank();
     }
 
     @Test

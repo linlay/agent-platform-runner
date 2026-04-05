@@ -153,15 +153,6 @@ public class ScheduledQueryRegistryService {
             return Optional.empty();
         }
 
-        if (root.has("zoneId")) {
-            log.warn("Skip schedule '{}' with legacy top-level zoneId: {}", scheduleId, file);
-            return Optional.empty();
-        }
-        if (root.has("params")) {
-            log.warn("Skip schedule '{}' with legacy top-level params: {}", scheduleId, file);
-            return Optional.empty();
-        }
-
         String cron = normalize(root.path("cron").asText(""));
         if (!StringUtils.hasText(cron)) {
             log.warn("Skip schedule '{}' without cron: {}", scheduleId, file);

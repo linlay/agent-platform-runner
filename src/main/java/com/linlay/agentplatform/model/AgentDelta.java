@@ -1,5 +1,6 @@
 package com.linlay.agentplatform.model;
 
+import com.linlay.agentplatform.chat.event.ArtifactEventPayload;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.linlay.agentplatform.stream.model.ToolCallDelta;
 

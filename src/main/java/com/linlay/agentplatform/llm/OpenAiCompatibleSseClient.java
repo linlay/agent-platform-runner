@@ -6,7 +6,7 @@ import com.linlay.agentplatform.config.OpenAiCompatRequestConfig;
 import com.linlay.agentplatform.stream.adapter.openai.OpenAiSseDeltaParser;
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linlay.agentplatform.model.ChatMessage;
+import com.linlay.agentplatform.chat.storage.ChatMessage;
 import com.linlay.agentplatform.engine.policy.ComputePolicy;
 import com.linlay.agentplatform.engine.policy.ToolChoice;
 import com.linlay.agentplatform.config.ProviderConfig;

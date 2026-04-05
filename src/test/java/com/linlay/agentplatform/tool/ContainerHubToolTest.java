@@ -15,7 +15,7 @@ import com.linlay.agentplatform.engine.policy.RunSpec;
 import com.linlay.agentplatform.engine.policy.ToolChoice;
 import com.linlay.agentplatform.config.properties.ContainerHubToolProperties;
 import com.linlay.agentplatform.model.AgentRequest;
-import com.linlay.agentplatform.model.ChatMessage;
+import com.linlay.agentplatform.chat.storage.ChatMessage;
 import org.junit.jupiter.api.Test;
 
 import javax.net.ssl.SSLContext;

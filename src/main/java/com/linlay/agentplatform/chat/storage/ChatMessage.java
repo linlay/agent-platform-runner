@@ -1,4 +1,4 @@
-package com.linlay.agentplatform.model;
+package com.linlay.agentplatform.chat.storage;
 
 import java.util.List;
 

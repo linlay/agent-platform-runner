@@ -3,7 +3,7 @@ package com.linlay.agentplatform.stream.service;
 import com.linlay.agentplatform.stream.model.StreamEvent;
 import com.linlay.agentplatform.stream.model.StreamInput;
 import com.linlay.agentplatform.stream.model.StreamRequest;
-import com.linlay.agentplatform.model.ArtifactEventPayload;
+import com.linlay.agentplatform.chat.event.ArtifactEventPayload;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

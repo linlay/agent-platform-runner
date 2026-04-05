@@ -2,6 +2,7 @@ package com.linlay.agentplatform.llm;
 
 import com.linlay.agentplatform.stream.model.LlmDelta;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linlay.agentplatform.chat.storage.ChatMessage;
 import com.linlay.agentplatform.engine.policy.ComputePolicy;
 import com.linlay.agentplatform.engine.policy.ToolChoice;
 import com.linlay.agentplatform.config.properties.LlmInteractionLogProperties;
@@ -9,7 +10,6 @@ import com.linlay.agentplatform.config.properties.ProviderProperties;
 import com.linlay.agentplatform.model.ModelRegistryService;
 import com.linlay.agentplatform.config.properties.ModelProperties;
 import com.linlay.agentplatform.llm.ProviderRegistryService;
-import com.linlay.agentplatform.model.ChatMessage;
 import com.linlay.agentplatform.model.ModelProtocol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

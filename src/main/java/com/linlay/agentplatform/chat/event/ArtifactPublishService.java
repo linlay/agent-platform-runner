@@ -3,7 +3,6 @@ package com.linlay.agentplatform.chat.event;
 import com.linlay.agentplatform.chat.asset.ChatAssetCatalogService;
 import com.linlay.agentplatform.chat.asset.ChatDataPathService;
 import com.linlay.agentplatform.engine.runtime.ExecutionContext;
-import com.linlay.agentplatform.model.ArtifactEventPayload;
 import com.linlay.agentplatform.model.api.QueryRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
