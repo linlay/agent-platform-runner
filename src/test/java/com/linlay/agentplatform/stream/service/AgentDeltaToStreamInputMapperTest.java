@@ -75,7 +75,40 @@ class AgentDeltaToStreamInputMapperTest {
         StreamEvent toolStartEvent = events.get(toolStart);
         assertThat(toolStartEvent.payload()).containsEntry("toolLabel", "命令执行");
         assertThat(toolStartEvent.payload()).containsEntry("toolDescription", "执行 shell 命令");
+        assertThat(toolStartEvent.payload()).containsEntry("toolName", "bash");
         assertThat(toolStartEvent.payload()).doesNotContainKey("toolParams");
+    }
+
+    @Test
+    void shouldFailFastWhenRealtimeToolStartWouldMissToolName() {
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null);
+
+        assertThatThrownBy(() -> assembleEvents(mapper, List.of(
+                AgentDelta.toolCalls(List.of(new ToolCallDelta(
+                        "tool_1",
+                        "function",
+                        null,
+                        "{\"command\":\"ls\"}"
+                )))
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("toolName must not be null or blank");
+    }
+
+    @Test
+    void shouldFailFastWhenRealtimeActionStartWouldMissActionName() {
+        AgentDeltaToStreamInputMapper mapper = new AgentDeltaToStreamInputMapper("run_1", null, null);
+
+        assertThatThrownBy(() -> assembleEvents(mapper, List.of(
+                AgentDelta.toolCalls(List.of(new ToolCallDelta(
+                        "action_1",
+                        "action",
+                        null,
+                        "{\"theme\":\"dark\"}"
+                )))
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("actionName must not be null or blank");
     }
 
     @Test

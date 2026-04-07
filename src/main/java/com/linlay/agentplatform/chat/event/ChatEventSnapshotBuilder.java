@@ -128,9 +128,16 @@ public final class ChatEventSnapshotBuilder {
                     }
                     if (message.toolCalls != null && !message.toolCalls.isEmpty()) {
                         for (ChatStorageTypes.StoredToolCall toolCall : message.toolCalls) {
-                            if (toolCall == null || toolCall.function == null || !StringUtils.hasText(toolCall.function.name)) {
-                                continue;
+                            if (toolCall == null || toolCall.function == null) {
+                                throw new IllegalStateException("history snapshot requires non-null toolCall function for runId=" + run.runId());
                             }
+                            String toolName = requireNonBlankName(
+                                    toolCall.function.name,
+                                    "history snapshot requires non-blank %s for runId=%s, toolCallId=%s",
+                                    isActionToolCall(message, toolCall) ? "actionName" : "toolName",
+                                    run.runId(),
+                                    toolCall.id
+                            );
                             IdBinding binding = resolveBindingForAssistantToolCall(run.runId(), message, toolCall, toolIndex, actionIndex);
                             if (binding.action()) {
                                 actionIndex++;
@@ -146,7 +153,7 @@ public final class ChatEventSnapshotBuilder {
                             }
                             Map<String, Object> payload = new LinkedHashMap<>();
                             payload.put(binding.action() ? "actionId" : "toolId", binding.id());
-                            payload.put(binding.action() ? "actionName" : "toolName", toolCall.function.name);
+                            payload.put(binding.action() ? "actionName" : "toolName", toolName);
                             payload.put("runId", run.runId());
                             payload.put("arguments", toolCall.function.arguments);
 
@@ -287,6 +294,13 @@ public final class ChatEventSnapshotBuilder {
         return new IdBinding(runId + "_tool_" + toolIndex + "_action_" + actionIndex, false);
     }
 
+    private boolean isActionToolCall(ChatStorageTypes.StoredMessage message, ChatStorageTypes.StoredToolCall toolCall) {
+        if (StringUtils.hasText(message.actionId)) {
+            return true;
+        }
+        return StringUtils.hasText(toolCall.type) && "action".equalsIgnoreCase(toolCall.type.trim());
+    }
+
     private IdBinding resolveBindingForToolResult(
             String runId,
             ChatStorageTypes.StoredMessage message,
@@ -418,6 +432,13 @@ public final class ChatEventSnapshotBuilder {
         if (value != null) {
             node.put(key, value);
         }
+    }
+
+    private String requireNonBlankName(String value, String template, Object... args) {
+        if (!StringUtils.hasText(value)) {
+            throw new IllegalStateException(String.format(template, args));
+        }
+        return value.trim();
     }
 
     private boolean isTerminalRunEvent(String type) {

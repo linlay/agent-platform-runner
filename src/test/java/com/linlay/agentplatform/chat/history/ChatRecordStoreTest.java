@@ -193,12 +193,16 @@ class ChatRecordStoreTest {
                 .filter(event -> "tool.snapshot".equals(event.get("type")))
                 .findFirst()
                 .orElseThrow())
-                .containsEntry("runId", "run_002");
+                .containsEntry("runId", "run_002")
+                .containsEntry("toolName", "bash")
+                .doesNotContainKeys("result", "param");
         assertThat(detail.events().stream()
                 .filter(event -> "action.snapshot".equals(event.get("type")))
                 .findFirst()
                 .orElseThrow())
-                .containsEntry("runId", "run_002");
+                .containsEntry("runId", "run_002")
+                .containsEntry("actionName", "switch_frontend_theme")
+                .doesNotContainKeys("result", "param");
         assertThat(detail.events().stream()
                 .filter(event -> "content.snapshot".equals(event.get("type")))
                 .findFirst()
@@ -326,6 +330,52 @@ class ChatRecordStoreTest {
                 .containsEntry("toolDescription", "bash desc");
         assertThat(toolSnapshot).doesNotContainKey("toolLabel");
         assertThat(toolSnapshot).doesNotContainKey("toolParams");
+    }
+
+    @Test
+    void loadChatShouldFailFastWhenHistoryToolSnapshotWouldMissToolName() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174199";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "坏历史工具会话", 1707001200000L, 1707001200000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".jsonl");
+        writeJsonLine(historyPath, queryLine(chatId, "run_199", query("run_199", chatId, "执行命令", List.of())));
+        writeJsonLine(historyPath, stepLine(chatId, "run_199", "react", 1, null,
+                1707001200000L,
+                List.of(
+                        userMessage("执行命令", 1707001200000L),
+                        assistantToolCallMessage(null, "call_broken_1", "{\"command\":\"pwd\"}", 1707001200001L, "tool_broken_1", null)
+                )));
+
+        ChatRecordStore store = newStore();
+        assertThatThrownBy(() -> store.loadChat(chatId, true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("history snapshot requires non-blank toolName")
+                .hasMessageContaining("runId=run_199")
+                .hasMessageContaining("toolCallId=call_broken_1");
+    }
+
+    @Test
+    void loadChatShouldFailFastWhenHistoryActionSnapshotWouldMissActionName() throws Exception {
+        String chatId = "123e4567-e89b-12d3-a456-426614174200";
+        Path chatDir = tempDir.resolve("chats");
+        writeIndex(chatDir, chatId, "坏历史动作会话", 1707001300000L, 1707001300000L);
+
+        Path historyPath = chatDir.resolve(chatId + ".jsonl");
+        writeJsonLine(historyPath, queryLine(chatId, "run_200", query("run_200", chatId, "切换主题", List.of())));
+        writeJsonLine(historyPath, stepLine(chatId, "run_200", "react", 1, null,
+                1707001300000L,
+                List.of(
+                        userMessage("切换主题", 1707001300000L),
+                        assistantToolCallMessage(null, "call_broken_action_1", "{\"theme\":\"dark\"}", 1707001300001L, null, "action_broken_1")
+                )));
+
+        ChatRecordStore store = newStore();
+        assertThatThrownBy(() -> store.loadChat(chatId, true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("history snapshot requires non-blank actionName")
+                .hasMessageContaining("runId=run_200")
+                .hasMessageContaining("toolCallId=call_broken_action_1");
     }
 
     @Test

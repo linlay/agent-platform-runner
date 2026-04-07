@@ -229,6 +229,7 @@
 
 - `plan` / `artifact` 表示整个 chat 当前最新的非空状态快照。
 - `events` 只保留历史过程与结果事件，不再重复包含 `plan.update` / `artifact.publish`。
+- 历史里的 `reasoning.snapshot` / `content.snapshot` 仅用于历史展示；实时 SSE 不会发送这两类 snapshot 事件。
 
 当 `includeRawMessages=true` 时，会额外返回：
 
@@ -748,6 +749,8 @@ memoryConfig:
 ### 前端 tool / artifact 事件
 
 - 当前端工具触发时，SSE `tool.start` / `tool.snapshot` 会包含 `toolType`、`viewportKey`、`toolTimeout`。
+- `tool.start.toolName` 与 `action.start.actionName` 在实时 SSE 中始终存在。
+- `tool.snapshot` / `action.snapshot` 仅用于历史展示：前者是 `tool.start/tool.args/tool.end` 的合并视图，不含 `tool.result`；后者是 `action.start/action.args/action.end` 的合并视图，不含 `action.param` / `action.result`。
 - 若开启 `AGENT_SSE_INCLUDE_TOOL_PAYLOAD_EVENTS=true`，同一次工具调用还会继续返回 `tool.args` / `tool.result`。
 - `artifact.publish` 是独立 SSE 事件；事件只保留 `artifactId/chatId/runId/artifact`，不再携带 `source`。
 - `_artifact_publish_` 是隐藏内置工具，请求参数为 `artifacts[]`（每项为 `{path,name?,description?}`），可将运行中生成的文件批量发布为 chat 资产，并自动出现在后续 query 的 `references` 池中。

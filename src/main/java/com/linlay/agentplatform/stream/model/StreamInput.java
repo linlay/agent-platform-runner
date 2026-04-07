@@ -85,6 +85,7 @@ public sealed interface StreamInput permits
         public ToolArgs {
             requireNonBlank(toolId, "toolId");
             requireNonNull(delta, "delta");
+            requireNonBlank(toolName, "toolName");
         }
     }
 
@@ -119,6 +120,7 @@ public sealed interface StreamInput permits
         public ActionArgs {
             requireNonBlank(actionId, "actionId");
             requireNonNull(delta, "delta");
+            requireNonBlank(actionName, "actionName");
         }
     }
 

@@ -33,6 +33,7 @@ public class AgentDeltaToStreamInputMapper {
 
     private final AtomicLong idCounter = new AtomicLong(0);
     private final Map<Integer, String> indexedToolIds = new HashMap<>();
+    private final Map<String, String> toolNamesById = new HashMap<>();
     private final Map<String, AtomicInteger> toolArgChunkCounters = new HashMap<>();
     private final Set<String> actionToolIds = new HashSet<>();
     private final Set<String> closedActionToolIds = new HashSet<>();
@@ -97,9 +98,13 @@ public class AgentDeltaToStreamInputMapper {
                     continue;
                 }
                 String toolId = resolveToolId(toolCall, i);
-                String toolName = toolCall.name();
-                String normalizedType = resolveToolType(toolName, toolCall.type());
+                String rawToolName = toolCall.name();
+                String normalizedType = resolveToolType(rawToolName, toolCall.type());
                 String argsDelta = toolCall.arguments() == null ? "" : toolCall.arguments();
+                if (hasText(rawToolName)) {
+                    toolNamesById.put(toolId, rawToolName);
+                }
+                String emittedName = hasText(rawToolName) ? rawToolName : toolNamesById.get(toolId);
 
                 if ("action".equalsIgnoreCase(normalizedType)) {
                     actionToolIds.add(toolId);
@@ -108,8 +113,8 @@ public class AgentDeltaToStreamInputMapper {
                             toolId,
                             argsDelta,
                             delta.taskId(),
-                            toolName,
-                            resolveToolDescription(toolName)
+                            emittedName,
+                            resolveToolDescription(emittedName)
                     ));
                     continue;
                 }
@@ -121,13 +126,13 @@ public class AgentDeltaToStreamInputMapper {
                         toolId,
                         argsDelta,
                         delta.taskId(),
-                        toolName,
+                        emittedName,
                         normalizedType,
-                        resolveToolLabel(toolName),
-                        resolveToolDescription(toolName),
+                        resolveToolLabel(emittedName),
+                        resolveToolDescription(emittedName),
                         chunkIndex
-                ));
-            }
+                    ));
+                }
         }
 
         if (delta.toolEnds() != null && !delta.toolEnds().isEmpty()) {
@@ -361,6 +366,7 @@ public class AgentDeltaToStreamInputMapper {
 
     private void cleanupToolState(String toolId) {
         toolArgChunkCounters.remove(toolId);
+        toolNamesById.remove(toolId);
     }
 
     private String resolveToolLabel(String toolName) {
