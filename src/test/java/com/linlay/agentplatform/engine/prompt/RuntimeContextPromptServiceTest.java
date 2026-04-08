@@ -212,7 +212,6 @@ class RuntimeContextPromptServiceTest {
 
             assertThat(prompt).contains("Runtime Context: System Environment");
             assertThat(prompt).contains("Runtime Context: Context");
-            assertThat(prompt).contains("sandbox_cwd: /workspace");
             assertThat(prompt).contains("sandbox_workspace_dir: /workspace");
             assertThat(prompt).contains("sandbox_root_dir: /root");
             assertThat(prompt).contains("sandbox_skills_dir: /skills");
@@ -223,7 +222,13 @@ class RuntimeContextPromptServiceTest {
             assertThat(prompt).contains("sandbox_providers_dir: /providers");
             assertThat(prompt).doesNotContain("sandbox_schedules_dir:");
             assertThat(prompt).contains("chatId: chat-1");
-            assertThat(prompt).contains("chatName: Demo Chat");
+            String contextSection = prompt.substring(
+                    prompt.indexOf("Runtime Context: Context"),
+                    prompt.indexOf("Runtime Context: Owner")
+            );
+            assertThat(contextSection).doesNotContain("sandbox_cwd:");
+            assertThat(contextSection).doesNotContain("role:");
+            assertThat(contextSection).doesNotContain("chatName:");
             assertThat(prompt).contains("references:");
             assertThat(prompt).contains("  - id: ref-1");
             assertThat(prompt).contains("    sandboxPath: /workspace/notes.md");

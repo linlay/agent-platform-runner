@@ -1185,10 +1185,10 @@ class DefinitionDrivenAgentTest {
             String systemPrompt = captured.get().systemPrompt();
             assertThat(systemPrompt).contains("soul prompt");
             assertThat(systemPrompt).contains("Runtime Context: Context");
-            assertThat(systemPrompt).contains("sandbox_cwd: /workspace");
             assertThat(systemPrompt).contains("sandbox_workspace_dir: /workspace");
             assertThat(systemPrompt).contains("sandbox_root_dir: /root");
             assertThat(systemPrompt).contains("sandbox_skills_dir: /skills");
+            assertThat(systemPrompt).doesNotContain("sandbox_cwd:");
             assertThat(systemPrompt).doesNotContain("\nowner_dir:");
             assertThat(systemPrompt).contains("Runtime Context: Owner");
             assertThat(systemPrompt).contains("--- file: OWNER.md");
@@ -1208,6 +1208,7 @@ class DefinitionDrivenAgentTest {
             assertThat(snapshot).isNotNull();
             assertThat(snapshot.messages).hasSize(1);
             assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Context");
+            assertThat(snapshot.messages.getFirst().content).doesNotContain("sandbox_cwd:");
             assertThat(snapshot.messages.getFirst().content).contains("Runtime Context: Owner");
             assertThat(snapshot.messages.getFirst().content).contains("External Linlay");
             assertThat(snapshot.messages.getFirst().content).doesNotContain("fallback owner");

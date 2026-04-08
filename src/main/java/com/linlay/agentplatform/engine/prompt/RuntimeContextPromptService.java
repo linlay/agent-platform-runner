@@ -303,7 +303,6 @@ public class RuntimeContextPromptService {
         if (runtimeContext != null) {
             RuntimeRequestContext.SandboxPaths sandboxPaths = runtimeContext.sandboxPaths();
             if (sandboxPaths != null) {
-                appendKeyValue(lines, "sandbox_cwd", sandboxPaths.cwd());
                 appendKeyValue(lines, "sandbox_workspace_dir", sandboxPaths.workspaceDir());
                 appendKeyValue(lines, "sandbox_root_dir", sandboxPaths.rootDir());
                 appendKeyValue(lines, "sandbox_skills_dir", sandboxPaths.skillsDir());
@@ -330,8 +329,6 @@ public class RuntimeContextPromptService {
         if (runtimeContext != null) {
             appendKeyValue(lines, "agentKey", runtimeContext.agentKey());
             appendKeyValue(lines, "teamId", runtimeContext.teamId());
-            appendKeyValue(lines, "role", runtimeContext.role());
-            appendKeyValue(lines, "chatName", runtimeContext.chatName());
             if (runtimeContext.scene() != null) {
                 String scene = summarizeScene(runtimeContext.scene());
                 if (StringUtils.hasText(scene)) {
