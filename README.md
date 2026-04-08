@@ -500,9 +500,11 @@ AGENT_AUTH_JWKS_CACHE_SECONDS=300
 - Agent 配置只支持 YAML；若目录内仍有旧 `*.json`，启动和 refresh 都会 fail-fast
 - 同目录内 `agent.yml` 与 `agent.yaml` 同时存在时优先 `agent.yml`，并忽略对应 `agent.yaml`
 - `promptFile` 支持写成单个字符串或字符串数组；数组会按声明顺序读取，并用空行拼接
-- `ONESHOT` 使用 `plain.promptFile`；`REACT` 使用 `react.promptFile`
+- `ONESHOT` / `REACT` 使用顶层 `promptFile`
 - `PLAN_EXECUTE` 继续使用 `planExecute.plan|execute|summary.promptFile`
-- 未填写对应 stage 的 `promptFile` 时，默认回退到同目录的 `AGENTS.md`
+- `ONESHOT` / `REACT` 未填写顶层 `promptFile` 时，默认回退到同目录的 `AGENTS.md`
+- `PLAN_EXECUTE` 未填写对应 stage 的 `promptFile` 时，默认回退到同目录的 `AGENTS.md`
+- `plain.promptFile` / `react.promptFile` 不再参与 prompt 解析
 - 目录化 Agent 可额外放置：`SOUL.md`、`AGENTS.md`，以及任意自定义 markdown prompt 文件
 - 运行时 system prompt 合并顺序为：`SOUL.md` → 当前阶段选中的 prompt markdown → runtime context / central memory → skills/tool appendix
 
@@ -523,10 +525,9 @@ modelConfig:
   reasoning:
     enabled: false
 mode: ONESHOT
-plain:
-  promptFile:
-    - ROLE.md
-    - AGENTS.md
+promptFile:
+  - ROLE.md
+  - AGENTS.md
 ```
 
 `agents/fortune_teller/ROLE.md`
@@ -562,8 +563,8 @@ toolConfig:
   backends:
     - _bash_
     - _datetime_
+promptFile: AGENTS.react.md
 react:
-  promptFile: AGENTS.react.md
   maxSteps: 60
 ```
 

@@ -311,8 +311,8 @@ memoryConfig:
 - 目录中若出现旧 `*.json` 会直接 fail-fast。
 - 同 basename 冲突时优先 `.yml`，并忽略对应 `.yaml`。
 - 前 4 行固定为 `key`、`name`、`role`、`description`，且必须从第 1 行开始、禁止前置空行 / 注释、必须是单行 inline value。
-- `ONESHOT` 只读取 `plain.promptFile`；`REACT` 只读取 `react.promptFile`；`PLAN_EXECUTE` 读取 `planExecute.plan|execute|summary.promptFile`。
-- 顶层 `promptFile` 不再作为 `ONESHOT` / `REACT` 的目录化 prompt 来源。
+- `ONESHOT` / `REACT` 只读取顶层 `promptFile`；`PLAN_EXECUTE` 读取 `planExecute.plan|execute|summary.promptFile`。
+- `plain.promptFile` / `react.promptFile` 不再参与 `ONESHOT` / `REACT` 的目录化 prompt 解析。
 - 目录化 Agent 可附带可选文件：`SOUL.md`、`AGENTS.md`、`AGENTS.plain.md`、`AGENTS.react.md`、`AGENTS.plan.md`、`AGENTS.execute.md`、`AGENTS.summary.md`、`memory/memory.md`。
 - 运行时 system prompt 合并顺序：`SOUL.md` → Runtime Context（按 `contextConfig.tags` 注入）→ `AGENTS.md` / stage 专属 `AGENTS.<stage>.md` → `memory/memory.md` → YAML stage `systemPrompt` → skills appendix → tool appendix。
 

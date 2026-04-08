@@ -382,7 +382,7 @@ class AgentDefinitionLoaderTest {
     }
 
     @Test
-    void shouldUsePlainPromptFileForDirectoryOneshotAgent() throws IOException {
+    void shouldUseTopLevelPromptFileForDirectoryOneshotAgent() throws IOException {
         Path agentDir = tempDir.resolve("dir_top_level_prompt");
         Files.createDirectories(agentDir);
         Files.writeString(agentDir.resolve("agent.yml"), """
@@ -406,12 +406,12 @@ class AgentDefinitionLoaderTest {
         assertThat(definition).isNotNull();
         assertThat(definition.agentsContent()).isEqualTo("shared prompt");
         OneshotMode mode = (OneshotMode) definition.agentMode();
-        assertThat(mode.stage().instructionsPrompt()).isEqualTo("legacy prompt");
-        assertThat(mode.stage().primaryPrompt()).isEqualTo("legacy prompt");
+        assertThat(mode.stage().instructionsPrompt()).isEqualTo("custom prompt");
+        assertThat(mode.stage().primaryPrompt()).isEqualTo("custom prompt");
     }
 
     @Test
-    void shouldFallbackToAgentsMarkdownWhenReactPromptFileIsOnlyConfiguredAtTopLevel() throws IOException {
+    void shouldUseTopLevelPromptFileForDirectoryReactAgent() throws IOException {
         Path agentDir = tempDir.resolve("dir_react_prompt_array");
         Files.createDirectories(agentDir);
         Files.writeString(agentDir.resolve("agent.yml"), """
@@ -427,18 +427,48 @@ class AgentDefinitionLoaderTest {
                   - EMPTY.md
                   - EXTRA.md
                 react:
+                  promptFile: LEGACY.md
                   maxSteps: 9
                 """);
         Files.writeString(agentDir.resolve("AGENTS.md"), "shared prompt");
         Files.writeString(agentDir.resolve("BASE.md"), "base prompt");
         Files.writeString(agentDir.resolve("EMPTY.md"), "   \n");
         Files.writeString(agentDir.resolve("EXTRA.md"), "extra prompt");
+        Files.writeString(agentDir.resolve("LEGACY.md"), "legacy prompt");
 
         AgentDefinition definition = loadById().get("dir_react_prompt_array");
 
         assertThat(definition).isNotNull();
         ReactMode mode = (ReactMode) definition.agentMode();
         assertThat(mode.maxSteps()).isEqualTo(9);
+        assertThat(mode.stage().instructionsPrompt()).isEqualTo("base prompt\n\nextra prompt");
+        assertThat(mode.stage().primaryPrompt()).isEqualTo("base prompt\n\nextra prompt");
+    }
+
+    @Test
+    void shouldFallbackToAgentsMarkdownWhenReactPromptFileIsOnlyConfiguredInNestedReactConfig() throws IOException {
+        Path agentDir = tempDir.resolve("dir_react_nested_prompt_only");
+        Files.createDirectories(agentDir);
+        Files.writeString(agentDir.resolve("agent.yml"), """
+                key: dir_react_nested_prompt_only
+                name: Dir React Nested Prompt Only
+                role: Dir React Nested Prompt Only
+                description: dir react nested prompt only
+                modelConfig:
+                  modelKey: bailian-qwen3-max
+                mode: REACT
+                react:
+                  promptFile: LEGACY.md
+                  maxSteps: 7
+                """);
+        Files.writeString(agentDir.resolve("AGENTS.md"), "shared prompt");
+        Files.writeString(agentDir.resolve("LEGACY.md"), "legacy prompt");
+
+        AgentDefinition definition = loadById().get("dir_react_nested_prompt_only");
+
+        assertThat(definition).isNotNull();
+        ReactMode mode = (ReactMode) definition.agentMode();
+        assertThat(mode.maxSteps()).isEqualTo(7);
         assertThat(mode.stage().instructionsPrompt()).isEqualTo("shared prompt");
         assertThat(mode.stage().primaryPrompt()).isEqualTo("shared prompt");
     }

@@ -359,8 +359,8 @@ public class AgentDefinitionLoader {
                     agentsContent,
                     resolveDirectoryPrompt(
                             agentDir,
-                            config == null ? null : config.getPlain(),
-                            "plain.promptFile",
+                            config == null ? null : config.getPromptFiles(),
+                            "promptFile",
                             agentsContent
                     ),
                     null,
@@ -374,8 +374,8 @@ public class AgentDefinitionLoader {
                     null,
                     resolveDirectoryPrompt(
                             agentDir,
-                            config == null ? null : config.getReact(),
-                            "react.promptFile",
+                            config == null ? null : config.getPromptFiles(),
+                            "promptFile",
                             agentsContent
                     ),
                     null,
@@ -460,17 +460,29 @@ public class AgentDefinitionLoader {
 
     private String resolveDirectoryPrompt(
             Path agentDir,
+            List<String> promptFiles,
+            String fieldPath,
+            String agentsContent
+    ) {
+        String configured = loadPromptMarkdowns(agentDir, promptFiles, fieldPath);
+        if (StringUtils.hasText(configured)) {
+            return configured;
+        }
+        return StringUtils.hasText(agentsContent) ? agentsContent : null;
+    }
+
+    private String resolveDirectoryPrompt(
+            Path agentDir,
             AgentConfigFile.StageConfig stage,
             String fieldPath,
             String agentsContent
     ) {
-        if (stage != null) {
-            String configured = loadPromptMarkdowns(agentDir, stage.getPromptFiles(), fieldPath);
-            if (StringUtils.hasText(configured)) {
-                return configured;
-            }
-        }
-        return StringUtils.hasText(agentsContent) ? agentsContent : null;
+        return resolveDirectoryPrompt(
+                agentDir,
+                stage == null ? null : stage.getPromptFiles(),
+                fieldPath,
+                agentsContent
+        );
     }
 
     private String loadPromptMarkdowns(Path agentDir, List<String> rawPromptFiles, String fieldPath) {

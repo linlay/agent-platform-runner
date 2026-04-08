@@ -576,8 +576,9 @@ Agent 行为应由 LLM 推理和工具调用驱动（通过 prompt 引导），J
 
 ## 变更记录
 
+- 2026-04-08：恢复目录化 Agent 的顶层 `promptFile` 契约。`ONESHOT` / `REACT` 改为只读取顶层 `promptFile` 并回退 `AGENTS.md`；`PLAN_EXECUTE` 继续使用 stage 级 `promptFile`；`plain.promptFile` / `react.promptFile` 不再参与解析。
 - 2026-04-05：CLAUDE.md 二次调整 — 还原 SSE 事件契约、Chat Storage V3.1 完整规范、REST API 契约至 CLAUDE.md；删除 `docs/sse-event-contract.md`、`docs/chat-storage-spec.md`、`docs/sandbox-config-reference.md`；sandboxConfig YAML 配置拆入 `docs/agent-definition-reference.md`，挂载目录映射表拆入 `docs/configuration-reference.md`，`docs/configuration-reference.md` 精简掉内部参数。
 - 2026-04-05：CLAUDE.md 瘦身重构，将 Agent Definition 参考移至 `docs/`。
 - 2026-04-05：完成目录清理与命名对齐。`ChatMessage` 迁移到 `chat/storage/`，`ArtifactEventPayload` 迁移到 `chat/event/`，并同步更新引用。
-- 2026-04-05：移除 `AgentDefinitionLoader` 中 `ONESHOT` / `REACT` 对顶层 `promptFile` 的 legacy 回退；目录化 prompt 契约收敛到 stage 级字段。
+- 2026-04-05：曾短暂移除 `AgentDefinitionLoader` 中 `ONESHOT` / `REACT` 对顶层 `promptFile` 的兼容回退；该契约已在 2026-04-08 调整为恢复顶层 `promptFile`。
 - 2026-04-05：移除 schedule 顶层 `zoneId` / `params` 与 provider 顶层 `model` 的过渡兼容拦截；`ConfigDirectoryEnvironmentPostProcessor` 的启动期 deprecated key 守卫保持不变。
