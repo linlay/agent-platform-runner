@@ -18,6 +18,8 @@ import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
 
 public class ContainerHubClient {
 
@@ -45,15 +47,15 @@ public class ContainerHubClient {
     }
 
     public JsonNode createSession(ObjectNode payload) {
-        return post("/api/sessions/create", payload, "container_hub_create_session");
+        return post("/api/sessions/create", payload, "container_hub_create_session", false);
     }
 
     public JsonNode executeSession(String sessionId, ObjectNode payload) {
-        return post("/api/sessions/" + sessionId.trim() + "/execute", payload, "container_hub_execute");
+        return post("/api/sessions/" + sessionId.trim() + "/execute", payload, "container_hub_execute", true);
     }
 
     public JsonNode stopSession(String sessionId) {
-        return post("/api/sessions/" + sessionId.trim() + "/stop", objectMapper.createObjectNode(), "container_hub_stop_session");
+        return post("/api/sessions/" + sessionId.trim() + "/stop", objectMapper.createObjectNode(), "container_hub_stop_session", false);
     }
 
     public EnvironmentAgentPromptResult getEnvironmentAgentPrompt(String environmentName) {
@@ -82,7 +84,7 @@ public class ContainerHubClient {
         );
     }
 
-    private JsonNode post(String path, ObjectNode payload, String operation) {
+    private JsonNode post(String path, ObjectNode payload, String operation, boolean contentTypeAware) {
         URI uri = buildUri(path);
         long timeoutMs = Math.max(1, properties.getRequestTimeoutMs());
         boolean authPresent = StringUtils.hasText(properties.getAuthToken());
@@ -107,7 +109,7 @@ public class ContainerHubClient {
         long startedAt = System.currentTimeMillis();
         try {
             HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            JsonNode body = parseBody(response.body());
+            JsonNode body = contentTypeAware ? parseBody(response) : parseJsonBody(response.body());
             logResponse(operation, "POST", uri, response.statusCode(), System.currentTimeMillis() - startedAt, body, response.body());
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 return body;
@@ -145,7 +147,7 @@ public class ContainerHubClient {
         long startedAt = System.currentTimeMillis();
         try {
             HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            JsonNode body = parseBody(response.body());
+            JsonNode body = parseJsonBody(response.body());
             logResponse(operation, "GET", uri, response.statusCode(), System.currentTimeMillis() - startedAt, body, response.body());
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 return body;
@@ -231,7 +233,14 @@ public class ContainerHubClient {
         return URI.create(baseUrl + path);
     }
 
-    private JsonNode parseBody(String rawBody) {
+    private JsonNode parseBody(HttpResponse<String> response) {
+        if (expectsJson(response)) {
+            return parseJsonBody(response.body());
+        }
+        return textBody(response.body());
+    }
+
+    private JsonNode parseJsonBody(String rawBody) {
         if (!StringUtils.hasText(rawBody)) {
             return objectMapper.createObjectNode();
         }
@@ -240,6 +249,35 @@ public class ContainerHubClient {
         } catch (IOException ignored) {
             return objectMapper.getNodeFactory().textNode(rawBody);
         }
+    }
+
+    private JsonNode textBody(String rawBody) {
+        if (!StringUtils.hasText(rawBody)) {
+            return objectMapper.getNodeFactory().textNode("");
+        }
+        return objectMapper.getNodeFactory().textNode(rawBody);
+    }
+
+    private boolean expectsJson(HttpResponse<String> response) {
+        if (response == null) {
+            return false;
+        }
+        List<String> values = response.headers().allValues("Content-Type");
+        if (values.isEmpty()) {
+            return false;
+        }
+        for (String value : values) {
+            if (!StringUtils.hasText(value)) {
+                continue;
+            }
+            String normalized = value.toLowerCase(Locale.ROOT);
+            int separator = normalized.indexOf(';');
+            String mimeType = separator >= 0 ? normalized.substring(0, separator).trim() : normalized.trim();
+            if ("application/json".equals(mimeType) || mimeType.endsWith("+json")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String extractError(JsonNode body, String rawBody) {

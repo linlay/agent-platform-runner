@@ -71,6 +71,9 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
         if (isErrorResponse(response)) {
             return failureText(readError(response));
         }
+        if (response != null && response.isTextual()) {
+            return textResult(0, response.asText(""), "", workingDirectory);
+        }
 
         int exitCode = response.path("exit_code").asInt(-1);
         String stdout = response.path("stdout").asText("");

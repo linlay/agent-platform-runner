@@ -24,6 +24,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -41,7 +42,7 @@ class ContainerHubClientTest {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.register("/api/environments/daily-office/agent-prompt", request -> new StubHttpResponse(request, 200, """
                 {"environment_name":"daily-office","has_prompt":true,"prompt":"hello sandbox","updated_at":"2026-03-22T10:15:30Z"}
-                """));
+                """, "application/json"));
 
         ContainerHubClient client = new ContainerHubClient(properties("http://container-hub.test"), objectMapper, httpClient);
 
@@ -65,7 +66,7 @@ class ContainerHubClientTest {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.register("/api/environments/daily-office/agent-prompt", request -> new StubHttpResponse(request, 503, """
                 {"error":"hub unavailable"}
-                """));
+                """, "application/json"));
 
         ContainerHubClient client = new ContainerHubClient(properties("http://container-hub.test"), objectMapper, httpClient);
 
@@ -94,7 +95,7 @@ class ContainerHubClientTest {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.register("/api/sessions/create", request -> new StubHttpResponse(request, 200, """
                 {"ok":true,"session_id":"run-chat-1","cwd":"/workspace"}
-                """));
+                """, "application/json"));
 
         ContainerHubToolProperties properties = properties("http://container-hub.test");
         properties.setAuthToken("super-secret-token");
@@ -136,6 +137,47 @@ class ContainerHubClientTest {
         assertThat(output.getAll()).contains("container-hub.error operation=container_hub_create_session");
         assertThat(output.getAll()).contains("url=http://container-hub.test/api/sessions/create");
         assertThat(output.getAll()).doesNotContain("super-secret-token");
+    }
+
+    @Test
+    void executeSessionShouldTreatTextPlainResponseAsTextNode() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.register("/api/sessions/run-run1/execute", request -> new StubHttpResponse(
+                request,
+                200,
+                "total 4\ndrwxr-xr-x 2 root root 64 Apr 8 06:44 .\nhello\n",
+                "text/plain; charset=utf-8"
+        ));
+
+        ContainerHubClient client = new ContainerHubClient(properties("http://container-hub.test"), objectMapper, httpClient);
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("command", "/bin/sh");
+
+        JsonNode response = client.executeSession("run-run1", payload);
+
+        assertThat(response.isTextual()).isTrue();
+        assertThat(response.asText()).contains("hello");
+    }
+
+    @Test
+    void executeSessionShouldKeepJsonResponseWhenContentTypeIsJson() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.register("/api/sessions/run-run1/execute", request -> new StubHttpResponse(
+                request,
+                200,
+                "{\"exit_code\":0,\"stdout\":\"ok\\n\",\"stderr\":\"\"}",
+                "application/json"
+        ));
+
+        ContainerHubClient client = new ContainerHubClient(properties("http://container-hub.test"), objectMapper, httpClient);
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("command", "/bin/sh");
+
+        JsonNode response = client.executeSession("run-run1", payload);
+
+        assertThat(response.isObject()).isTrue();
+        assertThat(response.path("exit_code").asInt()).isEqualTo(0);
+        assertThat(response.path("stdout").asText()).isEqualTo("ok\n");
     }
 
     private ContainerHubToolProperties properties(String baseUrl) {
@@ -232,7 +274,8 @@ class ContainerHubClientTest {
     private record StubHttpResponse(
             HttpRequest request,
             int statusCode,
-            String body
+            String body,
+            String contentType
     ) implements HttpResponse<String> {
 
         @Override
@@ -247,7 +290,10 @@ class ContainerHubClientTest {
 
         @Override
         public HttpHeaders headers() {
-            return HttpHeaders.of(Map.of(), (left, right) -> true);
+            if (contentType == null || contentType.isBlank()) {
+                return HttpHeaders.of(Map.of(), (left, right) -> true);
+            }
+            return HttpHeaders.of(Map.of("Content-Type", List.of(contentType)), (left, right) -> true);
         }
 
         @Override

@@ -56,7 +56,7 @@ class ContainerHubToolTest {
             requestBody.set(readBody(request));
             return new StubHttpResponse(request, 200, """
                     {"session_id":"run-run1","exit_code":0,"stdout":"/workspace\\nok\\n","stderr":"","timed_out":false}
-                    """);
+                    """, "application/json");
         });
 
         ContainerHubToolProperties properties = properties("http://container-hub.test");
@@ -83,7 +83,52 @@ class ContainerHubToolTest {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.register("/api/sessions/run-run1/execute", request -> new StubHttpResponse(request, 503, """
                 {"error":"hub unavailable"}
-                """));
+                """, "application/json"));
+
+        ContainerHubToolProperties properties = properties("http://container-hub.test");
+        ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
+        SystemContainerHubBash tool = new SystemContainerHubBash(properties, client);
+        ExecutionContext context = executionContext(definition(), new AgentRequest("test", "chat1", "req1", "run1", Map.of()), List.of());
+        context.bindSandboxSession(new ExecutionContext.SandboxSession("run-run1", "shell", "/workspace"));
+
+        JsonNode result = tool.invoke(Map.of("command", "pwd"), context);
+
+        assertThat(result.asText()).contains("exitCode: -1");
+        assertThat(result.asText()).contains("hub unavailable");
+    }
+
+    @Test
+    void sandboxBashShouldSupportPlainTextExecuteResponse() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.register("/api/sessions/run-run1/execute", request -> new StubHttpResponse(
+                request,
+                200,
+                "total 4\nhello\n",
+                "text/plain"
+        ));
+
+        ContainerHubToolProperties properties = properties("http://container-hub.test");
+        ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
+        SystemContainerHubBash tool = new SystemContainerHubBash(properties, client);
+        ExecutionContext context = executionContext(definition(), new AgentRequest("test", "chat1", "req1", "run1", Map.of()), List.of());
+        context.bindSandboxSession(new ExecutionContext.SandboxSession("run-run1", "shell", "/workspace"));
+
+        JsonNode result = tool.invoke(Map.of("command", "ls -la && echo hello"), context);
+
+        assertThat(result.asText()).contains("exitCode: 0");
+        assertThat(result.asText()).contains("stdout:");
+        assertThat(result.asText()).contains("hello");
+    }
+
+    @Test
+    void sandboxBashShouldSurfacePlainTextExecuteErrorsAsTextResult() {
+        RecordingHttpClient httpClient = new RecordingHttpClient();
+        httpClient.register("/api/sessions/run-run1/execute", request -> new StubHttpResponse(
+                request,
+                503,
+                "hub unavailable",
+                "text/plain"
+        ));
 
         ContainerHubToolProperties properties = properties("http://container-hub.test");
         ContainerHubClient client = new ContainerHubClient(properties, objectMapper, httpClient);
@@ -246,11 +291,13 @@ class ContainerHubToolTest {
         private final HttpRequest request;
         private final int statusCode;
         private final String body;
+        private final String contentType;
 
-        private StubHttpResponse(HttpRequest request, int statusCode, String body) {
+        private StubHttpResponse(HttpRequest request, int statusCode, String body, String contentType) {
             this.request = request;
             this.statusCode = statusCode;
             this.body = body;
+            this.contentType = contentType;
         }
 
         @Override
@@ -270,7 +317,7 @@ class ContainerHubToolTest {
 
         @Override
         public HttpHeaders headers() {
-            return HttpHeaders.of(Map.of("Content-Type", List.of("application/json")), (a, b) -> true);
+            return HttpHeaders.of(Map.of("Content-Type", List.of(contentType)), (a, b) -> true);
         }
 
         @Override
