@@ -49,14 +49,12 @@ class ContainerHubToolTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void sandboxBashShouldExecuteAgainstRunScopedSession() throws Exception {
+    void sandboxBashShouldTreatPlainTextExecuteResponseAsSuccess() throws Exception {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         AtomicReference<String> requestBody = new AtomicReference<>();
         httpClient.register("/api/sessions/run-run1/execute", request -> {
             requestBody.set(readBody(request));
-            return new StubHttpResponse(request, 200, """
-                    {"session_id":"run-run1","exit_code":0,"stdout":"/workspace\\nok\\n","stderr":"","timed_out":false}
-                    """, "application/json");
+            return new StubHttpResponse(request, 200, "/workspace\nok\n", "text/plain");
         });
 
         ContainerHubToolProperties properties = properties("http://container-hub.test");
@@ -76,6 +74,7 @@ class ContainerHubToolTest {
         assertThat(result.asText()).contains("\"workingDirectory\": \"/workspace\"");
         assertThat(result.asText()).contains("/workspace");
         assertThat(result.asText()).contains("ok");
+        assertThat(result.asText()).contains("stderr:\n");
     }
 
     @Test
@@ -98,13 +97,15 @@ class ContainerHubToolTest {
     }
 
     @Test
-    void sandboxBashShouldSupportPlainTextExecuteResponse() {
+    void sandboxBashShouldSurfaceBashErrorJsonResponse() {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.register("/api/sessions/run-run1/execute", request -> new StubHttpResponse(
                 request,
                 200,
-                "total 4\nhello\n",
-                "text/plain"
+                """
+                {"session_id":"run-run1","exit_code":17,"stdout":"total 4\\n","stderr":"permission denied\\n","timed_out":false}
+                """,
+                "application/json"
         ));
 
         ContainerHubToolProperties properties = properties("http://container-hub.test");
@@ -113,11 +114,13 @@ class ContainerHubToolTest {
         ExecutionContext context = executionContext(definition(), new AgentRequest("test", "chat1", "req1", "run1", Map.of()), List.of());
         context.bindSandboxSession(new ExecutionContext.SandboxSession("run-run1", "shell", "/workspace"));
 
-        JsonNode result = tool.invoke(Map.of("command", "ls -la && echo hello"), context);
+        JsonNode result = tool.invoke(Map.of("command", "ls -la"), context);
 
-        assertThat(result.asText()).contains("exitCode: 0");
+        assertThat(result.asText()).contains("exitCode: 17");
         assertThat(result.asText()).contains("stdout:");
-        assertThat(result.asText()).contains("hello");
+        assertThat(result.asText()).contains("total 4");
+        assertThat(result.asText()).contains("stderr:");
+        assertThat(result.asText()).contains("permission denied");
     }
 
     @Test
