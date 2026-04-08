@@ -72,11 +72,7 @@ class RuntimeContextPromptServiceTest {
                     null
             );
             AgentDefinition definition = definition(
-                    new AgentDefinition.SandboxConfig(
-                            null,
-                            SandboxLevel.RUN,
-                            List.of(new AgentDefinition.ExtraMount("owner", null, null, MountAccessMode.RO))
-                    ),
+                    new AgentDefinition.SandboxConfig(null, SandboxLevel.RUN, List.of()),
                     RuntimeContextTags.CONTEXT,
                     RuntimeContextTags.OWNER
             );
@@ -95,6 +91,7 @@ class RuntimeContextPromptServiceTest {
 
             assertThat(localPaths.ownerDir()).isEqualTo(externalOwner.toAbsolutePath().normalize().toString());
             assertThat(prompt).contains("sandbox_owner_dir: /owner");
+            assertThat(prompt).contains("sandbox_memory_dir: /memory");
             assertThat(prompt).contains("sandbox_agent_dir: /agent");
             assertThat(prompt).contains("Runtime Context: Owner");
             assertThat(prompt).contains("--- file: BOOTSTRAP.md");
@@ -141,7 +138,6 @@ class RuntimeContextPromptServiceTest {
                             "daily-office",
                             SandboxLevel.RUN,
                         List.of(
-                                    new AgentDefinition.ExtraMount("owner", null, null, MountAccessMode.RO),
                                     new AgentDefinition.ExtraMount("providers", null, null, MountAccessMode.RO),
                                     new AgentDefinition.ExtraMount("skills-market", null, null, MountAccessMode.RO)
                             )
@@ -219,6 +215,7 @@ class RuntimeContextPromptServiceTest {
             assertThat(prompt).contains("sandbox_pan_dir: /pan");
             assertThat(prompt).contains("sandbox_agent_dir: /agent");
             assertThat(prompt).contains("sandbox_owner_dir: /owner");
+            assertThat(prompt).contains("sandbox_memory_dir: /memory");
             assertThat(prompt).contains("sandbox_providers_dir: /providers");
             assertThat(prompt).doesNotContain("sandbox_schedules_dir:");
             assertThat(prompt).contains("chatId: chat-1");

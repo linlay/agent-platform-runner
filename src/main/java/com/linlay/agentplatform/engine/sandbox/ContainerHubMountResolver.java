@@ -25,6 +25,8 @@ public class ContainerHubMountResolver {
     static final String SKILLS_MARKET_PATH = "/skills-market";
     static final String PAN_PATH = "/pan";
     static final String AGENT_PATH = "/agent";
+    static final String OWNER_PATH = "/owner";
+    static final String MEMORY_PATH = "/memory";
     private static final MountDirectoryConfig EMPTY_DIRECTORIES = new MountDirectoryConfig(
             null,
             null,
@@ -44,7 +46,9 @@ public class ContainerHubMountResolver {
             ROOT_PATH,
             SKILLS_PATH,
             PAN_PATH,
-            AGENT_PATH
+            AGENT_PATH,
+            OWNER_PATH,
+            MEMORY_PATH
     );
 
     private final MountDirectoryConfig directories;
@@ -103,8 +107,16 @@ public class ContainerHubMountResolver {
         }
 
         ResolvedPath agentSelfDir = resolveAgentSelfDir(agentKey);
-        if (agentSelfDir != null) {
-            addResolvedMount(mountsByContainerPath, "agent-self", agentSelfDir, AGENT_PATH, true);
+        addResolvedMount(mountsByContainerPath, "agent-self", requireAgentSelfDir(agentKey), AGENT_PATH, true);
+
+        ResolvedPath ownerDir = resolveOwnerDir();
+        if (ownerDir != null) {
+            addResolvedMount(mountsByContainerPath, "owner-dir", ownerDir, OWNER_PATH, true);
+        }
+
+        ResolvedPath memoryDir = resolveAgentMemoryDir(agentKey);
+        if (memoryDir != null) {
+            addResolvedMount(mountsByContainerPath, "memory-dir", memoryDir, MEMORY_PATH, true);
         }
 
         if (extraMounts != null) {
@@ -211,6 +223,24 @@ public class ContainerHubMountResolver {
         return resolveHostBackedDirectory("OWNER_DIR", directories.ownerDir(), "owner-dir");
     }
 
+    private ResolvedPath resolveOwnerDir() {
+        ResolvedPath ownerDir = resolveOwnerDirPath();
+        if (ownerDir == null) {
+            return null;
+        }
+        Path ownerAccessPath = Path.of(ownerDir.localPath()).toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(ownerAccessPath);
+            return ownerDir.withLocalPath(ownerAccessPath.toString());
+        } catch (IOException ex) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for owner-dir: unable to prepare owner directory"
+                            + " (resolved=" + ownerAccessPath + ", containerPath=" + OWNER_PATH + ")",
+                    ex
+            );
+        }
+    }
+
     private ResolvedPath resolveRegistryChild(ResolvedPath registriesDir, String child) {
         if (registriesDir == null) {
             return null;
@@ -233,11 +263,31 @@ public class ContainerHubMountResolver {
         return agentsDir.resolveChild(agentKey);
     }
 
-    private ResolvedPath resolveAgentSkillsDir(String agentKey) {
-        ResolvedPath agentSelfDir = resolveAgentSelfDir(agentKey);
-        if (agentSelfDir == null) {
-            return null;
+    private ResolvedPath requireAgentSelfDir(String agentKey) {
+        if (!StringUtils.hasText(agentKey)) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for agent-self: agentKey is required "
+                            + "(containerPath=" + AGENT_PATH + ")"
+            );
         }
+        ResolvedPath agentSelfDir = resolveAgentSelfDir(agentKey);
+        if (agentSelfDir != null) {
+            return agentSelfDir;
+        }
+        ResolvedPath agentsDir = resolveAgentsDir();
+        String resolved = agentsDir == null
+                ? "<unknown>"
+                : Path.of(agentsDir.localPath(), agentKey.trim()).toAbsolutePath().normalize().toString();
+        throw new IllegalStateException(
+                "container-hub mount validation failed for agent-self: source does not exist "
+                        + "(configured=" + normalizeConfiguredPath(agentsDir == null ? null : agentsDir.configuredPath())
+                        + ", resolved=" + resolved
+                        + ", containerPath=" + AGENT_PATH + ")"
+        );
+    }
+
+    private ResolvedPath resolveAgentSkillsDir(String agentKey) {
+        ResolvedPath agentSelfDir = requireAgentSelfDir(agentKey);
         ResolvedPath localSkillsDir = agentSelfDir.resolveChild("skills");
         Path localSkillsAccessPath = Path.of(localSkillsDir.localPath()).toAbsolutePath().normalize();
         try {
@@ -247,6 +297,31 @@ public class ContainerHubMountResolver {
             throw new IllegalStateException(
                     "container-hub mount validation failed for skills-dir: unable to prepare agent-local skills directory"
                             + " (resolved=" + localSkillsAccessPath + ", containerPath=" + SKILLS_PATH + ")",
+                    ex
+            );
+        }
+    }
+
+    private ResolvedPath resolveAgentMemoryDir(String agentKey) {
+        if (!StringUtils.hasText(agentKey)) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for memory-dir: agentKey is required "
+                            + "(containerPath=" + MEMORY_PATH + ")"
+            );
+        }
+        ResolvedPath memoryRoot = resolveMemoryDir();
+        if (memoryRoot == null) {
+            return null;
+        }
+        ResolvedPath agentMemoryDir = memoryRoot.resolveChild(agentKey.trim());
+        Path agentMemoryAccessPath = Path.of(agentMemoryDir.localPath()).toAbsolutePath().normalize();
+        try {
+            Files.createDirectories(agentMemoryAccessPath);
+            return agentMemoryDir.withLocalPath(agentMemoryAccessPath.toString());
+        } catch (IOException ex) {
+            throw new IllegalStateException(
+                    "container-hub mount validation failed for memory-dir: unable to prepare agent memory directory"
+                            + " (resolved=" + agentMemoryAccessPath + ", containerPath=" + MEMORY_PATH + ")",
                     ex
             );
         }
@@ -312,21 +387,44 @@ public class ContainerHubMountResolver {
                             .formatted(platform)
             );
         }
+        String containerPath = platformMountDef.containerPath();
+        MountSpec existing = mountsByContainerPath.get(containerPath);
+        if (existing != null && isCompatibleDefaultPlatformMount(platform, existing, mode)) {
+            if (existing.readOnly() == mode.readOnly()) {
+                return;
+            }
+            addMount(mountsByContainerPath, new MountSpec(
+                    existing.mountName(),
+                    existing.rawPath(),
+                    existing.hostPath(),
+                    existing.containerPath(),
+                    mode.readOnly()
+            ));
+            return;
+        }
         ResolvedPath source = platformMountDef.sourceSupplier().get();
         if (source == null) {
             throw new IllegalStateException(
                     "container-hub mount validation failed for extra-mount:%s: source is not configured (containerPath=%s)"
-                            .formatted(platform, platformMountDef.containerPath())
+                            .formatted(platform, containerPath)
             );
         }
         addResolvedMount(
                 mountsByContainerPath,
                 "extra-mount:" + platform,
                 source,
-                platformMountDef.containerPath(),
+                containerPath,
                 mode.readOnly(),
                 platformMountDef.sourceType()
         );
+    }
+
+    private boolean isCompatibleDefaultPlatformMount(String platform, MountSpec existing, MountAccessMode mode) {
+        if (existing == null || mode == null) {
+            return false;
+        }
+        return ("owner".equals(platform) && OWNER_PATH.equals(existing.containerPath()))
+                || ("memory".equals(platform) && MEMORY_PATH.equals(existing.containerPath()));
     }
 
     private void resolveCustomMount(
@@ -371,9 +469,9 @@ public class ContainerHubMountResolver {
                 Map.entry("mcp-servers", new PlatformMountDef(this::resolveMcpServersDir, "/mcp-servers", MountSourceType.DIRECTORY)),
                 Map.entry("providers", new PlatformMountDef(this::resolveProvidersDir, "/providers", MountSourceType.DIRECTORY)),
                 Map.entry("chats", new PlatformMountDef(this::resolveChatsDir, "/chats", MountSourceType.DIRECTORY)),
-                Map.entry("memory", new PlatformMountDef(this::resolveMemoryDir, "/memory", MountSourceType.DIRECTORY)),
+                Map.entry("memory", new PlatformMountDef(() -> null, MEMORY_PATH, MountSourceType.DIRECTORY)),
                 Map.entry("skills-market", new PlatformMountDef(this::resolveSkillsMarketDir, SKILLS_MARKET_PATH, MountSourceType.DIRECTORY)),
-                Map.entry("owner", new PlatformMountDef(this::resolveOwnerDirPath, "/owner", MountSourceType.DIRECTORY))
+                Map.entry("owner", new PlatformMountDef(() -> null, OWNER_PATH, MountSourceType.DIRECTORY))
         );
     }
 

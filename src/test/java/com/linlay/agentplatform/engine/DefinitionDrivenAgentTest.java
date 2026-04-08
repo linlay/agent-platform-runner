@@ -3324,6 +3324,8 @@ class DefinitionDrivenAgentTest {
         if (skillProperties == null) {
             resolvedSkillProperties.setExternalDir(createTempMountDir("definition-agent-skills").toString());
         }
+        Path agentsDir = createTempMountDir("definition-agent-agents");
+        prepareDirectoryAgents(agentsDir);
 
         return new ContainerHubMountResolver(
                 new MountDirectoryConfig(
@@ -3332,7 +3334,7 @@ class DefinitionDrivenAgentTest {
                         rootProperties.getExternalDir(),
                         panProperties.getExternalDir(),
                         resolvedSkillProperties.getExternalDir(),
-                        createTempMountDir("definition-agent-agents").toString(),
+                        agentsDir.toString(),
                         null,
                         createTempMountDir("definition-agent-registries").toString(),
                         null,
@@ -3342,6 +3344,20 @@ class DefinitionDrivenAgentTest {
                 ),
                 new RuntimeDirectoryHostPaths(Map.of())
         );
+    }
+
+    private void prepareDirectoryAgents(Path agentsDir) {
+        if (agentsDir == null) {
+            return;
+        }
+        try {
+            Files.createDirectories(agentsDir);
+            for (String agentKey : List.of("sandboxed-runner", "demoContainerHubValidator")) {
+                Files.createDirectories(agentsDir.resolve(agentKey));
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("failed to prepare directory agents for definition-driven sandbox tests", ex);
+        }
     }
 
     private Path createTempMountDir(String prefix) {

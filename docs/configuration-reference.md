@@ -58,7 +58,7 @@
 
 ### 挂载目录映射
 
-默认仅挂载 5 个真实容器路径，其余平台目录需通过 `sandboxConfig.extraMounts` 显式声明。
+默认会挂载 7 个真实容器路径，其余平台目录需通过 `sandboxConfig.extraMounts` 显式声明。
 
 | 容器内路径 | RUN 宿主路径 | AGENT / GLOBAL 宿主路径 | 默认策略 | 默认模式 | 配置键（为空时 fallback） |
 |-----------|-------------|-------------------------|----------|----------|--------------------------|
@@ -66,7 +66,9 @@
 | `/root` | `{rootDir}` | `{rootDir}` | 默认挂载 | `rw` | `agent.root.external-dir` |
 | `/skills` | `{agentsDir}/{agentKey}/skills`（若存在，否则 `{skillsDir}`） | `{agentsDir}/{agentKey}/skills`（若存在，否则 `{skillsDir}`） | 默认挂载 | `ro` | `agent.skills.external-dir` |
 | `/pan` | `{panDir}` | `{panDir}` | 默认挂载 | `rw` | `agent.pan.external-dir` |
-| `/agent` | `{agentsDir}/{agentKey}` | `{agentsDir}/{agentKey}` | 默认挂载；仅目录化 agent 存在时挂载 | `ro` | `agent.agents.external-dir` |
+| `/agent` | `{agentsDir}/{agentKey}` | `{agentsDir}/{agentKey}` | 默认挂载；agent 目录缺失时 fail-fast | `ro` | `agent.agents.external-dir` |
+| `/owner` | `{ownerDir}` | `{ownerDir}` | 默认挂载；缺目录时自动创建 | `ro` | `agent.owner.external-dir` |
+| `/memory` | `{memoryDir}/{agentKey}` | `{memoryDir}/{agentKey}` | 默认挂载；缺目录时自动创建 agent 子目录 | `ro` | `agent.memory.storage.dir` |
 | `/tools` | `{toolsDir}` | `{toolsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.tools.external-dir` |
 | `/agents` | `{agentsDir}` | `{agentsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.agents.external-dir` |
 | `/models` | `{modelsDir}` | `{modelsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.models.external-dir` |
@@ -78,7 +80,6 @@
 | `/providers` | `{providersDir}` | `{providersDir}` | `extraMounts` 按需；敏感目录 | 显式 `mode` | `agent.providers.external-dir` |
 | `/chats` | `{chatDataDir}` | `{chatDataDir}` | `extraMounts` 按需 | 显式 `mode` | `chat.storage.dir` |
 | `/skills-market` | `{skillsDir}` | `{skillsDir}` | `extraMounts` 按需 | 显式 `mode` | `agent.skills.external-dir` |
-| `/owner` | `{agentsDir}/../owner` | `{agentsDir}/../owner` | `extraMounts` 按需 | 显式 `mode` | `agent.agents.external-dir` 的父目录 |
 
 ### Auth
 

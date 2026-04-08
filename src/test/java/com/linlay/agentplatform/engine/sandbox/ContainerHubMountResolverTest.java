@@ -39,6 +39,8 @@ class ContainerHubMountResolverTest {
         RootProperties rootProperties = rootProperties(Files.createDirectories(tempDir.resolve("root")));
         SkillProperties skillProperties = skillProperties(Files.createDirectories(tempDir.resolve("skills")));
         PanProperties panProperties = panProperties(Files.createDirectories(tempDir.resolve("pan")));
+        Path ownerDir = tempDir.resolve("owner");
+        Path memoryRoot = tempDir.resolve("memory");
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
@@ -52,16 +54,32 @@ class ContainerHubMountResolverTest {
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.RUN, "chat-123", "flat-agent", List.of());
 
         Path chatDir = dataRoot.resolve("chat-123");
+        Path flatAgentDir = tempDir.resolve("agents").resolve("flat-agent");
         assertThat(Files.isDirectory(chatDir)).isTrue();
+        assertThat(Files.isDirectory(ownerDir)).isTrue();
+        assertThat(Files.isDirectory(memoryRoot.resolve("flat-agent"))).isTrue();
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .contains("/workspace", "/root", "/skills", "/pan");
+                .contains("/workspace", "/root", "/skills", "/pan", "/agent", "/owner", "/memory");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
-                .contains(chatDir.toAbsolutePath().normalize().toString());
+                .contains(
+                        chatDir.toAbsolutePath().normalize().toString(),
+                        flatAgentDir.toAbsolutePath().normalize().toString(),
+                        ownerDir.toAbsolutePath().normalize().toString(),
+                        memoryRoot.resolve("flat-agent").toAbsolutePath().normalize().toString()
+                );
         assertThat(mounts).filteredOn(mount -> "/workspace".equals(mount.containerPath()))
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(false);
         assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(true);
+        assertThat(mounts).filteredOn(mount -> "/owner".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(true);
+        assertThat(mounts).filteredOn(mount -> "/memory".equals(mount.containerPath()))
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(true);
@@ -102,6 +120,8 @@ class ContainerHubMountResolverTest {
         Path agentsDir = Files.createDirectories(tempDir.resolve("agents"));
         Path agentDir = Files.createDirectories(agentsDir.resolve("atlas"));
         Path agentSkillsDir = agentDir.resolve("skills");
+        Path ownerDir = tempDir.resolve("owner");
+        Path memoryRoot = tempDir.resolve("memory");
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
@@ -116,17 +136,29 @@ class ContainerHubMountResolverTest {
 
         assertThat(Files.isDirectory(dataDir.resolve("chat"))).isTrue();
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .containsExactly("/workspace", "/root", "/skills", "/pan", "/agent");
+                .containsExactly("/workspace", "/root", "/skills", "/pan", "/agent", "/owner", "/memory");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(dataDir.toAbsolutePath().normalize().toString())
                 .contains(agentSkillsDir.toAbsolutePath().normalize().toString())
-                .contains(agentDir.toAbsolutePath().normalize().toString());
+                .contains(agentDir.toAbsolutePath().normalize().toString())
+                .contains(ownerDir.toAbsolutePath().normalize().toString())
+                .contains(memoryRoot.resolve("atlas").toAbsolutePath().normalize().toString());
         assertThat(Files.isDirectory(agentSkillsDir)).isTrue();
+        assertThat(Files.isDirectory(ownerDir)).isTrue();
+        assertThat(Files.isDirectory(memoryRoot.resolve("atlas"))).isTrue();
         assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .isEqualTo(agentSkillsDir.toAbsolutePath().normalize().toString());
         assertThat(mounts).filteredOn(mount -> "/agent".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(true);
+        assertThat(mounts).filteredOn(mount -> "/owner".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(true);
+        assertThat(mounts).filteredOn(mount -> "/memory".equals(mount.containerPath()))
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(true);
@@ -168,6 +200,8 @@ class ContainerHubMountResolverTest {
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
         Path agentsDir = Files.createDirectories(tempDir.resolve("agents"));
         Files.createDirectories(agentsDir.resolve("chat-global-agent").resolve("skills"));
+        Path ownerDir = tempDir.resolve("owner");
+        Path memoryRoot = tempDir.resolve("memory");
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
@@ -181,8 +215,10 @@ class ContainerHubMountResolverTest {
         List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.GLOBAL, "chat-global", "flat-agent", List.of());
 
         assertThat(Files.isDirectory(dataDir.resolve("chat-global"))).isTrue();
+        assertThat(Files.isDirectory(ownerDir)).isTrue();
+        assertThat(Files.isDirectory(memoryRoot.resolve("flat-agent"))).isTrue();
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .containsExactly("/workspace", "/root", "/skills", "/pan");
+                .containsExactly("/workspace", "/root", "/skills", "/pan", "/agent", "/owner", "/memory");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(dataDir.toAbsolutePath().normalize().toString());
         assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
@@ -192,7 +228,7 @@ class ContainerHubMountResolverTest {
     }
 
     @Test
-    void shouldSkipAgentSelfDirectoryForFlatAgent() throws Exception {
+    void shouldFailWhenAgentDirectoryIsMissing() throws Exception {
         Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
@@ -207,10 +243,11 @@ class ContainerHubMountResolverTest {
                 providerProperties(tempDir.resolve("providers"))
         );
 
-        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.AGENT, "chat", "flat-agent", List.of());
-
-        assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .containsExactly("/workspace", "/root", "/skills", "/pan");
+        assertThatThrownBy(() -> resolver.resolve(SandboxLevel.AGENT, "chat", "missing-agent", List.of()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("container-hub mount validation failed for agent-self")
+                .hasMessageContaining("containerPath=/agent")
+                .hasMessageContaining("resolved=");
     }
 
     @Test
@@ -246,12 +283,13 @@ class ContainerHubMountResolverTest {
                         new AgentDefinition.ExtraMount("viewport-servers", null, null, MountAccessMode.RW),
                         new AgentDefinition.ExtraMount("chats", null, null, MountAccessMode.RO),
                         new AgentDefinition.ExtraMount("skills-market", null, null, MountAccessMode.RO),
-                        new AgentDefinition.ExtraMount("owner", null, null, MountAccessMode.RO)
+                        new AgentDefinition.ExtraMount("owner", null, null, MountAccessMode.RO),
+                        new AgentDefinition.ExtraMount("memory", null, null, MountAccessMode.RO)
                 )
         );
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .contains("/models", "/tools", "/viewports", "/viewport-servers", "/chats", "/skills-market", "/owner");
+                .contains("/models", "/tools", "/viewports", "/viewport-servers", "/chats", "/skills-market", "/owner", "/memory");
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .contains(
                         modelsDir.toAbsolutePath().normalize().toString(),
@@ -275,6 +313,10 @@ class ContainerHubMountResolverTest {
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(true);
         assertThat(mounts).filteredOn(mount -> "/owner".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(true);
+        assertThat(mounts).filteredOn(mount -> "/memory".equals(mount.containerPath()))
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(true);
@@ -317,7 +359,7 @@ class ContainerHubMountResolverTest {
     }
 
     @Test
-    void shouldExposeGlobalSkillsMarketWhenAgentLocalSkillsFallbackIsUsed() throws Exception {
+    void shouldFailWhenSkillsMarketIsRequestedButAgentDirectoryIsMissing() throws Exception {
         Path hostChatsDir = Files.createDirectories(tempDir.resolve("host-chats"));
         Path hostRootDir = Files.createDirectories(tempDir.resolve("host-root"));
         Path hostPanDir = Files.createDirectories(tempDir.resolve("host-pan"));
@@ -344,21 +386,15 @@ class ContainerHubMountResolverTest {
                 ))
         );
 
-        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(
+        assertThatThrownBy(() -> resolver.resolve(
                 SandboxLevel.AGENT,
                 "chat-missing-agent",
                 "atlas",
                 List.of(new AgentDefinition.ExtraMount("skills-market", null, null, MountAccessMode.RO))
-        );
-
-        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
-                .singleElement()
-                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
-                .isEqualTo(hostSkillsDir.toAbsolutePath().normalize().toString());
-        assertThat(mounts).filteredOn(mount -> "/skills-market".equals(mount.containerPath()))
-                .singleElement()
-                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
-                .isEqualTo(hostSkillsDir.toAbsolutePath().normalize().toString());
+        ))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("container-hub mount validation failed for agent-self")
+                .hasMessageContaining("containerPath=/agent");
     }
 
     @Test
@@ -460,6 +496,8 @@ class ContainerHubMountResolverTest {
         Path dataDir = Files.createDirectories(tempDir.resolve("data"));
         Path agentsDir = Files.createDirectories(tempDir.resolve("agents"));
         Files.createDirectories(agentsDir.resolve("atlas"));
+        Files.createDirectories(tempDir.resolve("owner"));
+        Files.createDirectories(tempDir.resolve("memory"));
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
@@ -476,7 +514,9 @@ class ContainerHubMountResolverTest {
                 "atlas",
                 List.of(
                         new AgentDefinition.ExtraMount(null, null, "/skills", MountAccessMode.RW),
-                        new AgentDefinition.ExtraMount(null, null, "/agent", MountAccessMode.RW)
+                        new AgentDefinition.ExtraMount(null, null, "/agent", MountAccessMode.RW),
+                        new AgentDefinition.ExtraMount(null, null, "/owner", MountAccessMode.RW),
+                        new AgentDefinition.ExtraMount(null, null, "/memory", MountAccessMode.RW)
                 )
         );
 
@@ -484,6 +524,12 @@ class ContainerHubMountResolverTest {
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(false);
         assertThat(mounts).filteredOn(mount -> "/agent".equals(mount.containerPath())).singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(false);
+        assertThat(mounts).filteredOn(mount -> "/owner".equals(mount.containerPath())).singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::readOnly)
+                .isEqualTo(false);
+        assertThat(mounts).filteredOn(mount -> "/memory".equals(mount.containerPath())).singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::readOnly)
                 .isEqualTo(false);
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
@@ -548,7 +594,7 @@ class ContainerHubMountResolverTest {
     }
 
     @Test
-    void shouldFailWhenOwnerPlatformMountSourceDoesNotExist() throws Exception {
+    void shouldAutoCreateOwnerDefaultMountWhenSourceDoesNotExist() throws Exception {
         Path rootDir = Files.createDirectories(tempDir.resolve("root"));
         Path skillsDir = Files.createDirectories(tempDir.resolve("skills"));
         Path panDir = Files.createDirectories(tempDir.resolve("pan"));
@@ -563,16 +609,18 @@ class ContainerHubMountResolverTest {
                 providerProperties(tempDir.resolve("providers"))
         );
 
-        assertThatThrownBy(() -> resolver.resolve(
+        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(
                 SandboxLevel.RUN,
                 "chat",
                 "flat-agent",
-                List.of(new AgentDefinition.ExtraMount("owner", null, null, MountAccessMode.RO))
-        ))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("extra-mount:owner")
-                .hasMessageContaining("source does not exist")
-                .hasMessageContaining("containerPath=/owner");
+                List.of()
+        );
+
+        assertThat(Files.isDirectory(tempDir.resolve("owner"))).isTrue();
+        assertThat(mounts).filteredOn(mount -> "/owner".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(tempDir.resolve("owner").toAbsolutePath().normalize().toString());
     }
 
     @Test
@@ -625,7 +673,7 @@ class ContainerHubMountResolverTest {
         );
 
         assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .containsExactly("/workspace", "/root", "/skills", "/pan");
+                .containsExactly("/workspace", "/root", "/skills", "/pan", "/agent", "/owner", "/memory");
     }
 
     @Test
@@ -707,6 +755,9 @@ class ContainerHubMountResolverTest {
         Path hostAgentsDir = Files.createDirectories(tempDir.resolve("host-agents"));
         Path hostAgentDir = Files.createDirectories(hostAgentsDir.resolve("atlas"));
         Path hostAgentSkillsDir = Files.createDirectories(hostAgentDir.resolve("skills"));
+        Path hostOwnerDir = Files.createDirectories(tempDir.resolve("host-owner"));
+        Path hostMemoryDir = Files.createDirectories(tempDir.resolve("host-memory"));
+        Files.createDirectories(hostMemoryDir.resolve("atlas"));
         Path accessChatsDir = Files.createDirectories(tempDir.resolve("access-chats"));
         Path accessRootDir = Files.createDirectories(tempDir.resolve("access-root"));
         Path accessPanDir = Files.createDirectories(tempDir.resolve("access-pan"));
@@ -730,7 +781,9 @@ class ContainerHubMountResolverTest {
                         "ROOT_DIR", hostRootDir.toString(),
                         "PAN_DIR", hostPanDir.toString(),
                         "SKILLS_MARKET_DIR", hostSkillsDir.toString(),
-                        "AGENTS_DIR", hostAgentsDir.toString()
+                        "AGENTS_DIR", hostAgentsDir.toString(),
+                        "OWNER_DIR", hostOwnerDir.toString(),
+                        "MEMORY_DIR", hostMemoryDir.toString()
                 ))
         );
 
@@ -753,6 +806,14 @@ class ContainerHubMountResolverTest {
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .isEqualTo(hostAgentSkillsDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).filteredOn(mount -> "/owner".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(hostOwnerDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).filteredOn(mount -> "/memory".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(hostMemoryDir.resolve("atlas").toAbsolutePath().normalize().toString());
     }
 
     @Test
@@ -765,6 +826,8 @@ class ContainerHubMountResolverTest {
         Path hostAgentsDir = Files.createDirectories(tempDir.resolve("host-agents"));
         Path hostAgentDir = Files.createDirectories(hostAgentsDir.resolve("atlas"));
         Path hostAgentSkillsDir = Files.createDirectories(hostAgentDir.resolve("skills"));
+        Path hostMemoryDir = Files.createDirectories(tempDir.resolve("host-memory"));
+        Files.createDirectories(hostMemoryDir.resolve("atlas"));
         Path accessChatsDir = Files.createDirectories(tempDir.resolve("access-chats"));
         Path accessRootDir = Files.createDirectories(tempDir.resolve("access-root"));
         Path accessPanDir = Files.createDirectories(tempDir.resolve("access-pan"));
@@ -785,7 +848,8 @@ class ContainerHubMountResolverTest {
                         "PAN_DIR", hostPanDir.toString(),
                         "SKILLS_MARKET_DIR", hostSkillsDir.toString(),
                         "OWNER_DIR", hostOwnerDir.toString(),
-                        "AGENTS_DIR", hostAgentsDir.toString()
+                        "AGENTS_DIR", hostAgentsDir.toString(),
+                        "MEMORY_DIR", hostMemoryDir.toString()
                 ))
         );
 
@@ -808,10 +872,14 @@ class ContainerHubMountResolverTest {
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .isEqualTo(hostOwnerDir.toAbsolutePath().normalize().toString());
+        assertThat(mounts).filteredOn(mount -> "/memory".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo(hostMemoryDir.resolve("atlas").toAbsolutePath().normalize().toString());
     }
 
     @Test
-    void shouldFallbackToGlobalSkillsWhenAgentDirectoryIsMissingEvenIfOwnerOverrideExists() throws Exception {
+    void shouldFailWhenAgentDirectoryIsMissingEvenIfOwnerOverrideExists() throws Exception {
         Path hostChatsDir = Files.createDirectories(tempDir.resolve("host-chats"));
         Path hostRootDir = Files.createDirectories(tempDir.resolve("host-root"));
         Path hostPanDir = Files.createDirectories(tempDir.resolve("host-pan"));
@@ -841,14 +909,10 @@ class ContainerHubMountResolverTest {
                 ))
         );
 
-        List<ContainerHubMountResolver.MountSpec> mounts = resolver.resolve(SandboxLevel.AGENT, "chat-missing-agent", "atlas", List.of());
-
-        assertThat(mounts).filteredOn(mount -> "/skills".equals(mount.containerPath()))
-                .singleElement()
-                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
-                .isEqualTo(hostSkillsDir.toAbsolutePath().normalize().toString());
-        assertThat(mounts).extracting(ContainerHubMountResolver.MountSpec::containerPath)
-                .doesNotContain("/agent", "/owner");
+        assertThatThrownBy(() -> resolver.resolve(SandboxLevel.AGENT, "chat-missing-agent", "atlas", List.of()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("container-hub mount validation failed for agent-self")
+                .hasMessageContaining("containerPath=/agent");
     }
 
     @Test
@@ -860,6 +924,9 @@ class ContainerHubMountResolverTest {
         Path accessAgentsDir = Files.createDirectories(tempDir.resolve("agents"));
         Path accessAgentDir = Files.createDirectories(accessAgentsDir.resolve("atlas"));
         Path accessAgentSkillsDir = accessAgentDir.resolve("skills");
+        Path accessOwnerDir = Files.createDirectories(tempDir.resolve("owner"));
+        Path accessMemoryRoot = Files.createDirectories(tempDir.resolve("memory"));
+        Path accessMemoryDir = Files.createDirectories(accessMemoryRoot.resolve("atlas"));
 
         ContainerHubMountResolver resolver = containerHubMountResolver(
                 new ContainerHubToolProperties(),
@@ -873,7 +940,9 @@ class ContainerHubMountResolverTest {
                         "ROOT_DIR", "/host/root",
                         "PAN_DIR", "/host/pan",
                         "SKILLS_MARKET_DIR", "/host/skills-market",
-                        "AGENTS_DIR", "/host/agents"
+                        "AGENTS_DIR", "/host/agents",
+                        "OWNER_DIR", "/host/owner",
+                        "MEMORY_DIR", "/host/memory"
                 ))
         );
 
@@ -901,6 +970,14 @@ class ContainerHubMountResolverTest {
                 .singleElement()
                 .extracting(ContainerHubMountResolver.MountSpec::hostPath)
                 .isEqualTo("/host/agents/atlas");
+        assertThat(mounts).filteredOn(mount -> "/owner".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo("/host/owner");
+        assertThat(mounts).filteredOn(mount -> "/memory".equals(mount.containerPath()))
+                .singleElement()
+                .extracting(ContainerHubMountResolver.MountSpec::hostPath)
+                .isEqualTo("/host/memory/atlas");
     }
 
     @Test
@@ -979,6 +1056,11 @@ class ContainerHubMountResolverTest {
             ProviderProperties providerProperties,
             RuntimeDirectoryHostPaths hostRuntimeDirOverrides
     ) {
+        try {
+            Files.createDirectories(tempDir.resolve("agents").resolve("flat-agent"));
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to prepare default test agent directory", ex);
+        }
         AgentProperties agentProperties = new AgentProperties();
         agentProperties.setExternalDir(tempDir.resolve("agents").toString());
 

@@ -535,6 +535,7 @@ class ContainerHubSandboxServiceTest {
         if (agentProperties == null) {
             resolvedAgentProperties.setExternalDir(createTempMountDir("container-hub-agents").toString());
         }
+        prepareDirectoryAgents(Path.of(resolvedAgentProperties.getExternalDir()));
 
         return new ContainerHubMountResolver(
                 new MountDirectoryConfig(
@@ -553,6 +554,20 @@ class ContainerHubSandboxServiceTest {
                 ),
                 hostRuntimeDirOverrides
         );
+    }
+
+    private void prepareDirectoryAgents(Path agentsRoot) {
+        if (agentsRoot == null) {
+            return;
+        }
+        try {
+            Files.createDirectories(agentsRoot);
+            for (String agentKey : List.of("sandbox-agent", "agent-a", "agent-b", "agent-destroy-test", "global-destroy-test")) {
+                Files.createDirectories(agentsRoot.resolve(agentKey));
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("failed to prepare directory agents for sandbox service test", ex);
+        }
     }
 
     private RuntimeDirectoryHostPaths hostRuntimeDirOverrides(Map<String, String> values) throws Exception {

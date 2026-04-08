@@ -816,9 +816,11 @@ default-environment-id: shell
 
 挂载模式规则：
 
-- 基础挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent` 默认自动存在，不需要在 `agent.yml` 中声明。
+- 基础挂载 `/workspace`、`/root`、`/skills`、`/pan`、`/agent`、`/owner`、`/memory` 默认自动存在，不需要在 `agent.yml` 中声明。
 - 对目录化 agent，`/skills` 在 `RUN/AGENT` 级别优先挂载 `agents/<agentKey>/skills`；只有本地 skills 不存在时才回落到共享 `skills-market`。
-- 默认模式为：`/workspace=rw`、`/root=rw`、`/skills=ro`、`/pan=rw`、`/agent=ro`。
+- `/owner` 默认挂载 `OWNER_DIR`；若目录不存在会自动创建空目录。
+- `/memory` 默认挂载 `MEMORY_DIR/<agentKey>`；若 agent memory 子目录不存在会自动创建空目录。当前它只表示沙箱可见的 agent memory 工作目录，不改变 runner 自身 central memory 的既有存储布局。
+- 默认模式为：`/workspace=rw`、`/root=rw`、`/skills=ro`、`/pan=rw`、`/agent=ro`、`/owner=ro`、`/memory=ro`。
 - 若需要修改基础挂载模式，继续使用 `sandboxConfig.extraMounts`，仅声明 `destination + mode` 即可覆盖默认模式。
 - 所有可选平台挂载和自定义挂载都必须显式声明 `mode: ro|rw`。
 
@@ -839,6 +841,8 @@ sandboxConfig:
       mode: ro
     - platform: owner
       mode: rw
+    - platform: memory
+      mode: rw
     - source: /abs/host/path
       destination: /datasets
       mode: ro
@@ -846,15 +850,18 @@ sandboxConfig:
       mode: rw
     - destination: /agent
       mode: rw
+    - destination: /owner
+      mode: rw
 ```
 
 说明：
 
 - `platform: tools/models/...` 表示恢复按需平台目录挂载，同时必须写 `mode`。
-- 现支持的额外平台简写包括：`models`、`tools`、`agents`、`viewports`、`viewport-servers`、`teams`、`schedules`、`mcp-servers`、`providers`、`chats`、`skills-market`、`owner`。
+- 现支持的额外平台简写包括：`models`、`tools`、`agents`、`viewports`、`viewport-servers`、`teams`、`schedules`、`mcp-servers`、`providers`、`chats`、`skills-market`、`owner`、`memory`。
 - `platform: skills-market` 会把共享 market 显式挂载到容器内 `/skills-market`，与默认 `/skills` 的 agent 本地 skills 语义区分开。
+- `platform: owner` 和 `platform: memory` 现在主要用于兼容旧配置或覆盖默认模式；若与默认挂载指向相同，不会新增第二个挂载。
 - `source + destination + mode` 表示新增一个自定义宿主目录挂载。
-- `destination: /skills` 或 `destination: /agent` 这类写法表示覆盖默认基础挂载模式，不新增第二个挂载。
+- `destination: /skills`、`/agent`、`/owner`、`/memory` 这类写法表示覆盖默认基础挂载模式，不新增第二个挂载。
 
 ## Bash 工具配置
 

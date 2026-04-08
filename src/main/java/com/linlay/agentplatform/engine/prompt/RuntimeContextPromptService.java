@@ -220,12 +220,12 @@ public class RuntimeContextPromptService {
         boolean hasSkillsDir = level == SandboxLevel.GLOBAL ? hasGlobalSkillsDir : (hasAgentSelfDir || hasGlobalSkillsDir);
         String skillsMarketMount = null;
 
-        String ownerMount = null;
+        String ownerMount = ownerDir == null ? null : "/owner";
         String agentsMount = null;
         String teamsMount = null;
         String schedulesMount = null;
         String chatsMount = null;
-        String memoryMount = null;
+        String memoryMount = definition == null || memoryDir == null ? null : SANDBOX_MEMORY_DIR;
         String modelsMount = null;
         String providersMount = null;
         String mcpServersMount = null;
@@ -246,7 +246,7 @@ public class RuntimeContextPromptService {
                     case "teams" -> teamsMount = teamsDir == null ? null : "/teams";
                     case "schedules" -> schedulesMount = schedulesDir == null ? null : "/schedules";
                     case "chats" -> chatsMount = chatsDir == null ? null : "/chats";
-                    case "memory" -> memoryMount = memoryDir == null ? null : SANDBOX_MEMORY_DIR;
+                    case "memory" -> memoryMount = definition == null || memoryDir == null ? null : SANDBOX_MEMORY_DIR;
                     case "models" -> modelsMount = modelsDir == null ? null : "/models";
                     case "providers" -> providersMount = providersDir == null ? null : "/providers";
                     case "mcp-servers" -> mcpServersMount = mcpServersDir == null ? null : "/mcp-servers";
