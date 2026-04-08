@@ -72,13 +72,9 @@ public class SystemContainerHubBash extends AbstractDeterministicTool implements
             return failureText(readError(response));
         }
         if (response != null && response.isTextual()) {
-            return textResult(0, response.asText(""), "", workingDirectory);
+            return response;
         }
-
-        int exitCode = response.path("exit_code").asInt(-1);
-        String stdout = response.path("stdout").asText("");
-        String stderr = response.path("stderr").asText("");
-        return textResult(exitCode, stdout, stderr, workingDirectory);
+        return response == null ? failureText("container-hub execute failed") : OBJECT_MAPPER.getNodeFactory().textNode(response.toString());
     }
 
     private JsonNode textResult(int exitCode, String stdout, String stderr, String workingDirectory) {

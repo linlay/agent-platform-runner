@@ -160,7 +160,7 @@ class ContainerHubClientTest {
     }
 
     @Test
-    void executeSessionShouldKeepBashErrorJsonResponseWhenContentTypeIsJson() {
+    void executeSessionShouldKeepRawJsonResponseWhenContentTypeIsJson() {
         RecordingHttpClient httpClient = new RecordingHttpClient();
         httpClient.register("/api/sessions/run-run1/execute", request -> new StubHttpResponse(
                 request,
@@ -175,10 +175,8 @@ class ContainerHubClientTest {
 
         JsonNode response = client.executeSession("run-run1", payload);
 
-        assertThat(response.isObject()).isTrue();
-        assertThat(response.path("exit_code").asInt()).isEqualTo(2);
-        assertThat(response.path("stdout").asText()).isEqualTo("partial output\n");
-        assertThat(response.path("stderr").asText()).isEqualTo("command failed\n");
+        assertThat(response.isTextual()).isTrue();
+        assertThat(response.asText()).isEqualTo("{\"exit_code\":2,\"stdout\":\"partial output\\n\",\"stderr\":\"command failed\\n\"}");
     }
 
     private ContainerHubToolProperties properties(String baseUrl) {

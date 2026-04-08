@@ -109,7 +109,9 @@ public class ContainerHubClient {
         long startedAt = System.currentTimeMillis();
         try {
             HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            JsonNode body = contentTypeAware ? parseBody(response) : parseJsonBody(response.body());
+            JsonNode body = contentTypeAware && response.statusCode() >= 200 && response.statusCode() < 300
+                    ? textBody(response.body())
+                    : (contentTypeAware ? parseBody(response) : parseJsonBody(response.body()));
             logResponse(operation, "POST", uri, response.statusCode(), System.currentTimeMillis() - startedAt, body, response.body());
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 return body;

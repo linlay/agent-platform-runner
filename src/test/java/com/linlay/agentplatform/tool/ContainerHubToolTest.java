@@ -69,12 +69,8 @@ class ContainerHubToolTest {
         assertThat(request.path("command").asText()).isEqualTo("/bin/sh");
         assertThat(request.path("args")).isEqualTo(objectMapper.valueToTree(List.of("-lc", "pwd && echo ok")));
         assertThat(request.path("cwd").asText()).isEqualTo("/workspace");
-        assertThat(result.asText()).contains("exitCode: 0");
-        assertThat(result.asText()).contains("mode: sandbox");
-        assertThat(result.asText()).contains("\"workingDirectory\": \"/workspace\"");
-        assertThat(result.asText()).contains("/workspace");
-        assertThat(result.asText()).contains("ok");
-        assertThat(result.asText()).contains("stderr:\n");
+        assertThat(result.isTextual()).isTrue();
+        assertThat(result.asText()).isEqualTo("/workspace\nok\n");
     }
 
     @Test
@@ -116,11 +112,8 @@ class ContainerHubToolTest {
 
         JsonNode result = tool.invoke(Map.of("command", "ls -la"), context);
 
-        assertThat(result.asText()).contains("exitCode: 17");
-        assertThat(result.asText()).contains("stdout:");
-        assertThat(result.asText()).contains("total 4");
-        assertThat(result.asText()).contains("stderr:");
-        assertThat(result.asText()).contains("permission denied");
+        assertThat(result.isTextual()).isTrue();
+        assertThat(result.asText()).isEqualTo("{\"session_id\":\"run-run1\",\"exit_code\":17,\"stdout\":\"total 4\\n\",\"stderr\":\"permission denied\\n\",\"timed_out\":false}\n");
     }
 
     @Test
